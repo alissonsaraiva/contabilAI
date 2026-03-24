@@ -6,10 +6,11 @@ import { NovoClienteDrawer } from '@/components/crm/novo-cliente-drawer'
 import { ClienteActionsMenu } from '@/components/crm/cliente-actions-menu'
 
 export default async function ClientesPage() {
-  const clientes = await prisma.cliente.findMany({
+  const raw = await prisma.cliente.findMany({
     orderBy: { criadoEm: 'desc' },
     include: { responsavel: { select: { nome: true } } },
   })
+  const clientes = raw.map((c) => ({ ...c, valorMensal: Number(c.valorMensal) }))
 
   return (
     <div className="space-y-6">

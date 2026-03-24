@@ -11,7 +11,8 @@ export function ConcluirTarefaBtn({ tarefaId }: Props) {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
 
-  async function handleClick() {
+  async function handleClick(e: React.MouseEvent) {
+    e.stopPropagation()
     if (done || loading) return
     setLoading(true)
     try {
@@ -33,7 +34,7 @@ export function ConcluirTarefaBtn({ tarefaId }: Props) {
 
   return (
     <button
-      onClick={handleClick}
+      onClick={(e) => handleClick(e)}
       disabled={loading || done}
       aria-label="Concluir tarefa"
       className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all

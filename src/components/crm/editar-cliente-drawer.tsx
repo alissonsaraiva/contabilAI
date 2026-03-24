@@ -38,7 +38,7 @@ export type ClienteEditData = {
   email: string
   telefone: string
   planoTipo: PlanoTipo
-  valorMensal: number | unknown
+  valorMensal: number
   vencimentoDia: number
   formaPagamento: FormaPagamento
   cnpj: string | null

@@ -6,7 +6,59 @@ on:
       - 'v*'
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.repo.outputs.name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login no ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalizar nome do repositório (lowercase)
+        id: repo
+        run: echo "name=$(echo 'ghcr.io/${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build e push — migrator
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: migrator
+          push: true
+          tags: ${{ steps.repo.outputs.name }}-migrate:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      - name: Build e push — app
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ steps.repo.outputs.name }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
 
     steps:
@@ -14,54 +66,44 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           DEPLOY_TAG: ${{ github.ref_name }}
+          GHCR_IMAGE: ${{ needs.build.outputs.image }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          command_timeout: 30m
+          command_timeout: 15m
           request_pty: true
-          envs: DEPLOY_TAG
+          envs: DEPLOY_TAG,GHCR_IMAGE,GHCR_TOKEN,GHCR_USER
           script: |
             set -e
             APP_DIR="/home/deploy/contabai"
-            git config --global --add safe.directory $APP_DIR
-            cd $APP_DIR
-
-            git fetch --tags origin
-            git reset --hard $DEPLOY_TAG
 
             # Backup do banco antes de qualquer alteração
             mkdir -p $APP_DIR/backups
             BACKUP_FILE="$APP_DIR/backups/db-${DEPLOY_TAG}-$(date +%Y%m%d-%H%M%S).sql"
             docker exec postgresql-4cnu-postgresql-1 pg_dump -U Mff5dGrSBI3NASY7 contabil_ia > "$BACKUP_FILE"
             echo "📦 Backup: $BACKUP_FILE"
-
-            # Manter 10 backups mais recentes
             ls -t $APP_DIR/backups/*.sql 2>/dev/null | tail -n +11 | xargs -r rm -f
 
-            # Build da imagem direto na VPS
-            docker builder prune --all -f
-            SENTRY_DSN="$(grep NEXT_PUBLIC_SENTRY_DSN .env | cut -d= -f2)"
-            SENTRY_TOKEN="$(grep SENTRY_AUTH_TOKEN .env | cut -d= -f2)"
+            # Pull das imagens já buildadas no CI (sem build na VPS)
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker pull ${GHCR_IMAGE}-migrate:${DEPLOY_TAG}
+            docker pull ${GHCR_IMAGE}:${DEPLOY_TAG}
 
-            docker build \
-              --build-arg NEXT_PUBLIC_SENTRY_DSN="$SENTRY_DSN" \
-              --build-arg SENTRY_AUTH_TOKEN="$SENTRY_TOKEN" \
-              --target migrator -t contabai-migrate:latest .
+            # Re-tag para o nome que o docker-compose.yml espera
+            docker tag ${GHCR_IMAGE}:${DEPLOY_TAG} contabai:latest
 
-            docker build \
-              --build-arg NEXT_PUBLIC_SENTRY_DSN="$SENTRY_DSN" \
-              --build-arg SENTRY_AUTH_TOKEN="$SENTRY_TOKEN" \
-              --target runner -t contabai:latest .
-
-            # Roda migrations do Prisma (usando stage dedicado com node_modules completo)
-            source .env && docker run --rm \
+            # Roda migrations
+            source $APP_DIR/.env && docker run --rm \
               --network contabil_net \
               -e DATABASE_URL="$DATABASE_URL" \
-              contabai-migrate:latest
+              ${GHCR_IMAGE}-migrate:${DEPLOY_TAG}
 
-            # Sobe sem derrubar outros containers
+            # Sobe o app sem derrubar outros containers
+            cd $APP_DIR
             docker compose up -d --no-deps app
 
             # Limpa imagens antigas

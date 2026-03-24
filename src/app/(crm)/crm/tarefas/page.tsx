@@ -132,10 +132,7 @@ export default async function TarefasPage({ searchParams }: Props) {
                   <div className={`absolute left-0 top-0 h-full w-1 ${overdue ? 'bg-error' : cfg.bar}`} />
 
                   <div className="flex gap-4">
-                    {/* Checkbox — stop propagation so it doesn't open the drawer */}
-                    <div onClick={e => e.stopPropagation()}>
-                      <ConcluirTarefaBtn tarefaId={t.id} />
-                    </div>
+                    <ConcluirTarefaBtn tarefaId={t.id} />
 
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-start justify-between gap-3">
