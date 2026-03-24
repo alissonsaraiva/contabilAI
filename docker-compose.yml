@@ -1,0 +1,36 @@
+# docker-compose.yml — usado na VPS Hostinger para orquestrar a aplicação
+# O PostgreSQL e n8n têm seus próprios compose separados na VPS
+
+services:
+  app:
+    image: contabai:latest
+    container_name: contabai_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLICKSIGN_API_KEY: ${CLICKSIGN_API_KEY}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY}
+      STORAGE_BUCKET_NAME: ${STORAGE_BUCKET_NAME}
+      STORAGE_PUBLIC_URL: ${STORAGE_PUBLIC_URL}
+      STORAGE_REGION: ${STORAGE_REGION}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
+    networks:
+      - contabil_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.contabai.rule=Host(`contabai.com.br`) || Host(`www.contabai.com.br`) || Host(`crm.contabai.com.br`)"
+      - "traefik.http.routers.contabai.entrypoints=websecure"
+      - "traefik.http.routers.contabai.tls.certresolver=letsencrypt"
+      - "traefik.http.services.contabai.loadbalancer.server.port=3000"
+
+networks:
+  contabil_net:
+    external: true

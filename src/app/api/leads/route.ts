@@ -1,0 +1,40 @@
+import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const createSchema = z.object({
+  contatoEntrada: z.string().min(5),
+  canal: z.enum(['site', 'whatsapp', 'indicacao', 'instagram', 'google', 'outro']).default('site'),
+  utmSource: z.string().optional(),
+  utmMedium: z.string().optional(),
+  utmCampaign: z.string().optional(),
+})
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const page = Number(searchParams.get('page') ?? '1')
+  const pageSize = Number(searchParams.get('pageSize') ?? '20')
+
+  const [items, total] = await Promise.all([
+    prisma.lead.findMany({
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: { criadoEm: 'desc' },
+      include: { responsavel: { select: { id: true, nome: true } } },
+    }),
+    prisma.lead.count(),
+  ])
+
+  return NextResponse.json({ items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
+}
+
+export async function POST(req: Request) {
+  const body = await req.json()
+  const parsed = createSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const lead = await prisma.lead.create({ data: parsed.data })
+  return NextResponse.json(lead, { status: 201 })
+}

@@ -1,13 +1,359 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum TipoUsuario {
+  admin
+  contador
+  assistente
+}
+
+enum PlanoTipo {
+  essencial
+  profissional
+  empresarial
+  startup
+}
+
+enum FormaPagamento {
+  pix
+  boleto
+  cartao
+}
+
+enum StatusLead {
+  iniciado
+  simulador
+  plano_escolhido
+  dados_preenchidos
+  socios_preenchidos
+  revisao
+  contrato_gerado
+  aguardando_assinatura
+  assinado
+  expirado
+  cancelado
+}
+
+enum StatusCliente {
+  ativo
+  inadimplente
+  suspenso
+  cancelado
+  encerrado
+}
+
+enum StatusContrato {
+  rascunho
+  enviado
+  aguardando_assinatura
+  parcialmente_assinado
+  assinado
+  cancelado
+  expirado
+}
+
+enum Regime {
+  MEI
+  SimplesNacional
+  LucroPresumido
+  LucroReal
+  Autonomo
+}
+
+enum Prioridade {
+  baixa
+  media
+  alta
+  urgente
+}
+
+enum StatusTarefa {
+  pendente
+  em_andamento
+  aguardando_cliente
+  concluida
+  cancelada
+}
+
+enum Canal {
+  site
+  whatsapp
+  indicacao
+  instagram
+  google
+  outro
+}
+
+enum TipoInteracao {
+  whatsapp_enviado
+  email_enviado
+  ligacao
+  nota_interna
+  status_mudou
+  contrato_gerado
+  contrato_assinado
+  documento_enviado
+  tarefa_criada
+  cliente_ativado
+}
+
+model Usuario {
+  id            String      @id @default(uuid())
+  nome          String
+  email         String      @unique
+  senhaHash     String
+  tipo          TipoUsuario @default(assistente)
+  ativo         Boolean     @default(true)
+  avatar        String?
+  criadoEm      DateTime    @default(now())
+  atualizadoEm  DateTime    @updatedAt
+
+  leadsResponsavel    Lead[]        @relation("LeadResponsavel")
+  clientesResponsavel Cliente[]     @relation("ClienteResponsavel")
+  tarefas             Tarefa[]      @relation("TarefaResponsavel")
+  interacoes          Interacao[]
+  notificacoes        Notificacao[]
+
+  @@map("usuarios")
+}
+
+model Plano {
+  id          String    @id @default(uuid())
+  tipo        PlanoTipo @unique
+  nome        String
+  descricao   String?
+  valorMinimo Decimal   @db.Decimal(10, 2)
+  valorMaximo Decimal   @db.Decimal(10, 2)
+  servicos    Json?
+  destaque    Boolean   @default(false)
+  ativo       Boolean   @default(true)
+  criadoEm    DateTime  @default(now())
+
+  @@map("planos")
+}
+
+model Lead {
+  id             String          @id @default(uuid())
+  contatoEntrada String
+  canal          Canal           @default(site)
+  status         StatusLead      @default(iniciado)
+  stepAtual      Int             @default(1)
+  planoTipo      PlanoTipo?
+  valorNegociado Decimal?        @db.Decimal(10, 2)
+  vencimentoDia  Int?
+  formaPagamento FormaPagamento?
+  dadosJson      Json?
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  responsavelId  String?
+  responsavel    Usuario?        @relation("LeadResponsavel", fields: [responsavelId], references: [id])
+  observacoes    String?         @db.Text
+  criadoEm      DateTime        @default(now())
+  atualizadoEm  DateTime        @updatedAt
+  expiradoEm    DateTime?
+
+  contrato   Contrato?
+  documentos Documento[]
+  interacoes Interacao[]
+  cliente    Cliente?
+
+  @@map("leads")
+}
+
+model Cliente {
+  id                  String          @id @default(uuid())
+  leadId              String?         @unique
+  lead                Lead?           @relation(fields: [leadId], references: [id])
+  nome                String
+  cpf                 String          @unique
+  rg                  String?
+  dataNascimento      DateTime?
+  estadoCivil         String?
+  profissao           String?
+  nacionalidade       String?         @default("Brasileiro(a)")
+  email               String          @unique
+  telefone            String
+  whatsapp            String?
+  cep                 String?
+  logradouro          String?
+  numero              String?
+  complemento         String?
+  bairro              String?
+  cidade              String?
+  uf                  String?
+  cnpj                String?         @unique
+  razaoSocial         String?
+  nomeFantasia        String?
+  regime              Regime?
+  planoTipo           PlanoTipo
+  valorMensal         Decimal         @db.Decimal(10, 2)
+  vencimentoDia       Int
+  formaPagamento      FormaPagamento
+  status              StatusCliente   @default(ativo)
+  responsavelId       String?
+  responsavel         Usuario?        @relation("ClienteResponsavel", fields: [responsavelId], references: [id])
+  observacoesInternas String?         @db.Text
+  tags                Json?
+  dataInicio          DateTime?
+  criadoEm            DateTime        @default(now())
+  atualizadoEm        DateTime        @updatedAt
+
+  socios     Socio[]
+  documentos Documento[]
+  contratos  Contrato[]
+  tarefas    Tarefa[]
+  interacoes Interacao[]
+
+  @@map("clientes")
+}
+
+model Socio {
+  id           String   @id @default(uuid())
+  clienteId    String
+  cliente      Cliente  @relation(fields: [clienteId], references: [id])
+  nome         String
+  cpf          String
+  qualificacao String?
+  participacao Decimal? @db.Decimal(5, 2)
+  email        String?
+  telefone     String?
+  principal    Boolean  @default(false)
+  criadoEm    DateTime @default(now())
+
+  @@map("socios")
+}
+
+model Documento {
+  id         String   @id @default(uuid())
+  clienteId  String?
+  cliente    Cliente? @relation(fields: [clienteId], references: [id])
+  leadId     String?
+  lead       Lead?    @relation(fields: [leadId], references: [id])
+  tipo       String
+  nome       String
+  url        String
+  tamanho    Int?
+  mimeType   String?
+  status     String   @default("pendente")
+  observacao String?
+  criadoEm  DateTime @default(now())
+
+  @@map("documentos")
+}
+
+model Contrato {
+  id               String         @id @default(uuid())
+  leadId           String         @unique
+  lead             Lead           @relation(fields: [leadId], references: [id])
+  clienteId        String?
+  cliente          Cliente?       @relation(fields: [clienteId], references: [id])
+  clicksignKey     String?        @unique
+  clicksignUrl     String?
+  clicksignSignUrl String?
+  status           StatusContrato @default(rascunho)
+  planoTipo        PlanoTipo
+  valorMensal      Decimal        @db.Decimal(10, 2)
+  vencimentoDia    Int
+  formaPagamento   FormaPagamento
+  pdfUrl           String?
+  dadosSnapshot    Json?
+  geradoEm        DateTime?
+  enviadoEm       DateTime?
+  assinadoEm      DateTime?
+  expiradoEm      DateTime?
+  criadoEm        DateTime       @default(now())
+
+  @@map("contratos")
+}
+
+model Tarefa {
+  id            String       @id @default(uuid())
+  titulo        String
+  descricao     String?      @db.Text
+  clienteId     String?
+  cliente       Cliente?     @relation(fields: [clienteId], references: [id])
+  responsavelId String?
+  responsavel   Usuario?     @relation("TarefaResponsavel", fields: [responsavelId], references: [id])
+  status        StatusTarefa @default(pendente)
+  prioridade    Prioridade   @default(media)
+  prazo         DateTime?
+  concluidaEm  DateTime?
+  criadoEm     DateTime     @default(now())
+  atualizadoEm DateTime     @updatedAt
+
+  @@map("tarefas")
+}
+
+model Interacao {
+  id         String        @id @default(uuid())
+  clienteId  String?
+  cliente    Cliente?      @relation(fields: [clienteId], references: [id])
+  leadId     String?
+  lead       Lead?         @relation(fields: [leadId], references: [id])
+  usuarioId  String?
+  usuario    Usuario?      @relation(fields: [usuarioId], references: [id])
+  tipo       TipoInteracao
+  titulo     String?
+  conteudo   String?       @db.Text
+  metadados  Json?
+  criadoEm  DateTime      @default(now())
+
+  @@map("interacoes")
+}
+
+model Notificacao {
+  id         String   @id @default(uuid())
+  usuarioId  String
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
+  tipo       String
+  titulo     String
+  mensagem   String?
+  url        String?
+  lida       Boolean  @default(false)
+  metadados  Json?
+  criadoEm  DateTime @default(now())
+
+  @@map("notificacoes")
+}
+
+model Escritorio {
+  id               String   @id @default(uuid())
+  nome             String   @default("ContabAI")
+  nomeFantasia     String?
+  logoUrl          String?
+  faviconUrl       String?
+  corPrimaria      String?  @default("#6366f1")
+  corSecundaria    String?  @default("#8b5cf6")
+  fraseBemVindo    String?
+  metaDescricao    String?
+  cnpj             String?
+  crc              String?
+  email            String?
+  telefone         String?
+  whatsapp         String?
+  cep              String?
+  logradouro       String?
+  numero           String?
+  complemento      String?
+  bairro           String?
+  cidade           String?
+  uf               String?
+  clicksignKey     String?
+  zapiInstanceId   String?
+  zapiToken        String?
+  serproCpfToken   String?
+  serproCnpjToken  String?
+  contratoTemplate String?  @db.Text
+  ativo            Boolean  @default(true)
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+
+  @@map("escritorio")
 }

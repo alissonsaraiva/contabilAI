@@ -1,0 +1,27 @@
+import { prisma } from '@/lib/prisma'
+import { cache } from 'react'
+
+export const getEscritorioConfig = cache(async () => {
+  const escritorio = await prisma.escritorio.findFirst()
+  if (!escritorio) {
+    return {
+      id: 'singleton',
+      nome: process.env.NEXT_PUBLIC_APP_NAME ?? 'ContabAI',
+      nomeFantasia: null,
+      logoUrl: null,
+      faviconUrl: null,
+      corPrimaria: '#6366f1',
+      corSecundaria: '#8b5cf6',
+      fraseBemVindo: 'Bem-vindo! Vamos cuidar da sua contabilidade.',
+      metaDescricao: 'Contabilidade digital com IA.',
+      cnpj: null,
+      crc: null,
+      email: null,
+      telefone: null,
+      whatsapp: null,
+      cidade: null,
+      uf: null,
+    }
+  }
+  return escritorio
+})
