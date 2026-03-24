@@ -22,7 +22,7 @@ type Tarefa = {
   titulo: string
   descricao: string | null
   prioridade: Prioridade
-  prazo: Date | null
+  prazo: string | null
   clienteId: string | null
   cliente: { nome: string } | null
 }
@@ -39,7 +39,7 @@ export function EditarTarefaDrawer({ tarefa, clientes, children }: Props) {
     titulo: tarefa.titulo,
     descricao: tarefa.descricao ?? '',
     prioridade: tarefa.prioridade,
-    prazo: tarefa.prazo ? new Date(tarefa.prazo).toISOString().split('T')[0] : '',
+    prazo: tarefa.prazo ? tarefa.prazo.split('T')[0] : '',
     clienteId: tarefa.clienteId ?? '',
   })
 

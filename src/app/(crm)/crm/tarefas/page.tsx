@@ -125,8 +125,17 @@ export default async function TarefasPage({ searchParams }: Props) {
             const cfg = PRIORIDADE_CONFIG[t.prioridade]
             const overdue = isOverdue(t.prazo)
             const today = isToday(t.prazo)
+            const tarefaSerial = {
+              id: t.id,
+              titulo: t.titulo,
+              descricao: t.descricao,
+              prioridade: t.prioridade,
+              prazo: t.prazo ? t.prazo.toISOString() : null,
+              clienteId: t.clienteId,
+              cliente: t.cliente,
+            }
             return (
-              <EditarTarefaDrawer key={t.id} tarefa={t} clientes={clientes}>
+              <EditarTarefaDrawer key={t.id} tarefa={tarefaSerial} clientes={clientes}>
                 <div className="group relative cursor-pointer overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm transition-all hover:bg-surface-container-low/30 hover:border-outline-variant/30">
                   {/* Left color bar */}
                   <div className={`absolute left-0 top-0 h-full w-1 ${overdue ? 'bg-error' : cfg.bar}`} />
