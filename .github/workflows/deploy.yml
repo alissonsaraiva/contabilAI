@@ -24,37 +24,45 @@ jobs:
           envs: DEPLOY_TAG
           script: |
             set -e
-            git config --global --add safe.directory /opt/contabai
-            cd /opt/contabai
+            APP_DIR="/home/deploy/contabai"
+            git config --global --add safe.directory $APP_DIR
+            cd $APP_DIR
 
             git fetch --tags origin
             git reset --hard $DEPLOY_TAG
 
             # Backup do banco antes de qualquer alteração
-            mkdir -p /opt/contabai/backups
-            BACKUP_FILE="/opt/contabai/backups/db-${DEPLOY_TAG}-$(date +%Y%m%d-%H%M%S).sql"
+            mkdir -p $APP_DIR/backups
+            BACKUP_FILE="$APP_DIR/backups/db-${DEPLOY_TAG}-$(date +%Y%m%d-%H%M%S).sql"
             docker exec postgresql-4cnu-postgresql-1 pg_dump -U Mff5dGrSBI3NASY7 contabil_ia > "$BACKUP_FILE"
             echo "📦 Backup: $BACKUP_FILE"
 
             # Manter 10 backups mais recentes
-            ls -t /opt/contabai/backups/*.sql 2>/dev/null | tail -n +11 | xargs -r rm -f
+            ls -t $APP_DIR/backups/*.sql 2>/dev/null | tail -n +11 | xargs -r rm -f
 
             # Build da imagem direto na VPS
             docker builder prune --all -f
+            SENTRY_DSN="$(grep NEXT_PUBLIC_SENTRY_DSN .env | cut -d= -f2)"
+            SENTRY_TOKEN="$(grep SENTRY_AUTH_TOKEN .env | cut -d= -f2)"
+
             docker build \
-              --build-arg NEXT_PUBLIC_SENTRY_DSN="$(grep NEXT_PUBLIC_SENTRY_DSN .env | cut -d= -f2)" \
-              --build-arg SENTRY_AUTH_TOKEN="$(grep SENTRY_AUTH_TOKEN .env | cut -d= -f2)" \
-              -t contabai:latest .
+              --build-arg NEXT_PUBLIC_SENTRY_DSN="$SENTRY_DSN" \
+              --build-arg SENTRY_AUTH_TOKEN="$SENTRY_TOKEN" \
+              --target migrator -t contabai-migrate:latest .
 
-            # Sobe sem derrubar outros containers
-            docker compose up -d --no-deps app
+            docker build \
+              --build-arg NEXT_PUBLIC_SENTRY_DSN="$SENTRY_DSN" \
+              --build-arg SENTRY_AUTH_TOKEN="$SENTRY_TOKEN" \
+              --target runner -t contabai:latest .
 
-            # Roda migrations do Prisma
+            # Roda migrations do Prisma (usando stage dedicado com node_modules completo)
             source .env && docker run --rm \
               --network contabil_net \
               -e DATABASE_URL="$DATABASE_URL" \
-              contabai:latest \
-              sh -c "node -e \"require('./node_modules/.bin/prisma') && process.exit(0)\" 2>/dev/null || npx prisma migrate deploy"
+              contabai-migrate:latest
+
+            # Sobe sem derrubar outros containers
+            docker compose up -d --no-deps app
 
             # Limpa imagens antigas
             docker image prune -f

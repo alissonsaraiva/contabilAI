@@ -26,10 +26,10 @@ services:
       - contabil_net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.contabai.rule=Host(`contabai.com.br`) || Host(`www.contabai.com.br`) || Host(`crm.contabai.com.br`)"
+      - "traefik.http.routers.contabai.rule=Host(`srv1524170.hstgr.cloud`)"
       - "traefik.http.routers.contabai.entrypoints=websecure"
       - "traefik.http.routers.contabai.tls.certresolver=letsencrypt"
-      - "traefik.http.services.contabai.loadbalancer.server.port=3000"
+      - "traefik.http.services.contabai.loadbalancer.server.url=http://127.0.0.1:3000"
 
 networks:
   contabil_net:
