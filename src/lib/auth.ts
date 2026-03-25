@@ -33,6 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: usuario.nome,
           email: usuario.email,
           tipo: usuario.tipo,
+          precisaTrocarSenha: usuario.precisaTrocarSenha,
         }
       },
     }),
@@ -42,6 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.tipo = (user as any).tipo
         token.id = user.id
+        token.precisaTrocarSenha = (user as any).precisaTrocarSenha
       }
       return token
     },
@@ -49,6 +51,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         ;(session.user as any).tipo = token.tipo
         ;(session.user as any).id = token.id
+        ;(session.user as any).precisaTrocarSenha = token.precisaTrocarSenha
       }
       return session
     },

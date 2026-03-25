@@ -104,15 +104,16 @@ enum TipoInteracao {
 }
 
 model Usuario {
-  id            String      @id @default(uuid())
-  nome          String
-  email         String      @unique
-  senhaHash     String
-  tipo          TipoUsuario @default(assistente)
-  ativo         Boolean     @default(true)
-  avatar        String?
-  criadoEm      DateTime    @default(now())
-  atualizadoEm  DateTime    @updatedAt
+  id                 String      @id @default(uuid())
+  nome               String
+  email              String      @unique
+  senhaHash          String
+  tipo               TipoUsuario @default(assistente)
+  ativo              Boolean     @default(true)
+  precisaTrocarSenha Boolean     @default(false)
+  avatar             String?
+  criadoEm           DateTime    @default(now())
+  atualizadoEm       DateTime    @updatedAt
 
   leadsResponsavel    Lead[]        @relation("LeadResponsavel")
   clientesResponsavel Cliente[]     @relation("ClienteResponsavel")

@@ -10,6 +10,7 @@ const patchSchema = z.object({
   tipo: z.enum(['admin', 'contador', 'assistente']).optional(),
   ativo: z.boolean().optional(),
   nome: z.string().min(2).optional(),
+  email: z.string().email().optional(),
   senha: z.string().min(6).optional(),
 })
 

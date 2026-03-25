@@ -7,6 +7,7 @@ export const { auth } = NextAuth({
       if (user) {
         token.tipo = (user as any).tipo
         token.id = user.id
+        token.precisaTrocarSenha = (user as any).precisaTrocarSenha
       }
       return token
     },
@@ -14,6 +15,7 @@ export const { auth } = NextAuth({
       if (session.user) {
         ;(session.user as any).tipo = token.tipo
         ;(session.user as any).id = token.id
+        ;(session.user as any).precisaTrocarSenha = token.precisaTrocarSenha
       }
       return session
     },

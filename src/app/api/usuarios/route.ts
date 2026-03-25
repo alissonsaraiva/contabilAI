@@ -7,9 +7,15 @@ import bcrypt from 'bcryptjs'
 const createSchema = z.object({
   nome: z.string().min(2, 'Nome obrigatório'),
   email: z.string().email('E-mail inválido'),
-  senha: z.string().min(6, 'Senha mínima de 6 caracteres'),
   tipo: z.enum(['admin', 'contador', 'assistente']).default('assistente'),
 })
+
+function gerarSenhaAleatoria(): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#'
+  const array = new Uint8Array(12)
+  crypto.getRandomValues(array)
+  return Array.from(array).map(b => chars[b % chars.length]).join('')
+}
 
 export async function GET() {
   const session = await auth()
@@ -37,7 +43,8 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
-  const senhaHash = await bcrypt.hash(parsed.data.senha, 12)
+  const senhaGerada = gerarSenhaAleatoria()
+  const senhaHash = await bcrypt.hash(senhaGerada, 12)
 
   try {
     const usuario = await prisma.usuario.create({
@@ -46,10 +53,11 @@ export async function POST(req: Request) {
         email: parsed.data.email,
         senhaHash,
         tipo: parsed.data.tipo,
+        precisaTrocarSenha: true,
       },
       select: { id: true, nome: true, email: true, tipo: true, ativo: true, criadoEm: true },
     })
-    return NextResponse.json(usuario, { status: 201 })
+    return NextResponse.json({ ...usuario, senhaGerada }, { status: 201 })
   } catch (e: any) {
     if (e.code === 'P2002') {
       return NextResponse.json({ error: 'E-mail já cadastrado' }, { status: 409 })
