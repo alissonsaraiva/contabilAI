@@ -35,6 +35,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
+  // Retoma lead existente se o mesmo contato já iniciou o onboarding
+  const existing = await prisma.lead.findFirst({
+    where: {
+      contatoEntrada: parsed.data.contatoEntrada,
+      status: { notIn: ['cancelado', 'expirado'] },
+    },
+    orderBy: { criadoEm: 'desc' },
+  })
+
+  if (existing) {
+    return NextResponse.json({ ...existing, resumed: true }, { status: 200 })
+  }
+
   const lead = await prisma.lead.create({ data: parsed.data })
-  return NextResponse.json(lead, { status: 201 })
+  return NextResponse.json({ ...lead, resumed: false }, { status: 201 })
 }

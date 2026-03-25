@@ -18,6 +18,27 @@ function isPhone(v: string) {
   return /^[\d\s()\-+]+$/.test(v) && !/[@a-zA-Z]/.test(v)
 }
 
+type LeadResponse = {
+  id: string
+  status: string
+  resumed: boolean
+}
+
+function getResumeUrl(lead: LeadResponse): string {
+  if (lead.status === 'assinado') return `/onboarding/confirmacao?leadId=${lead.id}`
+  const byStatus: Record<string, string> = {
+    iniciado: `/onboarding/simulador?leadId=${lead.id}`,
+    simulador: `/onboarding/plano?leadId=${lead.id}`,
+    plano_escolhido: `/onboarding/dados?leadId=${lead.id}`,
+    dados_preenchidos: `/onboarding/revisao?leadId=${lead.id}`,
+    socios_preenchidos: `/onboarding/revisao?leadId=${lead.id}`,
+    revisao: `/onboarding/contrato?leadId=${lead.id}`,
+    contrato_gerado: `/onboarding/contrato?leadId=${lead.id}`,
+    aguardando_assinatura: `/onboarding/contrato?leadId=${lead.id}`,
+  }
+  return byStatus[lead.status] ?? `/onboarding/simulador?leadId=${lead.id}`
+}
+
 export default function OnboardingEntrada() {
   const router = useRouter()
   const [contato, setContato] = useState('')
@@ -35,8 +56,8 @@ export default function OnboardingEntrada() {
 
   function validate() {
     const isEmail = /\S+@\S+\.\S+/.test(contato)
-    const isPhone = /^\d{10,11}$/.test(contato.replace(/\D/g, ''))
-    if (!isEmail && !isPhone) {
+    const isPhoneVal = /^\d{10,11}$/.test(contato.replace(/\D/g, ''))
+    if (!isEmail && !isPhoneVal) {
       setErro('Informe um e-mail ou WhatsApp válido')
       return false
     }
@@ -56,8 +77,17 @@ export default function OnboardingEntrada() {
         body: JSON.stringify({ contatoEntrada: contato.trim(), canal: 'site' }),
       })
       if (!res.ok) throw new Error()
-      const lead = await res.json()
-      router.push(`/onboarding/simulador?leadId=${lead.id}`)
+      const lead: LeadResponse = await res.json()
+
+      if (lead.resumed) {
+        if (lead.status === 'assinado') {
+          toast.success('Contrato já assinado! Redirecionando...')
+        } else {
+          toast.success('Bem-vindo de volta! Continuando de onde parou.')
+        }
+      }
+
+      router.push(getResumeUrl(lead))
     } catch {
       toast.error('Erro ao iniciar. Tente novamente.')
     } finally {
