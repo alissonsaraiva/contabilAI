@@ -20,7 +20,7 @@ export default function ConfirmacaoPage({ searchParams }: Props) {
     fetch(`/api/leads/${leadId}`)
       .then(r => r.json())
       .then((data: { contrato?: { pdfUrl?: string } }) => {
-        if (data.contrato?.pdfUrl) setPdfUrl(data.contrato.pdfUrl)
+        if (data.contrato?.pdfUrl) setPdfUrl(`/api/leads/${leadId}/contrato/download`)
       })
       .catch(() => {})
   }, [leadId])

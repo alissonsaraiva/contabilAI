@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
@@ -39,6 +40,14 @@ export async function getUploadUrl(key: string, contentType: string): Promise<st
     ContentType: contentType,
   })
   return getSignedUrl(storage, command, { expiresIn: 300 })
+}
+
+export async function getDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: process.env.STORAGE_BUCKET_NAME,
+    Key: key,
+  })
+  return getSignedUrl(storage, command, { expiresIn })
 }
 
 export async function deletarArquivo(key: string): Promise<void> {
