@@ -97,10 +97,10 @@ jobs:
             docker tag ${GHCR_IMAGE}:${DEPLOY_TAG} contabai:latest
 
             # Roda migrations
-            set -a; source $APP_DIR/.env; set +a
+            DB_URL=$(grep '^DATABASE_URL=' "$APP_DIR/.env" | cut -d= -f2- | sed 's/^["'"'"']//;s/["'"'"']$//')
             docker run --rm \
               --network contabil_net \
-              -e DATABASE_URL="$DATABASE_URL" \
+              -e DATABASE_URL="$DB_URL" \
               ${GHCR_IMAGE}-migrate:${DEPLOY_TAG}
 
             # Sobe o app sem derrubar outros containers
