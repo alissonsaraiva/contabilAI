@@ -7,6 +7,7 @@ import { AvancarEtapaBtn } from '@/components/crm/avancar-etapa-btn'
 import { EditarLeadDrawer } from '@/components/crm/editar-lead-drawer'
 import { CopyFieldButton } from '@/components/crm/copy-field-button'
 import { HistoricoList } from '@/components/crm/historico-list'
+import { IniciarOnboardingBtn } from '@/components/crm/iniciar-onboarding-btn'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -28,6 +29,7 @@ export default async function LeadDetailPage({ params }: Props) {
   const dadosJson = lead.dadosJson as Record<string, string> | null
   const nomeExibido = dadosJson?.['Nome completo'] ?? lead.contatoEntrada
   const ref = `LEAD-${lead.criadoEm.getFullYear()}-${id.slice(-4).toUpperCase()}`
+  const isProspecto = (lead as Record<string, unknown>)['funil'] === 'prospeccao'
 
   return (
     <div className="space-y-8">
@@ -37,11 +39,11 @@ export default async function LeadDetailPage({ params }: Props) {
           {/* Back + reference */}
           <div className="flex items-center gap-3">
             <Link
-              href="/crm/leads"
+              href={isProspecto ? '/crm/prospeccao' : '/crm/leads'}
               className="flex items-center gap-1 text-sm font-semibold text-primary hover:opacity-80"
             >
               <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-              Pipeline
+              {isProspecto ? 'Prospecção' : 'Onboarding'}
             </Link>
             <span className="text-on-surface-variant/30">·</span>
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
@@ -61,6 +63,10 @@ export default async function LeadDetailPage({ params }: Props) {
               <span className="h-1.5 w-1.5 rounded-full bg-green-status" />
               Ativo
             </span>
+            <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${isProspecto ? 'bg-orange-status/10 text-orange-status' : 'bg-primary/10 text-primary'}`}>
+              <span className="material-symbols-outlined text-[12px]">{isProspecto ? 'contact_phone' : 'rocket_launch'}</span>
+              {isProspecto ? 'Prospecção' : 'Onboarding'}
+            </span>
             <span className="inline-flex items-center gap-1 rounded-md bg-surface-container px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
               <span className="material-symbols-outlined text-[12px]">ads_click</span>
               {CANAL_LABELS[lead.canal]}
@@ -77,9 +83,12 @@ export default async function LeadDetailPage({ params }: Props) {
         </div>
 
         {/* Actions */}
-        <div className="flex shrink-0 gap-3">
+        <div className="flex shrink-0 flex-wrap gap-3">
           <EditarLeadDrawer lead={lead} />
-          <AvancarEtapaBtn leadId={lead.id} />
+          {isProspecto
+            ? <IniciarOnboardingBtn leadId={lead.id} />
+            : <AvancarEtapaBtn leadId={lead.id} />
+          }
         </div>
       </div>
 

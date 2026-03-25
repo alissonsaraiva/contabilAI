@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getAiConfig } from '@/lib/ai/config'
 
-// Modelos fixos por provider (fallback e base)
 const CLAUDE_MODELS = [
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — rápido e econômico' },
   { value: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6 — melhor custo-benefício' },
@@ -24,7 +23,6 @@ const GOOGLE_MODELS = [
   { value: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro — mais capaz' },
 ]
 
-// Tenta buscar modelos dinamicamente da OpenAI (ou compatível)
 async function fetchOpenAIModels(baseUrl: string, apiKey: string) {
   try {
     const url = `${baseUrl.replace(/\/$/, '')}/models`
@@ -45,7 +43,6 @@ async function fetchOpenAIModels(baseUrl: string, apiKey: string) {
   }
 }
 
-// Tenta buscar modelos do Google Gemini
 async function fetchGoogleModels(apiKey: string) {
   try {
     const res = await fetch(
@@ -80,26 +77,27 @@ export async function GET() {
 
   const config = await getAiConfig()
 
-  if (config.provider === 'claude') {
-    return NextResponse.json({ provider: 'claude', models: CLAUDE_MODELS, dynamic: false })
-  }
+  // Claude — always available (uses hardcoded models)
+  const claudeResult = { models: CLAUDE_MODELS, configured: !!config.anthropicApiKey, dynamic: false }
 
-  if (config.provider === 'openai') {
-    if (config.openaiApiKey) {
-      const baseUrl = config.openaiBaseUrl ?? 'https://api.openai.com/v1'
-      const dynamic = await fetchOpenAIModels(baseUrl, config.openaiApiKey)
-      if (dynamic) return NextResponse.json({ provider: 'openai', models: dynamic, dynamic: true })
-    }
-    return NextResponse.json({ provider: 'openai', models: OPENAI_MODELS, dynamic: false })
+  // OpenAI — try dynamic fetch if key configured
+  let openaiModels = OPENAI_MODELS
+  let openaiDynamic = false
+  if (config.openaiApiKey) {
+    const baseUrl = config.openaiBaseUrl ?? 'https://api.openai.com/v1'
+    const dynamic = await fetchOpenAIModels(baseUrl, config.openaiApiKey)
+    if (dynamic) { openaiModels = dynamic; openaiDynamic = true }
   }
+  const openaiResult = { models: openaiModels, configured: !!config.openaiApiKey, dynamic: openaiDynamic }
 
-  if (config.provider === 'google') {
-    if (config.googleApiKey) {
-      const dynamic = await fetchGoogleModels(config.googleApiKey)
-      if (dynamic) return NextResponse.json({ provider: 'google', models: dynamic, dynamic: true })
-    }
-    return NextResponse.json({ provider: 'google', models: GOOGLE_MODELS, dynamic: false })
+  // Google — try dynamic fetch if key configured
+  let googleModels = GOOGLE_MODELS
+  let googleDynamic = false
+  if (config.googleApiKey) {
+    const dynamic = await fetchGoogleModels(config.googleApiKey)
+    if (dynamic) { googleModels = dynamic; googleDynamic = true }
   }
+  const googleResult = { models: googleModels, configured: !!config.googleApiKey, dynamic: googleDynamic }
 
-  return NextResponse.json({ provider: config.provider, models: [], dynamic: false })
+  return NextResponse.json({ claude: claudeResult, openai: openaiResult, google: googleResult })
 }

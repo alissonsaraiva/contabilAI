@@ -17,11 +17,16 @@ export async function GET(req: Request) {
   const canal  = searchParams.get('canal') as CanalRAG | null
   const tipoFilter = searchParams.get('tipo') as TipoConhecimento | null
 
-  const entries = await listKnowledge({
-    canal:  canal  ?? undefined,
-    tipo:   tipoFilter ?? undefined,
-  })
-  return NextResponse.json(entries)
+  try {
+    const entries = await listKnowledge({
+      canal:  canal  ?? undefined,
+      tipo:   tipoFilter ?? undefined,
+    })
+    return NextResponse.json(entries)
+  } catch (err) {
+    console.error('[conhecimento] GET error:', err)
+    return NextResponse.json({ error: 'Erro ao conectar ao banco de vetores. Verifique VECTORS_DATABASE_URL e rode a migration.' }, { status: 503 })
+  }
 }
 
 // POST — cria artigo na base global

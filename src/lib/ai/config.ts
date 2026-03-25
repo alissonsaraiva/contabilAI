@@ -13,6 +13,13 @@ export type AiConfig = {
     onboarding: string
     crm: string
     portal: string
+    whatsapp: string
+  }
+  providers: {
+    onboarding: string
+    crm: string
+    portal: string
+    whatsapp: string
   }
   systemPrompts: {
     onboarding: string | null
@@ -54,6 +61,11 @@ export async function getAiConfig(): Promise<AiConfig> {
         aiModelOnboarding: true,
         aiModelCrm: true,
         aiModelPortal: true,
+        aiModelWhatsapp: true,
+        aiProviderOnboarding: true,
+        aiProviderCrm: true,
+        aiProviderPortal: true,
+        aiProviderWhatsapp: true,
         systemPromptOnboarding: true,
         systemPromptCrm: true,
         systemPromptPortal: true,
@@ -88,6 +100,14 @@ export async function getAiConfig(): Promise<AiConfig> {
       onboarding: s('aiModelOnboarding') ?? 'claude-haiku-4-5-20251001',
       crm:        s('aiModelCrm')        ?? 'claude-haiku-4-5-20251001',
       portal:     s('aiModelPortal')     ?? 'claude-haiku-4-5-20251001',
+      whatsapp:   s('aiModelWhatsapp')   ?? 'claude-haiku-4-5-20251001',
+    },
+
+    providers: {
+      onboarding: s('aiProviderOnboarding') ?? s('aiProvider') ?? 'claude',
+      crm:        s('aiProviderCrm')        ?? s('aiProvider') ?? 'claude',
+      portal:     s('aiProviderPortal')     ?? s('aiProvider') ?? 'claude',
+      whatsapp:   s('aiProviderWhatsapp')   ?? s('aiProvider') ?? 'claude',
     },
 
     systemPrompts: {

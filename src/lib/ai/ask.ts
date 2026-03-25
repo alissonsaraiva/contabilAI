@@ -36,15 +36,38 @@ export type AskResult = {
 
 // ─── System prompt padrão (fallback quando não há prompt configurado no DB) ───
 
-export const SYSTEM_BASE_DEFAULT = `Você é o assistente virtual da ContabAI, um escritório de contabilidade digital especializado em MEI, EPP e autônomos no Brasil.
+export const SYSTEM_BASE_DEFAULT = `Você é o assistente virtual de um escritório de contabilidade digital especializado em MEI, EPP e autônomos no Brasil.
 
-Diretrizes:
+## Perfis de atendimento
+
+Use o campo "CONTEXTO DO CONTATO" fornecido em cada mensagem para identificar o perfil e agir de acordo:
+
+### CLIENTE ATIVO
+Pessoa que já contrata o escritório. Use os dados do contexto para personalizar o atendimento.
+- Responda dúvidas técnicas: obrigações fiscais, prazos, DAS, IRPF, abertura/baixa de empresa, documentos
+- Seja objetivo e preciso
+- Para questões complexas, informe que vai acionar o contador responsável
+
+### LEAD EM ONBOARDING
+Pessoa que já iniciou o processo de contratação.
+- Ajude a avançar nas etapas: plano, documentos, assinatura
+- Tire dúvidas sobre os planos e o processo
+
+### PROSPECT / PRIMEIRO CONTATO
+Pessoa que entrou em contato sem histórico no sistema.
+- Seja cordial e acolhedor
+- Descubra a necessidade (MEI, empresa, autônomo, declaração de IR, etc.)
+- Apresente os serviços disponíveis e incentive o próximo passo
+- Pergunte o nome da pessoa para personalizar o atendimento
+- **Registro automático:** quando identificar que a pessoa tem INTERESSE GENUÍNO em contratar ou conhecer os serviços (ex: pergunta sobre preço, quer abrir empresa, quer declarar IR, demonstra intenção de contratar), coloque exatamente o marcador ##LEAD## no INÍCIO da sua resposta, antes de qualquer texto. Esse marcador é removido automaticamente antes do envio — o usuário nunca o vê. Use-o apenas uma vez por conversa, na primeira mensagem em que identificar o interesse genuíno. Não use para curiosidade vaga ou assunto sem relação com o escritório.
+
+## Diretrizes gerais
 - Responda sempre em português brasileiro, de forma clara e objetiva
 - Use o contexto fornecido para embasar suas respostas
-- Se não encontrar informação suficiente no contexto, seja honesto e diga que vai verificar com a equipe
-- Nunca invente valores, prazos ou obrigações fiscais — se não tiver certeza, indique que é necessário confirmar
+- Nunca invente valores, prazos ou obrigações fiscais — se não tiver certeza, informe que vai verificar com a equipe
 - Seja cordial mas profissional
-- Para dúvidas complexas, sugira falar com o contador responsável`
+- Mantenha as respostas curtas e diretas (canal WhatsApp — evite textos longos)
+- Para fechamento de contrato ou dúvidas complexas, direcione para falar com um contador da equipe`
 
 // ─── Função principal ─────────────────────────────────────────────────────────
 
@@ -89,12 +112,13 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     systemParts.push('--- FIM DO CONTEXTO ---')
   }
 
-  // 4. Resolve modelo por feature (whatsapp usa o modelo do onboarding como fallback)
-  const modelFeature = (feature === 'whatsapp' ? 'onboarding' : feature) as AskFeature
-  const model = config.models[modelFeature]
+  // 4. Resolve modelo e provider por feature
+  const modelFeature = feature as keyof typeof config.models
+  const model = config.models[modelFeature] ?? config.models.onboarding
+  const featureProvider = config.providers[feature as keyof typeof config.providers] ?? config.provider
 
   // 5. Chama o provider com credenciais da config
-  const provider = getProvider(config.provider)
+  const provider = getProvider(featureProvider)
   const result = await provider.complete({
     system: systemParts.join('\n\n'),
     messages: [...historico, { role: 'user', content: pergunta }],
@@ -102,10 +126,10 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     temperature: 0.3,
     model,
     apiKey:
-      config.provider === 'claude'  ? config.anthropicApiKey ?? undefined :
-      config.provider === 'google'  ? config.googleApiKey    ?? undefined :
+      featureProvider === 'claude'  ? config.anthropicApiKey ?? undefined :
+      featureProvider === 'google'  ? config.googleApiKey    ?? undefined :
                                       config.openaiApiKey    ?? undefined,
-    baseUrl: config.provider === 'openai' ? config.openaiBaseUrl ?? undefined : undefined,
+    baseUrl: featureProvider === 'openai' ? config.openaiBaseUrl ?? undefined : undefined,
   })
 
   return { resposta: result.text, fontes, provider: result.provider, model: result.model }

@@ -18,16 +18,18 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import type { SessionUser } from '@/types'
 
 const NAV_ITEMS = [
-  { href: '/crm/dashboard', icon: 'dashboard', label: 'Dashboard' },
-  { href: '/crm/leads', icon: 'person_search', label: 'Leads' },
-  { href: '/crm/clientes', icon: 'group', label: 'Clientes' },
-  { href: '/crm/tarefas', icon: 'check_circle', label: 'Tarefas' },
-  { href: '/crm/configuracoes', icon: 'settings', label: 'Configurações' },
+  { href: '/crm/dashboard',    icon: 'dashboard',    label: 'Dashboard' },
+  { href: '/crm/prospeccao',   icon: 'contact_phone', label: 'Prospecção' },
+  { href: '/crm/leads',        icon: 'rocket_launch', label: 'Onboarding' },
+  { href: '/crm/clientes',     icon: 'group',        label: 'Clientes' },
+  { href: '/crm/tarefas',      icon: 'check_circle', label: 'Tarefas' },
+  { href: '/crm/configuracoes', icon: 'settings',    label: 'Configurações' },
 ]
 
 function resolveTitle(pathname: string): string {
   if (pathname === '/crm/dashboard') return 'Painel de Controle'
-  if (pathname === '/crm/leads') return 'Leads'
+  if (pathname === '/crm/prospeccao') return 'Prospecção'
+  if (pathname === '/crm/leads') return 'Onboarding'
   if (/^\/crm\/leads\/.+/.test(pathname)) return 'Detalhes do Lead'
   if (pathname === '/crm/clientes') return 'Clientes'
   if (/^\/crm\/clientes\/.+/.test(pathname)) return 'Detalhes do Cliente'

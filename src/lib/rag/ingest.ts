@@ -5,6 +5,62 @@ import { chunkText, embedTexts, storeEmbeddings, deleteEmbeddings } from '@/lib/
 import type { EmbeddingRow } from '@/lib/rag'
 import { getAiConfig } from '@/lib/ai/config'
 
+// Planos do escritório — definição canônica usada tanto no onboarding quanto no RAG
+export const PLANOS_INFO = [
+  {
+    tipo: 'essencial',
+    nome: 'Essencial',
+    desc: 'Ideal para MEI e microempresas',
+    faixaPreco: 'R$ 179 – R$ 299/mês',
+    servicos: [
+      'Obrigações fiscais acessórias',
+      'Geração de DAS automática',
+      'Portal básico do cliente',
+      'Chatbot de dúvidas 24h',
+      'Alertas de prazo por WhatsApp',
+    ],
+  },
+  {
+    tipo: 'profissional',
+    nome: 'Profissional',
+    desc: 'Para empresas do Simples Nacional',
+    faixaPreco: 'R$ 449 – R$ 699/mês',
+    servicos: [
+      'Tudo do Essencial',
+      'Depto. pessoal (até 3 funcionários)',
+      'DRE simplificado mensal',
+      'Fluxo de caixa',
+      'Relatório narrativo com IA',
+    ],
+  },
+  {
+    tipo: 'empresarial',
+    nome: 'Empresarial',
+    desc: 'Para Lucro Presumido e Real',
+    faixaPreco: 'R$ 990 – R$ 1.800/mês',
+    servicos: [
+      'Tudo do Profissional',
+      'Depto. pessoal ilimitado',
+      'KPIs avançados e dashboards',
+      'Consultoria mensal de 1h',
+      'Simulação de cenários tributários',
+    ],
+  },
+  {
+    tipo: 'startup',
+    nome: 'Startup',
+    desc: 'Para empresas digitais em crescimento',
+    faixaPreco: 'R$ 1.200 – R$ 2.500/mês',
+    servicos: [
+      'Tudo do Empresarial',
+      'Relatórios para investidores',
+      'Benchmark setorial com IA',
+      'Suporte prioritário',
+      'Planejamento tributário estratégico',
+    ],
+  },
+]
+
 async function getVoyageKey(): Promise<string | null> {
   try {
     const cfg = await getAiConfig()
@@ -194,5 +250,82 @@ export async function indexarInteracao(interacao: InteracaoData): Promise<void> 
     leadId: interacao.leadId ?? undefined,
     documentoId: `interacao:${interacao.id}`,
     titulo: interacao.titulo ?? interacao.tipo,
+  }, key)
+}
+
+// ─── Escritório ─────────────────────────────────────────────────────────────
+
+type EscritorioData = {
+  id: string
+  nome: string
+  nomeFantasia?: string | null
+  cnpj?: string | null
+  crc?: string | null
+  email?: string | null
+  telefone?: string | null
+  whatsapp?: string | null
+  cidade?: string | null
+  uf?: string | null
+  logradouro?: string | null
+  bairro?: string | null
+  fraseBemVindo?: string | null
+  metaDescricao?: string | null
+}
+
+// Indexa os dados do escritório em canal 'geral' — disponível para todas as IAs
+export async function indexarEscritorio(escritorio: EscritorioData): Promise<void> {
+  const key = await getVoyageKey()
+  if (!key) return
+
+  const linhas = [
+    `Escritório de contabilidade: ${escritorio.nomeFantasia ?? escritorio.nome}`,
+    escritorio.cnpj      ? `CNPJ: ${escritorio.cnpj}` : '',
+    escritorio.crc       ? `CRC: ${escritorio.crc}` : '',
+    escritorio.email     ? `E-mail: ${escritorio.email}` : '',
+    escritorio.telefone  ? `Telefone: ${escritorio.telefone}` : '',
+    escritorio.whatsapp  ? `WhatsApp: ${escritorio.whatsapp}` : '',
+    (escritorio.cidade || escritorio.uf)
+      ? `Cidade: ${[escritorio.cidade, escritorio.uf].filter(Boolean).join(' / ')}`
+      : '',
+    escritorio.logradouro ? `Endereço: ${escritorio.logradouro}${escritorio.bairro ? ', ' + escritorio.bairro : ''}` : '',
+    escritorio.fraseBemVindo  ? `Apresentação: ${escritorio.fraseBemVindo}` : '',
+    escritorio.metaDescricao  ? `Descrição: ${escritorio.metaDescricao}` : '',
+  ].filter(Boolean).join('\n')
+
+  await indexar(linhas, {
+    escopo: 'global',
+    canal: 'geral',
+    tipo: 'base_conhecimento',
+    documentoId: `escritorio:${escritorio.id}`,
+    titulo: `Dados do escritório — ${escritorio.nomeFantasia ?? escritorio.nome}`,
+  }, key)
+}
+
+// ─── Planos ──────────────────────────────────────────────────────────────────
+
+// Indexa os planos do escritório em canal 'geral' — disponível para todas as IAs,
+// especialmente importante para o Onboarding responder com valores corretos.
+export async function indexarPlanos(): Promise<void> {
+  const key = await getVoyageKey()
+  if (!key) return
+
+  const texto = [
+    'Planos de contabilidade disponíveis:',
+    '',
+    ...PLANOS_INFO.map(p => [
+      `## Plano ${p.nome}`,
+      `Descrição: ${p.desc}`,
+      `Preço: ${p.faixaPreco}`,
+      `Serviços inclusos:`,
+      ...p.servicos.map(s => `- ${s}`),
+    ].join('\n')),
+  ].join('\n\n')
+
+  await indexar(texto, {
+    escopo: 'global',
+    canal: 'geral',
+    tipo: 'base_conhecimento',
+    documentoId: 'planos:v1',
+    titulo: 'Planos e preços do escritório',
   }, key)
 }

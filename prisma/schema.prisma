@@ -143,6 +143,7 @@ model Lead {
   id             String          @id @default(uuid())
   contatoEntrada String
   canal          Canal           @default(site)
+  funil          String          @default("onboarding")
   status         StatusLead      @default(iniciado)
   stepAtual      Int             @default(1)
   planoTipo      PlanoTipo?
@@ -364,6 +365,12 @@ model Escritorio {
   aiModelOnboarding String?  @default("claude-haiku-4-5-20251001")
   aiModelCrm        String?  @default("claude-haiku-4-5-20251001")
   aiModelPortal     String?  @default("claude-haiku-4-5-20251001")
+  aiModelWhatsapp   String?  @default("claude-haiku-4-5-20251001")
+
+  aiProviderOnboarding String?  @default("claude")
+  aiProviderCrm        String?  @default("claude")
+  aiProviderPortal     String?  @default("claude")
+  aiProviderWhatsapp   String?  @default("claude")
 
   // System prompts por feature (substituem o prompt padrão hardcoded)
   systemPromptOnboarding String? @db.Text

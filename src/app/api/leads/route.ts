@@ -3,8 +3,10 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 const createSchema = z.object({
-  contatoEntrada: z.string().min(5),
+  contatoEntrada: z.string().min(3),
   canal: z.enum(['site', 'whatsapp', 'indicacao', 'instagram', 'google', 'outro']).default('site'),
+  funil: z.enum(['prospeccao', 'onboarding']).default('onboarding'),
+  observacoes: z.string().optional(),
   utmSource: z.string().optional(),
   utmMedium: z.string().optional(),
   utmCampaign: z.string().optional(),
@@ -35,10 +37,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  // Retoma lead existente se o mesmo contato já iniciou o onboarding
+  // Retoma lead existente no mesmo funil se o contato já existe
   const existing = await prisma.lead.findFirst({
     where: {
       contatoEntrada: parsed.data.contatoEntrada,
+      funil: parsed.data.funil,
       status: { notIn: ['cancelado', 'expirado'] },
     },
     orderBy: { criadoEm: 'desc' },

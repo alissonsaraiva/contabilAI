@@ -7,11 +7,12 @@ import { cn, getInitials } from '@/lib/utils'
 import type { SessionUser } from '@/types'
 
 const NAV_ITEMS = [
-  { href: '/crm/dashboard', icon: 'dashboard', label: 'Dashboard' },
-  { href: '/crm/leads', icon: 'person_search', label: 'Leads' },
-  { href: '/crm/clientes', icon: 'group', label: 'Clientes' },
-  { href: '/crm/tarefas', icon: 'check_circle', label: 'Tarefas' },
-  { href: '/crm/configuracoes', icon: 'settings', label: 'Configurações' },
+  { href: '/crm/dashboard',    icon: 'dashboard',    label: 'Dashboard' },
+  { href: '/crm/prospeccao',   icon: 'contact_phone', label: 'Prospecção' },
+  { href: '/crm/leads',        icon: 'rocket_launch', label: 'Onboarding' },
+  { href: '/crm/clientes',     icon: 'group',        label: 'Clientes' },
+  { href: '/crm/tarefas',      icon: 'check_circle', label: 'Tarefas' },
+  { href: '/crm/configuracoes', icon: 'settings',    label: 'Configurações' },
 ]
 
 type Props = { user: SessionUser }

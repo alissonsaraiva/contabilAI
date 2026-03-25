@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { sendText, type EvolutionConfig } from '@/lib/evolution'
@@ -10,13 +9,12 @@ export const runtime = 'nodejs'
 // Cache de mensagens já processadas (reinicia com o servidor)
 const processed = new Set<string>()
 
-// Cache de identificação: phone → { clienteId?, leadId?, pendente: boolean }
-// 'pendente' = aguardando CPF/nome para identificar
+// Cache de identificação: phone → contexto resolvido
+// 'desconhecido' = ainda não identificado, sem registro no banco
 const phoneCache = new Map<string, {
   clienteId?: string
   leadId?: string
-  pendente?: boolean
-  tentativas?: number
+  tipo: 'cliente' | 'lead' | 'prospect' | 'desconhecido'
 }>()
 
 // Normaliza número de telefone para busca — retorna variantes
@@ -65,34 +63,19 @@ async function buscarPorTelefone(phone: string): Promise<{
   return {}
 }
 
-// Busca por nome + CPF quando não encontrou pelo telefone
-async function buscarPorNomeCpf(texto: string): Promise<{
-  clienteId?: string
-  leadId?: string
-} | null> {
-  const digitosTexto = texto.replace(/\D/g, '')
-  // Verifica se o texto parece conter um CPF (11 dígitos numéricos)
-  if (digitosTexto.length >= 11) {
-    const cpf = digitosTexto.slice(0, 11)
-    const cliente = await prisma.cliente.findFirst({
-      where: { cpf: { contains: cpf } },
-      select: { id: true },
-    }).catch(() => null)
-    if (cliente) return { clienteId: cliente.id }
-
-    // Tenta em leads via dadosJson
-    const leads = await prisma.lead.findMany({
-      where: { status: { notIn: ['cancelado', 'expirado'] } },
-      select: { id: true, dadosJson: true },
-    }).catch(() => [])
-
-    for (const lead of leads) {
-      const dados = (lead.dadosJson ?? {}) as Record<string, string>
-      const leadCpf = (dados['CPF'] ?? '').replace(/\D/g, '')
-      if (leadCpf === cpf) return { leadId: lead.id }
-    }
-  }
-  return null
+// Cria lead automático para contato via WhatsApp não identificado
+async function criarLeadWhatsApp(remoteJid: string): Promise<string> {
+  const digits = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '')
+  const lead = await prisma.lead.create({
+    data: {
+      contatoEntrada: digits,
+      canal: 'whatsapp',
+      funil: 'prospeccao',
+      status: 'iniciado',
+    },
+    select: { id: true },
+  })
+  return lead.id
 }
 
 async function getEvolutionConfig(): Promise<EvolutionConfig | null> {
@@ -174,51 +157,32 @@ export async function POST(req: Request) {
 
     if (!cached) {
       const encontrado = await buscarPorTelefone(remoteJid)
-      cached = { ...encontrado, pendente: !encontrado.clienteId && !encontrado.leadId, tentativas: 0 }
+      if (encontrado.clienteId) {
+        cached = { clienteId: encontrado.clienteId, tipo: 'cliente' }
+      } else if (encontrado.leadId) {
+        cached = { leadId: encontrado.leadId, tipo: 'lead' }
+      } else {
+        // Contato desconhecido — aguarda IA identificar interesse antes de criar lead
+        cached = { tipo: 'desconhecido' }
+      }
       phoneCache.set(remoteJid, cached)
     }
 
-    // Modo de identificação pendente — aguarda CPF/nome da pessoa
-    if (cached.pendente) {
-      const tentativa = await buscarPorNomeCpf(text)
-      if (tentativa) {
-        cached = { ...tentativa, pendente: false, tentativas: 0 }
-        phoneCache.set(remoteJid, cached)
-      } else {
-        cached.tentativas = (cached.tentativas ?? 0) + 1
-        phoneCache.set(remoteJid, cached)
-
-        // Primeira tentativa: pede identificação
-        if (cached.tentativas === 1) {
-          await sendText(cfg, remoteJid,
-            'Olá! Para te atender melhor, preciso te identificar em nosso sistema. ' +
-            'Pode me informar seu CPF ou nome completo cadastrado?'
-          )
-          return new Response('ok', { status: 200 })
-        }
-
-        // Segunda tentativa sem CPF: segue sem contexto personalizado
-        if ((cached.tentativas ?? 0) >= 2) {
-          cached.pendente = false
-          phoneCache.set(remoteJid, cached)
-        } else {
-          await sendText(cfg, remoteJid,
-            'Não consegui te localizar. Pode tentar com seu CPF (somente números)?'
-          )
-          return new Response('ok', { status: 200 })
-        }
-      }
-    }
-
-    // ── Monta contexto RAG ────────────────────────────────────────────────────
+    // ── Monta contexto RAG — apenas contexto factual, sem instruções de comportamento ──
     let context: AskContext
+    let systemExtra: string | undefined
 
     if (cached.clienteId) {
       context = { escopo: 'cliente+global', clienteId: cached.clienteId }
+      systemExtra = 'CONTEXTO DO CONTATO: CLIENTE ATIVO'
     } else if (cached.leadId) {
       context = { escopo: 'lead+global', leadId: cached.leadId }
+      systemExtra = cached.tipo === 'prospect'
+        ? 'CONTEXTO DO CONTATO: PROSPECT (lead registrado, ainda não contratou)'
+        : 'CONTEXTO DO CONTATO: LEAD EM ONBOARDING (processo de contratação iniciado)'
     } else {
       context = { escopo: 'global' }
+      systemExtra = 'CONTEXTO DO CONTATO: PRIMEIRO CONTATO (não identificado no sistema)'
     }
 
     // ── Chama a IA e responde ─────────────────────────────────────────────────
@@ -226,10 +190,24 @@ export async function POST(req: Request) {
       pergunta: text,
       context,
       feature: 'whatsapp',
+      systemExtra,
       maxTokens: 512,
     })
 
-    await sendText(cfg, remoteJid, result.resposta)
+    // ── Detecta marcador ##LEAD## e cria registro se necessário ──────────────
+    let resposta = result.resposta
+    if (cached.tipo === 'desconhecido' && resposta.includes('##LEAD##')) {
+      resposta = resposta.replace(/##LEAD##\s*/g, '').trimStart()
+      try {
+        const leadId = await criarLeadWhatsApp(remoteJid)
+        cached = { leadId, tipo: 'prospect' }
+        phoneCache.set(remoteJid, cached)
+      } catch (err) {
+        console.error('[whatsapp/webhook] erro ao criar lead:', err)
+      }
+    }
+
+    await sendText(cfg, remoteJid, resposta)
   } catch (err) {
     console.error('[whatsapp/webhook] erro:', err)
   }

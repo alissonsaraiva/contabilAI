@@ -41,6 +41,7 @@ export default function ConhecimentoPage() {
   const [loadingList, setLoadingList] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
+  const [seeding, setSeeding] = useState(false)
 
   // Form
   const [titulo, setTitulo]   = useState('')
@@ -91,6 +92,22 @@ export default function ConhecimentoPage() {
     }
   }
 
+  async function handleSeed() {
+    if (!confirm('Re-indexar todos os dados estruturais no RAG (escritório, planos, clientes, leads)? Pode demorar alguns segundos.')) return
+    setSeeding(true)
+    try {
+      const res = await fetch('/api/rag/seed', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success(`RAG re-indexado: escritório, planos, ${data.clientes} clientes, ${data.leads} leads`)
+      loadEntries()
+    } catch (err) {
+      toast.error((err as Error).message || 'Erro ao re-indexar')
+    } finally {
+      setSeeding(false)
+    }
+  }
+
   async function handleDelete(sourceId: string, titulo: string | null) {
     if (!confirm(`Deletar "${titulo ?? sourceId}" e todos os seus chunks?`)) return
     setDeletingId(sourceId)
@@ -113,16 +130,29 @@ export default function ConhecimentoPage() {
 
       {/* Header */}
       <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-            <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-              auto_stories
-            </span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+              <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                auto_stories
+              </span>
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-on-surface">Base de Conhecimento</h3>
+              <p className="text-[12px] text-on-surface-variant/80">Cada IA acessa apenas a base do seu canal + Geral</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-[14px] font-semibold text-on-surface">Base de Conhecimento</h3>
-            <p className="text-[12px] text-on-surface-variant/80">Cada IA acessa apenas a base do seu canal + Geral</p>
-          </div>
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-colors disabled:opacity-50"
+            title="Re-indexa escritório, planos, clientes e leads no RAG"
+          >
+            {seeding
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <span className="material-symbols-outlined text-[15px]">sync</span>}
+            Re-indexar dados
+          </button>
         </div>
       </div>
 

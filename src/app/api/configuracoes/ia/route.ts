@@ -27,6 +27,11 @@ export async function GET() {
       aiModelOnboarding: true,
       aiModelCrm: true,
       aiModelPortal: true,
+      aiModelWhatsapp: true,
+      aiProviderOnboarding: true,
+      aiProviderCrm: true,
+      aiProviderPortal: true,
+      aiProviderWhatsapp: true,
       systemPromptOnboarding: true,
       systemPromptCrm: true,
       systemPromptPortal: true,
@@ -66,7 +71,8 @@ export async function PUT(req: Request) {
   // Campos de texto simples
   const plainFields = [
     'aiProvider', 'openaiBaseUrl', 'openaiModel',
-    'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal',
+    'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal', 'aiModelWhatsapp',
+    'aiProviderOnboarding', 'aiProviderCrm', 'aiProviderPortal', 'aiProviderWhatsapp',
     'systemPromptOnboarding', 'systemPromptCrm', 'systemPromptPortal',
     // WhatsApp (saved from both IA and WhatsApp pages)
     'systemPromptWhatsapp', 'whatsappAiEnabled', 'whatsappAiFeature',

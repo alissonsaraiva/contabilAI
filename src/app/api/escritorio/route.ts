@@ -21,5 +21,11 @@ export async function PUT(req: Request) {
     create: { id: 'singleton', ...body },
   })
 
+  // Re-indexa dados do escritório e planos no RAG em background
+  import('@/lib/rag/ingest').then(async ({ indexarEscritorio, indexarPlanos }) => {
+    await indexarEscritorio(escritorio)
+    await indexarPlanos()
+  }).catch(() => {})
+
   return NextResponse.json(escritorio)
 }
