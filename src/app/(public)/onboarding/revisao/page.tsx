@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState, use, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -30,6 +30,17 @@ export default function RevisaoPage({ searchParams }: Props) {
   const [vencimento, setVencimento] = useState<number>(10)
   const [formaPagamento, setFormaPagamento] = useState('pix')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!leadId) return
+    fetch(`/api/leads/${leadId}`)
+      .then(r => r.json())
+      .then((lead: { vencimentoDia?: number; formaPagamento?: string }) => {
+        if (lead.vencimentoDia) setVencimento(lead.vencimentoDia)
+        if (lead.formaPagamento) setFormaPagamento(lead.formaPagamento)
+      })
+      .catch(() => {})
+  }, [leadId])
 
   async function handleConcluir() {
     if (!leadId) return

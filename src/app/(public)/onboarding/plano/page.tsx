@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState, use, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -62,6 +62,16 @@ export default function PlanoPage({ searchParams }: Props) {
   const recomendado = recomendar(tipo, faturamento, funcionarios)
   const [selecionado, setSelecionado] = useState<PlanoTipo>(recomendado)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!leadId) return
+    fetch(`/api/leads/${leadId}`)
+      .then(r => r.json())
+      .then((lead: { planoTipo?: PlanoTipo }) => {
+        if (lead.planoTipo) setSelecionado(lead.planoTipo)
+      })
+      .catch(() => {})
+  }, [leadId])
 
   async function handleEscolher() {
     if (!leadId) return

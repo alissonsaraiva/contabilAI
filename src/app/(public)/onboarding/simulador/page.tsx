@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState, use, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -49,6 +49,17 @@ export default function SimuladorPage({ searchParams }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ tipo: '', faturamento: '', funcionarios: '' })
+
+  useEffect(() => {
+    if (!leadId) return
+    fetch(`/api/leads/${leadId}`)
+      .then(r => r.json())
+      .then((lead: { dadosJson?: Record<string, { tipo?: string; faturamento?: string; funcionarios?: string }> }) => {
+        const sim = lead.dadosJson?.simulador
+        if (sim?.tipo) setForm({ tipo: sim.tipo ?? '', faturamento: sim.faturamento ?? '', funcionarios: sim.funcionarios ?? '' })
+      })
+      .catch(() => {})
+  }, [leadId])
 
   const canContinue = form.tipo && form.faturamento && form.funcionarios
 

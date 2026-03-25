@@ -46,16 +46,26 @@ export default function DadosPage({ searchParams }: Props) {
     if (!leadId) return
     fetch(`/api/leads/${leadId}`)
       .then(r => r.json())
-      .then((lead: { contatoEntrada?: string }) => {
-        const contato = lead.contatoEntrada ?? ''
-        if (!contato) return
-        if (isPhone(contato)) {
-          setForm(f => ({ ...f, telefone: formatTelefone(contato) }))
-        } else if (/\S+@\S+\.\S+/.test(contato)) {
-          setForm(f => ({ ...f, email: contato }))
+      .then((lead: { contatoEntrada?: string; dadosJson?: Record<string, string> }) => {
+        const dados = lead.dadosJson
+        if (dados && Object.keys(dados).length > 0) {
+          setForm(f => ({
+            ...f,
+            nome: dados['Nome completo'] ?? f.nome,
+            cpf: dados['CPF'] ?? f.cpf,
+            email: dados['E-mail'] ?? f.email,
+            telefone: dados['Telefone'] ?? f.telefone,
+            cnpj: dados['CNPJ'] ?? f.cnpj,
+            razaoSocial: dados['Razão Social'] ?? f.razaoSocial,
+            cidade: dados['Cidade'] ?? f.cidade,
+          }))
+        } else {
+          const contato = lead.contatoEntrada ?? ''
+          if (isPhone(contato)) setForm(f => ({ ...f, telefone: formatTelefone(contato) }))
+          else if (/\S+@\S+\.\S+/.test(contato)) setForm(f => ({ ...f, email: contato }))
         }
       })
-      .catch(() => {/* silently ignore */})
+      .catch(() => {})
   }, [leadId])
 
   function set(field: string, value: string) {

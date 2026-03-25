@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
-import { Suspense } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { ChatWidget } from '@/components/onboarding/chat-widget'
 
@@ -32,12 +32,23 @@ function HeaderInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const [maxStep, setMaxStep] = useState(0)
 
   const leadId = searchParams.get('leadId')
   const plano = searchParams.get('plano')
   const currentIdx = getIdx(pathname)
   const isConfirmacao = pathname === '/onboarding/confirmacao'
   const isWizard = currentIdx !== -1 && !isConfirmacao
+
+  useEffect(() => {
+    if (!leadId) return
+    fetch(`/api/leads/${leadId}`)
+      .then(r => r.json())
+      .then((lead: { stepAtual?: number }) => {
+        if (lead.stepAtual) setMaxStep(lead.stepAtual)
+      })
+      .catch(() => {})
+  }, [leadId])
 
   function handleSalvarSair() {
     toast.success('Progresso salvo! Volte a qualquer momento com o mesmo e-mail ou WhatsApp.')
@@ -87,53 +98,54 @@ function HeaderInner() {
 
       {/* Step wizard */}
       {isWizard && (
-        <div className="mx-auto max-w-lg px-4 pb-3">
+        <div className="mx-auto max-w-lg px-4 pb-5">
           <div className="flex items-center">
             {WIZARD_STEPS.map((step, idx) => {
               const isDone = idx < currentIdx
               const isCurrent = idx === currentIdx
-              const isClickable = isDone && leadId
+              const isVisited = idx < maxStep  // previously reached (even if now "ahead" after going back)
+              const isClickable = (isDone || isVisited) && !isCurrent && !!leadId
 
               return (
                 <div key={step.path} className="flex flex-1 items-center">
-                  {/* Bolinha */}
-                  <button
-                    type="button"
-                    disabled={!isClickable}
-                    onClick={() => isClickable && router.push(buildUrl(step.path, leadId, plano))}
-                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all
-                      ${isCurrent ? 'bg-primary text-white shadow-md shadow-primary/30 scale-110' : ''}
-                      ${isDone ? 'bg-primary/20 text-primary cursor-pointer hover:bg-primary/30' : ''}
-                      ${!isDone && !isCurrent ? 'bg-surface-container text-on-surface-variant/40' : ''}
-                    `}
-                    title={isClickable ? `Voltar para ${step.label}` : step.label}
-                  >
-                    {isDone ? (
-                      <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                        check
+                  {/* Bolinha + label */}
+                  <div className="relative flex flex-col items-center">
+                    <button
+                      type="button"
+                      disabled={!isClickable}
+                      onClick={() => isClickable && router.push(buildUrl(step.path, leadId, plano))}
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all
+                        ${isCurrent ? 'bg-primary text-white shadow-md shadow-primary/30 scale-110' : ''}
+                        ${!isCurrent && isVisited ? 'bg-primary/20 text-primary cursor-pointer hover:bg-primary/30' : ''}
+                        ${!isCurrent && !isVisited ? 'bg-surface-container text-on-surface-variant/40' : ''}
+                      `}
+                      title={isClickable ? `Ir para ${step.label}` : step.label}
+                    >
+                      {isVisited && !isCurrent ? (
+                        <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
+                      ) : (
+                        idx + 1
+                      )}
+                    </button>
+
+                    {/* Label apenas na etapa atual */}
+                    {isCurrent && (
+                      <span className="absolute top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold text-primary">
+                        {step.label}
                       </span>
-                    ) : (
-                      idx + 1
                     )}
-                  </button>
+                  </div>
 
                   {/* Linha conectora */}
                   {idx < WIZARD_STEPS.length - 1 && (
                     <div className="mx-1 h-0.5 flex-1 rounded-full">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${idx < currentIdx ? 'bg-primary/40' : 'bg-outline-variant/20'}`}
-                      />
+                      <div className={`h-full rounded-full transition-all duration-300 ${idx < Math.max(currentIdx, maxStep - 1) ? 'bg-primary/40' : 'bg-outline-variant/20'}`} />
                     </div>
                   )}
                 </div>
               )
             })}
           </div>
-
-          {/* Label da etapa atual */}
-          <p className="mt-1.5 text-center text-[11px] font-medium text-on-surface-variant/60">
-            {WIZARD_STEPS[currentIdx]?.label}
-          </p>
         </div>
       )}
     </>
