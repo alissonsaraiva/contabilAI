@@ -18,12 +18,11 @@ ENV NODE_OPTIONS=--max-old-space-size=6144
 RUN npx prisma generate
 RUN npm run build
 
-# Stage para rodar migrations (tem node_modules completo)
+# Stage para rodar migrations (só precisa do CLI do prisma)
 FROM base AS migrator
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY package*.json ./
+RUN npm install prisma --no-save --ignore-scripts
+COPY prisma ./prisma
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM base AS runner

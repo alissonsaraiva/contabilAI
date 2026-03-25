@@ -106,7 +106,14 @@ jobs:
             cd $APP_DIR
             docker compose up -d --no-deps app
 
-            # Limpa imagens antigas
+            # Remove imagens antigas do ghcr (mantém só a versão atual)
+            docker images --format "{{.Repository}}:{{.Tag}}" \
+              | grep "ghcr.io/alissonsaraiva/contabilai" \
+              | grep -v ":${DEPLOY_TAG}" \
+              | grep -v ":latest" \
+              | xargs -r docker rmi -f 2>/dev/null || true
+            # Dangling e build cache
             docker image prune -f
+            docker builder prune -f 2>/dev/null || true
 
             echo "✅ Deploy $DEPLOY_TAG concluído!"
