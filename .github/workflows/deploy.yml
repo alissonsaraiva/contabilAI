@@ -103,6 +103,31 @@ jobs:
               -e DATABASE_URL="$DB_URL" \
               ${GHCR_IMAGE}-migrate:${DEPLOY_TAG}
 
+            # Inicializa schema de vetores pgvector (idempotente — seguro rodar sempre)
+            docker exec postgresql-4cnu-postgresql-1 psql -U Mff5dGrSBI3NASY7 contabil_ia << 'EOSQL'
+            CREATE EXTENSION IF NOT EXISTS vector;
+            CREATE SCHEMA IF NOT EXISTS vectors;
+            CREATE TABLE IF NOT EXISTS vectors.embeddings (
+              id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+              escopo        TEXT        NOT NULL CHECK (escopo IN ('global', 'cliente', 'lead')),
+              tipo          TEXT        NOT NULL,
+              cliente_id    TEXT        REFERENCES public.clientes(id) ON DELETE CASCADE,
+              lead_id       TEXT        REFERENCES public.leads(id) ON DELETE CASCADE,
+              documento_id  TEXT,
+              titulo        TEXT,
+              conteudo      TEXT        NOT NULL,
+              embedding     vector(512),
+              metadata      JSONB,
+              criado_em     TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS embeddings_hnsw_idx ON vectors.embeddings USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 128);
+            CREATE INDEX IF NOT EXISTS embeddings_escopo_idx    ON vectors.embeddings (escopo);
+            CREATE INDEX IF NOT EXISTS embeddings_tipo_idx      ON vectors.embeddings (tipo);
+            CREATE INDEX IF NOT EXISTS embeddings_cliente_idx   ON vectors.embeddings (cliente_id) WHERE cliente_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS embeddings_lead_idx      ON vectors.embeddings (lead_id) WHERE lead_id IS NOT NULL;
+            EOSQL
+            echo "✅ Schema vectors ok"
+
             # Sobe o app sem derrubar outros containers
             cd $APP_DIR
             docker compose up -d --no-deps app
