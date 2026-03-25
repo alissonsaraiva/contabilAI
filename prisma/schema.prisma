@@ -352,6 +352,17 @@ model Escritorio {
   serproCpfToken   String?
   serproCnpjToken  String?
   contratoTemplate String?  @db.Text
+
+  // IA — configurações (chaves armazenadas encriptadas via AES-256-GCM)
+  aiProvider        String?  @default("claude")  // "claude" | "openai"
+  anthropicApiKey   String?  @db.Text
+  voyageApiKey      String?  @db.Text
+  openaiApiKey      String?  @db.Text
+  openaiBaseUrl     String?
+  openaiModel       String?
+  aiModelOnboarding String?  @default("claude-haiku-4-5-20251001")
+  aiModelCrm        String?  @default("claude-haiku-4-5-20251001")
+  aiModelPortal     String?  @default("claude-haiku-4-5-20251001")
   ativo            Boolean  @default(true)
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt

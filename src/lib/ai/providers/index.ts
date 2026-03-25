@@ -5,12 +5,11 @@ import { openaiProvider } from './openai'
 const PROVIDERS: Record<string, AIProvider> = {
   claude: claudeProvider,
   openai: openaiProvider,
-  // Para usar Groq, DeepSeek, Together AI etc. (formato OpenAI-compatible):
-  // basta apontar OPENAI_BASE_URL para o endpoint e AI_PROVIDER=openai
+  // OpenAI-compatible (Groq, DeepSeek, Together AI, Mistral, etc.):
+  // AI_PROVIDER=openai + OPENAI_BASE_URL=https://api.groq.com/openai/v1
 }
 
-export function getProvider(): AIProvider {
-  const name = process.env.AI_PROVIDER ?? 'claude'
+export function getProvider(name: string): AIProvider {
   const provider = PROVIDERS[name]
   if (!provider) throw new Error(`AI provider desconhecido: "${name}". Opções: ${Object.keys(PROVIDERS).join(', ')}`)
   return provider

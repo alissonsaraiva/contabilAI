@@ -8,6 +8,9 @@ export type AIRequest = {
   messages: AIMessage[]
   maxTokens?: number
   temperature?: number
+  model?: string
+  apiKey?: string
+  baseUrl?: string
 }
 
 export type AIResponse = {
