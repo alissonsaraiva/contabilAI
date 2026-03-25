@@ -12,6 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
 import { NovaInteracaoDrawer } from '@/components/crm/nova-interacao-drawer'
+import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteCRM } from '@/components/crm/assistente-crm'
 
@@ -28,6 +29,7 @@ const REGIME_LABELS: Record<string, string> = {
 const TIPO_INTERACAO_ICONS: Record<string, string> = {
   whatsapp_enviado: 'chat',
   email_enviado: 'mail',
+  email_recebido: 'mark_email_unread',
   ligacao: 'call',
   nota_interna: 'sticky_note_2',
   status_mudou: 'swap_horiz',
@@ -423,7 +425,19 @@ export default async function ClienteDetailPage({ params }: Props) {
             <p className="text-[13px] text-on-surface-variant">
               {cliente.interacoes.length} {cliente.interacoes.length === 1 ? 'registro' : 'registros'}
             </p>
-            <NovaInteracaoDrawer clienteId={cliente.id} />
+            <div className="flex items-center gap-2">
+              <EnviarEmailDrawer
+                clienteId={cliente.id}
+                leadId={cliente.leadId ?? undefined}
+                clienteEmail={cliente.email}
+                clienteNome={cliente.nome}
+                documentos={cliente.documentos.map(d => ({
+                  id: d.id, nome: d.nome, url: d.url,
+                  mimeType: d.mimeType ?? null, tipo: d.tipo,
+                }))}
+              />
+              <NovaInteracaoDrawer clienteId={cliente.id} />
+            </div>
           </div>
           {cliente.interacoes.length === 0 ? (
             <EmptyState icon="history" msg="Nenhuma interação registrada" />
@@ -463,6 +477,18 @@ export default async function ClienteDetailPage({ params }: Props) {
                       <p className="mt-1 text-sm leading-relaxed text-on-surface-variant">
                         {i.conteudo}
                       </p>
+                    )}
+                    {/* Sugestão da Clara para emails recebidos */}
+                    {(i.tipo as string) === 'email_recebido' && (i.metadados as any)?.sugestao && (
+                      <div className="mt-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3">
+                        <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-primary/70">
+                          <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+                          Sugestão de resposta da Clara
+                        </p>
+                        <p className="text-[13px] leading-relaxed text-on-surface-variant whitespace-pre-wrap">
+                          {(i.metadados as any).sugestao}
+                        </p>
+                      </div>
                     )}
                     {i.usuario && (
                       <p className="mt-1.5 text-xs text-on-surface-variant/50">{i.usuario.nome}</p>

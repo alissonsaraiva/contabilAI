@@ -1,7 +1,7 @@
 # Arquitetura de IA — ContabAI
 
 > Referência técnica do subsistema de inteligência artificial: providers, RAG, canais, ingestão automática e fluxo de cada IA.
-> Última atualização: 2026-03-25
+> Última atualização: 2026-03-25 (v2 — email bidirecional)
 
 ---
 
@@ -66,7 +66,8 @@ Mensagem do usuário
 - Base de conhecimento manual → canal `crm`
 - Canal `geral`
 - Dados do cliente (CNPJ, regime, plano, valor, vencimento) → `indexarCliente`, escopo `cliente`
-- Histórico de interações (notas, emails, ligações, WhatsApp) → `indexarInteracao`, escopo `cliente`
+- Histórico de interações (notas, emails enviados/recebidos, ligações, WhatsApp) → `indexarInteracao`, escopo `cliente`
+- **Emails recebidos do cliente** — indexados como `email_recebido` com corpo e assunto
 - **Histórico de conversas de todos os canais** — últimas 60 mensagens de `mensagens_ia` (WhatsApp, Portal, Onboarding, CRM) injetadas como `systemExtra`
 - Histórico da sessão CRM atual persistido em banco
 
@@ -104,8 +105,10 @@ Clara (portal): ..."
 **Tipos de interação por canal:**
 ```
 TIPOS_SOMENTE_CRM    = ['nota_interna', 'ligacao', 'whatsapp_enviado']
-TIPOS_CRM_E_PORTAL   = ['email_enviado', 'documento_enviado']
+TIPOS_CRM_E_PORTAL   = ['email_enviado', 'email_recebido', 'documento_enviado']
 ```
+
+> `email_recebido` é visível no portal pois representa uma mensagem que o próprio cliente enviou.
 
 ---
 
@@ -244,7 +247,10 @@ Fire-and-forget em background após writes no banco — não bloqueia a resposta
 | Cliente atualizado (PUT) | `indexarCliente` | `crm` + `portal` + `whatsapp` | `cliente` |
 | Lead → cliente (contrato) | `indexarCliente` | `crm` + `portal` + `whatsapp` | `cliente` |
 | Interação criada (nota/ligação/whatsapp) | `indexarInteracao` | `crm` | `cliente` ou `lead` |
-| Interação criada (email/documento) | `indexarInteracao` | `crm` **e** `portal` | `cliente` ou `lead` |
+| Interação criada (email enviado/recebido/documento) | `indexarInteracao` | `crm` **e** `portal` | `cliente` ou `lead` |
+| Email enviado pelo contador | `POST /api/email/enviar` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
+| Email recebido do cliente (IMAP polling) | `processarEmailRecebido` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
+| Anexo recebido por email | upload S3 → cria `Documento` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
 | Escritório salvo (configurações) | `indexarEscritorio` + `indexarPlanos` | `geral` | `global` |
 | Artigo criado na base de conhecimento | `ingestirTexto` | canal configurado | `global` |
 | Upload de PDF na base de conhecimento | `/api/conhecimento/pdf` → `ingestirTexto` | canal configurado | `global` |
@@ -356,9 +362,114 @@ Nova tela: **CRM → Prospecção** (`/crm/prospeccao`)
 
 ---
 
+## Email bidirecional
+
+### Visão geral
+
+O sistema gerencia email de entrada e saída diretamente, usando a conta de email da Hostinger configurada pelo escritório. Todo email enviado ou recebido é automaticamente:
+1. Salvo como `Interacao` no banco
+2. Indexado no RAG (`crm` + `portal`)
+3. Visível no histórico do cliente
+
+### Envio
+
+- **Endpoint:** `POST /api/email/enviar`
+- **Lib:** [`src/lib/email/send.ts`](../src/lib/email/send.ts) — Nodemailer + SMTP Hostinger (`smtp.hostinger.com:587`)
+- **UI:** `EnviarEmailDrawer` — botão "Enviar e-mail" na página do cliente
+  - Campos: Para, Assunto, Corpo
+  - Seleção de documentos já existentes do cliente como anexos (buscados da tabela `Documento`)
+- **Persistência:** salva como `email_enviado` com `metadados: { para, assunto, messageId, status, anexos }`
+
+### Recebimento
+
+- **Polling IMAP:** a cada 2 minutos via `src/instrumentation.ts` (scheduler no startup do servidor)
+- **Lib:** [`src/lib/email/imap.ts`](../src/lib/email/imap.ts) — ImapFlow + IMAP Hostinger (`imap.hostinger.com:993`)
+  - Busca emails não lidos (`seen: false`)
+  - Parseia com `mailparser` (texto, HTML, anexos)
+  - Marca como lido após processar
+- **Endpoint de sync:** `POST /api/email/sync` — protegido por `CRON_SECRET`
+- **Processamento:** [`src/lib/email/processar.ts`](../src/lib/email/processar.ts)
+
+#### Fluxo de processamento
+
+```
+Email recebido (IMAP)
+        │
+        ▼
+  identificarRemetente(email)
+  ├─ cliente.email match    → clienteId
+  ├─ lead.dadosJson.email   → leadId
+  ├─ lead.contatoEntrada    → leadId
+  └─ nenhum                 → sem vínculo (caixa de entrada geral)
+        │
+        ▼
+  Upload anexos → S3 → Documento (se associado)
+        │
+        ▼
+  gerarSugestao() → askAI (feature: 'crm', escopo: 'cliente+global')
+        │
+        ▼
+  salva Interacao { tipo: 'email_recebido', metadados: { de, assunto, sugestao, anexos } }
+        │
+        ▼
+  indexarInteracao → RAG (crm + portal)  ← fire-and-forget, somente se associado
+```
+
+#### Emails de remetentes não identificados
+
+- São salvos com `clienteId: null, leadId: null`
+- Aparecerão em uma seção "Caixa de entrada" (a implementar na UI)
+- Sem sugestão de resposta (sem contexto de cliente)
+- O contador pode associar manualmente ao cliente correto
+
+### Sugestão de resposta da Clara
+
+Quando um email é recebido de um cliente/lead identificado, a Clara analisa o conteúdo e gera automaticamente uma sugestão de resposta usando `askAI` com o contexto completo do cliente.
+
+A sugestão fica armazenada em `metadados.sugestao` e é exibida inline no histórico do cliente com o badge `smart_toy — Sugestão de resposta da Clara`. O contador pode:
+1. Usar como base e editar no `EnviarEmailDrawer`
+2. Copiar e enviar diretamente
+3. Ignorar e escrever do zero
+
+### Configuração
+
+**CRM → Configurações → Contato → seção "E-mail de envio (SMTP Hostinger)"**
+- `emailRemetente` — ex: `contato@escritorio.com.br`
+- `emailNome` — nome exibido no remetente
+- `emailSenha` — senha da conta Hostinger (armazenada encriptada via AES-256-GCM)
+- Botão "Testar conexão" → `POST /api/configuracoes/email` → `testarConexaoSmtp()`
+
+**Variáveis de ambiente (fallback):**
+```
+EMAIL_REMETENTE=contato@escritorio.com.br
+EMAIL_SENHA=...
+EMAIL_NOME=Escritório Contábil
+CRON_SECRET=...   # protege o endpoint /api/email/sync
+```
+
+### Impacto nos prompts
+
+O **Assistente CRM** já recebe `email_recebido` automaticamente via RAG e via `systemExtra` cross-canal. Recomenda-se adicionar ao system prompt configurado:
+
+> "Quando o histórico incluir emails recebidos do cliente (email_recebido), analise o assunto e conteúdo para enriquecer sua resposta. Se houver sugestão de resposta gerada, o contador pode usá-la como base para responder diretamente pelo sistema."
+
+---
+
 ## Lacunas / próximos passos
 
 | Item | Status |
 |---|---|
 | Portal do cliente | Pendente — tela + autenticação própria + endpoint `/api/portal/chat` |
+| Caixa de entrada de emails não identificados | Pendente — UI para emails recebidos sem vínculo com cliente/lead |
 | IA autônoma (tool use) | Futuro — emissão de NF, busca de documentos, alertas via function calling |
+
+### Lembretes para o Portal do cliente
+
+Ao implementar a IA do portal, incluir no system prompt:
+
+1. **Emails enviados pelo escritório** — a IA já terá acesso via RAG (`email_enviado` indexado no canal `portal`). Mencionar no prompt que ela pode referenciar comunicações anteriores.
+2. **Emails enviados pelo cliente** — `email_recebido` também indexado no canal `portal`. A IA pode confirmar ao cliente que a mensagem foi recebida e está em análise.
+3. **Sugestão de resposta** — a IA do portal **não** gera sugestões (isso é exclusivo do CRM para o contador). No portal, ela apenas informa o status.
+
+Exemplo de trecho para o prompt do portal:
+> "Você tem acesso aos emails trocados entre o cliente e o escritório. Se o cliente perguntar sobre um email enviado ou recebido, referencie o histórico disponível. Não mencione informações internas do escritório (notas, ligações, conversas de WhatsApp entre a equipe)."

@@ -93,6 +93,7 @@ enum Canal {
 enum TipoInteracao {
   whatsapp_enviado
   email_enviado
+  email_recebido
   ligacao
   nota_interna
   status_mudou
@@ -391,6 +392,11 @@ model Escritorio {
   systemPromptOnboarding String? @db.Text
   systemPromptCrm        String? @db.Text
   systemPromptPortal     String? @db.Text
+
+  // Email — SMTP Hostinger (senha armazenada encriptada)
+  emailRemetente   String?  // ex: contato@escritorio.com.br
+  emailNome        String?  // ex: Escritório Contábil
+  emailSenha       String?  @db.Text  // armazenada encriptada via crypto.ts
 
   // WhatsApp AI — usa Evolution API para enviar respostas
   whatsappAiEnabled    Boolean? @default(false)

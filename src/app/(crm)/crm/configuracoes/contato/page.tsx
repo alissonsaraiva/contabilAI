@@ -25,9 +25,14 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
+type EmailConfig = { emailRemetente: string; emailNome: string; emailSenha: string }
+
 export default function ContatoPage() {
   const [loading, setLoading] = useState(false)
   const [loadingCep, setLoadingCep] = useState(false)
+  const [emailConfig, setEmailConfig] = useState<EmailConfig>({ emailRemetente: '', emailNome: '', emailSenha: '' })
+  const [savingEmail, setSavingEmail] = useState(false)
+  const [testingSmtp, setTestingSmtp] = useState(false)
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
@@ -35,6 +40,43 @@ export default function ContatoPage() {
       .then(r => r.json())
       .then(data => { if (data) reset(data) })
   }, [reset])
+
+  useEffect(() => {
+    fetch('/api/configuracoes/email')
+      .then(r => r.json())
+      .then(data => { if (data) setEmailConfig(data) })
+  }, [])
+
+  async function saveEmailConfig() {
+    setSavingEmail(true)
+    try {
+      const res = await fetch('/api/configuracoes/email', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailConfig),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Configurações de e-mail salvas!')
+    } catch {
+      toast.error('Erro ao salvar')
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
+  async function testarSmtp() {
+    setTestingSmtp(true)
+    try {
+      const res = await fetch('/api/configuracoes/email', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) toast.success('Conexão SMTP OK!')
+      else toast.error(`Erro: ${data.erro ?? 'Falha na conexão'}`)
+    } catch {
+      toast.error('Erro ao testar conexão')
+    } finally {
+      setTestingSmtp(false)
+    }
+  }
 
   async function buscarCep() {
     const cep = watch('cep')?.replace(/\D/g, '')
@@ -157,6 +199,63 @@ export default function ContatoPage() {
               <label className={LABEL}>UF</label>
               <input {...register('uf')} className={INPUT} placeholder="SP" maxLength={2} />
             </div>
+          </div>
+        </div>
+
+        {/* E-mail de envio (SMTP Hostinger) */}
+        <div>
+          <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">E-mail de envio (SMTP Hostinger)</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div className="space-y-1.5">
+              <label className={LABEL}>E-mail remetente</label>
+              <input
+                className={INPUT}
+                placeholder="contato@escritorio.com.br"
+                value={emailConfig.emailRemetente}
+                onChange={e => setEmailConfig(c => ({ ...c, emailRemetente: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className={LABEL}>Nome do remetente</label>
+              <input
+                className={INPUT}
+                placeholder="Escritório Contábil"
+                value={emailConfig.emailNome}
+                onChange={e => setEmailConfig(c => ({ ...c, emailNome: e.target.value }))}
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <label className={LABEL}>Senha do e-mail</label>
+              <input
+                type="password"
+                className={INPUT}
+                placeholder="••••••••"
+                value={emailConfig.emailSenha}
+                onChange={e => setEmailConfig(c => ({ ...c, emailSenha: e.target.value }))}
+                autoComplete="new-password"
+              />
+              <p className="text-[11px] text-on-surface-variant/50">Senha da conta de e-mail na Hostinger. Armazenada de forma encriptada.</p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={saveEmailConfig}
+              disabled={savingEmail}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-60 transition-colors"
+            >
+              {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
+              Salvar e-mail
+            </button>
+            <button
+              type="button"
+              onClick={testarSmtp}
+              disabled={testingSmtp}
+              className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface hover:bg-surface-container disabled:opacity-60 transition-colors"
+            >
+              {testingSmtp ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">wifi_tethering</span>}
+              Testar conexão
+            </button>
           </div>
         </div>
 

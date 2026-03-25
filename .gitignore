@@ -28,7 +28,7 @@ npm-debug.log*
 next-env.d.ts
 
 # Prisma
-prisma/migrations/
+# migrations são versionadas no git
 
 # Agent skills
 .agent/
