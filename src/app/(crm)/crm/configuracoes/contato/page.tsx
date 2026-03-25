@@ -85,7 +85,7 @@ export default function ContatoPage() {
         {/* Contato */}
         <div>
           <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Contato</p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div className="space-y-1.5">
               <label className={LABEL}>E-mail</label>
               <input {...register('email')} className={INPUT} placeholder="contato@escritorio.com.br" />
@@ -107,7 +107,7 @@ export default function ContatoPage() {
         {/* Endereço */}
         <div>
           <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Endereço</p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div className="space-y-1.5">
               <label className={LABEL}>CEP</label>
               <div className="flex gap-2">

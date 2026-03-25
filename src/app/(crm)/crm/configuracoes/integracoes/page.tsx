@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
@@ -93,7 +94,7 @@ export default function IntegracoesPage() {
             </div>
           </div>
 
-          <div className="grid gap-4" style={{ gridTemplateColumns: integ.campos.length > 1 ? '1fr 1fr' : '1fr' }}>
+          <div className={cn("grid gap-4", integ.campos.length > 1 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
             {integ.campos.map(campo => (
               <div key={campo.name} className="space-y-1.5">
                 <label className={LABEL}>{campo.label}</label>

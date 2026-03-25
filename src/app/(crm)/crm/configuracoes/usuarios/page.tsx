@@ -5,8 +5,8 @@ import { NovoUsuarioDrawer } from '@/components/crm/novo-usuario-drawer'
 import { UsuarioActionsMenu } from '@/components/crm/usuario-actions-menu'
 
 const TIPO_CONFIG: Record<TipoUsuario, { label: string; badge: string }> = {
-  admin:      { label: 'Admin',      badge: 'bg-error/10 text-error border border-error/20' },
-  contador:   { label: 'Contador',   badge: 'bg-primary/10 text-primary border border-primary/20' },
+  admin: { label: 'Admin', badge: 'bg-error/10 text-error border border-error/20' },
+  contador: { label: 'Contador', badge: 'bg-primary/10 text-primary border border-primary/20' },
   assistente: { label: 'Assistente', badge: 'bg-surface-container text-on-surface-variant border border-outline-variant/20' },
 }
 
@@ -34,7 +34,7 @@ export default async function UsuariosPage() {
       </div>
 
       {/* Tabela */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+      <div className="overflow-x-auto overflow-y-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
         {usuarios.length === 0 ? (
           <div className="flex h-32 flex-col items-center justify-center gap-2">
             <span className="material-symbols-outlined text-[28px] text-on-surface-variant/30">group</span>

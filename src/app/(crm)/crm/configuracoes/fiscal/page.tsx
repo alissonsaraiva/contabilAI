@@ -55,7 +55,7 @@ export default function FiscalPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
           <div className="space-y-1.5">
             <label className={LABEL}>CNPJ</label>
             <input

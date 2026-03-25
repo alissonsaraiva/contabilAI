@@ -30,6 +30,9 @@ next-env.d.ts
 # Prisma
 prisma/migrations/
 
+# Agent skills
+.agent/
+
 # VSCode
 .vscode/
 src/app/.next/

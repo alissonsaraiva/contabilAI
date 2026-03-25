@@ -17,9 +17,9 @@ export default function ConfiguracoesLayout({ children }: { children: React.Reac
   const pathname = usePathname()
 
   return (
-    <div className="grid grid-cols-12 gap-8">
+    <div className="flex flex-col gap-6 md:grid md:grid-cols-12 md:gap-8">
       {/* Vertical nav */}
-      <nav className="col-span-3 space-y-1">
+      <nav className="flex overflow-x-auto pb-2 gap-2 md:col-span-3 md:flex-col md:pb-0 md:space-y-1 custom-scrollbar">
         {TABS.map(({ href, icon, label }) => {
           const active = pathname === href || pathname.startsWith(href)
           return (
@@ -27,7 +27,7 @@ export default function ConfiguracoesLayout({ children }: { children: React.Reac
               key={href}
               href={href}
               className={cn(
-                'flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-all',
+                'flex items-center justify-between gap-3 shrink-0 md:shrink-auto rounded-xl px-4 py-3 text-sm font-medium transition-all',
                 active
                   ? 'bg-surface-container-lowest text-primary shadow-sm font-semibold border border-outline-variant/20'
                   : 'text-on-surface-variant hover:bg-surface-container-lowest hover:text-on-surface',
@@ -43,7 +43,7 @@ export default function ConfiguracoesLayout({ children }: { children: React.Reac
                 <span>{label}</span>
               </div>
               {active && (
-                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                <span className="hidden md:block material-symbols-outlined text-[16px]">chevron_right</span>
               )}
             </Link>
           )
