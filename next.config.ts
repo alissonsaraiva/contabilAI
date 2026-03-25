@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     '@aws-sdk/client-s3',
     '@aws-sdk/s3-request-presigner',
     '@react-pdf/renderer',
+    'pg',
   ],
   turbopack: {},
   experimental: {

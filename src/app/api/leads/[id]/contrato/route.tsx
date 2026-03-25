@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { uploadArquivo, storageKeys } from '@/lib/storage'
 import { ContratoPDF } from '@/lib/pdf/contrato-template'
+import { chunkText, embedTexts, storeEmbeddings } from '@/lib/rag'
 import React from 'react'
 import type { PlanoTipo, FormaPagamento } from '@prisma/client'
 
@@ -60,8 +61,21 @@ export async function POST(req: Request, { params }: Params) {
   }) as any
   const pdfBuffer = await renderToBuffer(pdfElement)
 
-  const key = storageKeys.contratoLead(id)
-  const pdfUrl = await uploadArquivo(key, pdfBuffer, 'application/pdf')
+  let pdfUrl: string | null = null
+  const storageConfigured = !!(
+    process.env.STORAGE_ENDPOINT &&
+    process.env.STORAGE_ACCESS_KEY_ID &&
+    process.env.STORAGE_SECRET_ACCESS_KEY &&
+    process.env.STORAGE_BUCKET_NAME
+  )
+  if (storageConfigured) {
+    try {
+      const key = storageKeys.contratoLead(id)
+      pdfUrl = await uploadArquivo(key, pdfBuffer, 'application/pdf')
+    } catch (err) {
+      console.error('[contrato] Falha no upload do PDF:', err)
+    }
+  }
 
   const contrato = await prisma.contrato.upsert({
     where: { leadId: id },
@@ -72,7 +86,7 @@ export async function POST(req: Request, { params }: Params) {
       vencimentoDia: vencimento,
       formaPagamento: formaPagamento as FormaPagamento,
       status: 'assinado',
-      pdfUrl,
+      ...(pdfUrl && { pdfUrl }),
       dadosSnapshot: {
         ...dados,
         assinatura: assinatura.trim(),
@@ -83,7 +97,7 @@ export async function POST(req: Request, { params }: Params) {
     },
     update: {
       status: 'assinado',
-      pdfUrl,
+      ...(pdfUrl && { pdfUrl }),
       assinadoEm: agora,
       dadosSnapshot: {
         ...dados,
@@ -97,6 +111,42 @@ export async function POST(req: Request, { params }: Params) {
     where: { id },
     data: { status: 'assinado', stepAtual: 6 },
   })
+
+  // Indexa o contrato no RAG em background (não bloqueia a resposta)
+  if (process.env.VOYAGE_API_KEY && process.env.VECTORS_DATABASE_URL) {
+    const textoContrato = [
+      `Contrato de Prestação de Serviços Contábeis`,
+      `Cliente: ${dados?.['Nome completo'] ?? lead.contatoEntrada}`,
+      `CPF: ${dados?.['CPF'] ?? ''}`,
+      `E-mail: ${dados?.['E-mail'] ?? lead.contatoEntrada}`,
+      `Telefone: ${dados?.['Telefone'] ?? ''}`,
+      dados?.['CNPJ'] ? `CNPJ: ${dados['CNPJ']}` : '',
+      dados?.['Razão Social'] ? `Razão Social: ${dados['Razão Social']}` : '',
+      dados?.['Cidade'] ? `Cidade: ${dados['Cidade']}` : '',
+      `Plano: ${plano} — R$ ${valor}/mês`,
+      `Vencimento: dia ${vencimento} — ${formaPagamento}`,
+      `Assinado em: ${agora.toISOString()}`,
+      `Assinatura digital: ${assinatura.trim()}`,
+    ].filter(Boolean).join('\n')
+
+    const chunks = chunkText(textoContrato)
+    if (chunks.length) {
+      embedTexts(chunks)
+        .then(embeddings =>
+          storeEmbeddings(
+            chunks.map((conteudo, i) => ({
+              leadId: id,
+              tipo: 'contrato',
+              titulo: `Contrato — ${dados?.['Nome completo'] ?? lead.contatoEntrada}`,
+              conteudo,
+              metadata: { contratoId: contrato.id, chunkIndex: i },
+            })),
+            embeddings,
+          ),
+        )
+        .catch(err => console.error('[rag] Erro ao indexar contrato:', err))
+    }
+  }
 
   return NextResponse.json({ ok: true, pdfUrl, contratoId: contrato.id })
 }
