@@ -1,6 +1,10 @@
 // Escopo define quem pode ver os vetores
 export type EscopoRAG = 'global' | 'cliente' | 'lead'
 
+// Canal define qual IA usa o conteúdo
+// 'geral' aparece em todos os canais
+export type CanalRAG = 'onboarding' | 'crm' | 'portal' | 'whatsapp' | 'geral'
+
 // Tipos de conhecimento — determina como o conteúdo é tratado e filtrado
 export type TipoConhecimento =
   // GLOBAL — base do escritório, visível para todos

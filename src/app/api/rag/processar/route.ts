@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { chunkText, embedTexts, storeEmbeddings } from '@/lib/rag'
 import type { EmbeddingRow } from '@/lib/rag'
-import type { EscopoRAG, TipoConhecimento } from '@/lib/rag/types'
+import type { EscopoRAG, TipoConhecimento, CanalRAG } from '@/lib/rag/types'
 
 export type ProcessarPayload = {
   texto: string
   escopo: EscopoRAG
+  canal?: CanalRAG
   tipo: TipoConhecimento
   titulo?: string
   clienteId?: string
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
 
   const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
     escopo: body.escopo,
+    canal: body.canal ?? 'geral',
     tipo: body.tipo,
     clienteId: body.clienteId,
     leadId: body.leadId,

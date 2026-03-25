@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS vectors.embeddings (
   -- Escopo de visibilidade
   escopo        TEXT        NOT NULL CHECK (escopo IN ('global', 'cliente', 'lead')),
 
+  -- Canal de uso — qual IA acessa este conteúdo ('geral' = todos)
+  canal         TEXT        NOT NULL DEFAULT 'geral'
+                            CHECK (canal IN ('onboarding', 'crm', 'portal', 'whatsapp', 'geral')),
+
   -- Tipo de conhecimento (ver src/lib/rag/types.ts)
   tipo          TEXT        NOT NULL,
 
@@ -48,6 +52,7 @@ CREATE INDEX IF NOT EXISTS embeddings_hnsw_idx
 
 -- Índices relacionais para filtragem eficiente
 CREATE INDEX IF NOT EXISTS embeddings_escopo_idx    ON vectors.embeddings (escopo);
+CREATE INDEX IF NOT EXISTS embeddings_canal_idx     ON vectors.embeddings (canal);
 CREATE INDEX IF NOT EXISTS embeddings_tipo_idx      ON vectors.embeddings (tipo);
 CREATE INDEX IF NOT EXISTS embeddings_cliente_idx   ON vectors.embeddings (cliente_id) WHERE cliente_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS embeddings_lead_idx      ON vectors.embeddings (lead_id)    WHERE lead_id IS NOT NULL;

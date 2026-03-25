@@ -1,6 +1,6 @@
 import { embedText, searchSimilar } from '@/lib/rag'
 import type { SearchOpts, SearchResult } from '@/lib/rag'
-import type { TipoConhecimento } from '@/lib/rag/types'
+import type { TipoConhecimento, CanalRAG } from '@/lib/rag/types'
 import { getProvider } from './providers'
 import type { AIMessage } from './providers'
 import { getAiConfig } from './config'
@@ -63,8 +63,9 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
   // 1. Carrega configuração (DB > env vars)
   const config = await getAiConfig()
 
-  // 2. Busca RAG
-  const searchOpts = buildSearchOpts(context, tipos, maxChunks)
+  // 2. Busca RAG — passa o canal da feature para filtrar a base de conhecimento
+  const canal = featureToCanal(feature)
+  const searchOpts = buildSearchOpts(context, tipos, maxChunks, canal)
   let fontes: SearchResult[] = []
   try {
     if (config.voyageApiKey) {
@@ -107,14 +108,25 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
   return { resposta: result.text, fontes, provider: result.provider, model: result.model }
 }
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function featureToCanal(feature: AskFeature | 'whatsapp' | undefined): CanalRAG {
+  switch (feature) {
+    case 'onboarding': return 'onboarding'
+    case 'crm':        return 'crm'
+    case 'portal':     return 'portal'
+    case 'whatsapp':   return 'whatsapp'
+    default:           return 'geral'
+  }
+}
 
 function buildSearchOpts(
   context: AskContext,
   tipos: TipoConhecimento[] | undefined,
   limit: number,
+  canal: CanalRAG,
 ): SearchOpts {
-  const base: SearchOpts = { limit, minSimilarity: 0.45, tipos }
+  const base: SearchOpts = { limit, minSimilarity: 0.45, tipos, canal }
   switch (context.escopo) {
     case 'global':          return { ...base, escopo: 'global' }
     case 'cliente':         return { ...base, clienteId: context.clienteId }

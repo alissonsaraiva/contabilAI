@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { chunkText, embedTexts, storeEmbeddings, listKnowledge } from '@/lib/rag'
 import type { EmbeddingRow } from '@/lib/rag'
-import type { TipoConhecimento } from '@/lib/rag/types'
+import type { TipoConhecimento, CanalRAG } from '@/lib/rag/types'
 import { randomUUID } from 'crypto'
 
 // GET — lista artigos da base global
@@ -14,9 +14,13 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url)
+  const canal  = searchParams.get('canal') as CanalRAG | null
   const tipoFilter = searchParams.get('tipo') as TipoConhecimento | null
 
-  const entries = await listKnowledge(tipoFilter ?? undefined)
+  const entries = await listKnowledge({
+    canal:  canal  ?? undefined,
+    tipo:   tipoFilter ?? undefined,
+  })
   return NextResponse.json(entries)
 }
 
@@ -32,11 +36,13 @@ export async function POST(req: Request) {
     titulo: string
     conteudo: string
     tipo: TipoConhecimento
+    canal: CanalRAG
   }
 
   if (!body.titulo?.trim()) return NextResponse.json({ error: 'titulo obrigatório' }, { status: 400 })
   if (!body.conteudo?.trim()) return NextResponse.json({ error: 'conteudo obrigatório' }, { status: 400 })
   if (!body.tipo) return NextResponse.json({ error: 'tipo obrigatório' }, { status: 400 })
+  if (!body.canal) return NextResponse.json({ error: 'canal obrigatório' }, { status: 400 })
 
   if (!process.env.VOYAGE_API_KEY) {
     return NextResponse.json({ error: 'VOYAGE_API_KEY não configurada' }, { status: 503 })
@@ -50,6 +56,7 @@ export async function POST(req: Request) {
 
   const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
     escopo: 'global' as const,
+    canal: body.canal,
     tipo: body.tipo,
     titulo: body.titulo,
     conteudo,

@@ -1,5 +1,5 @@
 import { Pool } from 'pg'
-import type { EscopoRAG, TipoConhecimento } from './types'
+import type { EscopoRAG, TipoConhecimento, CanalRAG } from './types'
 
 // Pool dedicado ao banco de vetores (contabai_vectors — pgvector/pgvector:pg17)
 // Usa VECTORS_DATABASE_URL; se não configurada, tenta DATABASE_URL como fallback
@@ -18,6 +18,7 @@ function getPool(): Pool {
 
 export type EmbeddingRow = {
   escopo: EscopoRAG
+  canal?: CanalRAG         // qual IA usa — null = 'geral'
   tipo: TipoConhecimento
   clienteId?: string | null
   leadId?: string | null
@@ -30,6 +31,7 @@ export type EmbeddingRow = {
 export type SearchResult = {
   id: string
   escopo: EscopoRAG
+  canal: CanalRAG
   tipo: TipoConhecimento
   titulo: string | null
   conteudo: string
@@ -45,6 +47,9 @@ export type SearchOpts = {
   clienteId?: string       // filtra por cliente (escopo cliente)
   leadId?: string          // filtra por lead (escopo lead)
   incluirGlobal?: boolean  // inclui base global junto com escopo cliente/lead
+
+  // Filtro de canal — retorna o canal solicitado + 'geral'
+  canal?: CanalRAG
 
   // Filtros de tipo
   tipos?: TipoConhecimento[]
@@ -69,10 +74,11 @@ export async function storeEmbeddings(
       const vec = `[${embeddings[i].join(',')}]`
       await client.query(
         `INSERT INTO vectors.embeddings
-           (escopo, tipo, cliente_id, lead_id, documento_id, titulo, conteudo, embedding, metadata)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::vector,$9)`,
+           (escopo, canal, tipo, cliente_id, lead_id, documento_id, titulo, conteudo, embedding, metadata)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::vector,$10)`,
         [
           r.escopo,
+          r.canal ?? 'geral',
           r.tipo,
           r.clienteId ?? null,
           r.leadId ?? null,
@@ -135,6 +141,12 @@ export async function searchSimilar(
     }
   }
 
+  // Filtro de canal — canal solicitado OU 'geral'
+  if (opts.canal && opts.canal !== 'geral') {
+    conditions.push(`canal = ANY($${idx++}::text[])`)
+    values.push([opts.canal, 'geral'])
+  }
+
   // Filtro de tipos
   if (opts.tipos?.length) {
     conditions.push(`tipo = ANY($${idx++}::text[])`)
@@ -146,6 +158,7 @@ export async function searchSimilar(
   const { rows } = await db.query<{
     id: string
     escopo: EscopoRAG
+    canal: CanalRAG
     tipo: TipoConhecimento
     titulo: string | null
     conteudo: string
@@ -155,7 +168,7 @@ export async function searchSimilar(
     metadata: Record<string, unknown> | null
   }>(
     `SELECT
-       id, escopo, tipo, titulo, conteudo, cliente_id, lead_id, metadata,
+       id, escopo, canal, tipo, titulo, conteudo, cliente_id, lead_id, metadata,
        1 - (embedding <=> $1::vector) AS similarity
      FROM vectors.embeddings
      WHERE 1 - (embedding <=> $1::vector) >= ${minSim}
@@ -168,6 +181,7 @@ export async function searchSimilar(
   return rows.map(r => ({
     id: r.id,
     escopo: r.escopo,
+    canal: r.canal ?? 'geral',
     tipo: r.tipo,
     titulo: r.titulo,
     conteudo: r.conteudo,
@@ -182,6 +196,7 @@ export async function searchSimilar(
 
 export type KnowledgeEntry = {
   sourceId: string
+  canal: CanalRAG
   tipo: TipoConhecimento
   titulo: string | null
   preview: string      // primeiros 200 chars do conteúdo
@@ -190,18 +205,27 @@ export type KnowledgeEntry = {
 }
 
 // Lista artigos únicos da base global — mostra apenas o chunk 0 de cada sourceId
-export async function listKnowledge(tipo?: TipoConhecimento): Promise<KnowledgeEntry[]> {
+export async function listKnowledge(opts: {
+  canal?: CanalRAG
+  tipo?: TipoConhecimento
+} = {}): Promise<KnowledgeEntry[]> {
   const db = getPool()
   const conditions = [`escopo = 'global'`, `(metadata->>'chunkIndex')::int = 0`]
   const values: unknown[] = []
+  let idx = 1
 
-  if (tipo) {
-    conditions.push(`tipo = $1`)
-    values.push(tipo)
+  if (opts.canal) {
+    conditions.push(`canal = $${idx++}`)
+    values.push(opts.canal)
+  }
+  if (opts.tipo) {
+    conditions.push(`tipo = $${idx++}`)
+    values.push(opts.tipo)
   }
 
   const { rows } = await db.query<{
     source_id: string
+    canal: CanalRAG
     tipo: TipoConhecimento
     titulo: string | null
     conteudo: string
@@ -210,6 +234,7 @@ export async function listKnowledge(tipo?: TipoConhecimento): Promise<KnowledgeE
   }>(
     `SELECT
        metadata->>'sourceId' AS source_id,
+       canal,
        tipo,
        titulo,
        conteudo,
@@ -223,6 +248,7 @@ export async function listKnowledge(tipo?: TipoConhecimento): Promise<KnowledgeE
 
   return rows.map(r => ({
     sourceId: r.source_id,
+    canal: r.canal ?? 'geral',
     tipo: r.tipo,
     titulo: r.titulo,
     preview: r.conteudo.slice(0, 200),

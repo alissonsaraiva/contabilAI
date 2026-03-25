@@ -5,10 +5,12 @@ import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+type CanalRAG = 'onboarding' | 'crm' | 'portal' | 'whatsapp' | 'geral'
 type TipoConhecimento = 'base_conhecimento' | 'fiscal_normativo' | 'template'
 
 type KnowledgeEntry = {
   sourceId: string
+  canal: CanalRAG
   tipo: TipoConhecimento
   titulo: string | null
   preview: string
@@ -16,33 +18,40 @@ type KnowledgeEntry = {
   criadoEm: string
 }
 
-const TIPOS: { value: TipoConhecimento; label: string; icon: string; desc: string }[] = [
-  { value: 'base_conhecimento', label: 'Base de Conhecimento', icon: 'menu_book',      desc: 'FAQs, guias e respostas frequentes' },
-  { value: 'fiscal_normativo',  label: 'Fiscal / Normativo',  icon: 'gavel',           desc: 'Leis, regulamentos e normas fiscais' },
-  { value: 'template',          label: 'Templates',           icon: 'description',     desc: 'Modelos de documentos e comunicados' },
+const CANAIS: { value: CanalRAG; label: string; icon: string; desc: string }[] = [
+  { value: 'onboarding', icon: 'chat_bubble',   label: 'Onboarding',  desc: 'Triagem de novos leads — planos, processo de abertura' },
+  { value: 'crm',        icon: 'support_agent', label: 'CRM',         desc: 'Base interna do contador — normas, procedimentos' },
+  { value: 'portal',     icon: 'person',         label: 'Portal',      desc: 'Atendimento ao cliente — obrigações, prazos, docs' },
+  { value: 'whatsapp',   icon: 'chat',           label: 'WhatsApp',    desc: 'Respostas rápidas via WhatsApp' },
+  { value: 'geral',      icon: 'public',         label: 'Geral',       desc: 'Aparece em todos os canais' },
 ]
 
-const INPUT  = 'w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
-const LABEL  = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const TIPOS: { value: TipoConhecimento; label: string }[] = [
+  { value: 'base_conhecimento', label: 'Base de Conhecimento' },
+  { value: 'fiscal_normativo',  label: 'Fiscal / Normativo' },
+  { value: 'template',          label: 'Template' },
+]
+
+const INPUT = 'w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
+const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 
 export default function ConhecimentoPage() {
+  const [activeCanal, setActiveCanal] = useState<CanalRAG>('onboarding')
   const [entries, setEntries] = useState<KnowledgeEntry[]>([])
   const [loadingList, setLoadingList] = useState(true)
-  const [filterTipo, setFilterTipo] = useState<TipoConhecimento | ''>('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
 
-  // Form state
+  // Form
   const [titulo, setTitulo]   = useState('')
   const [conteudo, setConteudo] = useState('')
   const [tipo, setTipo]       = useState<TipoConhecimento>('base_conhecimento')
   const [saving, setSaving]   = useState(false)
-  const [formOpen, setFormOpen] = useState(false)
 
   const loadEntries = useCallback(async () => {
     setLoadingList(true)
     try {
-      const url = filterTipo ? `/api/conhecimento?tipo=${filterTipo}` : '/api/conhecimento'
-      const res = await fetch(url)
+      const res = await fetch(`/api/conhecimento?canal=${activeCanal}`)
       if (!res.ok) throw new Error()
       setEntries(await res.json())
     } catch {
@@ -50,9 +59,12 @@ export default function ConhecimentoPage() {
     } finally {
       setLoadingList(false)
     }
-  }, [filterTipo])
+  }, [activeCanal])
 
   useEffect(() => { loadEntries() }, [loadEntries])
+
+  // Fecha form ao trocar de canal
+  useEffect(() => { setFormOpen(false) }, [activeCanal])
 
   async function handleSave() {
     if (!titulo.trim() || !conteudo.trim()) {
@@ -64,7 +76,7 @@ export default function ConhecimentoPage() {
       const res = await fetch('/api/conhecimento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo: titulo.trim(), conteudo: conteudo.trim(), tipo }),
+        body: JSON.stringify({ titulo: titulo.trim(), conteudo: conteudo.trim(), tipo, canal: activeCanal }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -94,117 +106,121 @@ export default function ConhecimentoPage() {
     }
   }
 
-  const tipoInfo = (t: TipoConhecimento) => TIPOS.find(x => x.value === t)
+  const canalInfo = CANAIS.find(c => c.value === activeCanal)!
 
   return (
     <div className="space-y-5">
 
-      {/* Header + Novo artigo */}
+      {/* Header */}
       <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4 mb-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-              <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-                auto_stories
-              </span>
-            </div>
-            <div>
-              <h3 className="text-[14px] font-semibold text-on-surface">Base de Conhecimento</h3>
-              <p className="text-[12px] text-on-surface-variant/80">FAQs, normas fiscais e templates para a IA</p>
-            </div>
+        <div className="flex items-center gap-3 mb-1">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+            <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+              auto_stories
+            </span>
           </div>
-          <button
-            onClick={() => setFormOpen(o => !o)}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[16px]">{formOpen ? 'close' : 'add'}</span>
-            {formOpen ? 'Cancelar' : 'Novo artigo'}
-          </button>
+          <div>
+            <h3 className="text-[14px] font-semibold text-on-surface">Base de Conhecimento</h3>
+            <p className="text-[12px] text-on-surface-variant/80">Cada IA acessa apenas a base do seu canal + Geral</p>
+          </div>
         </div>
-
-        {/* Formulário de criação */}
-        {formOpen && (
-          <div className="space-y-4 rounded-xl border border-outline-variant/15 bg-surface-container-low/40 p-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className={LABEL}>Título</label>
-                <input
-                  value={titulo}
-                  onChange={e => setTitulo(e.target.value)}
-                  className={INPUT}
-                  placeholder="Ex: Como declarar Simples Nacional?"
-                />
-              </div>
-              <div>
-                <label className={LABEL}>Tipo</label>
-                <select
-                  value={tipo}
-                  onChange={e => setTipo(e.target.value as TipoConhecimento)}
-                  className={`${INPUT} cursor-pointer`}
-                >
-                  {TIPOS.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className={LABEL}>Conteúdo</label>
-              <textarea
-                value={conteudo}
-                onChange={e => setConteudo(e.target.value)}
-                className={`${INPUT} min-h-[160px] resize-y`}
-                placeholder="Cole ou escreva o conteúdo do artigo. O sistema divide automaticamente em chunks otimizados para busca semântica."
-              />
-              <p className="mt-1 text-[11px] text-on-surface-variant/50">
-                {conteudo.length} caracteres · ~{Math.ceil(conteudo.length / 1600)} chunk(s) estimado(s)
-              </p>
-            </div>
-            <div className="flex justify-end">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
-              >
-                {saving
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <span className="material-symbols-outlined text-[16px]">save</span>}
-                Salvar e indexar
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setFilterTipo('')}
-          className={cn(
-            'rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-colors border',
-            filterTipo === ''
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'border-outline-variant/30 text-on-surface-variant hover:border-primary/30 hover:text-primary bg-card',
-          )}
-        >
-          Todos
-        </button>
-        {TIPOS.map(t => (
+      {/* Tabs de canal */}
+      <div className="flex overflow-x-auto gap-2 pb-1 custom-scrollbar">
+        {CANAIS.map(c => (
           <button
-            key={t.value}
-            onClick={() => setFilterTipo(t.value)}
+            key={c.value}
+            onClick={() => setActiveCanal(c.value)}
             className={cn(
-              'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-colors border',
-              filterTipo === t.value
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-outline-variant/30 text-on-surface-variant hover:border-primary/30 hover:text-primary bg-card',
+              'flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold transition-all',
+              activeCanal === c.value
+                ? 'border-primary/30 bg-primary/8 text-primary shadow-sm'
+                : 'border-outline-variant/20 bg-card text-on-surface-variant hover:border-outline-variant/40 hover:text-on-surface',
             )}
           >
-            <span className="material-symbols-outlined text-[13px]">{t.icon}</span>
-            {t.label}
+            <span className="material-symbols-outlined text-[15px]"
+              style={{ fontVariationSettings: activeCanal === c.value ? "'FILL' 1" : "'FILL' 0" }}>
+              {c.icon}
+            </span>
+            {c.label}
           </button>
         ))}
       </div>
+
+      {/* Descrição do canal + botão novo */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[12px] text-on-surface-variant/70">
+          <span className="material-symbols-outlined text-[14px]">{canalInfo.icon}</span>
+          {canalInfo.desc}
+        </div>
+        <button
+          onClick={() => setFormOpen(o => !o)}
+          className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[16px]">{formOpen ? 'close' : 'add'}</span>
+          {formOpen ? 'Cancelar' : 'Novo artigo'}
+        </button>
+      </div>
+
+      {/* Formulário de criação */}
+      {formOpen && (
+        <div className="space-y-4 rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={LABEL}>Título</label>
+              <input
+                value={titulo}
+                onChange={e => setTitulo(e.target.value)}
+                className={INPUT}
+                placeholder={
+                  activeCanal === 'onboarding' ? 'Ex: Como funciona o MEI?' :
+                  activeCanal === 'crm'        ? 'Ex: Procedimento DAS atrasado' :
+                  activeCanal === 'portal'     ? 'Ex: Quando vence meu DAS?' :
+                  activeCanal === 'whatsapp'   ? 'Ex: Horário de atendimento' :
+                  'Ex: Política de atendimento'
+                }
+              />
+            </div>
+            <div>
+              <label className={LABEL}>Tipo</label>
+              <select
+                value={tipo}
+                onChange={e => setTipo(e.target.value as TipoConhecimento)}
+                className={`${INPUT} cursor-pointer`}
+              >
+                {TIPOS.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={LABEL}>Conteúdo</label>
+            <textarea
+              value={conteudo}
+              onChange={e => setConteudo(e.target.value)}
+              className={`${INPUT} min-h-[160px] resize-y`}
+              placeholder="Cole ou escreva o conteúdo. O sistema divide automaticamente em chunks otimizados para busca semântica."
+            />
+            <p className="mt-1 text-[11px] text-on-surface-variant/50">
+              {conteudo.length} chars · ~{Math.ceil(conteudo.length / 1600) || 1} chunk(s)
+            </p>
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              {saving
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <span className="material-symbols-outlined text-[16px]">save</span>}
+              Salvar e indexar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Lista de artigos */}
       <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
@@ -215,8 +231,8 @@ export default function ConhecimentoPage() {
           </div>
         ) : entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[40px] opacity-30">auto_stories</span>
-            <p className="text-[13px]">Nenhum artigo cadastrado</p>
+            <span className="material-symbols-outlined text-[40px] opacity-30">{canalInfo.icon}</span>
+            <p className="text-[13px]">Nenhum artigo para <strong>{canalInfo.label}</strong></p>
             <button
               onClick={() => setFormOpen(true)}
               className="text-[12px] font-semibold text-primary hover:underline"
@@ -227,15 +243,12 @@ export default function ConhecimentoPage() {
         ) : (
           <div className="divide-y divide-outline-variant/10">
             {entries.map(entry => {
-              const info = tipoInfo(entry.tipo)
+              const tipoInfo = TIPOS.find(t => t.value === entry.tipo)
               return (
                 <div key={entry.sourceId} className="group flex items-start gap-4 px-5 py-4 hover:bg-surface-container-low/40 transition-colors">
-                  {/* Ícone de tipo */}
                   <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/8">
-                    <span className="material-symbols-outlined text-[16px] text-primary/70">{info?.icon ?? 'article'}</span>
+                    <span className="material-symbols-outlined text-[16px] text-primary/70">{canalInfo.icon}</span>
                   </div>
-
-                  {/* Conteúdo */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-[14px] font-semibold text-on-surface truncate">
@@ -244,7 +257,7 @@ export default function ConhecimentoPage() {
                       <button
                         onClick={() => handleDelete(entry.sourceId, entry.titulo)}
                         disabled={deletingId === entry.sourceId}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-error hover:bg-error/8 disabled:opacity-40"
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center rounded-lg px-2 py-1 text-[11px] font-medium text-error hover:bg-error/8 disabled:opacity-40"
                       >
                         {deletingId === entry.sourceId
                           ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -254,8 +267,7 @@ export default function ConhecimentoPage() {
                     <p className="mt-1 text-[12px] text-on-surface-variant/70 line-clamp-2">{entry.preview}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-3">
                       <span className="inline-flex items-center gap-1 rounded-full border border-outline-variant/20 bg-surface-container-low px-2 py-0.5 text-[11px] font-medium text-on-surface-variant">
-                        <span className="material-symbols-outlined text-[11px]">{info?.icon ?? 'article'}</span>
-                        {info?.label ?? entry.tipo}
+                        {tipoInfo?.label ?? entry.tipo}
                       </span>
                       <span className="text-[11px] text-on-surface-variant/50">
                         {entry.totalChunks} chunk{entry.totalChunks !== 1 ? 's' : ''}
@@ -272,12 +284,12 @@ export default function ConhecimentoPage() {
         )}
       </div>
 
-      {/* Rodapé informativo */}
+      {/* Info */}
       <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low/50 px-4 py-3 flex items-start gap-3">
         <span className="material-symbols-outlined text-[16px] text-primary/60 mt-0.5">info</span>
         <p className="text-[12px] text-on-surface-variant/70">
-          Os artigos são automaticamente divididos em chunks e indexados com embeddings Voyage AI (voyage-3-lite).
-          A IA usa essa base para responder perguntas no onboarding, CRM e portal do cliente.
+          Artigos do canal <strong>Geral</strong> aparecem em todos os canais.
+          Cada IA acessa apenas os artigos do seu canal + Geral — o onboarding não vê a base do portal, e vice-versa.
         </p>
       </div>
     </div>
