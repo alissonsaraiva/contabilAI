@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, use, useEffect } from 'react'
+import { useState, use, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { formatCPF, formatCNPJ, formatTelefone } from '@/lib/utils'
+import { useAutoSave } from '@/hooks/use-auto-save'
 
 type Props = { searchParams: Promise<{ leadId?: string; plano?: string }> }
 
@@ -26,6 +27,20 @@ export default function DadosPage({ searchParams }: Props) {
     cnpj: '', razaoSocial: '', cidade: '',
   })
   const [erros, setErros] = useState<Record<string, string>>({})
+
+  const autoSavePayload = useMemo(() => JSON.stringify({
+    dadosJson: {
+      'Nome completo': form.nome,
+      'CPF': form.cpf,
+      'E-mail': form.email,
+      'Telefone': form.telefone,
+      ...(form.cnpj && { 'CNPJ': form.cnpj }),
+      ...(form.razaoSocial && { 'Razão Social': form.razaoSocial }),
+      ...(form.cidade && { 'Cidade': form.cidade }),
+    },
+  }), [form])
+
+  const saveStatus = useAutoSave(leadId, autoSavePayload)
 
   useEffect(() => {
     if (!leadId) return
@@ -168,6 +183,16 @@ export default function DadosPage({ searchParams }: Props) {
             <>Continuar <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>
           )}
         </button>
+
+        {saveStatus !== 'idle' && (
+          <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-on-surface-variant/50">
+            {saveStatus === 'saving' ? (
+              <><span className="h-3 w-3 animate-spin rounded-full border border-on-surface-variant/30 border-t-on-surface-variant/60" />Salvando...</>
+            ) : (
+              <><span className="material-symbols-outlined text-[13px] text-green-status" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>Salvo automaticamente</>
+            )}
+          </div>
+        )}
       </form>
     </div>
   )
