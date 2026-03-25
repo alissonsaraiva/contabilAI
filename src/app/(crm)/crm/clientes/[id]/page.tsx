@@ -147,8 +147,8 @@ export default async function ClienteDetailPage({ params }: Props) {
       {/* ── Tabs ───────────────────────────────────────────── */}
       <Tabs defaultValue="dados" className="w-full">
         {/* Tab bar (Sleek Pills) */}
-        <div className="mb-6">
-          <TabsList className="inline-flex h-12 items-center justify-start gap-1 rounded-full bg-surface-container/80 p-1 text-on-surface-variant ring-1 ring-inset ring-outline-variant/20">
+        <div className="mb-6 overflow-x-auto custom-scrollbar pb-2">
+          <TabsList className="inline-flex h-12 min-w-max items-center justify-start gap-1 rounded-full bg-surface-container/80 p-1 text-on-surface-variant ring-1 ring-inset ring-outline-variant/20">
             {tabs.map(({ value, label, count }) => (
               <TabsTrigger
                 key={value}

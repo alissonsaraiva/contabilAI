@@ -6,6 +6,7 @@ import type { StatusLead } from '@prisma/client'
 import { NovoLeadDrawer } from '@/components/crm/novo-lead-drawer'
 import { LeadsPeriodoFilter } from '@/components/crm/leads-periodo-filter'
 import { Suspense } from 'react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const COLUNAS: { status: StatusLead; label: string; dot: string }[] = [
   { status: 'iniciado', label: 'Iniciado', dot: 'bg-on-surface-variant/40' },
@@ -81,8 +82,63 @@ export default async function LeadsPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Kanban */}
-      <div className="overflow-x-auto pb-4 custom-scrollbar">
+      {/* ── Mobile View: Tabs (hidden on md) ── */}
+      <div className="block md:hidden">
+        <Tabs defaultValue="iniciado" className="w-full">
+          <div className="mb-6 overflow-x-auto custom-scrollbar pb-2">
+            <TabsList className="inline-flex h-12 w-max min-w-full items-center justify-start gap-1 rounded-full bg-surface-container/80 p-1 text-on-surface-variant ring-1 ring-inset ring-outline-variant/20">
+              {grouped.map((col) => (
+                <TabsTrigger
+                  key={col.status}
+                  value={col.status}
+                  className="inline-flex h-full items-center justify-center whitespace-nowrap rounded-full px-4 text-sm font-medium transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-outline-variant/10 hover:text-on-surface"
+                >
+                  <div className={`mr-2 h-1.5 w-1.5 rounded-full ${col.dot}`} />
+                  {col.label}
+                  <span
+                    className={`ml-1.5 rounded-full px-1.5 py-[1px] text-[10px] font-bold tabular-nums ${col.total > 0
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-outline-variant/20 text-on-surface-variant/80'
+                      }`}
+                  >
+                    {col.total}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+
+          {grouped.map((col) => (
+            <TabsContent key={col.status} value={col.status} className="m-0 focus-visible:outline-none">
+              <div className="flex flex-col gap-3">
+                {col.leads.length === 0 ? (
+                  <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-outline-variant/30 bg-surface-container-low/30">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
+                      Vazio
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    {col.leads.map((lead) => (
+                      <LeadCardItem key={lead.id} lead={lead} />
+                    ))}
+                    {col.total > CAP_POR_COLUNA && (
+                      <div className="flex items-center justify-center rounded-xl border border-dashed border-outline-variant/30 bg-surface-container-low/20 py-3">
+                        <span className="text-[11px] font-semibold text-on-surface-variant">
+                          + {col.total - CAP_POR_COLUNA} mais nesta etapa
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+
+      {/* ── Desktop View: Kanban (hidden on mobile, flex on md) ── */}
+      <div className="hidden md:block overflow-x-auto pb-4 custom-scrollbar">
         <div className="flex gap-5" style={{ minWidth: 'max-content' }}>
           {grouped.map((col) => (
             <div key={col.status} className="flex w-[280px] flex-col gap-3">
@@ -108,37 +164,7 @@ export default async function LeadsPage({ searchParams }: Props) {
                 ) : (
                   <>
                     {col.leads.map((lead) => (
-                      <Link key={lead.id} href={`/crm/leads/${lead.id}`}>
-                        <div className="group rounded-[14px] border border-outline-variant/15 bg-card p-4 shadow-sm transition-all hover:shadow-md hover:border-outline-variant/30 flex flex-col gap-3">
-                          <h4 className="truncate text-[14px] font-semibold text-on-surface">
-                            {(lead.dadosJson as Record<string, string> | null)?.['Nome completo'] ?? lead.contatoEntrada}
-                          </h4>
-
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${CANAL_COLORS[lead.canal] ?? 'bg-slate-100 text-slate-600'}`}>
-                              {CANAL_LABELS[lead.canal]}
-                            </span>
-                            {lead.planoTipo && (
-                              <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${PLANO_COLORS[lead.planoTipo] ?? 'bg-slate-100 text-slate-600'}`}>
-                                {PLANO_LABELS[lead.planoTipo]}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center justify-between border-t border-outline-variant/10 pt-3 mt-1">
-                            {lead.valorNegociado ? (
-                              <span className="text-xs font-semibold text-primary">
-                                {formatBRL(Number(lead.valorNegociado))}/mês
-                              </span>
-                            ) : (
-                              <span className="text-xs text-on-surface-variant/50">—</span>
-                            )}
-                            <span className="text-[10px] font-medium text-on-surface-variant/70">
-                              {formatDateTime(lead.criadoEm)}
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
+                      <LeadCardItem key={lead.id} lead={lead} />
                     ))}
 
                     {col.total > CAP_POR_COLUNA && (
@@ -158,3 +184,40 @@ export default async function LeadsPage({ searchParams }: Props) {
     </div>
   )
 }
+
+function LeadCardItem({ lead }: { lead: any }) {
+  return (
+    <Link href={`/crm/leads/${lead.id}`}>
+      <div className="group rounded-[14px] border border-outline-variant/15 bg-card p-4 shadow-sm transition-all hover:shadow-md hover:border-outline-variant/30 flex flex-col gap-3">
+        <h4 className="truncate text-[14px] font-semibold text-on-surface">
+          {(lead.dadosJson as Record<string, string> | null)?.['Nome completo'] ?? lead.contatoEntrada}
+        </h4>
+
+        <div className="flex flex-wrap gap-1.5">
+          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${CANAL_COLORS[lead.canal as keyof typeof CANAL_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
+            {CANAL_LABELS[lead.canal as keyof typeof CANAL_LABELS]}
+          </span>
+          {lead.planoTipo && (
+            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${PLANO_COLORS[lead.planoTipo as keyof typeof PLANO_COLORS] ?? 'bg-slate-100 text-slate-600'}`}>
+              {PLANO_LABELS[lead.planoTipo as keyof typeof PLANO_LABELS]}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-outline-variant/10 pt-3 mt-1">
+          {lead.valorNegociado ? (
+            <span className="text-xs font-semibold text-primary">
+              {formatBRL(Number(lead.valorNegociado))}/mês
+            </span>
+          ) : (
+            <span className="text-xs text-on-surface-variant/50">—</span>
+          )}
+          <span className="text-[10px] font-medium text-on-surface-variant/70">
+            {formatDateTime(lead.criadoEm)}
+          </span>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
