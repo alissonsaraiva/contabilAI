@@ -37,27 +37,28 @@ export async function POST(req: Request, { params }: Params) {
   const valor = PLANO_PRECOS[plano] ?? 199
   const agora = new Date()
 
-  const pdfBuffer = await renderToBuffer(
-    React.createElement(ContratoPDF, {
-      nome: dados?.['Nome completo'] ?? lead.contatoEntrada,
-      cpf: dados?.['CPF'] ?? '',
-      email: dados?.['E-mail'] ?? lead.contatoEntrada,
-      telefone: dados?.['Telefone'] ?? lead.contatoEntrada,
-      cnpj: dados?.['CNPJ'],
-      razaoSocial: dados?.['Razão Social'],
-      cidade: dados?.['Cidade'],
-      plano,
-      valor,
-      vencimentoDia: vencimento,
-      formaPagamento,
-      assinadoEm: agora,
-      assinatura: assinatura.trim(),
-      escritorioNome: escritorio?.nome ?? 'ContabAI',
-      escritorioCnpj: escritorio?.cnpj,
-      escritorioCrc: escritorio?.crc,
-      escritorioCidade: escritorio?.cidade,
-    }),
-  )
+  const pdfElement = React.createElement(ContratoPDF, {
+    nome: dados?.['Nome completo'] ?? lead.contatoEntrada,
+    cpf: dados?.['CPF'] ?? '',
+    email: dados?.['E-mail'] ?? lead.contatoEntrada,
+    telefone: dados?.['Telefone'] ?? lead.contatoEntrada,
+    cnpj: dados?.['CNPJ'],
+    razaoSocial: dados?.['Razão Social'],
+    cidade: dados?.['Cidade'],
+    plano,
+    valor,
+    vencimentoDia: vencimento,
+    formaPagamento,
+    assinadoEm: agora,
+    assinatura: assinatura.trim(),
+    escritorioNome: escritorio?.nome ?? 'ContabAI',
+    escritorioCnpj: escritorio?.cnpj,
+    escritorioCrc: escritorio?.crc,
+    escritorioCidade: escritorio?.cidade,
+  // @react-pdf/renderer types require DocumentProps but ContratoPDF wraps Document internally
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any
+  const pdfBuffer = await renderToBuffer(pdfElement)
 
   const key = storageKeys.contratoLead(id)
   const pdfUrl = await uploadArquivo(key, pdfBuffer, 'application/pdf')
