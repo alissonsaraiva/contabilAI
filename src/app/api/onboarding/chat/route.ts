@@ -8,9 +8,10 @@ Seja acolhedor e encoraje o cadastro quando pertinente.
 Não colete dados sensíveis pelo chat — oriente o cliente a preencher os campos do formulário.`
 
 export async function POST(req: Request) {
-  const { message, history } = await req.json() as {
+  const { message, history, leadId } = await req.json() as {
     message: string
     history: AIMessage[]
+    leadId?: string
   }
 
   if (!message?.trim()) {
@@ -33,9 +34,14 @@ export async function POST(req: Request) {
     }
   }
 
+  const context = leadId
+    ? { escopo: 'lead+global' as const, leadId }
+    : { escopo: 'global' as const }
+
   const { resposta } = await askAI({
     pergunta: message,
-    context: { escopo: 'global' },
+    context,
+    feature: 'onboarding',
     historico: history,
     systemExtra: SYSTEM_ONBOARDING,
     tipos: ['base_conhecimento', 'fiscal_normativo'],

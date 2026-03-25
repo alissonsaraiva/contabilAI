@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 type Msg = { role: 'user' | 'assistant'; text: string }
 
@@ -10,6 +11,8 @@ const GREETING: Msg = {
 }
 
 export function ChatWidget() {
+  const searchParams = useSearchParams()
+  const leadId = searchParams.get('leadId') ?? undefined
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([GREETING])
   const [input, setInput] = useState('')
@@ -37,7 +40,7 @@ export function ChatWidget() {
       const res = await fetch('/api/onboarding/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history: next }),
+        body: JSON.stringify({ message: text, history: next, leadId }),
       })
       const data = await res.json()
       setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
