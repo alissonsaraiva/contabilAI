@@ -62,6 +62,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Sincronizar docker-compose.yml para a VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: docker-compose.yml
+          target: /home/deploy/contabai/
+
       - name: Deploy na VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:

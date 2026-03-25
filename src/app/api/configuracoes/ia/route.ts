@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth'
 import { encrypt, maskKey, isEncrypted } from '@/lib/crypto'
 
 // Campos que são chaves secretas — encriptados no banco, mascarados na resposta
-const SECRET_FIELDS = ['anthropicApiKey', 'voyageApiKey', 'openaiApiKey'] as const
+const SECRET_FIELDS = ['anthropicApiKey', 'voyageApiKey', 'openaiApiKey', 'evolutionApiKey'] as const
 type SecretField = typeof SECRET_FIELDS[number]
 
 // GET — retorna config com chaves mascaradas
@@ -26,6 +26,15 @@ export async function GET() {
       aiModelOnboarding: true,
       aiModelCrm: true,
       aiModelPortal: true,
+      systemPromptOnboarding: true,
+      systemPromptCrm: true,
+      systemPromptPortal: true,
+      systemPromptWhatsapp: true,
+      whatsappAiEnabled: true,
+      whatsappAiFeature: true,
+      evolutionApiUrl: true,
+      evolutionApiKey: true,
+      evolutionInstance: true,
     },
   })
 
@@ -53,7 +62,13 @@ export async function PUT(req: Request) {
   const data: Record<string, string | null> = {}
 
   // Campos de texto simples
-  const plainFields = ['aiProvider', 'openaiBaseUrl', 'openaiModel', 'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal']
+  const plainFields = [
+    'aiProvider', 'openaiBaseUrl', 'openaiModel',
+    'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal',
+    'systemPromptOnboarding', 'systemPromptCrm', 'systemPromptPortal', 'systemPromptWhatsapp',
+    'whatsappAiEnabled', 'whatsappAiFeature',
+    'evolutionApiUrl', 'evolutionInstance',
+  ]
   for (const field of plainFields) {
     if (field in body) data[field] = body[field] ?? null
   }

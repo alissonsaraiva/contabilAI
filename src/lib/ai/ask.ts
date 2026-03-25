@@ -19,9 +19,9 @@ export type AskFeature = 'onboarding' | 'crm' | 'portal'
 export type AskOpts = {
   pergunta: string
   context: AskContext
-  feature?: AskFeature
+  feature?: AskFeature | 'whatsapp'
   historico?: AIMessage[]
-  systemExtra?: string
+  systemExtra?: string   // appended after the base prompt
   tipos?: TipoConhecimento[]
   maxChunks?: number
   maxTokens?: number
@@ -34,9 +34,9 @@ export type AskResult = {
   model: string
 }
 
-// ─── System prompt base ───────────────────────────────────────────────────────
+// ─── System prompt padrão (fallback quando não há prompt configurado no DB) ───
 
-const SYSTEM_BASE = `Você é o assistente virtual da ContabAI, um escritório de contabilidade digital especializado em MEI, EPP e autônomos no Brasil.
+export const SYSTEM_BASE_DEFAULT = `Você é o assistente virtual da ContabAI, um escritório de contabilidade digital especializado em MEI, EPP e autônomos no Brasil.
 
 Diretrizes:
 - Responda sempre em português brasileiro, de forma clara e objetiva
@@ -75,8 +75,9 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     // RAG indisponível — continua sem contexto
   }
 
-  // 3. Monta system prompt
-  const systemParts = [SYSTEM_BASE]
+  // 3. Monta system prompt — usa o do DB se configurado, senão o padrão
+  const storedPrompt = feature ? config.systemPrompts[feature as keyof typeof config.systemPrompts] : null
+  const systemParts = [storedPrompt ?? SYSTEM_BASE_DEFAULT]
   if (systemExtra) systemParts.push(systemExtra)
   if (fontes.length > 0) {
     systemParts.push('\n--- CONTEXTO RELEVANTE ---')
@@ -87,8 +88,9 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     systemParts.push('--- FIM DO CONTEXTO ---')
   }
 
-  // 4. Resolve modelo por feature
-  const model = config.models[feature]
+  // 4. Resolve modelo por feature (whatsapp usa o modelo do onboarding como fallback)
+  const modelFeature = (feature === 'whatsapp' ? 'onboarding' : feature) as AskFeature
+  const model = config.models[modelFeature]
 
   // 5. Chama o provider com credenciais da config
   const provider = getProvider(config.provider)

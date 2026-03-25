@@ -13,6 +13,18 @@ export type AiConfig = {
     crm: string
     portal: string
   }
+  systemPrompts: {
+    onboarding: string | null
+    crm: string | null
+    portal: string | null
+    whatsapp: string | null
+  }
+  whatsapp: {
+    aiEnabled: boolean
+    aiFeature: string
+    instanceId: string | null
+    token: string | null
+  }
 }
 
 function safeDecrypt(val: string | null | undefined): string | null {
@@ -26,10 +38,10 @@ function safeDecrypt(val: string | null | undefined): string | null {
 
 // Lê configuração de IA — DB tem prioridade sobre env vars
 export async function getAiConfig(): Promise<AiConfig> {
-  let escritorio: Record<string, string | null> = {}
+  let row: Record<string, unknown> = {}
 
   try {
-    const row = await prisma.escritorio.findFirst({
+    const fetched = await prisma.escritorio.findFirst({
       select: {
         aiProvider: true,
         anthropicApiKey: true,
@@ -40,48 +52,53 @@ export async function getAiConfig(): Promise<AiConfig> {
         aiModelOnboarding: true,
         aiModelCrm: true,
         aiModelPortal: true,
+        systemPromptOnboarding: true,
+        systemPromptCrm: true,
+        systemPromptPortal: true,
+        systemPromptWhatsapp: true,
+        whatsappAiEnabled: true,
+        whatsappAiFeature: true,
+        evolutionApiUrl: true,
+        evolutionApiKey: true,
+        evolutionInstance: true,
+        zapiInstanceId: true,
+        zapiToken: true,
       },
     })
-    if (row) escritorio = row as Record<string, string | null>
+    if (fetched) row = fetched as Record<string, unknown>
   } catch {
     // DB indisponível — usa apenas env vars
   }
 
+  const s = (k: string) => (row[k] as string | null | undefined) ?? null
+
   return {
-    provider:
-      escritorio.aiProvider ??
-      process.env.AI_PROVIDER ??
-      'claude',
+    provider: s('aiProvider') ?? process.env.AI_PROVIDER ?? 'claude',
 
-    anthropicApiKey:
-      safeDecrypt(escritorio.anthropicApiKey) ??
-      process.env.ANTHROPIC_API_KEY ??
-      null,
-
-    voyageApiKey:
-      safeDecrypt(escritorio.voyageApiKey) ??
-      process.env.VOYAGE_API_KEY ??
-      null,
-
-    openaiApiKey:
-      safeDecrypt(escritorio.openaiApiKey) ??
-      process.env.OPENAI_API_KEY ??
-      null,
-
-    openaiBaseUrl:
-      escritorio.openaiBaseUrl ??
-      process.env.OPENAI_BASE_URL ??
-      null,
-
-    openaiModel:
-      escritorio.openaiModel ??
-      process.env.OPENAI_MODEL ??
-      null,
+    anthropicApiKey: safeDecrypt(s('anthropicApiKey')) ?? process.env.ANTHROPIC_API_KEY ?? null,
+    voyageApiKey:    safeDecrypt(s('voyageApiKey'))    ?? process.env.VOYAGE_API_KEY    ?? null,
+    openaiApiKey:    safeDecrypt(s('openaiApiKey'))    ?? process.env.OPENAI_API_KEY    ?? null,
+    openaiBaseUrl:   s('openaiBaseUrl')  ?? process.env.OPENAI_BASE_URL  ?? null,
+    openaiModel:     s('openaiModel')    ?? process.env.OPENAI_MODEL     ?? null,
 
     models: {
-      onboarding: escritorio.aiModelOnboarding ?? 'claude-haiku-4-5-20251001',
-      crm:        escritorio.aiModelCrm        ?? 'claude-haiku-4-5-20251001',
-      portal:     escritorio.aiModelPortal     ?? 'claude-haiku-4-5-20251001',
+      onboarding: s('aiModelOnboarding') ?? 'claude-haiku-4-5-20251001',
+      crm:        s('aiModelCrm')        ?? 'claude-haiku-4-5-20251001',
+      portal:     s('aiModelPortal')     ?? 'claude-haiku-4-5-20251001',
+    },
+
+    systemPrompts: {
+      onboarding: s('systemPromptOnboarding'),
+      crm:        s('systemPromptCrm'),
+      portal:     s('systemPromptPortal'),
+      whatsapp:   s('systemPromptWhatsapp'),
+    },
+
+    whatsapp: {
+      aiEnabled:  (row['whatsappAiEnabled'] as boolean | null) ?? false,
+      aiFeature:  s('whatsappAiFeature') ?? 'onboarding',
+      instanceId: s('evolutionInstance') ?? process.env.EVOLUTION_INSTANCE ?? null,
+      token:      safeDecrypt(s('evolutionApiKey')) ?? process.env.EVOLUTION_API_KEY ?? null,
     },
   }
 }

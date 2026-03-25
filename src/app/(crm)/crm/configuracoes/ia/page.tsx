@@ -42,6 +42,12 @@ type FormData = {
   aiModelOnboarding: string
   aiModelCrm: string
   aiModelPortal: string
+  systemPromptOnboarding: string
+  systemPromptCrm: string
+  systemPromptPortal: string
+  systemPromptWhatsapp: string
+  whatsappAiEnabled: string
+  whatsappAiFeature: string
 }
 
 type ApiStatus = { configured: boolean; masked: string | null }
@@ -76,6 +82,12 @@ export default function ConfiguracoesIAPage() {
           aiModelOnboarding: data.aiModelOnboarding ?? 'claude-haiku-4-5-20251001',
           aiModelCrm: data.aiModelCrm ?? 'claude-haiku-4-5-20251001',
           aiModelPortal: data.aiModelPortal ?? 'claude-haiku-4-5-20251001',
+          systemPromptOnboarding: data.systemPromptOnboarding ?? '',
+          systemPromptCrm: data.systemPromptCrm ?? '',
+          systemPromptPortal: data.systemPromptPortal ?? '',
+          systemPromptWhatsapp: data.systemPromptWhatsapp ?? '',
+          whatsappAiEnabled: data.whatsappAiEnabled ? 'true' : 'false',
+          whatsappAiFeature: data.whatsappAiFeature ?? 'onboarding',
         })
         setStatus({
           anthropicApiKey: { configured: !!data.anthropicApiKeyConfigured, masked: data.anthropicApiKey },
@@ -304,6 +316,79 @@ export default function ConfiguracoesIAPage() {
               )}
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* System Prompts */}
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+            <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+              edit_note
+            </span>
+          </div>
+          <div>
+            <h3 className="text-[14px] font-semibold text-on-surface">System Prompts</h3>
+            <p className="text-[12px] text-on-surface-variant/80">Personalidade e instruções da IA por canal. Deixe em branco para usar o padrão.</p>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          {([
+            { field: 'systemPromptOnboarding', label: 'Onboarding', icon: 'chat_bubble', placeholder: 'Você é o assistente de onboarding da ContabAI. Ajude novos clientes a entender os planos e iniciar o cadastro...' },
+            { field: 'systemPromptCrm',        label: 'Assistente CRM', icon: 'support_agent', placeholder: 'Você é o assistente interno da ContabAI. Ajude o contador a analisar informações de clientes e leads...' },
+            { field: 'systemPromptPortal',     label: 'Portal do Cliente', icon: 'person', placeholder: 'Você é o assistente do portal ContabAI. Ajude o cliente a entender suas obrigações fiscais e documentos...' },
+            { field: 'systemPromptWhatsapp',   label: 'WhatsApp', icon: 'chat', placeholder: 'Você é o assistente do escritório ContabAI via WhatsApp. Responda de forma concisa e direta...' },
+          ] as const).map(({ field, label, icon, placeholder }) => (
+            <div key={field}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-primary/70">{icon}</span>
+                <label className="text-[13px] font-semibold text-on-surface-variant">{label}</label>
+              </div>
+              <textarea
+                {...register(field as keyof FormData)}
+                rows={4}
+                className={`${INPUT} py-3 resize-y min-h-[96px] h-auto`}
+                placeholder={placeholder}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* WhatsApp AI */}
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#25D366]/15">
+              <span className="material-symbols-outlined text-[18px] text-[#25D366]" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-on-surface">IA no WhatsApp</h3>
+              <p className="text-[12px] text-on-surface-variant/80">Responder automaticamente mensagens recebidas</p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <span className="text-[12px] font-semibold text-on-surface-variant">Ativar</span>
+            <input
+              type="checkbox"
+              {...register('whatsappAiEnabled')}
+              className="accent-primary h-4 w-4 rounded"
+            />
+          </label>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className={LABEL}>Feature / Contexto utilizado</label>
+          <select {...register('whatsappAiFeature')} className={`${INPUT} cursor-pointer`}>
+            <option value="onboarding">Onboarding — indicado para novos contatos</option>
+            <option value="crm">CRM — acesso à base de clientes</option>
+            <option value="portal">Portal — foco em atendimento ao cliente</option>
+          </select>
+          <p className="text-[11px] text-on-surface-variant/50 pt-0.5">
+            Define qual base de conhecimento e modelo serão usados nas respostas.
+            Configure a instância WhatsApp na aba <span className="font-semibold">WhatsApp</span>.
+          </p>
         </div>
       </div>
 

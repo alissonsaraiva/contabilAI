@@ -363,6 +363,20 @@ model Escritorio {
   aiModelOnboarding String?  @default("claude-haiku-4-5-20251001")
   aiModelCrm        String?  @default("claude-haiku-4-5-20251001")
   aiModelPortal     String?  @default("claude-haiku-4-5-20251001")
+
+  // System prompts por feature (substituem o prompt padrão hardcoded)
+  systemPromptOnboarding String? @db.Text
+  systemPromptCrm        String? @db.Text
+  systemPromptPortal     String? @db.Text
+
+  // WhatsApp AI — usa Evolution API para enviar respostas
+  whatsappAiEnabled    Boolean? @default(false)
+  whatsappAiFeature    String?  @default("onboarding")  // onboarding | crm | portal
+  systemPromptWhatsapp String?  @db.Text
+  evolutionApiUrl      String?  // ex: https://evolution.contabai.com.br
+  evolutionApiKey      String?  @db.Text  // armazenada encriptada
+  evolutionInstance    String?  // nome da instância
+
   ativo            Boolean  @default(true)
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt
