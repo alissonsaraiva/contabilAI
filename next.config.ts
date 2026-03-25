@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     '@aws-sdk/s3-request-presigner',
     '@react-pdf/renderer',
     'pg',
+    'nodemailer',
+    'imapflow',
+    'mailparser',
   ],
   turbopack: {},
   experimental: {

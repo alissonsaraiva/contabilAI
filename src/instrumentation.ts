@@ -11,7 +11,7 @@ export async function register() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (secret) headers['authorization'] = `Bearer ${secret}`
 
-      const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+      const base = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
       await fetch(`${base}/api/email/sync`, { method: 'POST', headers })
     } catch {
       // Silencia erros — não deve derrubar o servidor
