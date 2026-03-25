@@ -21,9 +21,9 @@ CREATE TABLE IF NOT EXISTS vectors.embeddings (
   -- Tipo de conhecimento (ver src/lib/rag/types.ts)
   tipo          TEXT        NOT NULL,
 
-  -- Referências opcionais às entidades relacionais
-  cliente_id    TEXT        REFERENCES public.clientes(id) ON DELETE CASCADE,
-  lead_id       TEXT        REFERENCES public.leads(id) ON DELETE CASCADE,
+  -- Referências opcionais às entidades relacionais (sem FK — banco separado do relacional)
+  cliente_id    TEXT,
+  lead_id       TEXT,
   documento_id  TEXT,
 
   -- Conteúdo
