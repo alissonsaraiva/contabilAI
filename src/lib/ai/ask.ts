@@ -101,8 +101,11 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     maxTokens,
     temperature: 0.3,
     model,
-    apiKey: config.provider === 'claude' ? config.anthropicApiKey ?? undefined : config.openaiApiKey ?? undefined,
-    baseUrl: config.openaiBaseUrl ?? undefined,
+    apiKey:
+      config.provider === 'claude'  ? config.anthropicApiKey ?? undefined :
+      config.provider === 'google'  ? config.googleApiKey    ?? undefined :
+                                      config.openaiApiKey    ?? undefined,
+    baseUrl: config.provider === 'openai' ? config.openaiBaseUrl ?? undefined : undefined,
   })
 
   return { resposta: result.text, fontes, provider: result.provider, model: result.model }

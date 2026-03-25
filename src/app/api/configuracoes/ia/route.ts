@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth'
 import { encrypt, maskKey, isEncrypted } from '@/lib/crypto'
 
 // Campos que são chaves secretas — encriptados no banco, mascarados na resposta
-const SECRET_FIELDS = ['anthropicApiKey', 'voyageApiKey', 'openaiApiKey', 'evolutionApiKey'] as const
+const SECRET_FIELDS = ['anthropicApiKey', 'voyageApiKey', 'openaiApiKey', 'googleApiKey', 'evolutionApiKey'] as const
 type SecretField = typeof SECRET_FIELDS[number]
 
 // GET — retorna config com chaves mascaradas
@@ -23,12 +23,14 @@ export async function GET() {
       openaiApiKey: true,
       openaiBaseUrl: true,
       openaiModel: true,
+      googleApiKey: true,
       aiModelOnboarding: true,
       aiModelCrm: true,
       aiModelPortal: true,
       systemPromptOnboarding: true,
       systemPromptCrm: true,
       systemPromptPortal: true,
+      // WhatsApp fields also returned (used by whatsapp page)
       systemPromptWhatsapp: true,
       whatsappAiEnabled: true,
       whatsappAiFeature: true,
@@ -65,8 +67,9 @@ export async function PUT(req: Request) {
   const plainFields = [
     'aiProvider', 'openaiBaseUrl', 'openaiModel',
     'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal',
-    'systemPromptOnboarding', 'systemPromptCrm', 'systemPromptPortal', 'systemPromptWhatsapp',
-    'whatsappAiEnabled', 'whatsappAiFeature',
+    'systemPromptOnboarding', 'systemPromptCrm', 'systemPromptPortal',
+    // WhatsApp (saved from both IA and WhatsApp pages)
+    'systemPromptWhatsapp', 'whatsappAiEnabled', 'whatsappAiFeature',
     'evolutionApiUrl', 'evolutionInstance',
   ]
   for (const field of plainFields) {

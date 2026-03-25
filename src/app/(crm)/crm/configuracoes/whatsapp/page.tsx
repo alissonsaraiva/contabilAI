@@ -13,6 +13,9 @@ type FormData = {
   evolutionApiUrl: string
   evolutionApiKey: string
   evolutionInstance: string
+  whatsappAiEnabled: boolean
+  whatsappAiFeature: string
+  systemPromptWhatsapp: string
 }
 
 type ConnectionState = 'unknown' | 'open' | 'connecting' | 'close'
@@ -48,9 +51,12 @@ export default function WhatsAppPage() {
   useEffect(() => {
     fetch('/api/configuracoes/ia').then(r => r.json()).then(data => {
       reset({
-        evolutionApiUrl: data.evolutionApiUrl ?? '',
-        evolutionApiKey: '',
-        evolutionInstance: data.evolutionInstance ?? '',
+        evolutionApiUrl:      data.evolutionApiUrl ?? '',
+        evolutionApiKey:      '',
+        evolutionInstance:    data.evolutionInstance ?? '',
+        whatsappAiEnabled:    data.whatsappAiEnabled ?? false,
+        whatsappAiFeature:    data.whatsappAiFeature ?? 'onboarding',
+        systemPromptWhatsapp: data.systemPromptWhatsapp ?? '',
       })
     })
   }, [reset])
@@ -99,9 +105,12 @@ export default function WhatsAppPage() {
   async function onSaveConfig(data: FormData) {
     setSavingCfg(true)
     try {
-      const payload: Record<string, string> = {
-        evolutionApiUrl: data.evolutionApiUrl,
-        evolutionInstance: data.evolutionInstance,
+      const payload: Record<string, string | boolean> = {
+        evolutionApiUrl:      data.evolutionApiUrl,
+        evolutionInstance:    data.evolutionInstance,
+        whatsappAiEnabled:    data.whatsappAiEnabled,
+        whatsappAiFeature:    data.whatsappAiFeature,
+        systemPromptWhatsapp: data.systemPromptWhatsapp,
       }
       if (data.evolutionApiKey) payload.evolutionApiKey = data.evolutionApiKey
 
@@ -112,7 +121,14 @@ export default function WhatsAppPage() {
       })
       if (!res.ok) throw new Error()
       toast.success('Configurações salvas')
-      reset({ evolutionApiUrl: data.evolutionApiUrl, evolutionApiKey: '', evolutionInstance: data.evolutionInstance })
+      reset({
+        evolutionApiUrl: data.evolutionApiUrl,
+        evolutionApiKey: '',
+        evolutionInstance: data.evolutionInstance,
+        whatsappAiEnabled: data.whatsappAiEnabled,
+        whatsappAiFeature: data.whatsappAiFeature,
+        systemPromptWhatsapp: data.systemPromptWhatsapp,
+      })
     } catch {
       toast.error('Erro ao salvar configurações')
     } finally {
@@ -333,6 +349,48 @@ export default function WhatsAppPage() {
               Desconectar
             </button>
           ) : null}
+        </div>
+      </div>
+
+      {/* IA no WhatsApp */}
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+              <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-on-surface">IA no WhatsApp</h3>
+              <p className="text-[12px] text-on-surface-variant/80">Responder automaticamente mensagens recebidas</p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <span className="text-[12px] font-semibold text-on-surface-variant">Ativar</span>
+            <input type="checkbox" {...register('whatsappAiEnabled')} className="accent-primary h-4 w-4 rounded" />
+          </label>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className={LABEL}>Canal de conhecimento</label>
+            <select {...register('whatsappAiFeature')} className={`${INPUT} cursor-pointer`}>
+              <option value="onboarding">Onboarding — indicado para novos contatos</option>
+              <option value="portal">Portal — foco em atendimento ao cliente</option>
+              <option value="crm">CRM — acesso à base interna</option>
+            </select>
+            <p className="text-[11px] text-on-surface-variant/50">Define qual base de conhecimento será usada nas respostas.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className={LABEL}>System Prompt — WhatsApp</label>
+            <textarea
+              {...register('systemPromptWhatsapp')}
+              rows={4}
+              className="w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 resize-y min-h-[96px]"
+              placeholder="Você é o assistente do escritório ContabAI via WhatsApp. Responda de forma concisa e direta, sem formatação markdown..."
+            />
+            <p className="text-[11px] text-on-surface-variant/50">Deixe em branco para usar o prompt padrão do sistema.</p>
+          </div>
         </div>
       </div>
 

@@ -1,12 +1,12 @@
 import type { AIProvider } from './types'
 import { claudeProvider } from './claude'
 import { openaiProvider } from './openai'
+import { googleProvider } from './google'
 
 const PROVIDERS: Record<string, AIProvider> = {
-  claude: claudeProvider,
-  openai: openaiProvider,
-  // OpenAI-compatible (Groq, DeepSeek, Together AI, Mistral, etc.):
-  // AI_PROVIDER=openai + OPENAI_BASE_URL=https://api.groq.com/openai/v1
+  claude:  claudeProvider,
+  openai:  openaiProvider,
+  google:  googleProvider,
 }
 
 export function getProvider(name: string): AIProvider {
