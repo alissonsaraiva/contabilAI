@@ -18,12 +18,13 @@ ENV NODE_OPTIONS=--max-old-space-size=6144
 RUN npx prisma generate
 RUN npm run build
 
-# Stage para rodar migrations (só precisa do CLI do prisma)
+# Stage para rodar migrations (só precisa do CLI do prisma + config)
 FROM base AS migrator
 COPY package*.json ./
-RUN npm install prisma --no-save --ignore-scripts
+RUN npm install prisma dotenv --no-save --ignore-scripts
 COPY prisma ./prisma
-CMD ["sh", "-c", "npx prisma migrate deploy --url \"$DATABASE_URL\""]
+COPY prisma.config.ts ./
+CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM base AS runner
 ENV NODE_ENV=production
