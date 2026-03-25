@@ -12,6 +12,7 @@ const TABS = [
   { href: '/crm/configuracoes/planos', icon: 'payments', label: 'Planos' },
   { href: '/crm/configuracoes/usuarios', icon: 'group', label: 'Usuários' },
   { href: '/crm/configuracoes/ia', icon: 'psychology', label: 'IA' },
+  { href: '/crm/configuracoes/conhecimento', icon: 'auto_stories', label: 'Conhecimento' },
 ]
 
 export default function ConfiguracoesLayout({ children }: { children: React.ReactNode }) {

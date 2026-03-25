@@ -178,6 +178,68 @@ export async function searchSimilar(
   }))
 }
 
+// ─── Listagem da base de conhecimento ────────────────────────────────────────
+
+export type KnowledgeEntry = {
+  sourceId: string
+  tipo: TipoConhecimento
+  titulo: string | null
+  preview: string      // primeiros 200 chars do conteúdo
+  totalChunks: number
+  criadoEm: Date
+}
+
+// Lista artigos únicos da base global — mostra apenas o chunk 0 de cada sourceId
+export async function listKnowledge(tipo?: TipoConhecimento): Promise<KnowledgeEntry[]> {
+  const db = getPool()
+  const conditions = [`escopo = 'global'`, `(metadata->>'chunkIndex')::int = 0`]
+  const values: unknown[] = []
+
+  if (tipo) {
+    conditions.push(`tipo = $1`)
+    values.push(tipo)
+  }
+
+  const { rows } = await db.query<{
+    source_id: string
+    tipo: TipoConhecimento
+    titulo: string | null
+    conteudo: string
+    total_chunks: string
+    criado_em: Date
+  }>(
+    `SELECT
+       metadata->>'sourceId' AS source_id,
+       tipo,
+       titulo,
+       conteudo,
+       (metadata->>'totalChunks') AS total_chunks,
+       criado_em
+     FROM vectors.embeddings
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY criado_em DESC`,
+    values,
+  )
+
+  return rows.map(r => ({
+    sourceId: r.source_id,
+    tipo: r.tipo,
+    titulo: r.titulo,
+    preview: r.conteudo.slice(0, 200),
+    totalChunks: parseInt(r.total_chunks ?? '1', 10),
+    criadoEm: r.criado_em,
+  }))
+}
+
+// Deleta todos os chunks de um artigo pelo sourceId
+export async function deleteBySourceId(sourceId: string): Promise<void> {
+  const db = getPool()
+  await db.query(
+    `DELETE FROM vectors.embeddings WHERE metadata->>'sourceId' = $1`,
+    [sourceId],
+  )
+}
+
 export async function deleteEmbeddings(opts: {
   clienteId?: string
   leadId?: string

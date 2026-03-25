@@ -1,6 +1,6 @@
 export { embedText, embedTexts } from './embeddings'
 export { chunkText } from './chunker'
-export { storeEmbeddings, searchSimilar, deleteEmbeddings } from './store'
-export type { EmbeddingRow, SearchResult, SearchOpts } from './store'
+export { storeEmbeddings, searchSimilar, deleteEmbeddings, listKnowledge, deleteBySourceId } from './store'
+export type { EmbeddingRow, SearchResult, SearchOpts, KnowledgeEntry } from './store'
 export type { EscopoRAG, TipoConhecimento } from './types'
 export { TIPOS_GLOBAIS, TIPOS_CLIENTE } from './types'
