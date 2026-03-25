@@ -34,6 +34,9 @@ export async function POST(req: Request) {
         responsavelId: (session.user as any).id,
       },
     })
+
+    import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente)).catch(() => {})
+
     return NextResponse.json(cliente, { status: 201 })
   } catch (e: any) {
     if (e.code === 'P2002') {

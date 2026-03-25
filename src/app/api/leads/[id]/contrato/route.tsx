@@ -148,6 +148,9 @@ export async function POST(req: Request, { params }: Params) {
         where: { id: contrato.id },
         data: { clienteId: cliente.id },
       })
+
+      // Indexa dados do cliente recém-criado (CRM + Portal + WhatsApp)
+      import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente)).catch(() => {})
     } catch (err) {
       console.error('[contrato] Erro ao converter lead em cliente:', err)
     }

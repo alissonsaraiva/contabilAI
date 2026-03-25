@@ -5,8 +5,8 @@
 const VOYAGE_API_URL = 'https://api.voyageai.com/v1/embeddings'
 const VOYAGE_MODEL = 'voyage-3-lite'
 
-export async function embedTexts(texts: string[]): Promise<number[][]> {
-  const key = process.env.VOYAGE_API_KEY
+export async function embedTexts(texts: string[], apiKey?: string): Promise<number[][]> {
+  const key = apiKey ?? process.env.VOYAGE_API_KEY
   if (!key) throw new Error('VOYAGE_API_KEY não configurada')
 
   const res = await fetch(VOYAGE_API_URL, {
@@ -32,7 +32,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
     .map(d => d.embedding)
 }
 
-export async function embedText(text: string): Promise<number[]> {
-  const [embedding] = await embedTexts([text])
+export async function embedText(text: string, apiKey?: string): Promise<number[]> {
+  const [embedding] = await embedTexts([text], apiKey)
   return embedding
 }

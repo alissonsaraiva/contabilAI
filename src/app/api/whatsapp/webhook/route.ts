@@ -3,22 +3,116 @@ import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { sendText, type EvolutionConfig } from '@/lib/evolution'
 import { askAI } from '@/lib/ai/ask'
+import type { AskContext } from '@/lib/ai/ask'
 
-// Desativa bodyParser para verificação futura de assinatura
 export const runtime = 'nodejs'
 
-// Cache simples para evitar processar o mesmo messageId duas vezes (restart limpa)
+// Cache de mensagens já processadas (reinicia com o servidor)
 const processed = new Set<string>()
+
+// Cache de identificação: phone → { clienteId?, leadId?, pendente: boolean }
+// 'pendente' = aguardando CPF/nome para identificar
+const phoneCache = new Map<string, {
+  clienteId?: string
+  leadId?: string
+  pendente?: boolean
+  tentativas?: number
+}>()
+
+// Normaliza número de telefone para busca — retorna variantes
+function normalizarPhone(remoteJid: string): string[] {
+  const digits = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '')
+  // Ex: 5585988765432 (13 dígitos com 55 + DDD + número)
+  const variants = new Set<string>([
+    digits,
+    digits.length > 2 ? digits.slice(2) : '',   // sem 55
+    digits.length > 4 ? digits.slice(4) : '',   // sem 55+DDD
+    digits.length > 3 ? digits.slice(3) : '',   // sem 55+DDD (DDDs antigos 2 dígitos)
+  ])
+  return [...variants].filter(v => v.length >= 8)
+}
+
+async function buscarPorTelefone(phone: string): Promise<{
+  clienteId?: string
+  leadId?: string
+}> {
+  const variants = normalizarPhone(phone)
+  if (!variants.length) return {}
+
+  // Busca em clientes
+  const cliente = await prisma.cliente.findFirst({
+    where: {
+      OR: variants.flatMap(v => [
+        { whatsapp: { contains: v } },
+        { telefone: { contains: v } },
+      ]),
+    },
+    select: { id: true },
+  })
+  if (cliente) return { clienteId: cliente.id }
+
+  // Busca em leads ativos
+  const lead = await prisma.lead.findFirst({
+    where: {
+      OR: variants.map(v => ({ contatoEntrada: { contains: v } })),
+      status: { notIn: ['cancelado', 'expirado', 'assinado'] },
+    },
+    orderBy: { criadoEm: 'desc' },
+    select: { id: true },
+  })
+  if (lead) return { leadId: lead.id }
+
+  return {}
+}
+
+// Busca por nome + CPF quando não encontrou pelo telefone
+async function buscarPorNomeCpf(texto: string): Promise<{
+  clienteId?: string
+  leadId?: string
+} | null> {
+  const digitosTexto = texto.replace(/\D/g, '')
+  // Verifica se o texto parece conter um CPF (11 dígitos numéricos)
+  if (digitosTexto.length >= 11) {
+    const cpf = digitosTexto.slice(0, 11)
+    const cliente = await prisma.cliente.findFirst({
+      where: { cpf: { contains: cpf } },
+      select: { id: true },
+    }).catch(() => null)
+    if (cliente) return { clienteId: cliente.id }
+
+    // Tenta em leads via dadosJson
+    const leads = await prisma.lead.findMany({
+      where: { status: { notIn: ['cancelado', 'expirado'] } },
+      select: { id: true, dadosJson: true },
+    }).catch(() => [])
+
+    for (const lead of leads) {
+      const dados = (lead.dadosJson ?? {}) as Record<string, string>
+      const leadCpf = (dados['CPF'] ?? '').replace(/\D/g, '')
+      if (leadCpf === cpf) return { leadId: lead.id }
+    }
+  }
+  return null
+}
+
+async function getEvolutionConfig(): Promise<EvolutionConfig | null> {
+  const row = await prisma.escritorio.findFirst({
+    select: { evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
+  }).catch(() => null)
+  if (!row?.evolutionApiUrl || !row.evolutionApiKey || !row.evolutionInstance) return null
+
+  const rawKey = row.evolutionApiKey
+  const apiKey = rawKey
+    ? isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
+    : (process.env.EVOLUTION_API_KEY ?? '')
+
+  return { baseUrl: row.evolutionApiUrl, apiKey, instance: row.evolutionInstance }
+}
 
 export async function POST(req: Request) {
   let body: Record<string, unknown>
-  try {
-    body = await req.json()
-  } catch {
-    return new Response('bad request', { status: 400 })
-  }
+  try { body = await req.json() } catch { return new Response('bad request', { status: 400 }) }
 
-  // Evolution API envia event = "messages.upsert" ou "MESSAGES_UPSERT"
   const event = (body.event as string ?? '').toLowerCase()
   if (!event.includes('messages')) return new Response('ignored', { status: 200 })
 
@@ -26,10 +120,7 @@ export async function POST(req: Request) {
   if (!data) return new Response('no data', { status: 200 })
 
   const key = data.key as Record<string, unknown> | null
-  if (!key) return new Response('no key', { status: 200 })
-
-  // Ignora mensagens enviadas pelo próprio bot
-  if (key.fromMe) return new Response('fromMe', { status: 200 })
+  if (!key || key.fromMe) return new Response('fromMe', { status: 200 })
 
   const messageId = key.id as string
   if (processed.has(messageId)) return new Response('dup', { status: 200 })
@@ -40,21 +131,21 @@ export async function POST(req: Request) {
   }
 
   const remoteJid = key.remoteJid as string
-  // Ignora grupos
   if (remoteJid.includes('@g.us')) return new Response('group', { status: 200 })
 
-  // Extrai texto da mensagem
   const msg = data.message as Record<string, unknown> | null
-  const text =
+  const text = (
     (msg?.conversation as string | undefined) ||
-    (msg?.extendedTextMessage as Record<string, unknown> | undefined)?.text as string | undefined ||
+    ((msg?.extendedTextMessage as Record<string, unknown> | undefined)?.text as string | undefined) ||
     ''
+  ).trim()
 
-  if (!text?.trim()) return new Response('no text', { status: 200 })
+  if (!text) return new Response('no text', { status: 200 })
 
-  // Carrega config do escritório
+  // Carrega config
   let cfg: EvolutionConfig | null = null
   let aiEnabled = false
+  let aiFeature = 'onboarding'
 
   try {
     const row = await prisma.escritorio.findFirst({
@@ -71,32 +162,81 @@ export async function POST(req: Request) {
         instance: row.evolutionInstance,
       }
     }
-    aiEnabled = row?.whatsappAiEnabled ?? false
-  } catch {
-    // DB indisponível
-  }
+    aiEnabled    = row?.whatsappAiEnabled ?? false
+    aiFeature    = row?.whatsappAiFeature ?? 'onboarding'
+  } catch { /* DB indisponível */ }
 
   if (!cfg || !aiEnabled) return new Response('ai disabled', { status: 200 })
 
-  // Chama a IA
   try {
+    // ── Identificação do contato ─────────────────────────────────────────────
+    let cached = phoneCache.get(remoteJid)
+
+    if (!cached) {
+      const encontrado = await buscarPorTelefone(remoteJid)
+      cached = { ...encontrado, pendente: !encontrado.clienteId && !encontrado.leadId, tentativas: 0 }
+      phoneCache.set(remoteJid, cached)
+    }
+
+    // Modo de identificação pendente — aguarda CPF/nome da pessoa
+    if (cached.pendente) {
+      const tentativa = await buscarPorNomeCpf(text)
+      if (tentativa) {
+        cached = { ...tentativa, pendente: false, tentativas: 0 }
+        phoneCache.set(remoteJid, cached)
+      } else {
+        cached.tentativas = (cached.tentativas ?? 0) + 1
+        phoneCache.set(remoteJid, cached)
+
+        // Primeira tentativa: pede identificação
+        if (cached.tentativas === 1) {
+          await sendText(cfg, remoteJid,
+            'Olá! Para te atender melhor, preciso te identificar em nosso sistema. ' +
+            'Pode me informar seu CPF ou nome completo cadastrado?'
+          )
+          return new Response('ok', { status: 200 })
+        }
+
+        // Segunda tentativa sem CPF: segue sem contexto personalizado
+        if ((cached.tentativas ?? 0) >= 2) {
+          cached.pendente = false
+          phoneCache.set(remoteJid, cached)
+        } else {
+          await sendText(cfg, remoteJid,
+            'Não consegui te localizar. Pode tentar com seu CPF (somente números)?'
+          )
+          return new Response('ok', { status: 200 })
+        }
+      }
+    }
+
+    // ── Monta contexto RAG ────────────────────────────────────────────────────
+    let context: AskContext
+
+    if (cached.clienteId) {
+      context = { escopo: 'cliente+global', clienteId: cached.clienteId }
+    } else if (cached.leadId) {
+      context = { escopo: 'lead+global', leadId: cached.leadId }
+    } else {
+      context = { escopo: 'global' }
+    }
+
+    // ── Chama a IA e responde ─────────────────────────────────────────────────
     const result = await askAI({
-      pergunta: text.trim(),
-      context: { escopo: 'global' },
+      pergunta: text,
+      context,
       feature: 'whatsapp',
       maxTokens: 512,
     })
 
     await sendText(cfg, remoteJid, result.resposta)
   } catch (err) {
-    console.error('[whatsapp/webhook] erro ao responder:', err)
-    // Não retorna erro para o Evolution API — seria retentado infinitamente
+    console.error('[whatsapp/webhook] erro:', err)
   }
 
   return new Response('ok', { status: 200 })
 }
 
-// GET usado pelo Evolution API para verificar o webhook
 export async function GET() {
   return new Response('ok', { status: 200 })
 }

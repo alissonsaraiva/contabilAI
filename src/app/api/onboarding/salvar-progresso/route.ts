@@ -10,5 +10,8 @@ export async function POST(req: Request) {
   }
 
   const lead = await prisma.lead.update({ where: { id: leadId }, data: data as any })
+
+  import('@/lib/rag/ingest').then(({ indexarLead }) => indexarLead(lead)).catch(() => {})
+
   return NextResponse.json(lead)
 }

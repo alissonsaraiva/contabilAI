@@ -49,5 +49,9 @@ export async function POST(req: Request) {
   }
 
   const lead = await prisma.lead.create({ data: parsed.data })
+
+  // Indexa o lead no RAG em background (não bloqueia a resposta)
+  import('@/lib/rag/ingest').then(({ indexarLead }) => indexarLead(lead)).catch(() => {})
+
   return NextResponse.json({ ...lead, resumed: false }, { status: 201 })
 }

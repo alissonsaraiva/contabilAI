@@ -21,5 +21,11 @@ export async function PUT(req: Request, { params }: Params) {
   if (body.formaPagamento) updateData.formaPagamento = body.formaPagamento as FormaPagamento
 
   const lead = await prisma.lead.update({ where: { id }, data: updateData as any })
+
+  // Re-indexa quando dadosJson mudar (dados do formulário de onboarding)
+  if (body.dadosJson) {
+    import('@/lib/rag/ingest').then(({ indexarLead }) => indexarLead(lead)).catch(() => {})
+  }
+
   return NextResponse.json(lead)
 }
