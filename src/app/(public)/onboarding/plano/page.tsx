@@ -44,13 +44,16 @@ const PLANOS: { tipo: PlanoTipo; nome: string; desc: string; min: number; max: n
 ]
 
 function recomendar(tipo: string, faturamento: string, funcionarios: string): PlanoTipo {
-  if (tipo === 'nao_abri' || tipo === 'mei') {
-    if (faturamento === 'ate10k' && funcionarios === 'nao') return 'essencial'
-  }
-  if (faturamento === 'acima200k' || funcionarios === 'mais10' || tipo === 'ltda_sa') return 'startup'
-  if (faturamento === '50k_200k' || funcionarios === '4_10') return 'empresarial'
-  if (faturamento === '10k_50k' || funcionarios === '1_3' || tipo === 'me_epp' || tipo === 'liberal') return 'profissional'
-  return 'essencial'
+  const scoreTipo:        Record<string, number> = { nao_abri: 0, mei: 0, liberal: 1, me_epp: 1, ltda_sa: 2 }
+  const scoreFaturamento: Record<string, number> = { ate10k: 0, '10k_50k': 1, '50k_200k': 2, acima200k: 3 }
+  const scoreFuncionarios:Record<string, number> = { nao: 0, '1_3': 1, '4_10': 2, mais10: 3 }
+
+  const score = (scoreTipo[tipo] ?? 0) + (scoreFaturamento[faturamento] ?? 0) + (scoreFuncionarios[funcionarios] ?? 0)
+
+  if (score <= 1) return 'essencial'
+  if (score <= 3) return 'profissional'
+  if (score <= 5) return 'empresarial'
+  return 'startup'
 }
 
 export default function PlanoPage({ searchParams }: Props) {
@@ -87,7 +90,8 @@ export default function PlanoPage({ searchParams }: Props) {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-on-surface">Seu plano ideal</h1>
         <p className="mt-1.5 text-[14px] text-on-surface-variant">
-          Baseado no seu perfil, recomendamos o <span className="font-semibold text-primary">{PLANOS.find(p => p.tipo === recomendado)?.nome}</span>
+          Recomendamos o <span className="font-semibold text-primary">{PLANOS.find(p => p.tipo === recomendado)?.nome}</span>
+          {' '}— mas você pode escolher outro abaixo.
         </p>
       </div>
 
@@ -103,7 +107,7 @@ export default function PlanoPage({ searchParams }: Props) {
               className={`w-full rounded-2xl border p-4 text-left transition-all ${
                 isSel
                   ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
-                  : 'border-outline-variant/15 bg-card hover:border-outline-variant/30'
+                  : 'border-outline-variant/25 bg-card hover:border-primary/30 hover:bg-primary/[0.02]'
               }`}
             >
               <div className="flex items-start gap-3">
@@ -126,7 +130,7 @@ export default function PlanoPage({ searchParams }: Props) {
                     R$ {plano.min.toLocaleString('pt-BR')} – {plano.max.toLocaleString('pt-BR')}<span className="text-[12px] font-normal text-on-surface-variant">/mês</span>
                   </p>
                 </div>
-                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${isSel ? 'border-primary bg-primary' : 'border-outline-variant/40'}`}>
+                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${isSel ? 'border-primary bg-primary' : 'border-outline-variant/60 bg-surface-container'}`}>
                   {isSel && <span className="material-symbols-outlined text-[13px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>}
                 </div>
               </div>
