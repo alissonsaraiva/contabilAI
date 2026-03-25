@@ -11,6 +11,10 @@ export default auth((req) => {
     if (tipo !== 'contador' && tipo !== 'admin') {
       return NextResponse.redirect(new URL('/login', req.url))
     }
+    const precisaTrocarSenha = (user as any)?.precisaTrocarSenha
+    if (precisaTrocarSenha && path !== '/crm/trocar-senha') {
+      return NextResponse.redirect(new URL('/crm/trocar-senha', req.url))
+    }
   }
 
   if (path.startsWith('/portal')) {
