@@ -20,8 +20,7 @@ RUN npm run build
 
 # Stage para rodar migrations (só precisa do CLI do prisma + config)
 FROM base AS migrator
-COPY package*.json ./
-RUN npm install prisma dotenv --no-save
+COPY --from=deps /app/node_modules ./node_modules
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 CMD ["npx", "prisma", "migrate", "deploy"]
