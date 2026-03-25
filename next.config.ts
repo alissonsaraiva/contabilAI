@@ -9,7 +9,9 @@ const nextConfig: NextConfig = {
     '@aws-sdk/s3-request-presigner',
     '@react-pdf/renderer',
   ],
+  turbopack: {},
   experimental: {
+    cpus: 1,
     optimizePackageImports: [
       'lucide-react',
       '@base-ui/react',
@@ -17,6 +19,12 @@ const nextConfig: NextConfig = {
       'recharts',
       'date-fns',
     ],
+  },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.cache = false
+    }
+    return config
   },
   images: {
     remotePatterns: [

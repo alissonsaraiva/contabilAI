@@ -73,7 +73,7 @@ export default async function LeadsPage() {
                     <Link key={lead.id} href={`/crm/leads/${lead.id}`}>
                       <div className="group rounded-[14px] border border-outline-variant/15 bg-card p-4 shadow-sm transition-all hover:shadow-md hover:border-outline-variant/30 flex flex-col gap-3">
                         <h4 className="truncate text-[14px] font-semibold text-on-surface">
-                          {lead.contatoEntrada}
+                          {(lead.dadosJson as Record<string, string> | null)?.['Nome completo'] ?? lead.contatoEntrada}
                         </h4>
 
                         <div className="flex flex-wrap gap-1.5">

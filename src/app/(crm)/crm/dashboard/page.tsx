@@ -149,7 +149,9 @@ export default async function DashboardPage() {
                   >
                     <td className="px-6 py-3.5">
                       <Link href={`/crm/leads/${lead.id}`} className="block group/link">
-                        <span className="text-[14px] font-semibold text-on-surface group-hover/link:text-primary transition-colors">{lead.contatoEntrada}</span>
+                        <span className="text-[14px] font-semibold text-on-surface group-hover/link:text-primary transition-colors">
+                          {(lead.dadosJson as Record<string, string> | null)?.['Nome completo'] ?? lead.contatoEntrada}
+                        </span>
                       </Link>
                     </td>
                     <td className="px-6 py-3.5">
