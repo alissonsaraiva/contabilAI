@@ -63,7 +63,7 @@ export default function LoginPage() {
 
       {/* Login Card */}
       <div className="w-full max-w-[400px]">
-        <Card className="border-outline-variant/15 bg-card/60 p-8 shadow-sm backdrop-blur-xl sm:rounded-[20px]">
+        <Card className="border-outline-variant/15 bg-card/60 p-6 sm:p-8 shadow-sm backdrop-blur-xl sm:rounded-[20px]">
           <div className="mb-8 text-center space-y-2">
             <h1 className="font-headline text-2xl font-semibold tracking-tight text-on-surface">Bem-vindo de volta</h1>
             <p className="text-sm text-on-surface-variant/80">Faça login para acessar o CRM administrativo</p>

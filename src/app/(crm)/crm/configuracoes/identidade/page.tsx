@@ -60,8 +60,8 @@ export default function IdentidadePage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <div className="col-span-2 space-y-1.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+          <div className="md:col-span-2 space-y-1.5">
             <label className="block text-[13px] font-semibold text-on-surface-variant">
               Nome do escritório <span className="text-error">*</span>
             </label>
@@ -75,7 +75,7 @@ export default function IdentidadePage() {
             )}
           </div>
 
-          <div className="col-span-2 space-y-1.5">
+          <div className="md:col-span-2 space-y-1.5">
             <label className="block text-[13px] font-semibold text-on-surface-variant">
               Nome fantasia
             </label>
@@ -114,7 +114,7 @@ export default function IdentidadePage() {
             </div>
           </div>
 
-          <div className="col-span-2 space-y-1.5">
+          <div className="md:col-span-2 space-y-1.5">
             <label className="block text-[13px] font-semibold text-on-surface-variant">
               Frase de boas-vindas
             </label>
@@ -125,7 +125,7 @@ export default function IdentidadePage() {
             />
           </div>
 
-          <div className="col-span-2 space-y-1.5">
+          <div className="md:col-span-2 space-y-1.5">
             <label className="block text-[13px] font-semibold text-on-surface-variant">
               Meta descrição (SEO)
             </label>

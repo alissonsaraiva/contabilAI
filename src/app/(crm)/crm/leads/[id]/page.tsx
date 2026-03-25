@@ -88,12 +88,12 @@ export default async function LeadDetailPage({ params }: Props) {
               style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
             <h2 className="font-headline text-base font-semibold text-on-surface">Informações Comerciais</h2>
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
             <InfoRow label="Contato" value={lead.contatoEntrada} />
             <InfoRow label="Canal de Origem" value={CANAL_LABELS[lead.canal]} />
 
             {/* Step com progress bar */}
-            <div className="col-span-2 space-y-2 mt-2">
+            <div className="sm:col-span-2 space-y-2 mt-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Step atual</p>
               <div className="flex items-center gap-3">
                 <span className="text-[13px] font-bold text-primary">{lead.stepAtual} / 8</span>
