@@ -226,11 +226,17 @@ type InteracaoData = {
   criadoEm?: Date
 }
 
+// Tipos visíveis apenas no CRM (notas internas, registros de atendimento)
+const TIPOS_SOMENTE_CRM = ['nota_interna', 'ligacao', 'whatsapp_enviado']
+// Tipos client-facing: indexados no CRM e também no portal (entregáveis visíveis ao cliente)
+const TIPOS_CRM_E_PORTAL = ['email_enviado', 'documento_enviado']
+
 export async function indexarInteracao(interacao: InteracaoData): Promise<void> {
   if (!interacao.conteudo?.trim()) return
-  // Só tipos relevantes para o RAG
-  const tiposIndexaveis = ['nota_interna', 'whatsapp_enviado', 'email_enviado', 'ligacao']
-  if (!tiposIndexaveis.includes(interacao.tipo)) return
+
+  const isCrm    = TIPOS_SOMENTE_CRM.includes(interacao.tipo)
+  const isPortal = TIPOS_CRM_E_PORTAL.includes(interacao.tipo)
+  if (!isCrm && !isPortal) return
 
   const key = await getVoyageKey()
   if (!key) return
@@ -242,15 +248,23 @@ export async function indexarInteracao(interacao: InteracaoData): Promise<void> 
     interacao.conteudo,
   ].filter(Boolean).join('\n')
 
-  await indexar(linhas, {
+  const base = {
     escopo: interacao.clienteId ? 'cliente' : 'lead',
-    canal: 'crm',
     tipo: 'historico_crm',
     clienteId: interacao.clienteId ?? undefined,
     leadId: interacao.leadId ?? undefined,
-    documentoId: `interacao:${interacao.id}`,
     titulo: interacao.titulo ?? interacao.tipo,
-  }, key)
+  } as const
+
+  const canais: Array<'crm' | 'portal'> = isPortal ? ['crm', 'portal'] : ['crm']
+
+  await Promise.all(canais.map(canal =>
+    indexar(linhas, {
+      ...base,
+      canal,
+      documentoId: `interacao_${canal}:${interacao.id}`,
+    }, key)
+  ))
 }
 
 // ─── Escritório ─────────────────────────────────────────────────────────────

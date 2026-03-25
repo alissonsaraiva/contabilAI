@@ -41,13 +41,20 @@ export default function ConhecimentoPage() {
   const [loadingList, setLoadingList] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
-  const [seeding, setSeeding] = useState(false)
+  const [pdfOpen, setPdfOpen]   = useState(false)
+  const [seeding, setSeeding]   = useState(false)
 
-  // Form
-  const [titulo, setTitulo]   = useState('')
+  // Form texto
+  const [titulo, setTitulo]     = useState('')
   const [conteudo, setConteudo] = useState('')
-  const [tipo, setTipo]       = useState<TipoConhecimento>('base_conhecimento')
-  const [saving, setSaving]   = useState(false)
+  const [tipo, setTipo]         = useState<TipoConhecimento>('base_conhecimento')
+  const [saving, setSaving]     = useState(false)
+
+  // Form PDF
+  const [pdfFile, setPdfFile]     = useState<File | null>(null)
+  const [pdfTitulo, setPdfTitulo] = useState('')
+  const [pdfTipo, setPdfTipo]     = useState<TipoConhecimento>('base_conhecimento')
+  const [uploadingPdf, setUploadingPdf] = useState(false)
 
   const loadEntries = useCallback(async () => {
     setLoadingList(true)
@@ -64,8 +71,8 @@ export default function ConhecimentoPage() {
 
   useEffect(() => { loadEntries() }, [loadEntries])
 
-  // Fecha form ao trocar de canal
-  useEffect(() => { setFormOpen(false) }, [activeCanal])
+  // Fecha forms ao trocar de canal
+  useEffect(() => { setFormOpen(false); setPdfOpen(false) }, [activeCanal])
 
   async function handleSave() {
     if (!titulo.trim() || !conteudo.trim()) {
@@ -105,6 +112,30 @@ export default function ConhecimentoPage() {
       toast.error((err as Error).message || 'Erro ao re-indexar')
     } finally {
       setSeeding(false)
+    }
+  }
+
+  async function handlePdfUpload() {
+    if (!pdfFile) { toast.error('Selecione um arquivo PDF'); return }
+    if (!pdfTitulo.trim()) { toast.error('Informe um título'); return }
+    setUploadingPdf(true)
+    try {
+      const form = new FormData()
+      form.append('file', pdfFile)
+      form.append('titulo', pdfTitulo.trim())
+      form.append('canal', activeCanal)
+      form.append('tipo', pdfTipo)
+      const res = await fetch('/api/conhecimento/pdf', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success(`PDF indexado: ${data.chunks} chunks · ${data.pages} página(s)`)
+      setPdfFile(null); setPdfTitulo(''); setPdfTipo('base_conhecimento')
+      setPdfOpen(false)
+      loadEntries()
+    } catch (err) {
+      toast.error((err as Error).message || 'Erro ao processar PDF')
+    } finally {
+      setUploadingPdf(false)
     }
   }
 
@@ -178,22 +209,107 @@ export default function ConhecimentoPage() {
         ))}
       </div>
 
-      {/* Descrição do canal + botão novo */}
+      {/* Descrição do canal + botões */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[12px] text-on-surface-variant/70">
           <span className="material-symbols-outlined text-[14px]">{canalInfo.icon}</span>
           {canalInfo.desc}
         </div>
-        <button
-          onClick={() => setFormOpen(o => !o)}
-          className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
-        >
-          <span className="material-symbols-outlined text-[16px]">{formOpen ? 'close' : 'add'}</span>
-          {formOpen ? 'Cancelar' : 'Novo artigo'}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => { setPdfOpen(o => !o); setFormOpen(false) }}
+            className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-card px-4 py-2 text-[13px] font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">{pdfOpen ? 'close' : 'picture_as_pdf'}</span>
+            {pdfOpen ? 'Cancelar' : 'Upload PDF'}
+          </button>
+          <button
+            onClick={() => { setFormOpen(o => !o); setPdfOpen(false) }}
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">{formOpen ? 'close' : 'add'}</span>
+            {formOpen ? 'Cancelar' : 'Novo artigo'}
+          </button>
+        </div>
       </div>
 
-      {/* Formulário de criação */}
+      {/* Formulário PDF */}
+      {pdfOpen && (
+        <div className="space-y-4 rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={LABEL}>Título <span className="text-error">*</span></label>
+              <input
+                value={pdfTitulo}
+                onChange={e => setPdfTitulo(e.target.value)}
+                className={INPUT}
+                placeholder="Ex: Tabela SIMPLES Nacional 2025"
+              />
+            </div>
+            <div>
+              <label className={LABEL}>Tipo</label>
+              <select
+                value={pdfTipo}
+                onChange={e => setPdfTipo(e.target.value as TipoConhecimento)}
+                className={`${INPUT} cursor-pointer`}
+              >
+                {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={LABEL}>Arquivo PDF <span className="text-error">*</span></label>
+            <label className={cn(
+              'flex cursor-pointer items-center gap-3 rounded-[10px] border-2 border-dashed px-4 py-5 transition-colors',
+              pdfFile ? 'border-primary/40 bg-primary/5' : 'border-outline-variant/30 hover:border-primary/30 hover:bg-surface-container-low/50',
+            )}>
+              <span className="material-symbols-outlined text-[22px] text-primary/60">picture_as_pdf</span>
+              <div className="flex-1 min-w-0">
+                {pdfFile ? (
+                  <>
+                    <p className="truncate text-[13px] font-semibold text-on-surface">{pdfFile.name}</p>
+                    <p className="text-[11px] text-on-surface-variant">{(pdfFile.size / 1024).toFixed(0)} KB</p>
+                  </>
+                ) : (
+                  <p className="text-[13px] text-on-surface-variant">Clique para selecionar um PDF</p>
+                )}
+              </div>
+              {pdfFile && (
+                <button
+                  type="button"
+                  onClick={e => { e.preventDefault(); setPdfFile(null) }}
+                  className="shrink-0 text-on-surface-variant hover:text-error"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              )}
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                className="hidden"
+                onChange={e => setPdfFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            <p className="mt-1 text-[11px] text-on-surface-variant/50">
+              O texto é extraído automaticamente e dividido em chunks para busca semântica
+            </p>
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={handlePdfUpload}
+              disabled={uploadingPdf || !pdfFile}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              {uploadingPdf
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <span className="material-symbols-outlined text-[16px]">cloud_upload</span>}
+              {uploadingPdf ? 'Processando...' : 'Processar e indexar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Formulário de criação (texto) */}
       {formOpen && (
         <div className="space-y-4 rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

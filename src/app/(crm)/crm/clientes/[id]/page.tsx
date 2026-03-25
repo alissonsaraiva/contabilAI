@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
 import { NovaInteracaoDrawer } from '@/components/crm/nova-interacao-drawer'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
+import { AssistenteCRM } from '@/components/crm/assistente-crm'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -473,6 +474,12 @@ export default async function ClienteDetailPage({ params }: Props) {
           )}
         </TabsContent>
       </Tabs>
+
+      <AssistenteCRM
+        clienteId={cliente.id}
+        leadId={cliente.leadId ?? undefined}
+        nomeCliente={cliente.nome}
+      />
     </div>
   )
 }

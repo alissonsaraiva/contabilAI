@@ -165,7 +165,9 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         {children}
       </main>
 
-      <ChatWidget />
+      <Suspense fallback={null}>
+        <ChatWidget />
+      </Suspense>
     </div>
   )
 }
