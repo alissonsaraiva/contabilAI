@@ -176,8 +176,9 @@ export async function POST(req: Request, { params }: Params) {
         .then(embeddings =>
           storeEmbeddings(
             chunks.map((conteudo, i) => ({
+              escopo: 'lead' as const,
+              tipo: 'dados_lead' as const,
               leadId: id,
-              tipo: 'contrato',
               titulo: `Contrato — ${dados?.['Nome completo'] ?? lead.contatoEntrada}`,
               conteudo,
               metadata: { contratoId: contrato.id, chunkIndex: i },

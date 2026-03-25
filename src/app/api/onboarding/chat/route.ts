@@ -1,17 +1,27 @@
 import { NextResponse } from 'next/server'
+import { askAI } from '@/lib/ai/ask'
+import type { AIMessage } from '@/lib/ai/providers'
 
-// TODO: substituir pela URL do webhook n8n quando estiver configurado
-const N8N_WEBHOOK_URL = process.env.N8N_CHAT_WEBHOOK_URL
-
-type Msg = { role: 'user' | 'assistant'; text: string }
+const SYSTEM_ONBOARDING = `Você está auxiliando um potencial cliente durante o processo de cadastro na ContabAI.
+O objetivo é tirar dúvidas sobre planos, regime tributário, processo de contratação e o que está incluso em cada serviço.
+Seja acolhedor e encoraje o cadastro quando pertinente.
+Não colete dados sensíveis pelo chat — oriente o cliente a preencher os campos do formulário.`
 
 export async function POST(req: Request) {
-  const { message, history } = await req.json() as { message: string; history: Msg[] }
+  const { message, history } = await req.json() as {
+    message: string
+    history: AIMessage[]
+  }
 
-  // Quando o webhook n8n estiver configurado, repassa a requisição
-  if (N8N_WEBHOOK_URL) {
+  if (!message?.trim()) {
+    return NextResponse.json({ reply: '' })
+  }
+
+  // Se n8n estiver configurado, delega para ele (permite automações avançadas)
+  const n8nUrl = process.env.N8N_CHAT_WEBHOOK_URL
+  if (n8nUrl) {
     try {
-      const res = await fetch(N8N_WEBHOOK_URL, {
+      const res = await fetch(n8nUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, history }),
@@ -19,27 +29,18 @@ export async function POST(req: Request) {
       const data = await res.json()
       return NextResponse.json({ reply: data.reply ?? data.text ?? data.output ?? 'Sem resposta.' })
     } catch {
-      return NextResponse.json({ reply: 'Serviço temporariamente indisponível. Tente novamente.' })
+      // Fallback para IA direta se n8n falhar
     }
   }
 
-  // Placeholder até o n8n estar configurado
-  const lower = message.toLowerCase()
-  let reply = 'Entendido! Nossa equipe pode esclarecer todos os detalhes. Por ora, siga os passos do cadastro e em breve entraremos em contato. 😊'
+  const { resposta } = await askAI({
+    pergunta: message,
+    context: { escopo: 'global' },
+    historico: history,
+    systemExtra: SYSTEM_ONBOARDING,
+    tipos: ['base_conhecimento', 'fiscal_normativo'],
+    maxTokens: 512,
+  })
 
-  if (lower.includes('plano') || lower.includes('diferença')) {
-    reply = 'Temos 4 planos: Essencial (MEI/autônomo, R$199/mês), Profissional (pequenas empresas, R$499/mês), Empresarial (médias empresas, R$1.200/mês) e Startup (empresas em crescimento, R$1.500/mês). Quer que eu detalhe algum?'
-  } else if (lower.includes('simples') || lower.includes('lucro')) {
-    reply = 'A escolha do regime tributário (Simples Nacional, Lucro Presumido ou Lucro Real) depende do seu faturamento anual, atividade e margem de lucro. Nosso contador vai analisar o melhor enquadramento para você após o cadastro.'
-  } else if (lower.includes('nota') || lower.includes('nfe') || lower.includes('nfse')) {
-    reply = 'A emissão de notas fiscais fica por conta da sua empresa (ou do seu contador, conforme o plano). Todos os nossos planos incluem orientação e configuração do sistema de emissão.'
-  } else if (lower.includes('cancela') || lower.includes('rescis')) {
-    reply = 'Você pode cancelar o contrato a qualquer momento com aviso prévio de 30 dias, sem multa. Não temos fidelidade.'
-  } else if (lower.includes('prazo') || lower.includes('tempo')) {
-    reply = 'Nossa equipe entra em contato em até 24h após a assinatura do contrato para alinhar todos os detalhes e iniciar a transição contábil.'
-  } else if (lower.includes('pix') || lower.includes('boleto') || lower.includes('cartão') || lower.includes('pagamento')) {
-    reply = 'Aceitamos PIX (com 5% de desconto), Boleto Bancário e Cartão de Crédito/Débito. Você escolheu no passo anterior!'
-  }
-
-  return NextResponse.json({ reply })
+  return NextResponse.json({ reply: resposta })
 }

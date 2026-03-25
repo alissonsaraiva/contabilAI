@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { chunkText, embedTexts, storeEmbeddings } from '@/lib/rag'
 import type { EmbeddingRow } from '@/lib/rag'
+import type { EscopoRAG, TipoConhecimento } from '@/lib/rag/types'
 
 export type ProcessarPayload = {
   texto: string
-  tipo: string
+  escopo: EscopoRAG
+  tipo: TipoConhecimento
   titulo?: string
   clienteId?: string
   leadId?: string
@@ -18,11 +20,14 @@ export async function POST(req: Request) {
   if (!body.texto?.trim()) {
     return NextResponse.json({ error: 'texto obrigatório' }, { status: 400 })
   }
+  if (!body.escopo) {
+    return NextResponse.json({ error: 'escopo obrigatório (global | cliente | lead)' }, { status: 400 })
+  }
+  if (!body.tipo) {
+    return NextResponse.json({ error: 'tipo obrigatório' }, { status: 400 })
+  }
   if (!process.env.VOYAGE_API_KEY) {
     return NextResponse.json({ error: 'VOYAGE_API_KEY não configurada' }, { status: 503 })
-  }
-  if (!process.env.VECTORS_DATABASE_URL) {
-    return NextResponse.json({ error: 'VECTORS_DATABASE_URL não configurada' }, { status: 503 })
   }
 
   const chunks = chunkText(body.texto)
@@ -33,10 +38,11 @@ export async function POST(req: Request) {
   const embeddings = await embedTexts(chunks)
 
   const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
+    escopo: body.escopo,
+    tipo: body.tipo,
     clienteId: body.clienteId,
     leadId: body.leadId,
     documentoId: body.documentoId,
-    tipo: body.tipo,
     titulo: body.titulo,
     conteudo,
     metadata: { ...body.metadata, chunkIndex: i, totalChunks: chunks.length },

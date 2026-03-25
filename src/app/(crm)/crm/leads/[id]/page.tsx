@@ -5,6 +5,8 @@ import { CANAL_LABELS, STATUS_LEAD_LABELS, PLANO_LABELS, FORMA_PAGAMENTO_LABELS,
 import Link from 'next/link'
 import { AvancarEtapaBtn } from '@/components/crm/avancar-etapa-btn'
 import { EditarLeadDrawer } from '@/components/crm/editar-lead-drawer'
+import { CopyFieldButton } from '@/components/crm/copy-field-button'
+import { HistoricoList } from '@/components/crm/historico-list'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -17,7 +19,7 @@ export default async function LeadDetailPage({ params }: Props) {
       contrato: true,
       cliente: { select: { id: true, nome: true } },
       documentos: true,
-      interacoes: { orderBy: { criadoEm: 'desc' }, take: 20 },
+      interacoes: { orderBy: { criadoEm: 'desc' } },
     },
   })
 
@@ -140,11 +142,7 @@ export default async function LeadDetailPage({ params }: Props) {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{k}</p>
                     <p className="text-sm font-medium text-on-surface">{String(v)}</p>
                   </div>
-                  <button className="opacity-0 transition-opacity group-hover:opacity-100">
-                    <span className="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary">
-                      content_copy
-                    </span>
-                  </button>
+                  <CopyFieldButton value={String(v)} />
                 </div>
               ))}
             </div>
@@ -230,9 +228,6 @@ export default async function LeadDetailPage({ params }: Props) {
             <span className="material-symbols-outlined text-[20px] text-primary/80">history</span>
             <h2 className="font-headline text-base font-semibold text-on-surface">Histórico de Atividades</h2>
           </div>
-          {lead.interacoes.length > 0 && (
-            <button className="text-sm font-semibold text-primary hover:opacity-80">Ver tudo</button>
-          )}
         </div>
 
         {lead.interacoes.length === 0 ? (
@@ -241,33 +236,7 @@ export default async function LeadDetailPage({ params }: Props) {
             <p className="text-[13px] text-on-surface-variant">Nenhuma atividade registrada</p>
           </div>
         ) : (
-          <div className="space-y-0 mt-4">
-            {lead.interacoes.map((interacao, idx) => (
-              <div key={interacao.id} className="flex gap-4">
-                {/* Timeline indicator */}
-                <div className="flex flex-col items-center">
-                  <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${idx === 0 ? 'bg-primary ring-4 ring-primary/10' : 'bg-outline-variant/40'}`} />
-                  {idx < lead.interacoes.length - 1 && (
-                    <div className="w-px flex-1 bg-outline-variant/20 my-1" />
-                  )}
-                </div>
-                {/* Content */}
-                <div className="pb-6 min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-4">
-                    <p className="text-[14px] font-semibold text-on-surface">{interacao.titulo ?? interacao.tipo}</p>
-                    <span className="shrink-0 text-[11px] font-medium text-on-surface-variant/70">
-                      {formatDateTime(interacao.criadoEm)}
-                    </span>
-                  </div>
-                  {interacao.conteudo && (
-                    <p className="mt-1 text-sm leading-relaxed text-on-surface-variant line-clamp-2">
-                      {interacao.conteudo}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          <HistoricoList interacoes={lead.interacoes} />
         )}
       </div>
     </div>
