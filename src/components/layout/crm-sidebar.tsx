@@ -20,7 +20,7 @@ export function CrmSidebar({ user }: Props) {
   const pathname = usePathname()
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col bg-[#0A0A0B] border-r border-white/5">
+    <aside className="hidden md:flex w-64 shrink-0 flex-col bg-[#0A0A0B] border-r border-white/5">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 px-6 mt-2">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_rgba(99,102,241,0.3)]">

@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bell, HelpCircle } from 'lucide-react'
 import { signOut } from 'next-auth/react'
+import { cn, getInitials } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,9 +14,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { LogOut } from 'lucide-react'
-import { getInitials } from '@/lib/utils'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
 import type { SessionUser } from '@/types'
+
+const NAV_ITEMS = [
+  { href: '/crm/dashboard', icon: 'dashboard', label: 'Dashboard' },
+  { href: '/crm/leads', icon: 'person_search', label: 'Leads' },
+  { href: '/crm/clientes', icon: 'group', label: 'Clientes' },
+  { href: '/crm/tarefas', icon: 'check_circle', label: 'Tarefas' },
+  { href: '/crm/configuracoes', icon: 'settings', label: 'Configurações' },
+]
 
 function resolveTitle(pathname: string): string {
   if (pathname === '/crm/dashboard') return 'Painel de Controle'
@@ -32,16 +41,26 @@ type Props = { user: SessionUser }
 export function CrmHeader({ user }: Props) {
   const pathname = usePathname()
   const title = resolveTitle(pathname)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-outline-variant/15 bg-card/80 px-8 backdrop-blur-md">
-      {/* Page title */}
-      <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">{title}</h2>
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-outline-variant/15 bg-card/80 px-4 md:px-8 backdrop-blur-md">
+      {/* Mobile: hambúrguer + título */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 hover:bg-surface-container hover:text-on-surface transition-colors"
+          aria-label="Abrir menu"
+        >
+          <span className="material-symbols-outlined text-[22px]">menu</span>
+        </button>
+        <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">{title}</h2>
+      </div>
 
-      {/* Right side: search + actions */}
+      {/* Right side */}
       <div className="flex items-center gap-2">
-        {/* Search */}
-        <div className="relative mr-2">
+        {/* Search — oculto no mobile */}
+        <div className="relative mr-2 hidden md:block">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/60">
             search
           </span>
@@ -53,14 +72,14 @@ export function CrmHeader({ user }: Props) {
         </div>
 
         <div className="flex items-center gap-1">
-          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
+          <button className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
             <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 0" }}>notifications</span>
           </button>
-          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
+          <button className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
             <span className="material-symbols-outlined text-[20px]">help_outline</span>
           </button>
 
-          <div className="mx-2 h-6 w-px bg-outline-variant/20" />
+          <div className="mx-2 hidden md:block h-6 w-px bg-outline-variant/20" />
 
           <DropdownMenu>
             <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ring-offset-2 ring-offset-card transition-all">
@@ -89,6 +108,74 @@ export function CrmHeader({ user }: Props) {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Mobile nav drawer */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" showCloseButton={false} className="w-72 p-0 bg-[#0A0A0B] border-r border-white/5">
+          {/* Logo */}
+          <div className="flex h-16 items-center gap-3 px-6">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                calculate
+              </span>
+            </div>
+            <div>
+              <h1 className="text-[15px] font-semibold tracking-tight text-white mb-0.5">ContabAI</h1>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 leading-none">Workspace</p>
+            </div>
+          </div>
+
+          {/* Nav */}
+          <nav className="flex-1 space-y-1 px-4 py-4">
+            <div className="mb-4 px-3 text-[11px] font-semibold uppercase tracking-widest text-white/30">Menu Principal</div>
+            {NAV_ITEMS.map(({ href, icon, label }) => {
+              const active = pathname === href || pathname.startsWith(href + '/')
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
+                    active
+                      ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/10'
+                      : 'text-white/60 hover:bg-white/5 hover:text-white',
+                  )}
+                >
+                  <span
+                    className="material-symbols-outlined text-[20px]"
+                    style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
+                  >
+                    {icon}
+                  </span>
+                  <span>{label}</span>
+                  {active && (
+                    <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+                  )}
+                </Link>
+              )
+            })}
+          </nav>
+
+          {/* User */}
+          <div className="border-t border-white/5 p-4 m-2 rounded-xl bg-white/5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-700 text-[11px] font-bold text-white shadow-sm ring-1 ring-white/10">
+                {getInitials(user.name ?? 'U')}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold text-white">{user.name}</p>
+                <button
+                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  className="cursor-pointer text-[11px] font-medium text-white/50 transition-colors hover:text-error"
+                >
+                  Sair do sistema
+                </button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </header>
   )
 }
