@@ -11,6 +11,8 @@ import {
 } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
+import { NovaInteracaoDrawer } from '@/components/crm/nova-interacao-drawer'
+import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -81,12 +83,28 @@ export default async function ClienteDetailPage({ params }: Props) {
 
   if (!cliente) notFound()
 
+  // Conversas IA: pelo clienteId direto + pelo leadId de origem
+  const leadIds = cliente.leadId ? [cliente.leadId] : []
+  const conversas = await prisma.conversaIA.findMany({
+    where: {
+      OR: [
+        { clienteId: id },
+        ...(leadIds.length > 0 ? [{ leadId: { in: leadIds } }] : []),
+      ],
+    },
+    orderBy: { atualizadaEm: 'desc' },
+    include: {
+      mensagens: { orderBy: { criadaEm: 'asc' } },
+    },
+  })
+
   const tabs = [
     { value: 'dados', label: 'Dados', count: null },
     { value: 'socios', label: 'Sócios', count: cliente.socios.length },
     { value: 'documentos', label: 'Documentos', count: cliente.documentos.length },
     { value: 'contratos', label: 'Contratos', count: cliente.contratos.length },
     { value: 'historico', label: 'Histórico', count: cliente.interacoes.length },
+    { value: 'conversas', label: 'Conversas IA', count: conversas.length },
   ]
 
   return (
@@ -386,8 +404,26 @@ export default async function ClienteDetailPage({ params }: Props) {
           )}
         </TabsContent>
 
+        {/* ── Conversas IA ───────────────────────────────── */}
+        <TabsContent value="conversas" className="m-0 focus-visible:outline-none">
+          <div className="mb-5">
+            <p className="text-[13px] text-on-surface-variant">
+              {conversas.length === 0
+                ? 'Nenhuma conversa registrada nos últimos 90 dias'
+                : `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · ${conversas.reduce((acc: number, c: { mensagens: unknown[] }) => acc + c.mensagens.length, 0)} mensagens no total`}
+            </p>
+          </div>
+          <ConversasIAList conversas={conversas} />
+        </TabsContent>
+
         {/* ── Histórico ──────────────────────────────────── */}
         <TabsContent value="historico" className="m-0 focus-visible:outline-none">
+          <div className="mb-5 flex items-center justify-between">
+            <p className="text-[13px] text-on-surface-variant">
+              {cliente.interacoes.length} {cliente.interacoes.length === 1 ? 'registro' : 'registros'}
+            </p>
+            <NovaInteracaoDrawer clienteId={cliente.id} />
+          </div>
           {cliente.interacoes.length === 0 ? (
             <EmptyState icon="history" msg="Nenhuma interação registrada" />
           ) : (
