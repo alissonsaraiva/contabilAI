@@ -97,7 +97,8 @@ jobs:
             docker tag ${GHCR_IMAGE}:${DEPLOY_TAG} contabai:latest
 
             # Roda migrations
-            source $APP_DIR/.env && docker run --rm \
+            set -a; source $APP_DIR/.env; set +a
+            docker run --rm \
               --network contabil_net \
               -e DATABASE_URL="$DATABASE_URL" \
               ${GHCR_IMAGE}-migrate:${DEPLOY_TAG}
