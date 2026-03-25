@@ -15,7 +15,7 @@ ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS=--max-old-space-size=6144
-RUN npx prisma generate
+RUN DATABASE_URL="postgresql://build:build@localhost/build" npx prisma generate
 RUN npm run build
 
 # Stage para rodar migrations (só precisa do CLI do prisma)
