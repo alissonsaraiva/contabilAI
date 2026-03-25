@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server'
-import { askAI } from '@/lib/ai/ask'
-import type { AIMessage } from '@/lib/ai/providers'
-
-const SYSTEM_ONBOARDING = `Você está auxiliando um potencial cliente durante o processo de cadastro na ContabAI.
-O objetivo é tirar dúvidas sobre planos, regime tributário, processo de contratação e o que está incluso em cada serviço.
-Seja acolhedor e encoraje o cadastro quando pertinente.
-Não colete dados sensíveis pelo chat — oriente o cliente a preencher os campos do formulário.`
+import { prisma } from '@/lib/prisma'
+import { askAI, detectarEscalacao } from '@/lib/ai/ask'
+import { getOrCreateConversaSession, getHistorico, addMensagens } from '@/lib/ai/conversa'
 
 export async function POST(req: Request) {
-  const { message, history, leadId } = await req.json() as {
-    message: string
-    history: AIMessage[]
-    leadId?: string
+  const { message, sessionId, leadId } = await req.json() as {
+    message:    string
+    sessionId?: string
+    leadId?:    string
   }
 
   if (!message?.trim()) {
@@ -25,7 +21,7 @@ export async function POST(req: Request) {
       const res = await fetch(n8nUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history }),
+        body: JSON.stringify({ message, sessionId, leadId }),
       })
       const data = await res.json()
       return NextResponse.json({ reply: data.reply ?? data.text ?? data.output ?? 'Sem resposta.' })
@@ -34,19 +30,66 @@ export async function POST(req: Request) {
     }
   }
 
+  // ── Histórico persistido ───────────────────────────────────────────────────
+  let historico: Awaited<ReturnType<typeof getHistorico>> = []
+  let conversaId: string | undefined
+
+  if (sessionId) {
+    try {
+      conversaId = await getOrCreateConversaSession(sessionId, 'onboarding', { leadId })
+      historico  = await getHistorico(conversaId)
+    } catch {
+      // DB indisponível — continua sem histórico
+    }
+  }
+
+  // ── Escopo RAG ────────────────────────────────────────────────────────────
   const context = leadId
     ? { escopo: 'lead+global' as const, leadId }
     : { escopo: 'global' as const }
 
-  const { resposta } = await askAI({
-    pergunta: message,
+  const { resposta: respostaRaw } = await askAI({
+    pergunta:  message,
     context,
-    feature: 'onboarding',
-    historico: history,
-    systemExtra: SYSTEM_ONBOARDING,
-    tipos: ['base_conhecimento', 'fiscal_normativo'],
+    feature:   'onboarding',
+    historico,
+    tipos:     ['base_conhecimento', 'fiscal_normativo'],
     maxTokens: 512,
   })
 
-  return NextResponse.json({ reply: resposta })
+  // ── Detecta escalação ##HUMANO## ──────────────────────────────────────────
+  const escalInfo = detectarEscalacao(respostaRaw)
+  if (escalInfo.escalado) {
+    const historicoEscalacao = [
+      ...historico,
+      { role: 'user' as const,      content: message },
+      { role: 'assistant' as const, content: escalInfo.textoLimpo },
+    ]
+    let escalacaoId: string | undefined
+    try {
+      const esc = await prisma.escalacao.create({
+        data: {
+          canal:          'onboarding',
+          status:         'pendente',
+          leadId:         leadId    ?? null,
+          sessionId:      sessionId ?? null,
+          historico:      historicoEscalacao as object[],
+          ultimaMensagem: message,
+          motivoIA:       escalInfo.motivo,
+        },
+      })
+      escalacaoId = esc.id
+    } catch (err) {
+      console.error('[onboarding/chat] erro ao criar escalação:', err)
+    }
+
+    if (conversaId) addMensagens(conversaId, message, escalInfo.textoLimpo)
+
+    return NextResponse.json({ reply: escalInfo.textoLimpo, escalado: true, escalacaoId })
+  }
+
+  // ── Persiste no banco ─────────────────────────────────────────────────────
+  if (conversaId) addMensagens(conversaId, message, respostaRaw)
+
+  return NextResponse.json({ reply: respostaRaw })
 }

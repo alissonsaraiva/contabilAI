@@ -1,8 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { sendText, type EvolutionConfig } from '@/lib/evolution'
-import { askAI } from '@/lib/ai/ask'
+import { askAI, detectarEscalacao } from '@/lib/ai/ask'
 import type { AskContext } from '@/lib/ai/ask'
+import {
+  getOrCreateConversaWhatsapp,
+  getHistorico,
+  addMensagens,
+  atualizarIdentidadeConversa,
+} from '@/lib/ai/conversa'
 
 export const runtime = 'nodejs'
 
@@ -15,12 +21,12 @@ const phoneCache = new Map<string, {
   clienteId?: string
   leadId?: string
   tipo: 'cliente' | 'lead' | 'prospect' | 'desconhecido'
+  conversaId?: string
 }>()
 
 // Normaliza número de telefone para busca — retorna variantes
 function normalizarPhone(remoteJid: string): string[] {
   const digits = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '')
-  // Ex: 5585988765432 (13 dígitos com 55 + DDD + número)
   const variants = new Set<string>([
     digits,
     digits.length > 2 ? digits.slice(2) : '',   // sem 55
@@ -37,7 +43,6 @@ async function buscarPorTelefone(phone: string): Promise<{
   const variants = normalizarPhone(phone)
   if (!variants.length) return {}
 
-  // Busca em clientes
   const cliente = await prisma.cliente.findFirst({
     where: {
       OR: variants.flatMap(v => [
@@ -49,7 +54,6 @@ async function buscarPorTelefone(phone: string): Promise<{
   })
   if (cliente) return { clienteId: cliente.id }
 
-  // Busca em leads ativos
   const lead = await prisma.lead.findFirst({
     where: {
       OR: variants.map(v => ({ contatoEntrada: { contains: v } })),
@@ -63,7 +67,6 @@ async function buscarPorTelefone(phone: string): Promise<{
   return {}
 }
 
-// Cria lead automático para contato via WhatsApp não identificado
 async function criarLeadWhatsApp(remoteJid: string): Promise<string> {
   const digits = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '')
   const lead = await prisma.lead.create({
@@ -76,20 +79,6 @@ async function criarLeadWhatsApp(remoteJid: string): Promise<string> {
     select: { id: true },
   })
   return lead.id
-}
-
-async function getEvolutionConfig(): Promise<EvolutionConfig | null> {
-  const row = await prisma.escritorio.findFirst({
-    select: { evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
-  }).catch(() => null)
-  if (!row?.evolutionApiUrl || !row.evolutionApiKey || !row.evolutionInstance) return null
-
-  const rawKey = row.evolutionApiKey
-  const apiKey = rawKey
-    ? isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
-    : (process.env.EVOLUTION_API_KEY ?? '')
-
-  return { baseUrl: row.evolutionApiUrl, apiKey, instance: row.evolutionInstance }
 }
 
 export async function POST(req: Request) {
@@ -128,7 +117,7 @@ export async function POST(req: Request) {
   // Carrega config
   let cfg: EvolutionConfig | null = null
   let aiEnabled = false
-  let aiFeature = 'onboarding'
+  let aiFeature = 'whatsapp'
 
   try {
     const row = await prisma.escritorio.findFirst({
@@ -145,8 +134,8 @@ export async function POST(req: Request) {
         instance: row.evolutionInstance,
       }
     }
-    aiEnabled    = row?.whatsappAiEnabled ?? false
-    aiFeature    = row?.whatsappAiFeature ?? 'onboarding'
+    aiEnabled = row?.whatsappAiEnabled ?? false
+    aiFeature = row?.whatsappAiFeature ?? 'whatsapp'
   } catch { /* DB indisponível */ }
 
   if (!cfg || !aiEnabled) return new Response('ai disabled', { status: 200 })
@@ -162,13 +151,26 @@ export async function POST(req: Request) {
       } else if (encontrado.leadId) {
         cached = { leadId: encontrado.leadId, tipo: 'lead' }
       } else {
-        // Contato desconhecido — aguarda IA identificar interesse antes de criar lead
         cached = { tipo: 'desconhecido' }
       }
       phoneCache.set(remoteJid, cached)
     }
 
-    // ── Monta contexto RAG — apenas contexto factual, sem instruções de comportamento ──
+    // ── Conversa persistida no banco ─────────────────────────────────────────
+    let conversaId = cached.conversaId
+    if (!conversaId) {
+      conversaId = await getOrCreateConversaWhatsapp(remoteJid, {
+        clienteId: cached.clienteId,
+        leadId:    cached.leadId,
+      })
+      cached.conversaId = conversaId
+      phoneCache.set(remoteJid, cached)
+    }
+
+    // Carrega histórico persistido
+    const historico = await getHistorico(conversaId)
+
+    // ── Monta contexto RAG ────────────────────────────────────────────────────
     let context: AskContext
     let systemExtra: string | undefined
 
@@ -185,27 +187,61 @@ export async function POST(req: Request) {
       systemExtra = 'CONTEXTO DO CONTATO: PRIMEIRO CONTATO (não identificado no sistema)'
     }
 
-    // ── Chama a IA e responde ─────────────────────────────────────────────────
+    // ── Chama a IA ────────────────────────────────────────────────────────────
     const result = await askAI({
-      pergunta: text,
+      pergunta:   text,
       context,
-      feature: 'whatsapp',
+      feature:    aiFeature as 'whatsapp',
+      historico,
       systemExtra,
-      maxTokens: 512,
+      maxTokens:  512,
     })
 
-    // ── Detecta marcador ##LEAD## e cria registro se necessário ──────────────
+    // ── Detecta marcador ##LEAD## ─────────────────────────────────────────────
     let resposta = result.resposta
     if (cached.tipo === 'desconhecido' && resposta.includes('##LEAD##')) {
       resposta = resposta.replace(/##LEAD##\s*/g, '').trimStart()
       try {
         const leadId = await criarLeadWhatsApp(remoteJid)
-        cached = { leadId, tipo: 'prospect' }
+        cached = { ...cached, leadId, tipo: 'prospect' }
         phoneCache.set(remoteJid, cached)
+        // Associa lead à conversa existente
+        atualizarIdentidadeConversa(conversaId, { leadId })
       } catch (err) {
         console.error('[whatsapp/webhook] erro ao criar lead:', err)
       }
     }
+
+    // ── Detecta marcador ##HUMANO## ───────────────────────────────────────────
+    const escalInfo = detectarEscalacao(resposta)
+    if (escalInfo.escalado) {
+      resposta = escalInfo.textoLimpo
+      try {
+        // Passa o histórico completo (inclui a mensagem atual) para a escalação
+        const historicoEscalacao = [
+          ...historico,
+          { role: 'user' as const, content: text },
+          { role: 'assistant' as const, content: resposta },
+        ]
+        await prisma.escalacao.create({
+          data: {
+            canal:          'whatsapp',
+            status:         'pendente',
+            clienteId:      cached.clienteId ?? null,
+            leadId:         cached.leadId    ?? null,
+            remoteJid,
+            historico:      historicoEscalacao as object[],
+            ultimaMensagem: text,
+            motivoIA:       escalInfo.motivo,
+          },
+        })
+      } catch (err) {
+        console.error('[whatsapp/webhook] erro ao criar escalação:', err)
+      }
+    }
+
+    // ── Persiste par user+assistant no banco ──────────────────────────────────
+    addMensagens(conversaId, text, resposta)
 
     await sendText(cfg, remoteJid, resposta)
   } catch (err) {

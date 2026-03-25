@@ -101,6 +101,19 @@ enum TipoInteracao {
   documento_enviado
   tarefa_criada
   cliente_ativado
+  ia_escalada
+  humano_respondeu
+}
+
+enum StatusEscalacao {
+  pendente
+  em_atendimento
+  resolvida
+}
+
+enum CanalEscalacao {
+  whatsapp
+  onboarding
 }
 
 model Usuario {
@@ -165,6 +178,7 @@ model Lead {
   documentos Documento[]
   interacoes Interacao[]
   cliente    Cliente?
+  conversas  ConversaIA[]
 
   @@map("leads")
 }
@@ -212,6 +226,7 @@ model Cliente {
   contratos  Contrato[]
   tarefas    Tarefa[]
   interacoes Interacao[]
+  conversas  ConversaIA[]
 
   @@map("clientes")
 }
@@ -390,4 +405,58 @@ model Escritorio {
   atualizadoEm    DateTime @updatedAt
 
   @@map("escritorio")
+}
+
+model ConversaIA {
+  id           String       @id @default(uuid())
+  canal        String       // 'whatsapp' | 'onboarding' | 'portal' | 'crm'
+  clienteId    String?
+  cliente      Cliente?     @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  leadId       String?
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  remoteJid    String?      // identificador WhatsApp
+  sessionId    String?      // identificador de sessão web
+  criadaEm     DateTime     @default(now())
+  atualizadaEm DateTime     @updatedAt
+
+  mensagens    MensagemIA[]
+
+  @@index([remoteJid, canal])
+  @@index([sessionId, canal])
+  @@index([leadId, canal])
+  @@index([clienteId, canal])
+  @@index([atualizadaEm])
+  @@map("conversas_ia")
+}
+
+model MensagemIA {
+  id          String     @id @default(uuid())
+  conversaId  String
+  conversa    ConversaIA @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  role        String     // 'user' | 'assistant'
+  conteudo    String     @db.Text
+  criadaEm   DateTime   @default(now())
+
+  @@index([conversaId, criadaEm])
+  @@map("mensagens_ia")
+}
+
+model Escalacao {
+  id               String           @id @default(uuid())
+  canal            CanalEscalacao
+  status           StatusEscalacao  @default(pendente)
+  clienteId        String?
+  leadId           String?
+  remoteJid        String?          // número WA ex: 5585988765432@s.whatsapp.net
+  sessionId        String?          // para onboarding widget
+  historico        Json             // array de { role, content }
+  ultimaMensagem   String           @db.Text
+  motivoIA         String?          @db.Text
+  operadorId       String?
+  orientacaoHumana String?          @db.Text
+  respostaEnviada  String?          @db.Text
+  criadoEm        DateTime         @default(now())
+  atualizadoEm    DateTime         @updatedAt
+
+  @@map("escalacoes")
 }

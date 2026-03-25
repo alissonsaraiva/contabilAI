@@ -7,17 +7,18 @@ import { cn, getInitials } from '@/lib/utils'
 import type { SessionUser } from '@/types'
 
 const NAV_ITEMS = [
-  { href: '/crm/dashboard',    icon: 'dashboard',    label: 'Dashboard' },
-  { href: '/crm/prospeccao',   icon: 'contact_phone', label: 'Prospecção' },
-  { href: '/crm/leads',        icon: 'rocket_launch', label: 'Onboarding' },
-  { href: '/crm/clientes',     icon: 'group',        label: 'Clientes' },
-  { href: '/crm/tarefas',      icon: 'check_circle', label: 'Tarefas' },
-  { href: '/crm/configuracoes', icon: 'settings',    label: 'Configurações' },
+  { href: '/crm/dashboard',      icon: 'dashboard',      label: 'Dashboard' },
+  { href: '/crm/prospeccao',     icon: 'contact_phone',  label: 'Prospecção' },
+  { href: '/crm/leads',          icon: 'rocket_launch',  label: 'Onboarding' },
+  { href: '/crm/clientes',       icon: 'group',          label: 'Clientes' },
+  { href: '/crm/atendimentos',   icon: 'support_agent',  label: 'Atendimentos', badge: true },
+  { href: '/crm/tarefas',        icon: 'check_circle',   label: 'Tarefas' },
+  { href: '/crm/configuracoes',  icon: 'settings',       label: 'Configurações' },
 ]
 
-type Props = { user: SessionUser }
+type Props = { user: SessionUser; pendingEscalacoes?: number }
 
-export function CrmSidebar({ user }: Props) {
+export function CrmSidebar({ user, pendingEscalacoes = 0 }: Props) {
   const pathname = usePathname()
 
   return (
@@ -41,8 +42,9 @@ export function CrmSidebar({ user }: Props) {
       {/* Nav */}
       <nav className="flex-1 space-y-1 px-4 py-6 mt-2">
         <div className="mb-4 px-3 text-[11px] font-semibold uppercase tracking-widest text-white/30">Menu Principal</div>
-        {NAV_ITEMS.map(({ href, icon, label }) => {
+        {NAV_ITEMS.map(({ href, icon, label, badge }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
+          const showBadge = badge && pendingEscalacoes > 0
           return (
             <Link
               key={href}
@@ -61,6 +63,11 @@ export function CrmSidebar({ user }: Props) {
                 {icon}
               </span>
               <span>{label}</span>
+              {showBadge && !active && (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
+                  {pendingEscalacoes > 9 ? '9+' : pendingEscalacoes}
+                </span>
+              )}
               {active && (
                 <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
               )}

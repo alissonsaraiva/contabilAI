@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 type Msg = { role: 'user' | 'assistant'; text: string }
@@ -10,15 +10,23 @@ const GREETING: Msg = {
   text: 'Olá! Sou o assistente da ContabAI. Tire suas dúvidas sobre planos, impostos, regime tributário ou qualquer coisa relacionada à contabilidade. 😊',
 }
 
+// Gera um ID de sessão por instância do widget
+function newSessionId() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
 export function ChatWidget() {
   const searchParams = useSearchParams()
   const leadId = searchParams.get('leadId') ?? undefined
+  const [sessionId] = useState(newSessionId)
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([GREETING])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [escalacaoId, setEscalacaoId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -27,12 +35,34 @@ export function ChatWidget() {
     }
   }, [open, msgs])
 
+  // Polling quando escalado — aguarda resposta humana
+  const startPolling = useCallback((escId: string) => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/escalacoes/${escId}/poll`)
+        const data = await res.json()
+        if (data.status === 'resolvida' && data.resposta) {
+          setMsgs(m => [...m, { role: 'assistant', text: data.resposta }])
+          setEscalacaoId(null)
+          setLoading(false)
+          return
+        }
+      } catch { /* ignora */ }
+      pollRef.current = setTimeout(poll, 4000)
+    }
+    pollRef.current = setTimeout(poll, 4000)
+  }, [])
+
+  useEffect(() => {
+    return () => { if (pollRef.current) clearTimeout(pollRef.current) }
+  }, [])
+
   async function handleSend() {
     const text = input.trim()
-    if (!text || loading) return
+    if (!text || loading || escalacaoId) return
 
-    const next: Msg[] = [...msgs, { role: 'user', text }]
-    setMsgs(next)
+    const history = msgs.map(m => ({ role: m.role as 'user' | 'assistant', content: m.text }))
+    setMsgs(m => [...m, { role: 'user', text }])
     setInput('')
     setLoading(true)
 
@@ -40,13 +70,20 @@ export function ChatWidget() {
       const res = await fetch('/api/onboarding/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history: next, leadId }),
+        body: JSON.stringify({ message: text, history, leadId, sessionId }),
       })
       const data = await res.json()
-      setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
+      if (data.escalado && data.escalacaoId) {
+        setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
+        setEscalacaoId(data.escalacaoId)
+        startPolling(data.escalacaoId)
+        // loading permanece true até o poll resolver
+      } else {
+        setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
+        setLoading(false)
+      }
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Desculpe, ocorreu um erro. Tente novamente.' }])
-    } finally {
       setLoading(false)
     }
   }
@@ -122,14 +159,20 @@ export function ChatWidget() {
             {loading && (
               <div className="flex justify-start">
                 <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <span className="material-symbols-outlined text-[14px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+                  <span className="material-symbols-outlined text-[14px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {escalacaoId ? 'support_agent' : 'smart_toy'}
+                  </span>
                 </div>
                 <div className="rounded-2xl rounded-bl-md bg-surface-container-low px-4 py-3">
-                  <div className="flex gap-1 items-center">
-                    <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
+                  {escalacaoId ? (
+                    <p className="text-[12px] text-on-surface-variant italic">Aguardando um especialista da equipe...</p>
+                  ) : (
+                    <div className="flex gap-1 items-center">
+                      <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -146,11 +189,11 @@ export function ChatWidget() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                disabled={loading}
+                disabled={loading || !!escalacaoId}
               />
               <button
                 onClick={handleSend}
-                disabled={loading || !input.trim()}
+                disabled={loading || !!escalacaoId || !input.trim()}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-white transition-all hover:bg-primary/90 disabled:opacity-40"
               >
                 <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>

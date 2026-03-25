@@ -67,7 +67,13 @@ Pessoa que entrou em contato sem histórico no sistema.
 - Nunca invente valores, prazos ou obrigações fiscais — se não tiver certeza, informe que vai verificar com a equipe
 - Seja cordial mas profissional
 - Mantenha as respostas curtas e diretas (canal WhatsApp — evite textos longos)
-- Para fechamento de contrato ou dúvidas complexas, direcione para falar com um contador da equipe`
+- Para fechamento de contrato ou dúvidas complexas, direcione para falar com um contador da equipe
+
+## Escalonamento para humano
+Quando você identificar que a situação está ALÉM da sua capacidade de resolver bem — por exemplo: reclamação grave, situação emocional delicada, questão jurídica complexa, cliente muito insatisfeito, ou qualquer situação que exija julgamento humano — coloque exatamente o marcador ##HUMANO## no INÍCIO da sua resposta, seguido de uma linha com o motivo resumido entre colchetes, e depois o texto que será enviado ao contato.
+Formato: ##HUMANO##[motivo breve]\n\nmensagem para o contato
+O marcador e o motivo são removidos automaticamente antes do envio — o contato nunca os vê. A mensagem será revisada por um membro da equipe antes de ser encaminhada.
+Use ##HUMANO## apenas quando realmente necessário — não para dúvidas simples que você consegue responder bem.`
 
 // ─── Função principal ─────────────────────────────────────────────────────────
 
@@ -145,6 +151,26 @@ function featureToCanal(feature: AskFeature | 'whatsapp' | undefined): CanalRAG 
     case 'whatsapp':   return 'whatsapp'
     default:           return 'geral'
   }
+}
+
+// ─── Detecta marcador ##HUMANO## e extrai motivo + texto limpo ────────────────
+
+export type EscalacaoInfo = {
+  escalado: true
+  motivo: string
+  textoLimpo: string
+} | { escalado: false }
+
+export function detectarEscalacao(resposta: string): EscalacaoInfo {
+  if (!resposta.includes('##HUMANO##')) return { escalado: false }
+  // Formato esperado: ##HUMANO##[motivo]\n\nmensagem
+  const match = resposta.match(/^##HUMANO##\[([^\]]*)\]\s*\n+([\s\S]*)$/m)
+  if (match) {
+    return { escalado: true, motivo: match[1].trim(), textoLimpo: match[2].trim() }
+  }
+  // Fallback: sem motivo formatado
+  const semMarcador = resposta.replace(/^##HUMANO##[^\n]*\n*/m, '').trim()
+  return { escalado: true, motivo: 'Escalonado pela IA', textoLimpo: semMarcador }
 }
 
 function buildSearchOpts(
