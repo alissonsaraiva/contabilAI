@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { formatDateTime, formatBRL } from '@/lib/utils'
-import { CANAL_LABELS, STATUS_LEAD_LABELS, PLANO_LABELS, FORMA_PAGAMENTO_LABELS } from '@/types'
+import { CANAL_LABELS, STATUS_LEAD_LABELS, PLANO_LABELS, FORMA_PAGAMENTO_LABELS, STATUS_CONTRATO_LABELS } from '@/types'
 import Link from 'next/link'
 import { AvancarEtapaBtn } from '@/components/crm/avancar-etapa-btn'
 import { EditarLeadDrawer } from '@/components/crm/editar-lead-drawer'
@@ -15,6 +15,7 @@ export default async function LeadDetailPage({ params }: Props) {
     include: {
       responsavel: true,
       contrato: true,
+      cliente: { select: { id: true, nome: true } },
       documentos: true,
       interacoes: { orderBy: { criadoEm: 'desc' }, take: 20 },
     },
@@ -23,6 +24,7 @@ export default async function LeadDetailPage({ params }: Props) {
   if (!lead) notFound()
 
   const dadosJson = lead.dadosJson as Record<string, string> | null
+  const nomeExibido = dadosJson?.['Nome completo'] ?? lead.contatoEntrada
   const ref = `LEAD-${lead.criadoEm.getFullYear()}-${id.slice(-4).toUpperCase()}`
 
   return (
@@ -48,7 +50,7 @@ export default async function LeadDetailPage({ params }: Props) {
 
           {/* Title */}
           <h1 className="text-4xl font-light tracking-tight text-on-surface">
-            {lead.contatoEntrada}
+            {nomeExibido}
           </h1>
 
           {/* Badges */}
@@ -158,6 +160,68 @@ export default async function LeadDetailPage({ params }: Props) {
           )}
         </div>
       </div>
+
+      {/* Contrato + Cliente convertido */}
+      {(lead.contrato || lead.cliente) && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Card contrato */}
+          {lead.contrato && (
+            <div className="rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-primary/80"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>contract</span>
+                <h2 className="font-headline text-base font-semibold text-on-surface">Contrato</h2>
+                <span className={`ml-auto rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${lead.contrato.status === 'assinado' ? 'bg-green-status/10 text-green-status' : 'bg-orange-status/10 text-orange-status'}`}>
+                  {STATUS_CONTRATO_LABELS[lead.contrato.status] ?? lead.contrato.status}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {lead.contrato.planoTipo && (
+                  <InfoRow label="Plano" value={PLANO_LABELS[lead.contrato.planoTipo]} />
+                )}
+                <InfoRow label="Valor mensal" value={`R$ ${Number(lead.contrato.valorMensal).toFixed(2).replace('.', ',')}`} bold />
+                {lead.contrato.assinadoEm && (
+                  <InfoRow label="Assinado em" value={formatDateTime(lead.contrato.assinadoEm)} />
+                )}
+                {lead.contrato.pdfUrl && (
+                  <a
+                    href={`/api/leads/${id}/contrato/download`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex items-center gap-2 rounded-xl bg-primary/8 px-4 py-3 text-[13px] font-semibold text-primary transition-colors hover:bg-primary/15"
+                  >
+                    <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>picture_as_pdf</span>
+                    Baixar contrato assinado
+                    <span className="material-symbols-outlined ml-auto text-[16px] opacity-60">download</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Card cliente convertido */}
+          {lead.cliente && (
+            <div className="rounded-[14px] border border-green-status/20 bg-green-status/5 p-6 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-green-status"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>person_check</span>
+                <h2 className="font-headline text-base font-semibold text-on-surface">Cliente ativo</h2>
+                <span className="ml-auto rounded-full bg-green-status/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-green-status">
+                  Convertido
+                </span>
+              </div>
+              <p className="mb-4 text-[14px] font-medium text-on-surface">{lead.cliente.nome}</p>
+              <Link
+                href={`/crm/clientes/${lead.cliente.id}`}
+                className="flex items-center gap-2 rounded-xl bg-green-status/10 px-4 py-3 text-[13px] font-semibold text-green-status transition-colors hover:bg-green-status/20"
+              >
+                <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                Ver ficha do cliente
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Histórico de atividades */}
       <div className="rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">

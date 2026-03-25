@@ -5,7 +5,7 @@ import { uploadArquivo, storageKeys } from '@/lib/storage'
 import { ContratoPDF } from '@/lib/pdf/contrato-template'
 import { chunkText, embedTexts, storeEmbeddings } from '@/lib/rag'
 import React from 'react'
-import type { PlanoTipo, FormaPagamento } from '@prisma/client'
+import type { PlanoTipo, FormaPagamento, StatusCliente } from '@prisma/client'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -111,6 +111,47 @@ export async function POST(req: Request, { params }: Params) {
     where: { id },
     data: { status: 'assinado', stepAtual: 6 },
   })
+
+  // Converte lead em cliente automaticamente
+  const nome = dados?.['Nome completo'] ?? lead.contatoEntrada
+  const cpf = dados?.['CPF']
+  const email = dados?.['E-mail'] ?? lead.contatoEntrada
+  const telefone = dados?.['Telefone'] ?? lead.contatoEntrada
+
+  if (nome && cpf && email) {
+    try {
+      let cliente = await prisma.cliente.findUnique({ where: { leadId: id } })
+      if (!cliente) {
+        cliente = await prisma.cliente.create({
+          data: {
+            leadId: id,
+            nome,
+            cpf,
+            email,
+            telefone,
+            whatsapp: telefone,
+            planoTipo: plano as PlanoTipo,
+            valorMensal: valor,
+            vencimentoDia: vencimento,
+            formaPagamento: formaPagamento as FormaPagamento,
+            status: 'ativo' as StatusCliente,
+            dataInicio: agora,
+            ...(dados?.['CNPJ'] && { cnpj: dados['CNPJ'] }),
+            ...(dados?.['Razão Social'] && { razaoSocial: dados['Razão Social'] }),
+            ...(dados?.['Nome Fantasia'] && { nomeFantasia: dados['Nome Fantasia'] }),
+            ...(dados?.['Cidade'] && { cidade: dados['Cidade'] }),
+            ...(lead.responsavelId && { responsavelId: lead.responsavelId }),
+          },
+        })
+      }
+      await prisma.contrato.update({
+        where: { id: contrato.id },
+        data: { clienteId: cliente.id },
+      })
+    } catch (err) {
+      console.error('[contrato] Erro ao converter lead em cliente:', err)
+    }
+  }
 
   // Indexa o contrato no RAG em background (não bloqueia a resposta)
   if (process.env.VOYAGE_API_KEY && process.env.VECTORS_DATABASE_URL) {

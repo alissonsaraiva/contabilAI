@@ -366,6 +366,20 @@ export default async function ClienteDetailPage({ params }: Props) {
                       </div>
                     ))}
                   </div>
+                  {c.pdfUrl && c.leadId && (
+                    <div className="border-t border-outline-variant/15 px-5 py-3">
+                      <a
+                        href={`/api/leads/${c.leadId}/contrato/download`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-[13px] font-semibold text-primary hover:opacity-80"
+                      >
+                        <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>picture_as_pdf</span>
+                        Baixar contrato assinado
+                        <span className="material-symbols-outlined ml-auto text-[16px] opacity-60">download</span>
+                      </a>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

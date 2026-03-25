@@ -99,6 +99,16 @@ export const STATUS_LEAD_LABELS: Record<StatusLead, string> = {
   cancelado: 'Cancelado',
 }
 
+export const STATUS_CONTRATO_LABELS: Record<StatusContrato, string> = {
+  rascunho: 'Rascunho',
+  enviado: 'Enviado',
+  aguardando_assinatura: 'Ag. Assinatura',
+  parcialmente_assinado: 'Parcial',
+  assinado: 'Assinado',
+  cancelado: 'Cancelado',
+  expirado: 'Expirado',
+}
+
 export const STATUS_CLIENTE_LABELS: Record<StatusCliente, string> = {
   ativo: 'Ativo',
   inadimplente: 'Inadimplente',
