@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "escritorio" ADD COLUMN "groqApiKey" TEXT;
+ALTER TABLE "escritorio" ADD COLUMN IF NOT EXISTS "groqApiKey" TEXT;
