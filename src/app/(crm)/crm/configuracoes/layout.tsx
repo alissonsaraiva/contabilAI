@@ -5,14 +5,15 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 const TABS = [
-  { href: '/crm/configuracoes/identidade', icon: 'domain', label: 'Identidade' },
-  { href: '/crm/configuracoes/fiscal', icon: 'description', label: 'Fiscal' },
+  { href: '/crm/configuracoes/identidade', icon: 'domain',       label: 'Dados Básicos' },
+  { href: '/crm/configuracoes/contrato',   icon: 'description',  label: 'Contrato' },
   { href: '/crm/configuracoes/contato', icon: 'contact_mail', label: 'Contato' },
   { href: '/crm/configuracoes/integracoes', icon: 'extension', label: 'Integrações' },
   { href: '/crm/configuracoes/planos', icon: 'payments', label: 'Planos' },
   { href: '/crm/configuracoes/usuarios', icon: 'group', label: 'Usuários' },
   { href: '/crm/configuracoes/ia', icon: 'psychology', label: 'IA' },
   { href: '/crm/configuracoes/conhecimento', icon: 'auto_stories', label: 'Conhecimento' },
+  { href: '/crm/configuracoes/email',    icon: 'mail', label: 'E-mail' },
   { href: '/crm/configuracoes/whatsapp', icon: 'chat', label: 'WhatsApp' },
 ]
 

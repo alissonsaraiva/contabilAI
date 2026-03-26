@@ -6,11 +6,16 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatCNPJ } from '@/lib/utils'
+
+const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 
 const schema = z.object({
-  nome: z.string().min(1, 'Nome obrigatório'),
-  nomeFantasia: z.string().optional(),
-  corPrimaria: z.string().optional(),
+  nome:          z.string().min(1, 'Nome obrigatório'),
+  nomeFantasia:  z.string().optional(),
+  cnpj:          z.string().optional(),
+  crc:           z.string().optional(),
+  corPrimaria:   z.string().optional(),
   corSecundaria: z.string().optional(),
   fraseBemVindo: z.string().optional(),
   metaDescricao: z.string().optional(),
@@ -24,13 +29,15 @@ export default function IdentidadePage() {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
     fetch('/api/escritorio')
       .then((r) => r.json())
-      .then((data) => { if (data) reset(data) })
+      .then((data) => { if (data) reset({ ...data, cnpj: data.cnpj ?? '', crc: data.crc ?? '' }) })
   }, [reset])
 
   async function onSubmit(data: FormData) {
@@ -53,39 +60,74 @@ export default function IdentidadePage() {
   return (
     <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-8 shadow-sm">
       <div className="mb-8">
-        <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">Identidade do Escritório</h2>
+        <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">Dados Básicos</h2>
         <p className="mt-1 text-[13px] text-on-surface-variant/80">
-          Gerencie as informações públicas e cadastrais da sua empresa contábil.
+          Informações cadastrais e identidade visual do escritório.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-          <div className="md:col-span-2 space-y-1.5">
-            <label className="block text-[13px] font-semibold text-on-surface-variant">
-              Nome do escritório <span className="text-error">*</span>
-            </label>
-            <input
-              {...register('nome')}
-              className="w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
-              placeholder="Ex: ContabAI Studio"
-            />
-            {errors.nome && (
-              <p className="text-xs font-medium text-error">{errors.nome.message}</p>
-            )}
-          </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
 
-          <div className="md:col-span-2 space-y-1.5">
-            <label className="block text-[13px] font-semibold text-on-surface-variant">
-              Nome fantasia
-            </label>
-            <input
-              {...register('nomeFantasia')}
-              className="w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
-              placeholder="Ex: ContabAI — Contabilidade Digital"
-            />
-          </div>
+        {/* Identificação */}
+        <div>
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Identificação</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div className="md:col-span-2 space-y-1.5">
+              <label className="block text-[13px] font-semibold text-on-surface-variant">
+                Nome do escritório <span className="text-error">*</span>
+              </label>
+              <input
+                {...register('nome')}
+                className={INPUT}
+                placeholder="Ex: ContabAI Studio"
+              />
+              {errors.nome && (
+                <p className="text-xs font-medium text-error">{errors.nome.message}</p>
+              )}
+            </div>
 
+            <div className="md:col-span-2 space-y-1.5">
+              <label className="block text-[13px] font-semibold text-on-surface-variant">Nome fantasia</label>
+              <input
+                {...register('nomeFantasia')}
+                className={INPUT}
+                placeholder="Ex: ContabAI — Contabilidade Digital"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Registro */}
+        <div>
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Registro</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-semibold text-on-surface-variant">CNPJ</label>
+              <input
+                className={INPUT}
+                placeholder="00.000.000/0001-00"
+                value={watch('cnpj') ?? ''}
+                onChange={e => setValue('cnpj', formatCNPJ(e.target.value))}
+                inputMode="numeric"
+                maxLength={18}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-semibold text-on-surface-variant">CRC</label>
+              <input
+                {...register('crc')}
+                className={INPUT}
+                placeholder="CRC-SP 123456/O-4"
+                maxLength={20}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Identidade visual */}
+        <div>
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Identidade Visual</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
           <div className="space-y-1.5">
             <label className="block text-[13px] font-semibold text-on-surface-variant">
               Cor principal
@@ -135,6 +177,7 @@ export default function IdentidadePage() {
               className="w-full resize-none rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 custom-scrollbar"
               placeholder="Contabilidade digital com IA para MEI, EPP e autônomos."
             />
+          </div>
           </div>
         </div>
 
