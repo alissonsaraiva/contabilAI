@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
+import Google from 'next-auth/providers/google'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
@@ -7,7 +8,9 @@ import { rateLimit } from '@/lib/rate-limit'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
+    // ── Provider interno: email + senha para Usuario (CRM) ──────────────────
     Credentials({
+      id: 'credentials',
       credentials: {
         email: { type: 'email' },
         password: { type: 'password' },
@@ -37,46 +40,100 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!ok) return null
 
         return {
-          id: usuario.id,
-          name: usuario.nome,
-          email: usuario.email,
-          tipo: usuario.tipo,
+          id:                 usuario.id,
+          name:               usuario.nome,
+          email:              usuario.email,
+          tipo:               usuario.tipo,
           precisaTrocarSenha: usuario.precisaTrocarSenha,
         }
       },
     }),
+
+    // ── Provider portal: magic link (token gerado pela nossa API) ───────────
+    Credentials({
+      id: 'portal-token',
+      credentials: {
+        clienteId: { type: 'text' },
+        nome:      { type: 'text' },
+        email:     { type: 'email' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.clienteId || !credentials?.email) return null
+        // A validação do token foi feita na API /api/portal/verificar
+        // Aqui apenas criamos a sessão com os dados do cliente
+        return {
+          id:    credentials.clienteId as string,
+          name:  credentials.nome     as string,
+          email: credentials.email    as string,
+          tipo:  'cliente',
+        }
+      },
+    }),
+
+    // ── Provider portal: Google OAuth ────────────────────────────────────────
+    Google({
+      clientId:     process.env.GOOGLE_CLIENT_ID     ?? '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+    }),
   ],
+
   callbacks: {
-    jwt({ token, user }) {
+    async signIn({ user, account }) {
+      // Login Google: verifica se o e-mail existe em Cliente
+      if (account?.provider === 'google') {
+        if (!user.email) return false
+        const cliente = await prisma.cliente.findUnique({
+          where:  { email: user.email },
+          select: { id: true, nome: true, status: true },
+        })
+        if (!cliente) return '/portal/login?erro=email_nao_cadastrado'
+        if (cliente.status === 'cancelado' || cliente.status === 'encerrado') {
+          return '/portal/login?erro=conta_inativa'
+        }
+        // Injeta clienteId no objeto user para o jwt callback
+        ;(user as any).id   = cliente.id
+        ;(user as any).nome = cliente.nome
+        ;(user as any).tipo = 'cliente'
+        return true
+      }
+      return true
+    },
+
+    jwt({ token, user, account }) {
       if (user) {
-        token.tipo = (user as any).tipo
-        token.id = user.id
-        token.precisaTrocarSenha = (user as any).precisaTrocarSenha
-        token.checkedAt = Date.now()
+        token.tipo               = (user as any).tipo
+        token.id                 = user.id
+        token.precisaTrocarSenha = (user as any).precisaTrocarSenha ?? false
+        token.checkedAt          = Date.now()
+      }
+      // Google: após signIn callback, o id já foi substituído pelo clienteId
+      if (account?.provider === 'google' && (user as any)?.tipo === 'cliente') {
+        token.tipo = 'cliente'
       }
       return token
     },
+
     async session({ session, token }) {
       if (session.user) {
-        ;(session.user as any).tipo = token.tipo
-        ;(session.user as any).id = token.id
+        ;(session.user as any).tipo               = token.tipo
+        ;(session.user as any).id                 = token.id
         ;(session.user as any).precisaTrocarSenha = token.precisaTrocarSenha
       }
 
-      // Revalida que o usuário ainda está ativo a cada 5 minutos
+      // Revalida usuário interno (não-cliente) a cada 5 minutos
       const REVALIDAR_INTERVAL = 5 * 60 * 1000
       const lastCheck = (token.checkedAt as number | undefined) ?? 0
-      if (token.id && Date.now() - lastCheck > REVALIDAR_INTERVAL) {
+      const tipo = token.tipo as string | undefined
+
+      if (token.id && tipo !== 'cliente' && Date.now() - lastCheck > REVALIDAR_INTERVAL) {
         try {
           const usuario = await prisma.usuario.findUnique({
-            where: { id: token.id as string },
+            where:  { id: token.id as string },
             select: { ativo: true, precisaTrocarSenha: true },
           })
           if (!usuario?.ativo) {
-            // Usuário desativado — invalida sessão retornando objeto sem user
             return { ...session, user: undefined } as any
           }
-          // Atualiza flag de troca de senha caso tenha mudado
           if (session.user) {
             ;(session.user as any).precisaTrocarSenha = usuario.precisaTrocarSenha
           }
@@ -89,5 +146,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
   },
+
   pages: { signIn: '/login' },
 })

@@ -21,4 +21,6 @@ export const { auth } = NextAuth({
     },
   },
   pages: { signIn: '/login' },
+  // Necessário para Google OAuth funcionar
+  trustHost: true,
 })

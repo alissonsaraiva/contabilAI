@@ -99,6 +99,7 @@ enum StatusEscalacao {
 enum CanalEscalacao {
   whatsapp
   onboarding
+  portal
 }
 
 enum StatusMensagem {
@@ -215,9 +216,10 @@ model Cliente {
   socios     Socio[]
   documentos Documento[]
   contratos  Contrato[]
-  tarefas    Tarefa[]
-  interacoes Interacao[]
-  conversas  ConversaIA[]
+  tarefas       Tarefa[]
+  interacoes    Interacao[]
+  conversas     ConversaIA[]
+  portalTokens  PortalToken[]
 
   @@map("clientes")
 }
@@ -491,6 +493,19 @@ model Escalacao {
   atualizadoEm    DateTime         @updatedAt
 
   @@map("escalacoes")
+}
+
+model PortalToken {
+  id         String    @id @default(uuid())
+  clienteId  String
+  cliente    Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  token      String    @unique  // hash SHA-256 do token enviado por e-mail
+  expiresAt  DateTime
+  usedAt     DateTime?
+  criadoEm  DateTime  @default(now())
+
+  @@index([clienteId])
+  @@map("portal_tokens")
 }
 
 model AgenteAcao {

@@ -104,3 +104,24 @@ export async function notificarAgenteFalhou(erro: string): Promise<void> {
     console.error('[notificacoes] falha ao criar notificação agente_falhou:', err)
   }
 }
+
+/**
+ * Notifica quando um cliente solicita atendimento humano pelo portal.
+ */
+export async function notificarEscalacaoPortal(clienteId: string, escalacaoId: string): Promise<void> {
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where:  { id: clienteId },
+      select: { nome: true },
+    })
+    const ids = await buscarDestinatarios()
+    await criarParaTodos(ids, {
+      tipo:    'escalacao',
+      titulo:  `Atendimento solicitado pelo portal`,
+      mensagem: `${cliente?.nome ?? 'Cliente'} solicitou atendimento humano.`,
+      url:     `/crm/atendimentos`,
+    })
+  } catch (err) {
+    console.error('[notificacoes] falha ao criar notificação escalacao_portal:', err)
+  }
+}

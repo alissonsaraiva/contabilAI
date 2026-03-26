@@ -18,14 +18,25 @@ export default auth((req) => {
   }
 
   if (path.startsWith('/portal')) {
-    if (!user) return NextResponse.redirect(new URL('/login', req.url))
+    // Página de login e verificação são públicas
+    if (path === '/portal/login' || path.startsWith('/portal/verificar')) {
+      // Se já autenticado como cliente, redireciona para o dashboard
+      if (user && tipo === 'cliente') {
+        return NextResponse.redirect(new URL('/portal/dashboard', req.url))
+      }
+      return NextResponse.next()
+    }
+    if (!user) return NextResponse.redirect(new URL('/portal/login', req.url))
+    if (tipo !== 'cliente') return NextResponse.redirect(new URL('/portal/login', req.url))
   }
 
   if (path === '/login' && user) {
     if (tipo === 'contador' || tipo === 'admin') {
       return NextResponse.redirect(new URL('/crm/dashboard', req.url))
     }
-    return NextResponse.redirect(new URL('/portal/dashboard', req.url))
+    if (tipo === 'cliente') {
+      return NextResponse.redirect(new URL('/portal/dashboard', req.url))
+    }
   }
 })
 
