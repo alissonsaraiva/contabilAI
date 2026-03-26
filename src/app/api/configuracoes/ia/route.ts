@@ -87,10 +87,8 @@ export async function PUT(req: Request) {
   for (const field of SECRET_FIELDS) {
     if (!(field in body)) continue
     const val = body[field]
-    if (!val) {
-      data[field] = null
-      continue
-    }
+    // String vazia = campo não preenchido = não altera o valor existente no banco
+    if (!val) continue
     // Se o front mandou a máscara de volta (começa com •), ignora — não alterou
     if (val.startsWith('•')) continue
 
