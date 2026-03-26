@@ -373,15 +373,40 @@ export async function POST(req: Request) {
     }
 
     // ── Chama a IA ────────────────────────────────────────────────────────────
-    const result = await askAI({
-      pergunta:        textoFinal,
-      context,
-      feature:         aiFeature as 'whatsapp',
-      historico,
-      systemExtra,
-      maxTokens:       512,
-      mediaContent:    mediaContentParts ?? undefined,
-    })
+    let result: Awaited<ReturnType<typeof askAI>>
+    try {
+      result = await askAI({
+        pergunta:        textoFinal,
+        context,
+        feature:         aiFeature as 'whatsapp',
+        historico,
+        systemExtra,
+        maxTokens:       512,
+        mediaContent:    mediaContentParts ?? undefined,
+      })
+    } catch (aiErr) {
+      const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
+      console.error('[whatsapp/webhook] IA indisponível:', aiErrMsg)
+      // Cria escalação silenciosa — sem mensagem pro contato
+      prisma.escalacao.create({
+        data: {
+          canal:          'whatsapp',
+          status:         'pendente',
+          clienteId:      cached.clienteId ?? null,
+          leadId:         cached.leadId    ?? null,
+          remoteJid,
+          historico:      [...historico, { role: 'user', content: textoFinal }] as object[],
+          ultimaMensagem: textoFinal,
+          motivoIA:       `IA indisponível: ${aiErrMsg}`,
+        },
+      }).catch(() => {})
+      // Pausa a conversa para que humano assuma
+      prisma.conversaIA.update({
+        where: { id: conversaId },
+        data:  { pausadaEm: new Date(), pausadoPorId: null },
+      }).catch(() => {})
+      return new Response('ok', { status: 200 })
+    }
 
     // ── Detecta marcador ##LEAD## ─────────────────────────────────────────────
     let resposta = result.resposta

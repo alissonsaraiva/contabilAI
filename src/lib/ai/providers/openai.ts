@@ -8,7 +8,7 @@ export const openaiProvider: AIProvider = {
     if (!key) throw new Error('OPENAI_API_KEY não configurada')
 
     const resolvedModel = model ?? 'gpt-4o-mini'
-    const resolvedBaseUrl = baseUrl ?? 'https://api.openai.com/v1'
+    const resolvedBaseUrl = baseUrl?.trim() || 'https://api.openai.com/v1'
 
     const res = await fetch(`${resolvedBaseUrl}/chat/completions`, {
       method: 'POST',

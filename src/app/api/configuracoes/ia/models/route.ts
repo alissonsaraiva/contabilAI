@@ -17,10 +17,11 @@ const OPENAI_MODELS = [
 ]
 
 const GOOGLE_MODELS = [
-  { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite — ultra rápido e econômico' },
-  { value: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash — rápido e econômico' },
-  { value: 'gemini-2.5-flash',      label: 'Gemini 2.5 Flash — equilibrado' },
-  { value: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro — mais capaz' },
+  { value: 'gemini-2.5-flash',           label: 'Gemini 2.5 Flash — rápido, recomendado' },
+  { value: 'gemini-2.5-flash-lite',      label: 'Gemini 2.5 Flash Lite — ultra econômico' },
+  { value: 'gemini-2.5-pro',             label: 'Gemini 2.5 Pro — mais capaz' },
+  { value: 'gemini-3-flash-preview',     label: 'Gemini 3 Flash (preview) — mais recente' },
+  { value: 'gemini-3.1-pro-preview',     label: 'Gemini 3.1 Pro (preview) — topo de linha' },
 ]
 
 async function fetchOpenAIModels(baseUrl: string, apiKey: string) {
@@ -84,7 +85,7 @@ export async function GET() {
   let openaiModels = OPENAI_MODELS
   let openaiDynamic = false
   if (config.openaiApiKey) {
-    const baseUrl = config.openaiBaseUrl ?? 'https://api.openai.com/v1'
+    const baseUrl = config.openaiBaseUrl?.trim() || 'https://api.openai.com/v1'
     const dynamic = await fetchOpenAIModels(baseUrl, config.openaiApiKey)
     if (dynamic) { openaiModels = dynamic; openaiDynamic = true }
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
@@ -40,10 +40,34 @@ function resolveTitle(pathname: string): string {
 
 type Props = { user: SessionUser }
 
+function useAiHealthAlert() {
+  const [anyDown, setAnyDown] = useState(false)
+
+  useEffect(() => {
+    async function check() {
+      try {
+        const res = await fetch('/api/ai/health')
+        if (!res.ok) return
+        const data = await res.json() as Record<string, { ok: boolean; checkedAt: number }>
+        const down = Object.values(data).some(s => s.checkedAt > 0 && !s.ok)
+        setAnyDown(down)
+      } catch {
+        // silencia erros de rede
+      }
+    }
+    check()
+    const id = setInterval(check, 5 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  return anyDown
+}
+
 export function CrmHeader({ user }: Props) {
   const pathname = usePathname()
   const title = resolveTitle(pathname)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const aiDown = useAiHealthAlert()
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-outline-variant/15 bg-card/80 px-4 md:px-8 backdrop-blur-md">
@@ -74,6 +98,16 @@ export function CrmHeader({ user }: Props) {
         </div>
 
         <div className="flex items-center gap-1">
+          {aiDown && (
+            <Link
+              href="/crm/configuracoes/ia"
+              title="Uma ou mais IAs estão fora do ar — clique para verificar"
+              className="hidden md:flex h-9 items-center gap-1.5 rounded-lg bg-error/10 px-2.5 text-error hover:bg-error/20 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[18px]">warning</span>
+              <span className="text-[12px] font-semibold">IA offline</span>
+            </Link>
+          )}
           <button className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
             <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 0" }}>notifications</span>
           </button>

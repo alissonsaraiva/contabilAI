@@ -10,7 +10,7 @@ export const googleProvider: AIProvider = {
   async complete({ system, messages, maxTokens = 1024, temperature = 0.3, model, apiKey }: AIRequest): Promise<AIResponse> {
     if (!apiKey) throw new Error('GOOGLE_API_KEY não configurada')
 
-    const resolvedModel = model ?? 'gemini-2.0-flash'
+    const resolvedModel = model ?? 'gemini-2.5-flash'
 
     const res = await fetch(`${GOOGLE_BASE_URL}/chat/completions`, {
       method: 'POST',

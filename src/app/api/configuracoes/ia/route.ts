@@ -146,7 +146,7 @@ export async function POST() {
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`)
+      throw new Error(`HTTP ${res.status}: ${body}`)
     }
     return { ok: true, label: 'voyage-3-lite' }
   }
@@ -160,14 +160,14 @@ export async function POST() {
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`)
+      throw new Error(`HTTP ${res.status}: ${body}`)
     }
     return { ok: true, label: 'whisper + llama-3.1' }
   }
 
   async function testOpenAI(): Promise<R> {
     if (!config.openaiApiKey) return { ok: false, error: 'Não configurada' }
-    const baseUrl = config.openaiBaseUrl ?? 'https://api.openai.com/v1'
+    const baseUrl = config.openaiBaseUrl?.trim() || 'https://api.openai.com/v1'
     const model = config.openaiModel ?? 'gpt-4o-mini'
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -176,7 +176,7 @@ export async function POST() {
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`)
+      throw new Error(`HTTP ${res.status}: ${body}`)
     }
     return { ok: true, label: model }
   }
@@ -186,18 +186,18 @@ export async function POST() {
     const res = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.googleApiKey}` },
-      body: JSON.stringify({ model: 'gemini-2.0-flash-lite', messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
+      body: JSON.stringify({ model: 'gemini-2.5-flash', messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`)
+      throw new Error(`HTTP ${res.status}: ${body}`)
     }
-    return { ok: true, label: 'gemini-2.0-flash-lite' }
+    return { ok: true, label: 'gemini-2.5-flash' }
   }
 
   const wrap = async (fn: () => Promise<R>): Promise<R> => {
     try { return await fn() }
-    catch (e) { return { ok: false, error: (e as Error).message.slice(0, 80) } }
+    catch (e) { return { ok: false, error: (e as Error).message } }
   }
 
   const [anthropic, voyage, groq, openai, google] = await Promise.all([

@@ -340,13 +340,22 @@ export default function ConfiguracoesIAPage() {
               {testing ? 'Testando...' : 'Testar conexões'}
             </button>
 
-            <button
-              type="button" onClick={handleSubmit(onSubmitKeys)} disabled={loading}
-              className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
-              Salvar
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button" onClick={() => reset()} disabled={loading}
+                className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface-variant shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-[16px]">undo</span>
+                Cancelar
+              </button>
+              <button
+                type="button" onClick={handleSubmit(onSubmitKeys)} disabled={loading}
+                className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
+                Salvar
+              </button>
+            </div>
           </div>
 
             {/* Resultados dos testes */}
@@ -361,18 +370,23 @@ export default function ConfiguracoesIAPage() {
                 ] as const).map(({ key, icon, name }) => {
                   const r = testResults[key]
                   return (
-                    <div key={key} className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-[13px] text-on-surface">{icon} {name}</span>
-                      {r.ok ? (
-                        <span className="flex items-center gap-1.5 text-[12px] font-semibold text-green-status">
-                          <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                          {r.label}
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 text-[12px] font-medium text-error">
-                          <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>
-                          {r.error}
-                        </span>
+                    <div key={key} className="flex flex-col gap-0.5 px-4 py-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] text-on-surface">{icon} {name}</span>
+                        {r.ok ? (
+                          <span className="flex items-center gap-1.5 text-[12px] font-semibold text-green-status">
+                            <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                            {r.label}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1.5 text-[12px] font-medium text-error">
+                            <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>
+                            Falha
+                          </span>
+                        )}
+                      </div>
+                      {!r.ok && r.error && (
+                        <p className="text-[11px] text-error/70 break-all leading-relaxed pl-0.5">{r.error}</p>
                       )}
                     </div>
                   )
@@ -493,7 +507,14 @@ export default function ConfiguracoesIAPage() {
             })}
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button" onClick={() => reset()} disabled={loading}
+              className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface-variant shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
+            >
+              <span className="material-symbols-outlined text-[16px]">undo</span>
+              Cancelar
+            </button>
             <button
               type="button" onClick={handleSubmit(onSubmitFeatures)} disabled={loading}
               className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center"
