@@ -14,6 +14,8 @@ type Model = { value: string; label: string }
 type ApiStatus = { configured: boolean; masked: string | null }
 type ProviderModels = { models: Model[]; configured: boolean; dynamic: boolean }
 type AllModels = { claude: ProviderModels; openai: ProviderModels; google: ProviderModels }
+type TestResult = { ok: boolean; label?: string; error?: string }
+type TestResults = { anthropic: TestResult; voyage: TestResult; groq: TestResult; openai: TestResult; google: TestResult }
 
 type FormData = {
   anthropicApiKey: string
@@ -91,9 +93,10 @@ const SUB_IAS = [
 
 export default function ConfiguracoesIAPage() {
   const [tab, setTab]           = useState<'chaves' | 'funcionalidades'>('chaves')
-  const [loading, setLoading]   = useState(false)
-  const [testing, setTesting]   = useState(false)
-  const [status, setStatus]     = useState<Record<string, ApiStatus>>({})
+  const [loading, setLoading]     = useState(false)
+  const [testing, setTesting]     = useState(false)
+  const [testResults, setTestResults] = useState<TestResults | null>(null)
+  const [status, setStatus]       = useState<Record<string, ApiStatus>>({})
   const [allModels, setAllModels] = useState<AllModels>(FALLBACK_MODELS)
   const [modelsLoading, setModelsLoading] = useState(false)
 
@@ -231,13 +234,13 @@ export default function ConfiguracoesIAPage() {
 
   async function handleTest() {
     setTesting(true)
+    setTestResults(null)
     try {
       const res = await fetch('/api/configuracoes/ia', { method: 'POST' })
-      const data = await res.json()
-      if (data.ok) toast.success(`Conexão OK — ${data.provider} / ${data.model}`)
-      else toast.error(`Falha: ${data.error}`)
+      const data = await res.json() as TestResults
+      setTestResults(data)
     } catch {
-      toast.error('Erro ao testar conexão')
+      toast.error('Erro ao testar conexões')
     } finally {
       setTesting(false)
     }
@@ -327,13 +330,14 @@ export default function ConfiguracoesIAPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
             <button
               type="button" onClick={handleTest} disabled={testing}
               className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
             >
               {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">electrical_services</span>}
-              Testar conexão
+              {testing ? 'Testando...' : 'Testar conexões'}
             </button>
 
             <button
@@ -343,6 +347,38 @@ export default function ConfiguracoesIAPage() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
               Salvar
             </button>
+          </div>
+
+            {/* Resultados dos testes */}
+            {testResults && (
+              <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low/50 divide-y divide-outline-variant/10">
+                {([
+                  { key: 'anthropic', icon: '🟣', name: 'Anthropic (Claude)' },
+                  { key: 'voyage',    icon: '🔷', name: 'Voyage AI (RAG)' },
+                  { key: 'groq',      icon: '⚡', name: 'Groq (Whisper)' },
+                  { key: 'openai',    icon: '🟢', name: 'OpenAI / Compatible' },
+                  { key: 'google',    icon: '🔵', name: 'Google (Gemini)' },
+                ] as const).map(({ key, icon, name }) => {
+                  const r = testResults[key]
+                  return (
+                    <div key={key} className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-[13px] text-on-surface">{icon} {name}</span>
+                      {r.ok ? (
+                        <span className="flex items-center gap-1.5 text-[12px] font-semibold text-green-status">
+                          <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                          {r.label}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-[12px] font-medium text-error">
+                          <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>
+                          {r.error}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </>
       )}

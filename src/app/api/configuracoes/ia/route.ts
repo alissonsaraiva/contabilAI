@@ -111,24 +111,90 @@ export async function PUT(req: Request) {
   return NextResponse.json({ ok: true })
 }
 
-// POST /test — testa a conexão com o provider configurado
-export async function POST(req: Request) {
+// POST — testa todas as chaves configuradas em paralelo
+export async function POST() {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
   if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  const { askAI } = await import('@/lib/ai/ask')
+  const { getAiConfig } = await import('@/lib/ai/config')
+  const config = await getAiConfig()
 
-  try {
-    const result = await askAI({
-      pergunta: 'Responda apenas: "Conexão OK"',
-      context: { escopo: 'global' },
-      maxTokens: 20,
+  type R = { ok: boolean; label?: string; error?: string }
+
+  async function testAnthropic(): Promise<R> {
+    if (!config.anthropicApiKey) return { ok: false, error: 'Não configurada' }
+    const Anthropic = (await import('@anthropic-ai/sdk')).default
+    const client = new Anthropic({ apiKey: config.anthropicApiKey })
+    const res = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 10,
+      messages: [{ role: 'user', content: 'ok?' }],
     })
-    return NextResponse.json({ ok: true, provider: result.provider, model: result.model })
-  } catch (err) {
-    return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 400 })
+    const model = res.model ?? 'claude-haiku-4-5-20251001'
+    return { ok: true, label: model }
   }
+
+  async function testVoyage(): Promise<R> {
+    if (!config.voyageApiKey) return { ok: false, error: 'Não configurada' }
+    const res = await fetch('https://api.voyageai.com/v1/embeddings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.voyageApiKey}` },
+      body: JSON.stringify({ input: ['test'], model: 'voyage-3-lite' }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return { ok: true, label: 'voyage-3-lite' }
+  }
+
+  async function testGroq(): Promise<R> {
+    if (!config.groqApiKey) return { ok: false, error: 'Não configurada' }
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.groqApiKey}` },
+      body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return { ok: true, label: 'whisper + llama-3.1' }
+  }
+
+  async function testOpenAI(): Promise<R> {
+    if (!config.openaiApiKey) return { ok: false, error: 'Não configurada' }
+    const baseUrl = config.openaiBaseUrl ?? 'https://api.openai.com/v1'
+    const model = config.openaiModel ?? 'gpt-4o-mini'
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.openaiApiKey}` },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return { ok: true, label: model }
+  }
+
+  async function testGoogle(): Promise<R> {
+    if (!config.googleApiKey) return { ok: false, error: 'Não configurada' }
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.googleApiKey}` },
+      body: JSON.stringify({ model: 'gemini-2.0-flash', messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return { ok: true, label: 'gemini-2.0-flash' }
+  }
+
+  const wrap = async (fn: () => Promise<R>): Promise<R> => {
+    try { return await fn() }
+    catch (e) { return { ok: false, error: (e as Error).message.slice(0, 80) } }
+  }
+
+  const [anthropic, voyage, groq, openai, google] = await Promise.all([
+    wrap(testAnthropic),
+    wrap(testVoyage),
+    wrap(testGroq),
+    wrap(testOpenAI),
+    wrap(testGoogle),
+  ])
+
+  return NextResponse.json({ anthropic, voyage, groq, openai, google })
 }
