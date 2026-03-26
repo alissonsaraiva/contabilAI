@@ -7,7 +7,7 @@ let pool: Pool | null = null
 
 function getPool(): Pool {
   if (!pool) {
-    const url = process.env.VECTORS_DATABASE_URL ?? process.env.DATABASE_URL
+    const url = process.env.VECTORS_DATABASE_URL || process.env.DATABASE_URL
     if (!url) throw new Error('VECTORS_DATABASE_URL ou DATABASE_URL não configurada')
     pool = new Pool({ connectionString: url, max: 5 })
   }
@@ -242,7 +242,8 @@ export async function listKnowledge(opts: {
        criado_em
      FROM vectors.embeddings
      WHERE ${conditions.join(' AND ')}
-     ORDER BY criado_em DESC`,
+     ORDER BY criado_em DESC
+     LIMIT 200`,
     values,
   )
 

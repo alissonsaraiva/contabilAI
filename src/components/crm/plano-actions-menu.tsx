@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { PlanoTipo } from '@prisma/client'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 type Plano = { id: string; tipo: PlanoTipo; ativo: boolean; destaque: boolean }
 type Props = { plano: Plano }
@@ -12,6 +13,7 @@ export function PlanoActionsMenu({ plano }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -56,7 +58,6 @@ export function PlanoActionsMenu({ plano }: Props) {
   }
 
   async function handleDelete() {
-    if (!confirm('Excluir este plano permanentemente?')) return
     setLoading(true)
     try {
       const res = await fetch(`/api/planos/${plano.id}`, { method: 'DELETE' })
@@ -82,6 +83,16 @@ export function PlanoActionsMenu({ plano }: Props) {
       >
         <span className="material-symbols-outlined text-[18px]">more_vert</span>
       </button>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+        title="Excluir plano?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        loading={loading}
+      />
 
       {open && (
         <div
@@ -110,7 +121,7 @@ export function PlanoActionsMenu({ plano }: Props) {
           <div className="mx-3 my-1 border-t border-outline-variant/15" />
 
           <button
-            onClick={handleDelete}
+            onClick={() => setConfirmOpen(true)}
             className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-error transition-colors hover:bg-error/5"
           >
             <span className="material-symbols-outlined text-[16px]">delete</span>

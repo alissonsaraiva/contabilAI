@@ -32,6 +32,7 @@ export async function POST(req: Request) {
 
   try {
     const plano = await prisma.plano.create({ data: parsed.data })
+    import('@/lib/rag/ingest').then(({ indexarPlanos }) => indexarPlanos()).catch(() => {})
     return NextResponse.json(plano, { status: 201 })
   } catch (e: any) {
     if (e.code === 'P2002') {

@@ -73,7 +73,7 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
             }
             return indexarInteracao(interacaoFake as any)
           })
-          .catch(() => {})
+          .catch(err => console.error('[processar] erro ao indexar anexo RAG:', err))
       }
 
       anexosMeta.push({ nome: anexo.nome, url, mimeType: anexo.mimeType })
@@ -113,7 +113,7 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
   if (associado) {
     import('@/lib/rag/ingest')
       .then(({ indexarInteracao }) => indexarInteracao(interacao))
-      .catch(() => {})
+      .catch(err => console.error('[processar] erro ao indexar interação RAG:', err))
   }
 
   return { interacaoId: interacao.id, clienteId, leadId, associado, sugestao, documentosId }

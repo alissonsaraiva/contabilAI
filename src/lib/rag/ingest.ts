@@ -144,6 +144,16 @@ export async function indexarLead(lead: LeadData): Promise<void> {
 
 // ─── Cliente ───────────────────────────────────────────────────────────────
 
+type SocioData = {
+  nome: string
+  cpf: string
+  qualificacao?: string | null
+  participacao?: unknown
+  email?: string | null
+  telefone?: string | null
+  principal?: boolean
+}
+
 type ClienteData = {
   id: string
   nome: string
@@ -161,11 +171,20 @@ type ClienteData = {
   formaPagamento?: string | null
   cidade?: string | null
   uf?: string | null
+  socios?: SocioData[]
 }
 
 export async function indexarCliente(cliente: ClienteData): Promise<void> {
   const key = await getVoyageKey()
   if (!key) return
+
+  const sociosLinhas = (cliente.socios ?? []).map(s => [
+    `  - ${s.nome} (CPF: ${s.cpf})${s.principal ? ' — sócio principal' : ''}`,
+    s.qualificacao   ? `    Qualificação: ${s.qualificacao}` : '',
+    s.participacao != null ? `    Participação: ${s.participacao}%` : '',
+    s.email          ? `    E-mail: ${s.email}` : '',
+    s.telefone       ? `    Telefone: ${s.telefone}` : '',
+  ].filter(Boolean).join('\n'))
 
   const linhas = [
     `Dados do cliente`,
@@ -183,6 +202,7 @@ export async function indexarCliente(cliente: ClienteData): Promise<void> {
     cliente.vencimentoDia ? `Vencimento: dia ${cliente.vencimentoDia}` : '',
     cliente.formaPagamento ? `Forma de pagamento: ${cliente.formaPagamento}` : '',
     (cliente.cidade || cliente.uf) ? `Cidade: ${[cliente.cidade, cliente.uf].filter(Boolean).join(' / ')}` : '',
+    ...(sociosLinhas.length ? [`Sócios (${sociosLinhas.length}):`, ...sociosLinhas] : []),
   ].filter(Boolean).join('\n')
 
   // Indexa no canal CRM (contador) e Portal (cliente)
@@ -315,24 +335,191 @@ export async function indexarEscritorio(escritorio: EscritorioData): Promise<voi
   }, key)
 }
 
+// ─── Contrato ────────────────────────────────────────────────────────────────
+
+type ContratoIndexData = {
+  id: string
+  leadId: string
+  dados: Record<string, string> | null
+  lead: { contatoEntrada: string }
+  plano: string
+  valor: number
+  vencimento: number
+  formaPagamento: string
+  agora: Date
+  assinatura: string
+}
+
+// Indexa contrato assinado no canal 'onboarding' (escopo lead).
+// Usa documentoId fixo para garantir idempotência em re-assinaturas.
+export async function indexarContrato(data: ContratoIndexData): Promise<void> {
+  const key = await getVoyageKey()
+  if (!key) return
+
+  const { id, leadId, dados, lead, plano, valor, vencimento, formaPagamento, agora, assinatura } = data
+
+  const texto = [
+    `Contrato de Prestação de Serviços Contábeis`,
+    `Cliente: ${dados?.['Nome completo'] ?? lead.contatoEntrada}`,
+    dados?.['CPF']          ? `CPF: ${dados['CPF']}` : '',
+    dados?.['E-mail']       ? `E-mail: ${dados['E-mail']}` : '',
+    dados?.['Telefone']     ? `Telefone: ${dados['Telefone']}` : '',
+    dados?.['CNPJ']         ? `CNPJ: ${dados['CNPJ']}` : '',
+    dados?.['Razão Social'] ? `Razão Social: ${dados['Razão Social']}` : '',
+    dados?.['Cidade']       ? `Cidade: ${dados['Cidade']}` : '',
+    `Plano: ${plano} — R$ ${valor}/mês`,
+    `Vencimento: dia ${vencimento} — ${formaPagamento}`,
+    `Assinado em: ${agora.toLocaleDateString('pt-BR')}`,
+    `Assinatura digital: ${assinatura}`,
+  ].filter(Boolean).join('\n')
+
+  await indexar(texto, {
+    escopo: 'lead',
+    canal: 'onboarding',
+    tipo: 'dados_lead',
+    leadId,
+    titulo: `Contrato — ${dados?.['Nome completo'] ?? lead.contatoEntrada}`,
+    documentoId: `contrato:${id}`,
+  }, key)
+}
+
+// ─── Tarefa ──────────────────────────────────────────────────────────────────
+
+type TarefaData = {
+  id: string
+  titulo: string
+  descricao?: string | null
+  clienteId?: string | null
+  status: string
+  prioridade: string
+  prazo?: Date | null
+  concluidaEm?: Date | null
+}
+
+// Indexa tarefas vinculadas a clientes no canal CRM.
+// Tarefas sem clienteId não são indexadas (sem contexto relevante para as IAs).
+export async function indexarTarefa(tarefa: TarefaData): Promise<void> {
+  if (!tarefa.clienteId) return
+  if (tarefa.status === 'cancelada') {
+    // Remove do índice tarefas canceladas
+    import('@/lib/rag').then(({ deleteEmbeddings }) =>
+      deleteEmbeddings({ documentoId: `tarefa:${tarefa.id}` })
+    ).catch(err => console.error('[rag/ingest] erro ao remover tarefa cancelada:', err))
+    return
+  }
+
+  const key = await getVoyageKey()
+  if (!key) return
+
+  const prazoStr = tarefa.prazo ? tarefa.prazo.toLocaleDateString('pt-BR') : null
+  const concluidaStr = tarefa.concluidaEm ? tarefa.concluidaEm.toLocaleDateString('pt-BR') : null
+
+  const linhas = [
+    `Tarefa: ${tarefa.titulo}`,
+    `Status: ${tarefa.status}`,
+    `Prioridade: ${tarefa.prioridade}`,
+    prazoStr    ? `Prazo: ${prazoStr}` : '',
+    concluidaStr ? `Concluída em: ${concluidaStr}` : '',
+    tarefa.descricao ? `Descrição: ${tarefa.descricao}` : '',
+  ].filter(Boolean).join('\n')
+
+  await indexar(linhas, {
+    escopo: 'cliente',
+    canal: 'crm',
+    tipo: 'historico_crm',
+    clienteId: tarefa.clienteId,
+    titulo: tarefa.titulo,
+    documentoId: `tarefa:${tarefa.id}`,
+  }, key)
+}
+
+// ─── Escalação ───────────────────────────────────────────────────────────────
+
+type EscalacaoData = {
+  id: string
+  clienteId?: string | null
+  leadId?: string | null
+  canal: string
+  motivoIA?: string | null
+  orientacaoHumana?: string | null
+  respostaEnviada?: string | null
+  criadoEm?: Date
+}
+
+// Indexa escalações resolvidas no canal CRM — aprende com atendimentos humanos passados.
+export async function indexarEscalacao(escalacao: EscalacaoData): Promise<void> {
+  if (!escalacao.clienteId && !escalacao.leadId) return
+  if (!escalacao.motivoIA && !escalacao.orientacaoHumana) return
+
+  const key = await getVoyageKey()
+  if (!key) return
+
+  const data = escalacao.criadoEm ? escalacao.criadoEm.toLocaleDateString('pt-BR') : ''
+
+  const linhas = [
+    `Escalação para atendimento humano (canal: ${escalacao.canal})`,
+    data ? `Data: ${data}` : '',
+    escalacao.motivoIA          ? `Motivo: ${escalacao.motivoIA}` : '',
+    escalacao.orientacaoHumana  ? `Orientação da equipe: ${escalacao.orientacaoHumana}` : '',
+    escalacao.respostaEnviada   ? `Resposta enviada ao cliente: ${escalacao.respostaEnviada}` : '',
+  ].filter(Boolean).join('\n')
+
+  await indexar(linhas, {
+    escopo: escalacao.clienteId ? 'cliente' : 'lead',
+    canal: 'crm',
+    tipo: 'historico_crm',
+    clienteId: escalacao.clienteId ?? undefined,
+    leadId:    escalacao.leadId    ?? undefined,
+    titulo: `Escalação — ${escalacao.canal}`,
+    documentoId: `escalacao:${escalacao.id}`,
+  }, key)
+}
+
 // ─── Planos ──────────────────────────────────────────────────────────────────
 
-// Indexa os planos do escritório em canal 'geral' — disponível para todas as IAs,
-// especialmente importante para o Onboarding responder com valores corretos.
+// Indexa os planos no canal 'geral' — disponível para todas as IAs.
+// Lê do banco (tabela Plano). Se vazio, usa PLANOS_INFO como fallback.
 export async function indexarPlanos(): Promise<void> {
   const key = await getVoyageKey()
   if (!key) return
 
+  // Tenta carregar do banco — usa fallback hardcoded se banco retornar vazio
+  let planosParaIndexar: Array<{ nome: string; descricao?: string | null; valorMinimo: unknown; valorMaximo: unknown; servicos: unknown }>
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const dbPlanos = await prisma.plano.findMany({ where: { ativo: true }, orderBy: { valorMinimo: 'asc' } })
+    planosParaIndexar = dbPlanos.length > 0 ? dbPlanos : PLANOS_INFO.map(p => ({
+      nome: p.nome,
+      descricao: p.desc,
+      valorMinimo: p.faixaPreco,
+      valorMaximo: null,
+      servicos: p.servicos,
+    }))
+  } catch {
+    planosParaIndexar = PLANOS_INFO.map(p => ({
+      nome: p.nome,
+      descricao: p.desc,
+      valorMinimo: p.faixaPreco,
+      valorMaximo: null,
+      servicos: p.servicos,
+    }))
+  }
+
   const texto = [
     'Planos de contabilidade disponíveis:',
     '',
-    ...PLANOS_INFO.map(p => [
-      `## Plano ${p.nome}`,
-      `Descrição: ${p.desc}`,
-      `Preço: ${p.faixaPreco}`,
-      `Serviços inclusos:`,
-      ...p.servicos.map(s => `- ${s}`),
-    ].join('\n')),
+    ...planosParaIndexar.map(p => {
+      const servicos: string[] = Array.isArray(p.servicos) ? (p.servicos as string[]) : []
+      const faixa = p.valorMaximo
+        ? `R$ ${p.valorMinimo} – R$ ${p.valorMaximo}/mês`
+        : `A partir de R$ ${p.valorMinimo}/mês`
+      return [
+        `## Plano ${p.nome}`,
+        p.descricao ? `Descrição: ${p.descricao}` : '',
+        `Preço: ${faixa}`,
+        servicos.length ? `Serviços inclusos:\n${servicos.map(s => `- ${s}`).join('\n')}` : '',
+      ].filter(Boolean).join('\n')
+    }),
   ].join('\n\n')
 
   await indexar(texto, {

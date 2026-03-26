@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { askAI, detectarEscalacao } from '@/lib/ai/ask'
 import { getOrCreateConversaSession, getHistorico, addMensagens } from '@/lib/ai/conversa'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
+
+const MSG_MAX_LENGTH = 2000
 
 export async function POST(req: Request) {
   const { message, sessionId, leadId } = await req.json() as {
@@ -10,23 +13,38 @@ export async function POST(req: Request) {
     leadId?:    string
   }
 
-  if (!message?.trim()) {
+  if (!message?.trim() || message.length > MSG_MAX_LENGTH) {
     return NextResponse.json({ reply: '' })
+  }
+
+  // Rate limit: 30 mensagens por sessão/IP por hora
+  const ip = getClientIp(req)
+  const rlKey = sessionId ? `chat:session:${sessionId}` : `chat:ip:${ip}`
+  const rl = rateLimit(rlKey, 30, 60 * 60_000)
+  if (!rl.allowed) {
+    return NextResponse.json({ reply: 'Limite de mensagens atingido. Aguarde alguns minutos antes de continuar.' })
   }
 
   // Se n8n estiver configurado, delega para ele (permite automações avançadas)
   const n8nUrl = process.env.N8N_CHAT_WEBHOOK_URL
   if (n8nUrl) {
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10_000) // 10s timeout
       const res = await fetch(n8nUrl, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, sessionId, leadId }),
-      })
+        body:    JSON.stringify({ message, sessionId, leadId }),
+        signal:  controller.signal,
+      }).finally(() => clearTimeout(timeout))
       const data = await res.json()
-      return NextResponse.json({ reply: data.reply ?? data.text ?? data.output ?? 'Sem resposta.' })
+      const reply = data.reply ?? data.text ?? data.output ?? ''
+      if (reply.trim()) {
+        return NextResponse.json({ reply })
+      }
+      // n8n retornou vazio — cai para IA direta
     } catch {
-      // Fallback para IA direta se n8n falhar
+      // Timeout ou falha de rede — fallback para IA direta
     }
   }
 

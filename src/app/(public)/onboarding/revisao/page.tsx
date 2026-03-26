@@ -6,22 +6,20 @@ import { toast } from 'sonner'
 
 type Props = { searchParams: Promise<{ leadId?: string; plano?: string }> }
 
-const PLANO_LABELS: Record<string, string> = {
+type PlanoInfo = { tipo: string; nome: string; valorMinimo: number; valorMaximo: number }
+type EscritorioConfig = { vencimentosDias?: number[] | null; pixDescontoPercent?: number | null }
+
+const PLANO_LABELS_FALLBACK: Record<string, string> = {
   essencial: 'Essencial', profissional: 'Profissional',
   empresarial: 'Empresarial', startup: 'Startup',
 }
 
-const PLANO_VALORES: Record<string, string> = {
-  essencial: 'R$ 179 – 299/mês', profissional: 'R$ 449 – 699/mês',
-  empresarial: 'R$ 990 – 1.800/mês', startup: 'R$ 1.200 – 2.500/mês',
-}
-
-const VENCIMENTOS = [5, 10, 15, 20]
+const VENCIMENTOS_FALLBACK = [5, 10, 15, 20]
 
 const FORMAS_PAGAMENTO = [
-  { value: 'pix', label: 'PIX', icon: 'qr_code_2', desc: 'Desconto de 5%' },
-  { value: 'boleto', label: 'Boleto', icon: 'receipt_long', desc: 'Vencimento mensal' },
-  { value: 'cartao', label: 'Cartão', icon: 'credit_card', desc: 'Crédito ou débito' },
+  { value: 'pix',    label: 'PIX',    icon: 'qr_code_2',    descFn: (d: number) => `Desconto de ${d}%` },
+  { value: 'boleto', label: 'Boleto', icon: 'receipt_long', descFn: () => 'Vencimento mensal' },
+  { value: 'cartao', label: 'Cartão', icon: 'credit_card',  descFn: () => 'Crédito ou débito' },
 ]
 
 export default function RevisaoPage({ searchParams }: Props) {
@@ -30,6 +28,27 @@ export default function RevisaoPage({ searchParams }: Props) {
   const [vencimento, setVencimento] = useState<number>(10)
   const [formaPagamento, setFormaPagamento] = useState('pix')
   const [loading, setLoading] = useState(false)
+  const [planos, setPlanos] = useState<PlanoInfo[]>([])
+  const [config, setConfig] = useState<EscritorioConfig>({ vencimentosDias: VENCIMENTOS_FALLBACK, pixDescontoPercent: 5.0 })
+
+  useEffect(() => {
+    fetch('/api/planos')
+      .then(r => r.json())
+      .then((data: PlanoInfo[]) => { if (Array.isArray(data) && data.length > 0) setPlanos(data) })
+      .catch(() => {})
+
+    fetch('/api/escritorio')
+      .then(r => r.json())
+      .then((e: EscritorioConfig) => {
+        setConfig({
+          vencimentosDias: Array.isArray(e?.vencimentosDias) && e.vencimentosDias.length > 0
+            ? e.vencimentosDias
+            : VENCIMENTOS_FALLBACK,
+          pixDescontoPercent: e?.pixDescontoPercent ?? 5.0,
+        })
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!leadId) return
@@ -64,6 +83,15 @@ export default function RevisaoPage({ searchParams }: Props) {
     }
   }
 
+  const planoInfo = planos.find(p => p.tipo === plano)
+  const planoLabel = planoInfo?.nome ?? PLANO_LABELS_FALLBACK[plano] ?? plano
+  const planoValores = planoInfo
+    ? `R$ ${Number(planoInfo.valorMinimo).toLocaleString('pt-BR')} – ${Number(planoInfo.valorMaximo).toLocaleString('pt-BR')}/mês`
+    : null
+
+  const vencimentos = config.vencimentosDias ?? VENCIMENTOS_FALLBACK
+  const pixDesconto = config.pixDescontoPercent ?? 5.0
+
   return (
     <div className="flex flex-col gap-6">
       <div className="text-center pt-2">
@@ -83,8 +111,8 @@ export default function RevisaoPage({ searchParams }: Props) {
         <p className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">Plano selecionado</p>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[17px] font-semibold text-on-surface">{PLANO_LABELS[plano] ?? plano}</p>
-            <p className="text-[13px] text-on-surface-variant">{PLANO_VALORES[plano]}</p>
+            <p className="text-[17px] font-semibold text-on-surface">{planoLabel}</p>
+            {planoValores && <p className="text-[13px] text-on-surface-variant">{planoValores}</p>}
           </div>
           <span className="rounded-full bg-primary/10 px-3 py-1 text-[12px] font-semibold text-primary">
             Selecionado
@@ -101,7 +129,7 @@ export default function RevisaoPage({ searchParams }: Props) {
       <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm">
         <p className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">Dia preferido para pagamento</p>
         <div className="grid grid-cols-4 gap-2">
-          {VENCIMENTOS.map(dia => (
+          {vencimentos.map(dia => (
             <button
               key={dia}
               type="button"
@@ -125,29 +153,32 @@ export default function RevisaoPage({ searchParams }: Props) {
       <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm">
         <p className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">Forma de pagamento</p>
         <div className="space-y-2">
-          {FORMAS_PAGAMENTO.map(fp => (
-            <button
-              key={fp.value}
-              type="button"
-              onClick={() => setFormaPagamento(fp.value)}
-              className={`w-full flex items-center gap-3 rounded-2xl border p-4 transition-all ${
-                formaPagamento === fp.value
-                  ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
-                  : 'border-outline-variant/20 bg-white hover:border-outline-variant/40'
-              }`}
-            >
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${formaPagamento === fp.value ? 'bg-primary/15' : 'bg-slate-100'}`}>
-                <span className={`material-symbols-outlined text-[20px] ${formaPagamento === fp.value ? 'text-primary' : 'text-on-surface-variant'}`}>{fp.icon}</span>
-              </div>
-              <div className="flex-1 text-left">
-                <p className={`text-[14px] font-semibold ${formaPagamento === fp.value ? 'text-primary' : 'text-on-surface'}`}>{fp.label}</p>
-                <p className="text-[12px] text-on-surface-variant">{fp.desc}</p>
-              </div>
-              <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${formaPagamento === fp.value ? 'border-primary bg-primary' : 'border-outline-variant/40'}`}>
-                {formaPagamento === fp.value && <span className="material-symbols-outlined text-[13px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>}
-              </div>
-            </button>
-          ))}
+          {FORMAS_PAGAMENTO.map(fp => {
+            const desc = fp.value === 'pix' ? fp.descFn(pixDesconto) : fp.descFn(0)
+            return (
+              <button
+                key={fp.value}
+                type="button"
+                onClick={() => setFormaPagamento(fp.value)}
+                className={`w-full flex items-center gap-3 rounded-2xl border p-4 transition-all ${
+                  formaPagamento === fp.value
+                    ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
+                    : 'border-outline-variant/20 bg-white hover:border-outline-variant/40'
+                }`}
+              >
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${formaPagamento === fp.value ? 'bg-primary/15' : 'bg-slate-100'}`}>
+                  <span className={`material-symbols-outlined text-[20px] ${formaPagamento === fp.value ? 'text-primary' : 'text-on-surface-variant'}`}>{fp.icon}</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className={`text-[14px] font-semibold ${formaPagamento === fp.value ? 'text-primary' : 'text-on-surface'}`}>{fp.label}</p>
+                  <p className="text-[12px] text-on-surface-variant">{desc}</p>
+                </div>
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${formaPagamento === fp.value ? 'border-primary bg-primary' : 'border-outline-variant/40'}`}>
+                  {formaPagamento === fp.value && <span className="material-symbols-outlined text-[13px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>}
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
 

@@ -32,9 +32,19 @@ export function decrypt(stored: string): string {
   return decipher.update(enc) + decipher.final('utf8')
 }
 
-// Retorna true se o valor parece ser encriptado (3 partes separadas por ':')
+// Retorna true se o valor parece ser encriptado no formato "iv:authTag:ciphertext" (AES-256-GCM base64)
+// Valida que cada parte é base64 válido e tem comprimento compatível com o formato gerado por encrypt()
 export function isEncrypted(val: string): boolean {
-  return val.split(':').length === 3
+  const parts = val.split(':')
+  if (parts.length !== 3) return false
+  const base64Re = /^[A-Za-z0-9+/]+=*$/
+  // iv: 12 bytes → 16 chars base64 | authTag: 16 bytes → 24 chars | ciphertext: >= 1 char
+  const [iv, tag, cipher] = parts
+  return (
+    base64Re.test(iv)     && iv.length === 16 &&
+    base64Re.test(tag)    && tag.length === 24 &&
+    base64Re.test(cipher) && cipher.length >= 4
+  )
 }
 
 // Mascara o valor para exibição: "sk-ant-...••••3f2a"

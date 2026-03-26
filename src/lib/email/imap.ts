@@ -17,11 +17,13 @@ export type EmailRecebido = {
 
 async function getImapConfig() {
   const escritorio = await prisma.escritorio.findFirst({
-    select: { emailRemetente: true, emailSenha: true },
+    select: { emailRemetente: true, emailSenha: true, emailImapHost: true, emailImapPort: true },
   })
 
-  const usuario = escritorio?.emailRemetente ?? process.env.EMAIL_REMETENTE
-  const senha   = escritorio?.emailSenha     ?? process.env.EMAIL_SENHA
+  const usuario   = escritorio?.emailRemetente ?? process.env.EMAIL_REMETENTE
+  const senha     = escritorio?.emailSenha     ?? process.env.EMAIL_SENHA
+  const imapHost  = escritorio?.emailImapHost  ?? 'imap.hostinger.com'
+  const imapPort  = escritorio?.emailImapPort  ?? 993
 
   if (!usuario || !senha) {
     throw new Error('Email IMAP não configurado.')
@@ -29,18 +31,19 @@ async function getImapConfig() {
 
   const senhaDecriptada = isEncrypted(senha) ? decrypt(senha) : senha
 
-  return { usuario, senha: senhaDecriptada }
+  return { usuario, senha: senhaDecriptada, imapHost, imapPort }
 }
 
 export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
-  const { usuario, senha } = await getImapConfig()
+  const { usuario, senha, imapHost, imapPort } = await getImapConfig()
 
   const client = new ImapFlow({
-    host:   'imap.hostinger.com',
-    port:   993,
-    secure: true,
-    auth:   { user: usuario, pass: senha },
-    logger: false,
+    host:          imapHost,
+    port:          imapPort,
+    secure:        imapPort === 993,
+    auth:          { user: usuario, pass: senha },
+    logger:        false,
+    socketTimeout: 30_000,  // 30s — evita hang em servidor IMAP travado
   })
 
   const emails: EmailRecebido[] = []
@@ -88,10 +91,15 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
 
           emails.push({ uid: msg.uid, messageId, de, nomeRemetente, assunto, corpo, corpoHtml, dataEnvio, anexos })
 
-          // Marca como lido após processar
-          await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'])
-        } catch {
-          // Email malformado — ignora e continua
+          // Marca como lido somente após parsing bem-sucedido
+          // (mover para antes causaria perda silenciosa se processarEmailRecebido falhar)
+          try {
+            await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'])
+          } catch (flagErr) {
+            console.error('[imap] Falha ao marcar email como lido, uid:', msg.uid, flagErr)
+          }
+        } catch (parseErr) {
+          console.error('[imap] Email malformado ignorado, uid:', (msg as any)?.uid, parseErr)
         }
       }
     } finally {

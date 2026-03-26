@@ -21,6 +21,14 @@ export const getEscritorioConfig = cache(async () => {
       whatsapp: null,
       cidade: null,
       uf: null,
+      multaPercent: 2.0,
+      jurosMesPercent: 1.0,
+      diasAtrasoMulta: 15,
+      diasInadimplenciaRescisao: 60,
+      diasAvisoRescisao: 30,
+      diasDocumentosAntecedencia: 5,
+      vencimentosDias: [5, 10, 15, 20],
+      pixDescontoPercent: 5.0,
     }
   }
   return escritorio

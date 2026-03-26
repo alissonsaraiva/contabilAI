@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import type { PlanoTipo, FormaPagamento, Regime, StatusCliente } from '@prisma/client'
+import { formatCNPJ, formatTelefone } from '@/lib/utils'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
@@ -142,7 +143,7 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
               </div>
               <div>
                 <label className={LABEL}>Telefone</label>
-                <input className={INPUT} value={form.telefone} onChange={e => set('telefone', e.target.value)} />
+                <input className={INPUT} value={form.telefone} onChange={e => set('telefone', formatTelefone(e.target.value))} inputMode="tel" maxLength={15} />
               </div>
             </div>
 
@@ -153,7 +154,7 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={LABEL}>CNPJ</label>
-                <input className={INPUT} placeholder="00.000.000/0001-00" value={form.cnpj} onChange={e => set('cnpj', e.target.value)} />
+                <input className={INPUT} placeholder="00.000.000/0001-00" value={form.cnpj} onChange={e => set('cnpj', formatCNPJ(e.target.value))} inputMode="numeric" maxLength={18} />
               </div>
               <div>
                 <label className={LABEL}>Regime</label>

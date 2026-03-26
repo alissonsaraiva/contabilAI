@@ -6,15 +6,13 @@ import { toast } from 'sonner'
 
 type Props = { searchParams: Promise<{ leadId?: string; plano?: string }> }
 
-const PLANO_LABELS: Record<string, string> = {
+const PLANO_LABELS_FALLBACK: Record<string, string> = {
   essencial: 'Essencial', profissional: 'Profissional',
   empresarial: 'Empresarial', startup: 'Startup',
 }
-
-const PLANO_PRECOS: Record<string, number> = {
+const PLANO_PRECOS_FALLBACK: Record<string, number> = {
   essencial: 199, profissional: 499, empresarial: 1200, startup: 1500,
 }
-
 const FORMA_LABELS: Record<string, string> = {
   pix: 'PIX', boleto: 'Boleto Bancário', cartao: 'Cartão de Crédito/Débito',
 }
@@ -26,6 +24,15 @@ type LeadData = {
   formaPagamento: string | null
   dadosJson: Record<string, string> | null
 }
+type PlanoInfo = { tipo: string; nome: string; valorMinimo: number }
+type EscritorioInfo = {
+  nome?: string | null
+  multaPercent?: number | null
+  jurosMesPercent?: number | null
+  diasAtrasoMulta?: number | null
+  diasInadimplenciaRescisao?: number | null
+  diasAvisoRescisao?: number | null
+}
 
 export default function ContratoPage({ searchParams }: Props) {
   const { leadId, plano = 'essencial' } = use(searchParams)
@@ -35,6 +42,20 @@ export default function ContratoPage({ searchParams }: Props) {
   const [aceito, setAceito] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingLead, setLoadingLead] = useState(true)
+  const [planos, setPlanos] = useState<PlanoInfo[]>([])
+  const [escritorio, setEscritorio] = useState<EscritorioInfo>({})
+
+  useEffect(() => {
+    fetch('/api/planos')
+      .then(r => r.json())
+      .then((data: PlanoInfo[]) => { if (Array.isArray(data) && data.length > 0) setPlanos(data) })
+      .catch(() => {})
+
+    fetch('/api/escritorio')
+      .then(r => r.json())
+      .then((e: EscritorioInfo) => { if (e) setEscritorio(e) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!leadId) return
@@ -71,12 +92,21 @@ export default function ContratoPage({ searchParams }: Props) {
   }
 
   const planoFinal = lead?.planoTipo ?? plano
-  const valor = PLANO_PRECOS[planoFinal] ?? 199
+  const planoInfo = planos.find(p => p.tipo === planoFinal)
+  const planoLabel = planoInfo?.nome ?? PLANO_LABELS_FALLBACK[planoFinal] ?? planoFinal
+  const valor = planoInfo ? Number(planoInfo.valorMinimo) : (PLANO_PRECOS_FALLBACK[planoFinal] ?? 199)
   const vencimento = lead?.vencimentoDia ?? 10
   const forma = lead?.formaPagamento ?? 'pix'
   const dados = lead?.dadosJson
   const nome = dados?.['Nome completo'] ?? lead?.contatoEntrada ?? ''
   const cpf = dados?.['CPF'] ?? ''
+
+  const nomeEscritorio = escritorio?.nome ?? 'Escritório Contábil'
+  const multa    = escritorio?.multaPercent             ?? 2.0
+  const juros    = escritorio?.jurosMesPercent          ?? 1.0
+  const diasMul  = escritorio?.diasAtrasoMulta          ?? 15
+  const diasInad = escritorio?.diasInadimplenciaRescisao ?? 60
+  const diasResc = escritorio?.diasAvisoRescisao        ?? 30
 
   if (loadingLead) {
     return (
@@ -107,7 +137,7 @@ export default function ContratoPage({ searchParams }: Props) {
         <div className="grid grid-cols-2 gap-2 text-[13px]">
           <div>
             <p className="text-on-surface-variant/60">Plano</p>
-            <p className="font-semibold text-on-surface">{PLANO_LABELS[planoFinal] ?? planoFinal}</p>
+            <p className="font-semibold text-on-surface">{planoLabel}</p>
           </div>
           <div>
             <p className="text-on-surface-variant/60">Valor mensal</p>
@@ -138,22 +168,22 @@ export default function ContratoPage({ searchParams }: Props) {
             <span className="font-semibold">CONTRATANTE:</span> {nome}{cpf ? `, CPF nº ${cpf}` : ''}.
           </p>
           <p>
-            <span className="font-semibold">CONTRATADA:</span> empresa responsável pela plataforma ContabAI, prestadora dos serviços contábeis digitais.
+            <span className="font-semibold">CONTRATADA:</span> {nomeEscritorio}, prestadora dos serviços contábeis digitais.
           </p>
 
           <p className="font-semibold text-[14px] pt-2">CLÁUSULA 1 – DO OBJETO</p>
           <p>
-            O presente instrumento tem por objeto a prestação de serviços contábeis conforme o <span className="font-semibold">Plano {PLANO_LABELS[planoFinal]}</span>, que compreende: escrituração contábil e fiscal; apuração e recolhimento de tributos; obrigações acessórias; folha de pagamento e encargos trabalhistas (conforme plano); declarações anuais aplicáveis; e atendimento via portal digital.
+            O presente instrumento tem por objeto a prestação de serviços contábeis conforme o <span className="font-semibold">Plano {planoLabel}</span>, que compreende: escrituração contábil e fiscal; apuração e recolhimento de tributos; obrigações acessórias; folha de pagamento e encargos trabalhistas (conforme plano); declarações anuais aplicáveis; e atendimento via portal digital.
           </p>
 
           <p className="font-semibold text-[14px] pt-2">CLÁUSULA 2 – DO VALOR E PAGAMENTO</p>
           <p>
-            O valor mensal pelos serviços prestados é de <span className="font-semibold">R$ {valor.toLocaleString('pt-BR')}/mês</span>, com vencimento todo dia <span className="font-semibold">{vencimento}</span> de cada mês, mediante <span className="font-semibold">{FORMA_LABELS[forma]}</span>. O atraso superior a 15 dias ensejará multa de 2% e juros de 1% ao mês. O inadimplemento superior a 60 dias autoriza a suspensão dos serviços e rescisão do contrato.
+            O valor mensal pelos serviços prestados é de <span className="font-semibold">R$ {valor.toLocaleString('pt-BR')}/mês</span>, com vencimento todo dia <span className="font-semibold">{vencimento}</span> de cada mês, mediante <span className="font-semibold">{FORMA_LABELS[forma] ?? forma}</span>. O atraso superior a {diasMul} dias ensejará multa de {multa}% e juros de {juros}% ao mês. O inadimplemento superior a {diasInad} dias autoriza a suspensão dos serviços e rescisão do contrato.
           </p>
 
           <p className="font-semibold text-[14px] pt-2">CLÁUSULA 3 – DA VIGÊNCIA</p>
           <p>
-            O contrato é celebrado por prazo indeterminado, podendo ser rescindido por qualquer das partes mediante comunicação prévia de 30 (trinta) dias.
+            O contrato é celebrado por prazo indeterminado, podendo ser rescindido por qualquer das partes mediante comunicação prévia de {diasResc} dias.
           </p>
 
           <p className="font-semibold text-[14px] pt-2">CLÁUSULA 4 – OBRIGAÇÕES DO CONTRATANTE</p>
@@ -200,7 +230,7 @@ export default function ContratoPage({ searchParams }: Props) {
             {aceito && <span className="material-symbols-outlined text-[13px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>}
           </div>
           <p className="text-[13px] text-on-surface leading-relaxed">
-            Li e concordo com todos os termos do contrato acima e autorizo a prestação dos serviços conforme o <span className="font-semibold">Plano {PLANO_LABELS[planoFinal]}</span>.
+            Li e concordo com todos os termos do contrato acima e autorizo a prestação dos serviços conforme o <span className="font-semibold">Plano {planoLabel}</span>.
           </p>
         </label>
 

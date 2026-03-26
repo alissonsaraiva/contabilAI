@@ -14,6 +14,7 @@ const PROXIMOS_PASSOS = [
 export default function ConfirmacaoPage({ searchParams }: Props) {
   const { leadId } = use(searchParams)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [whatsapp, setWhatsapp] = useState<string | null>(null)
 
   useEffect(() => {
     if (!leadId) return
@@ -24,6 +25,13 @@ export default function ConfirmacaoPage({ searchParams }: Props) {
       })
       .catch(() => {})
   }, [leadId])
+
+  useEffect(() => {
+    fetch('/api/escritorio')
+      .then(r => r.json())
+      .then((e: { whatsapp?: string | null }) => { if (e?.whatsapp) setWhatsapp(e.whatsapp) })
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="flex flex-col items-center gap-8 pt-4 text-center">
@@ -91,16 +99,18 @@ export default function ConfirmacaoPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* WhatsApp CTA */}
-      <a
-        href="https://wa.me/5585999999999?text=Ol%C3%A1%21+Acabei+de+assinar+o+contrato+no+site+da+ContabAI."
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex w-full h-12 items-center justify-center gap-2 rounded-2xl bg-green-status text-[15px] font-semibold text-white shadow-sm hover:bg-green-status/90 transition-colors"
-      >
-        <span className="material-symbols-outlined text-[20px]">chat</span>
-        Falar agora pelo WhatsApp
-      </a>
+      {/* WhatsApp CTA — só renderiza se o escritório tiver WhatsApp configurado */}
+      {whatsapp && (
+        <a
+          href={`https://wa.me/${whatsapp.replace(/\D/g, '')}?text=Ol%C3%A1%21+Acabei+de+assinar+o+contrato.`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full h-12 items-center justify-center gap-2 rounded-2xl bg-green-status text-[15px] font-semibold text-white shadow-sm hover:bg-green-status/90 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[20px]">chat</span>
+          Falar agora pelo WhatsApp
+        </a>
+      )}
 
       <Link
         href="/"

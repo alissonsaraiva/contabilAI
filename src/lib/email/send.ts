@@ -26,12 +26,14 @@ export type SendEmailResult = {
 
 async function getTransporter() {
   const escritorio = await prisma.escritorio.findFirst({
-    select: { emailRemetente: true, emailNome: true, emailSenha: true },
+    select: { emailRemetente: true, emailNome: true, emailSenha: true, emailSmtpHost: true, emailSmtpPort: true },
   })
 
   const remetente = escritorio?.emailRemetente ?? process.env.EMAIL_REMETENTE
   const senha     = escritorio?.emailSenha     ?? process.env.EMAIL_SENHA
   const nome      = escritorio?.emailNome      ?? process.env.EMAIL_NOME ?? ''
+  const smtpHost  = escritorio?.emailSmtpHost  ?? 'smtp.hostinger.com'
+  const smtpPort  = escritorio?.emailSmtpPort  ?? 587
 
   if (!remetente || !senha) {
     throw new Error('Email remetente não configurado. Configure em CRM → Configurações → Contato.')
@@ -41,9 +43,9 @@ async function getTransporter() {
 
   return {
     transporter: nodemailer.createTransport({
-      host: 'smtp.hostinger.com',
-      port: 587,
-      secure: false,
+      host:   smtpHost,
+      port:   smtpPort,
+      secure: smtpPort === 465,
       auth: { user: remetente, pass: senhaDecriptada },
     }),
     from: nome ? `${nome} <${remetente}>` : remetente,

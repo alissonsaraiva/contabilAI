@@ -170,11 +170,24 @@ export interface ContratoPDFProps {
   escritorioCnpj?: string | null
   escritorioCrc?: string | null
   escritorioCidade?: string | null
+  // Termos configuráveis
+  multaPercent?: number
+  jurosMesPercent?: number
+  diasAtrasoMulta?: number
+  diasInadimplenciaRescisao?: number
+  diasAvisoRescisao?: number
+  diasDocumentosAntecedencia?: number
 }
 
 export function ContratoPDF(p: ContratoPDFProps) {
   const dataStr = fmtData(p.assinadoEm)
   const horaStr = fmtHora(p.assinadoEm)
+  const multa    = p.multaPercent               ?? 2.0
+  const juros    = p.jurosMesPercent            ?? 1.0
+  const diasMul  = p.diasAtrasoMulta            ?? 15
+  const diasInad = p.diasInadimplenciaRescisao  ?? 60
+  const diasResc = p.diasAvisoRescisao          ?? 30
+  const diasDoc  = p.diasDocumentosAntecedencia ?? 5
 
   return (
     <Document
@@ -279,12 +292,12 @@ export function ContratoPDF(p: ContratoPDFProps) {
           O valor mensal pelos serviços prestados é de R$ {fmt(p.valor)} ({p.valor === 199 ? 'cento e noventa e nove reais' : `${fmt(p.valor)} reais`}), com vencimento todo dia {p.vencimentoDia} de cada mês, mediante {FORMA_LABELS[p.formaPagamento] ?? p.formaPagamento}.
         </Text>
         <Text style={s.paragrafo}>
-          O atraso no pagamento por prazo superior a 15 (quinze) dias ensejará a cobrança de multa de 2% e juros de 1% ao mês, além de correção monetária pelo IPCA. O inadimplemento superior a 60 (sessenta) dias autoriza a CONTRATADA a suspender os serviços e rescindir o contrato.
+          O atraso no pagamento por prazo superior a {diasMul} ({diasMul === 15 ? 'quinze' : String(diasMul)}) dias ensejará a cobrança de multa de {multa}% e juros de {juros}% ao mês, além de correção monetária pelo IPCA. O inadimplemento superior a {diasInad} ({diasInad === 60 ? 'sessenta' : String(diasInad)}) dias autoriza a CONTRATADA a suspender os serviços e rescindir o contrato.
         </Text>
 
         <Text style={s.clausulaTitulo}>CLÁUSULA 3 – DA VIGÊNCIA</Text>
         <Text style={s.paragrafo}>
-          O presente contrato é celebrado por prazo indeterminado, com início na data de sua assinatura digital, podendo ser rescindido por qualquer das partes mediante comunicação prévia e por escrito com antecedência mínima de 30 (trinta) dias.
+          O presente contrato é celebrado por prazo indeterminado, com início na data de sua assinatura digital, podendo ser rescindido por qualquer das partes mediante comunicação prévia e por escrito com antecedência mínima de {diasResc} ({diasResc === 30 ? 'trinta' : String(diasResc)}) dias.
         </Text>
 
         <Text style={s.clausulaTitulo}>CLÁUSULA 4 – DAS OBRIGAÇÕES DO CONTRATANTE</Text>
@@ -297,7 +310,7 @@ export function ContratoPDF(p: ContratoPDFProps) {
         <Text style={s.item}>a) Prestar os serviços descritos no objeto com qualidade e diligência, observando as normas técnicas do CFC;</Text>
         <Text style={s.item}>b) Manter profissional devidamente habilitado e registrado no CRC responsável pelos serviços;</Text>
         <Text style={s.item}>c) Guardar sigilo profissional absoluto sobre todas as informações do CONTRATANTE;</Text>
-        <Text style={s.item}>d) Cumprir os prazos legais pertinentes às obrigações sob sua responsabilidade, desde que os documentos sejam entregues pelo CONTRATANTE com antecedência mínima de 5 (cinco) dias úteis.</Text>
+        <Text style={s.item}>d) Cumprir os prazos legais pertinentes às obrigações sob sua responsabilidade, desde que os documentos sejam entregues pelo CONTRATANTE com antecedência mínima de {diasDoc} ({diasDoc === 5 ? 'cinco' : String(diasDoc)}) dias úteis.</Text>
 
         <Text style={s.clausulaTitulo}>CLÁUSULA 6 – DA RESPONSABILIDADE</Text>
         <Text style={s.paragrafo}>

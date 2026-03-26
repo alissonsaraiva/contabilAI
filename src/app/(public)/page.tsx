@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { CheckCircle2, Bot, FileText, ShieldCheck, ArrowRight, Zap } from 'lucide-react'
 import { formatBRL, cn } from '@/lib/utils'
 import { mockPlanos } from '@/lib/mock/planos'
+import { prisma } from '@/lib/prisma'
 
 const FEATURES = [
   { icon: Bot, title: 'IA que trabalha por você', desc: 'Relatórios, análises e dúvidas respondidas automaticamente 24h por dia.' },
@@ -10,7 +11,20 @@ const FEATURES = [
   { icon: Zap, title: 'Portal do cliente', desc: 'Acesse documentos, boletos e relatórios de qualquer lugar.' },
 ]
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const dbPlanos = await prisma.plano.findMany({ where: { ativo: true }, orderBy: { valorMinimo: 'asc' } }).catch(() => [] as Awaited<ReturnType<typeof prisma.plano.findMany>>)
+  const planos: typeof mockPlanos = dbPlanos.length > 0
+    ? dbPlanos.map(p => ({
+        tipo: p.tipo as (typeof mockPlanos)[0]['tipo'],
+        nome: p.nome,
+        descricao: p.descricao ?? '',
+        valorMinimo: Number(p.valorMinimo),
+        valorMaximo: Number(p.valorMaximo),
+        servicos: p.servicos as string[],
+        destaque: p.destaque,
+      }))
+    : mockPlanos
+
   return (
     <div className="min-h-screen bg-surface text-on-surface font-sans relative overflow-hidden">
       {/* Background glow for hero */}
@@ -88,7 +102,7 @@ export default function LandingPage() {
         </div>
 
         <div className="grid gap-6 md:gap-8 md:grid-cols-2 lg:grid-cols-4 items-center">
-          {mockPlanos.map((plano) => (
+          {planos.map((plano) => (
             <div
               key={plano.tipo}
               className={cn(

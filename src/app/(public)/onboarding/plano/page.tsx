@@ -8,39 +8,20 @@ type Props = { searchParams: Promise<{ leadId?: string; tipo?: string; faturamen
 
 type PlanoTipo = 'essencial' | 'profissional' | 'empresarial' | 'startup'
 
-const PLANOS: { tipo: PlanoTipo; nome: string; desc: string; min: number; max: number; icon: string; servicos: string[] }[] = [
-  {
-    tipo: 'essencial',
-    nome: 'Essencial',
-    desc: 'Ideal para MEI e microempresas',
-    min: 179, max: 299,
-    icon: 'rocket_launch',
-    servicos: ['Obrigações fiscais acessórias', 'Geração de DAS automática', 'Portal básico do cliente', 'Chatbot de dúvidas 24h', 'Alertas de prazo por WhatsApp'],
-  },
-  {
-    tipo: 'profissional',
-    nome: 'Profissional',
-    desc: 'Para empresas do Simples Nacional',
-    min: 449, max: 699,
-    icon: 'trending_up',
-    servicos: ['Tudo do Essencial', 'Depto. pessoal (até 3 funcionários)', 'DRE simplificado mensal', 'Fluxo de caixa', 'Relatório narrativo com IA'],
-  },
-  {
-    tipo: 'empresarial',
-    nome: 'Empresarial',
-    desc: 'Para Lucro Presumido e Real',
-    min: 990, max: 1800,
-    icon: 'domain',
-    servicos: ['Tudo do Profissional', 'Depto. pessoal ilimitado', 'KPIs avançados e dashboards', 'Consultoria mensal de 1h', 'Simulação de cenários tributários'],
-  },
-  {
-    tipo: 'startup',
-    nome: 'Startup',
-    desc: 'Para empresas digitais em crescimento',
-    min: 1200, max: 2500,
-    icon: 'bolt',
-    servicos: ['Tudo do Empresarial', 'Relatórios para investidores', 'Benchmark setorial com IA', 'Suporte prioritário', 'Planejamento tributário estratégico'],
-  },
+type PlanoDisplay = { tipo: PlanoTipo; nome: string; desc: string; min: number; max: number; icon: string; servicos: string[] }
+
+const PLANO_ICONS: Record<PlanoTipo, string> = {
+  essencial:    'rocket_launch',
+  profissional: 'trending_up',
+  empresarial:  'domain',
+  startup:      'bolt',
+}
+
+const PLANOS_FALLBACK: PlanoDisplay[] = [
+  { tipo: 'essencial',    nome: 'Essencial',    desc: 'Ideal para MEI e microempresas',          min: 179,  max: 299,  icon: 'rocket_launch', servicos: ['Obrigações fiscais acessórias', 'Geração de DAS automática', 'Portal básico do cliente', 'Chatbot de dúvidas 24h', 'Alertas de prazo por WhatsApp'] },
+  { tipo: 'profissional', nome: 'Profissional', desc: 'Para empresas do Simples Nacional',       min: 449,  max: 699,  icon: 'trending_up',   servicos: ['Tudo do Essencial', 'Depto. pessoal (até 3 funcionários)', 'DRE simplificado mensal', 'Fluxo de caixa', 'Relatório narrativo com IA'] },
+  { tipo: 'empresarial',  nome: 'Empresarial',  desc: 'Para Lucro Presumido e Real',             min: 990,  max: 1800, icon: 'domain',        servicos: ['Tudo do Profissional', 'Depto. pessoal ilimitado', 'KPIs avançados e dashboards', 'Consultoria mensal de 1h', 'Simulação de cenários tributários'] },
+  { tipo: 'startup',      nome: 'Startup',      desc: 'Para empresas digitais em crescimento',   min: 1200, max: 2500, icon: 'bolt',          servicos: ['Tudo do Empresarial', 'Relatórios para investidores', 'Benchmark setorial com IA', 'Suporte prioritário', 'Planejamento tributário estratégico'] },
 ]
 
 function recomendar(tipo: string, faturamento: string, funcionarios: string): PlanoTipo {
@@ -62,6 +43,25 @@ export default function PlanoPage({ searchParams }: Props) {
   const recomendado = recomendar(tipo, faturamento, funcionarios)
   const [selecionado, setSelecionado] = useState<PlanoTipo>(recomendado)
   const [loading, setLoading] = useState(false)
+  const [planos, setPlanos] = useState<PlanoDisplay[]>(PLANOS_FALLBACK)
+
+  useEffect(() => {
+    fetch('/api/planos')
+      .then(r => r.json())
+      .then((data: Array<{ tipo: string; nome: string; descricao?: string | null; valorMinimo: number; valorMaximo: number; servicos: string[] }>) => {
+        if (!Array.isArray(data) || data.length === 0) return
+        setPlanos(data.map(p => ({
+          tipo:     p.tipo as PlanoTipo,
+          nome:     p.nome,
+          desc:     p.descricao ?? '',
+          min:      Number(p.valorMinimo),
+          max:      Number(p.valorMaximo),
+          icon:     PLANO_ICONS[p.tipo as PlanoTipo] ?? 'rocket_launch',
+          servicos: p.servicos,
+        })))
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!leadId) return
@@ -100,13 +100,13 @@ export default function PlanoPage({ searchParams }: Props) {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-on-surface">Seu plano ideal</h1>
         <p className="mt-1.5 text-[14px] text-on-surface-variant">
-          Recomendamos o <span className="font-semibold text-primary">{PLANOS.find(p => p.tipo === recomendado)?.nome}</span>
+          Recomendamos o <span className="font-semibold text-primary">{planos.find(p => p.tipo === recomendado)?.nome}</span>
           {' '}— mas você pode escolher outro abaixo.
         </p>
       </div>
 
       <div className="space-y-3">
-        {PLANOS.map(plano => {
+        {planos.map(plano => {
           const isRec = plano.tipo === recomendado
           const isSel = plano.tipo === selecionado
           return (
@@ -169,7 +169,7 @@ export default function PlanoPage({ searchParams }: Props) {
         {loading ? (
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
         ) : (
-          <>Continuar com {PLANOS.find(p => p.tipo === selecionado)?.nome} <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>
+          <>Continuar com {planos.find(p => p.tipo === selecionado)?.nome} <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>
         )}
       </button>
     </div>

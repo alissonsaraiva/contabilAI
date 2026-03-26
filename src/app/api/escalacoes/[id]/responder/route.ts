@@ -11,6 +11,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
+  const tipo = (session.user as any)?.tipo
+  if (tipo !== 'admin' && tipo !== 'contador') {
+    return NextResponse.json({ error: 'Apenas contadores e admins podem responder escalações' }, { status: 403 })
+  }
+
   const { id } = await params
   const { modo, conteudo } = await req.json() as { modo: 'ia' | 'direto'; conteudo: string }
 
@@ -86,8 +91,8 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
   }
   // Canal onboarding: a resposta fica em respostaEnviada — o widget faz poll e exibe
 
-  // ── Atualiza escalação no banco ─────────────────────────────────────────────
-  await prisma.escalacao.update({
+  // ── Atualiza escalação + despausa conversa WhatsApp ────────────────────────
+  const escAtualizada = await prisma.escalacao.update({
     where: { id },
     data: {
       status: 'resolvida',
@@ -96,6 +101,28 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
       respostaEnviada: mensagemFinal,
     },
   })
+
+  // Ao resolver a escalação, reativa a IA para o número (se conversa estiver pausada)
+  if (esc.canal === 'whatsapp' && esc.remoteJid) {
+    prisma.conversaIA.updateMany({
+      where: { canal: 'whatsapp', remoteJid: esc.remoteJid, NOT: { pausadaEm: null } },
+      data: { pausadaEm: null, pausadoPorId: null },
+    }).catch(() => {})
+  }
+
+  // Indexa escalação resolvida no RAG (contexto de atendimento para futuras consultas)
+  import('@/lib/rag/ingest').then(({ indexarEscalacao }) =>
+    indexarEscalacao({
+      id:               escAtualizada.id,
+      clienteId:        escAtualizada.clienteId,
+      leadId:           escAtualizada.leadId,
+      canal:            escAtualizada.canal,
+      motivoIA:         escAtualizada.motivoIA,
+      orientacaoHumana: escAtualizada.orientacaoHumana,
+      respostaEnviada:  escAtualizada.respostaEnviada,
+      criadoEm:         escAtualizada.criadoEm,
+    })
+  ).catch(() => {})
 
   return NextResponse.json({ ok: true, mensagemEnviada: mensagemFinal })
 }

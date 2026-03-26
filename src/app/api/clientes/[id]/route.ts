@@ -23,7 +23,11 @@ export async function PUT(req: Request, { params }: Params) {
 
   const { id } = await params
   const body = await req.json()
-  const cliente = await prisma.cliente.update({ where: { id }, data: body })
+  const cliente = await prisma.cliente.update({
+    where: { id },
+    data: body,
+    include: { socios: true },
+  })
 
   import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente)).catch(() => {})
 

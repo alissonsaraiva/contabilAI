@@ -8,6 +8,8 @@ import { EditarLeadDrawer } from '@/components/crm/editar-lead-drawer'
 import { CopyFieldButton } from '@/components/crm/copy-field-button'
 import { HistoricoList } from '@/components/crm/historico-list'
 import { IniciarOnboardingBtn } from '@/components/crm/iniciar-onboarding-btn'
+import { WhatsAppLeadDrawerButton } from '@/components/crm/whatsapp-lead-drawer-button'
+import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -21,6 +23,11 @@ export default async function LeadDetailPage({ params }: Props) {
       cliente: { select: { id: true, nome: true } },
       documentos: true,
       interacoes: { orderBy: { criadoEm: 'desc' } },
+      conversas: {
+        where: { canal: 'whatsapp' },
+        orderBy: { atualizadaEm: 'desc' },
+        include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
+      },
     },
   })
 
@@ -84,6 +91,7 @@ export default async function LeadDetailPage({ params }: Props) {
 
         {/* Actions */}
         <div className="flex shrink-0 flex-wrap gap-3">
+          <WhatsAppLeadDrawerButton leadId={lead.id} nomeExibido={nomeExibido} />
           <EditarLeadDrawer lead={lead} />
           {isProspecto
             ? <IniciarOnboardingBtn leadId={lead.id} />
@@ -227,6 +235,28 @@ export default async function LeadDetailPage({ params }: Props) {
               </Link>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Conversas IA (WhatsApp) */}
+      {lead.conversas.length > 0 && (
+        <div className="rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#25D366]/15">
+              <span
+                className="material-symbols-outlined text-[17px] text-[#25D366]"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                chat_bubble
+              </span>
+            </div>
+            <h2 className="font-headline text-base font-semibold text-on-surface">Conversas IA</h2>
+            <span className="ml-auto rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-bold text-on-surface-variant">
+              {lead.conversas.length} {lead.conversas.length === 1 ? 'conversa' : 'conversas'} ·{' '}
+              {lead.conversas.reduce((acc: number, c: { mensagens: unknown[] }) => acc + c.mensagens.length, 0)} msgs
+            </span>
+          </div>
+          <ConversasIAList conversas={lead.conversas} />
         </div>
       )}
 

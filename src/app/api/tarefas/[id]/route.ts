@@ -31,12 +31,14 @@ export async function PATCH(req: Request, { params }: Params) {
       ...rest,
       ...(status !== undefined && {
         status,
-        concluidaEm: status === 'concluida' ? new Date() : undefined,
+        concluidaEm: status === 'concluida' ? new Date() : null,
       }),
       ...(prazo !== undefined && { prazo: prazo ? new Date(prazo) : null }),
       ...(clienteId !== undefined && { clienteId: clienteId || null }),
     },
   })
+
+  import('@/lib/rag/ingest').then(({ indexarTarefa }) => indexarTarefa(tarefa)).catch(() => {})
 
   return NextResponse.json(tarefa)
 }

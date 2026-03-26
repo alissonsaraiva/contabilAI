@@ -15,6 +15,7 @@ import { NovaInteracaoDrawer } from '@/components/crm/nova-interacao-drawer'
 import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteCRM } from '@/components/crm/assistente-crm'
+import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -161,6 +162,10 @@ export default async function ClienteDetailPage({ params }: Props) {
                 Cliente desde {formatDate(cliente.dataInicio)}
               </span>
             )}
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <WhatsAppDrawerButton clienteId={cliente.id} clienteNome={cliente.nome} />
           </div>
         </div>
       </div>

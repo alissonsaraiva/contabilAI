@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 type CanalRAG = 'onboarding' | 'crm' | 'portal' | 'whatsapp' | 'geral'
 type TipoConhecimento = 'base_conhecimento' | 'fiscal_normativo' | 'template'
@@ -43,6 +44,8 @@ export default function ConhecimentoPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [pdfOpen, setPdfOpen]   = useState(false)
   const [seeding, setSeeding]   = useState(false)
+  const [confirmSeed, setConfirmSeed] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<{ sourceId: string; titulo: string | null } | null>(null)
 
   // Form texto
   const [titulo, setTitulo]     = useState('')
@@ -100,7 +103,6 @@ export default function ConhecimentoPage() {
   }
 
   async function handleSeed() {
-    if (!confirm('Re-indexar todos os dados estruturais no RAG (escritório, planos, clientes, leads)? Pode demorar alguns segundos.')) return
     setSeeding(true)
     try {
       const res = await fetch('/api/rag/seed', { method: 'POST' })
@@ -140,7 +142,10 @@ export default function ConhecimentoPage() {
   }
 
   async function handleDelete(sourceId: string, titulo: string | null) {
-    if (!confirm(`Deletar "${titulo ?? sourceId}" e todos os seus chunks?`)) return
+    setConfirmDelete({ sourceId, titulo })
+  }
+
+  async function executeDelete(sourceId: string) {
     setDeletingId(sourceId)
     try {
       const res = await fetch(`/api/conhecimento/${sourceId}`, { method: 'DELETE' })
@@ -151,6 +156,7 @@ export default function ConhecimentoPage() {
       toast.error('Erro ao remover artigo')
     } finally {
       setDeletingId(null)
+      setConfirmDelete(null)
     }
   }
 
@@ -174,7 +180,7 @@ export default function ConhecimentoPage() {
             </div>
           </div>
           <button
-            onClick={handleSeed}
+            onClick={() => setConfirmSeed(true)}
             disabled={seeding}
             className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-colors disabled:opacity-50"
             title="Re-indexa escritório, planos, clientes e leads no RAG"
@@ -438,6 +444,27 @@ export default function ConhecimentoPage() {
           Cada IA acessa apenas os artigos do seu canal + Geral — o onboarding não vê a base do portal, e vice-versa.
         </p>
       </div>
+
+      <ConfirmDialog
+        open={confirmSeed}
+        onClose={() => setConfirmSeed(false)}
+        onConfirm={() => { setConfirmSeed(false); handleSeed() }}
+        title="Re-indexar dados no RAG?"
+        description="Isso re-sincroniza escritório, planos, clientes, leads, tarefas e escalações com o banco vetorial. Pode demorar alguns segundos."
+        confirmLabel="Re-indexar"
+        variant="default"
+        loading={seeding}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => { if (confirmDelete) executeDelete(confirmDelete.sourceId) }}
+        title="Remover artigo?"
+        description={`"${confirmDelete?.titulo ?? confirmDelete?.sourceId}" e todos os seus chunks serão deletados permanentemente.`}
+        confirmLabel="Remover"
+        loading={!!deletingId}
+      />
     </div>
   )
 }

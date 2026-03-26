@@ -25,7 +25,15 @@ export async function getOrCreateConversaWhatsapp(
   const cutoff = new Date(Date.now() - SESSION_TIMEOUT_H * 3600 * 1000)
 
   const existente = await prisma.conversaIA.findFirst({
-    where: { canal: 'whatsapp', remoteJid, atualizadaEm: { gte: cutoff } },
+    where: {
+      canal: 'whatsapp',
+      remoteJid,
+      // Reutiliza sessão ativa (dentro do timeout) OU pausada (sem limite de tempo)
+      OR: [
+        { atualizadaEm: { gte: cutoff } },
+        { NOT: { pausadaEm: null } },
+      ],
+    },
     orderBy: { atualizadaEm: 'desc' },
     select: { id: true },
   })
@@ -124,6 +132,23 @@ export async function getHistorico(
 }
 
 /**
+ * Persiste apenas a mensagem do usuário (quando a IA está pausada). Fire-and-forget.
+ */
+export function addMensagemUsuario(conversaId: string, conteudo: string): void {
+  Promise.all([
+    prisma.mensagemIA.create({
+      data: { conversaId, role: 'user', conteudo },
+    }),
+    prisma.conversaIA.update({
+      where: { id: conversaId },
+      data: { atualizadaEm: new Date() },
+    }),
+  ]).catch((err) => {
+    console.error('[conversa] Falha ao persistir mensagem do usuário, conversaId:', conversaId, err)
+  })
+}
+
+/**
  * Persiste o par user+assistant no banco. Fire-and-forget.
  * Também atualiza atualizadaEm da conversa (necessário para o timeout de 24h).
  */
@@ -144,7 +169,9 @@ export function addMensagens(
       where: { id: conversaId },
       data:  { atualizadaEm: new Date() },
     }),
-  ]).catch(() => {})
+  ]).catch((err) => {
+    console.error('[conversa] Falha ao persistir mensagens, conversaId:', conversaId, err)
+  })
 }
 
 // ─── CRM: histórico consolidado de conversas de um cliente/lead ──────────────

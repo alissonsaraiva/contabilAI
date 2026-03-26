@@ -3,13 +3,18 @@ import Link from 'next/link'
 import { formatDateTime } from '@/lib/utils'
 
 const CANAL_ICON: Record<string, string> = {
-  whatsapp: 'whatsapp',
-  onboarding: 'chat',
+  whatsapp: 'forum',
+  onboarding: 'language',
 }
 
 const CANAL_LABEL: Record<string, string> = {
   whatsapp: 'WhatsApp',
   onboarding: 'Site',
+}
+
+const CANAL_COLOR: Record<string, string> = {
+  whatsapp: 'text-green-600',
+  onboarding: 'text-blue-500',
 }
 
 export default async function AtendimentosPage() {
@@ -122,14 +127,15 @@ function EscalacaoCard({ item }: { item: EscalacaoItem }) {
   const canal = item.canal as string
   const icon = CANAL_ICON[canal] ?? 'chat'
   const label = CANAL_LABEL[canal] ?? canal
+  const iconColor = CANAL_COLOR[canal] ?? 'text-on-surface-variant/60'
 
   return (
     <Link
       href={`/crm/atendimentos/${item.id}`}
       className="block rounded-xl border border-outline-variant/10 bg-surface-container-low/60 p-3.5 transition-colors hover:bg-surface-container"
     >
-      <div className="flex items-start gap-2.5">
-        <span className="material-symbols-outlined mt-0.5 text-[16px] text-on-surface-variant/60"
+      <div className="flex items-start gap-3">
+        <span className={`material-symbols-outlined mt-0.5 shrink-0 text-[18px] ${iconColor}`}
           style={{ fontVariationSettings: "'FILL' 1" }}>
           {icon}
         </span>
@@ -138,15 +144,15 @@ function EscalacaoCard({ item }: { item: EscalacaoItem }) {
             <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant/50">
               {label}
             </span>
-            <span className="ml-auto text-[10px] text-on-surface-variant/40">
+            <span className="ml-auto shrink-0 text-[10px] text-on-surface-variant/40">
               {formatDateTime(item.criadoEm)}
             </span>
           </div>
-          <p className="mt-1 line-clamp-2 text-[12px] text-on-surface">
+          <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-on-surface">
             {item.ultimaMensagem}
           </p>
           {item.motivoIA && (
-            <p className="mt-1 line-clamp-1 text-[11px] italic text-on-surface-variant/60">
+            <p className="mt-1 line-clamp-1 text-[11px] italic text-on-surface-variant/50">
               {item.motivoIA}
             </p>
           )}

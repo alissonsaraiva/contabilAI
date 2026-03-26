@@ -30,5 +30,7 @@ export async function POST(req: Request) {
     },
   })
 
+  import('@/lib/rag/ingest').then(({ indexarTarefa }) => indexarTarefa(tarefa)).catch(() => {})
+
   return NextResponse.json(tarefa, { status: 201 })
 }

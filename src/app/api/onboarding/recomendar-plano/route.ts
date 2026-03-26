@@ -1,21 +1,33 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getEscritorioConfig } from '@/lib/escritorio'
+import { rateLimit, getClientIp, tooManyRequests } from '@/lib/rate-limit'
 
 const schema = z.object({
-  regime: z.string(),
-  faturamento: z.string(),
-  funcionarios: z.string(),
-  necessidades: z.string(),
+  regime:       z.string().max(100),
+  faturamento:  z.string().max(100),
+  funcionarios: z.string().max(50),
+  necessidades: z.string().max(500),
 })
 
 export async function POST(req: Request) {
+  // Rate limit: 5 recomendações por IP a cada hora
+  const ip = getClientIp(req)
+  const rl = rateLimit(`recomendar:${ip}`, 5, 60 * 60_000)
+  if (!rl.allowed) return tooManyRequests(rl.retryAfterMs)
+
   const body = await req.json()
   const parsed = schema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const [escritorio, apiKey] = await Promise.all([
+    getEscritorioConfig(),
+    Promise.resolve(process.env.ANTHROPIC_API_KEY),
+  ])
+  const nomeEscritorio = escritorio.nome
+
   if (!apiKey) {
     // Sem chave configurada — retorna recomendação estática
     return NextResponse.json({
@@ -39,15 +51,16 @@ export async function POST(req: Request) {
         messages: [
           {
             role: 'user',
-            content: `Você é um consultor contábil do ContabAI. Com base nos dados abaixo, recomende o plano ideal (essencial, profissional, empresarial ou startup) e dê uma justificativa personalizada em 2 frases.
+            content: `Você é um consultor contábil do ${nomeEscritorio}. Analise os dados do cliente abaixo e recomende o plano ideal.
 
-Responda APENAS em JSON: {"plano": "...", "justificativa": "..."}
+Responda APENAS com JSON válido, sem texto extra: {"plano": "...", "justificativa": "..."}
 
-Dados:
-- Regime tributário atual ou pretendido: ${parsed.data.regime}
-- Faturamento mensal estimado: ${parsed.data.faturamento}
-- Número de funcionários: ${parsed.data.funcionarios}
-- Principais necessidades: ${parsed.data.necessidades}
+<dados_cliente>
+<regime>${parsed.data.regime}</regime>
+<faturamento>${parsed.data.faturamento}</faturamento>
+<funcionarios>${parsed.data.funcionarios}</funcionarios>
+<necessidades>${parsed.data.necessidades}</necessidades>
+</dados_cliente>
 
 Planos disponíveis:
 - essencial: MEI e microempresas, sem funcionários, faturamento até R$81k/ano

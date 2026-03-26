@@ -3,6 +3,7 @@ import Credentials from 'next-auth/providers/credentials'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+import { rateLimit } from '@/lib/rate-limit'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -19,6 +20,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           })
           .safeParse(credentials)
         if (!parsed.success) return null
+
+        // Rate limit: 5 tentativas por e-mail a cada 15 minutos
+        const rl = rateLimit(`login:${parsed.data.email.toLowerCase()}`, 5, 15 * 60_000)
+        if (!rl.allowed) {
+          console.warn('[auth] Login bloqueado por rate limit:', parsed.data.email)
+          return null
+        }
 
         const usuario = await prisma.usuario.findUnique({
           where: { email: parsed.data.email, ativo: true },
@@ -44,15 +52,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.tipo = (user as any).tipo
         token.id = user.id
         token.precisaTrocarSenha = (user as any).precisaTrocarSenha
+        token.checkedAt = Date.now()
       }
       return token
     },
-    session({ session, token }) {
+    async session({ session, token }) {
       if (session.user) {
         ;(session.user as any).tipo = token.tipo
         ;(session.user as any).id = token.id
         ;(session.user as any).precisaTrocarSenha = token.precisaTrocarSenha
       }
+
+      // Revalida que o usuário ainda está ativo a cada 5 minutos
+      const REVALIDAR_INTERVAL = 5 * 60 * 1000
+      const lastCheck = (token.checkedAt as number | undefined) ?? 0
+      if (token.id && Date.now() - lastCheck > REVALIDAR_INTERVAL) {
+        try {
+          const usuario = await prisma.usuario.findUnique({
+            where: { id: token.id as string },
+            select: { ativo: true, precisaTrocarSenha: true },
+          })
+          if (!usuario?.ativo) {
+            // Usuário desativado — invalida sessão retornando objeto sem user
+            return { ...session, user: undefined } as any
+          }
+          // Atualiza flag de troca de senha caso tenha mudado
+          if (session.user) {
+            ;(session.user as any).precisaTrocarSenha = usuario.precisaTrocarSenha
+          }
+          token.checkedAt = Date.now()
+        } catch {
+          // DB indisponível — mantém sessão com dados do token
+        }
+      }
+
       return session
     },
   },

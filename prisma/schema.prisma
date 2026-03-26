@@ -370,6 +370,16 @@ model Escritorio {
   serproCnpjToken  String?
   contratoTemplate String?  @db.Text
 
+  // Termos contratuais configuráveis
+  multaPercent                Float?  @default(2.0)
+  jurosMesPercent             Float?  @default(1.0)
+  diasAtrasoMulta             Int?    @default(15)
+  diasInadimplenciaRescisao   Int?    @default(60)
+  diasAvisoRescisao           Int?    @default(30)
+  diasDocumentosAntecedencia  Int?    @default(5)
+  vencimentosDias             Json?
+  pixDescontoPercent          Float?  @default(5.0)
+
   // IA — configurações (chaves armazenadas encriptadas via AES-256-GCM)
   aiProvider        String?  @default("claude")  // "claude" | "openai"
   anthropicApiKey   String?  @db.Text
@@ -393,10 +403,14 @@ model Escritorio {
   systemPromptCrm        String? @db.Text
   systemPromptPortal     String? @db.Text
 
-  // Email — SMTP Hostinger (senha armazenada encriptada)
+  // Email — SMTP/IMAP configuráveis (senha armazenada encriptada)
   emailRemetente   String?  // ex: contato@escritorio.com.br
   emailNome        String?  // ex: Escritório Contábil
   emailSenha       String?  @db.Text  // armazenada encriptada via crypto.ts
+  emailSmtpHost    String?  // default: smtp.hostinger.com
+  emailSmtpPort    Int?     // default: 587
+  emailImapHost    String?  // default: imap.hostinger.com
+  emailImapPort    Int?     // default: 993
 
   // WhatsApp AI — usa Evolution API para enviar respostas
   whatsappAiEnabled    Boolean? @default(false)
@@ -422,6 +436,8 @@ model ConversaIA {
   lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
   remoteJid    String?      // identificador WhatsApp
   sessionId    String?      // identificador de sessão web
+  pausadaEm    DateTime?    // quando preenchido, IA não responde automaticamente
+  pausadoPorId String?      // id do usuário que pausou a IA
   criadaEm     DateTime     @default(now())
   atualizadaEm DateTime     @updatedAt
 

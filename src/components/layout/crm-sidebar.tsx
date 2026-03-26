@@ -16,9 +16,9 @@ const NAV_ITEMS = [
   { href: '/crm/configuracoes',  icon: 'settings',       label: 'Configurações' },
 ]
 
-type Props = { user: SessionUser; pendingEscalacoes?: number }
+type Props = { user: SessionUser; pendingEscalacoes?: number; nomeEscritorio?: string }
 
-export function CrmSidebar({ user, pendingEscalacoes = 0 }: Props) {
+export function CrmSidebar({ user, pendingEscalacoes = 0, nomeEscritorio = 'ContabAI' }: Props) {
   const pathname = usePathname()
 
   return (
@@ -34,7 +34,7 @@ export function CrmSidebar({ user, pendingEscalacoes = 0 }: Props) {
           </span>
         </div>
         <div>
-          <h1 className="text-[15px] font-semibold tracking-tight text-white mb-0.5">ContabAI</h1>
+          <h1 className="text-[15px] font-semibold tracking-tight text-white mb-0.5">{nomeEscritorio}</h1>
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 leading-none">Workspace</p>
         </div>
       </div>

@@ -3,7 +3,31 @@ import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
+  const session = await auth()
+  const tipo = (session?.user as any)?.tipo
+  const autenticado = session && (tipo === 'admin' || tipo === 'contador')
+
   const escritorio = await prisma.escritorio.findFirst()
+
+  if (!autenticado) {
+    // Apenas campos públicos — onboarding, portal e site podem ler isso
+    return NextResponse.json({
+      nome:            escritorio?.nome,
+      nomeFantasia:    escritorio?.nomeFantasia,
+      logoUrl:         escritorio?.logoUrl,
+      faviconUrl:      escritorio?.faviconUrl,
+      fraseBemVindo:   escritorio?.fraseBemVindo,
+      metaDescricao:   escritorio?.metaDescricao,
+      email:           escritorio?.email,
+      telefone:        escritorio?.telefone,
+      whatsapp:        escritorio?.whatsapp,
+      cidade:          escritorio?.cidade,
+      uf:              escritorio?.uf,
+      vencimentosDias: escritorio?.vencimentosDias,
+      pixDescontoPercent: escritorio?.pixDescontoPercent,
+    })
+  }
+
   return NextResponse.json(escritorio)
 }
 

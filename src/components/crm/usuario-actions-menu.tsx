@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { TipoUsuario } from '@prisma/client'
 import { EditarUsuarioDrawer } from './editar-usuario-drawer'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const TIPOS: { value: TipoUsuario; label: string }[] = [
   { value: 'assistente', label: 'Assistente' },
@@ -120,6 +121,7 @@ export function UsuarioActionsMenu({ usuario }: Props) {
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const [editarOpen, setEditarOpen] = useState(false)
   const [senhaResetada, setSenhaResetada] = useState<SenhaResetada | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -180,7 +182,6 @@ export function UsuarioActionsMenu({ usuario }: Props) {
   }
 
   async function handleDelete() {
-    if (!confirm(`Excluir o usuário "${usuario.nome}" permanentemente?`)) return
     setLoading(true)
     try {
       const res = await fetch(`/api/usuarios/${usuario.id}`, { method: 'DELETE' })
@@ -264,7 +265,7 @@ export function UsuarioActionsMenu({ usuario }: Props) {
 
           {/* Excluir */}
           <button
-            onClick={handleDelete}
+            onClick={() => setConfirmOpen(true)}
             className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-error transition-colors hover:bg-error/5"
           >
             <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -277,6 +278,16 @@ export function UsuarioActionsMenu({ usuario }: Props) {
         usuario={usuario}
         open={editarOpen}
         onClose={() => setEditarOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+        title={`Excluir "${usuario.nome}"?`}
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        loading={loading}
       />
 
       {senhaResetada && (

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import type { StatusCliente } from '@prisma/client'
 import { EditarClienteDrawer, type ClienteEditData } from './editar-cliente-drawer'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const STATUS_OPTIONS: { value: StatusCliente; label: string }[] = [
   { value: 'ativo', label: 'Ativo' },
@@ -23,6 +24,7 @@ export function ClienteActionsMenu({ cliente }: Props) {
   const [editOpen, setEditOpen] = useState(false)
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null)
   const [loadingDelete, setLoadingDelete] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -69,7 +71,6 @@ export function ClienteActionsMenu({ cliente }: Props) {
   }
 
   async function handleDelete() {
-    if (!confirm('Excluir este cliente permanentemente? Esta ação não pode ser desfeita.')) return
     setLoadingDelete(true)
     try {
       const res = await fetch(`/api/clientes/${cliente.id}`, { method: 'DELETE' })
@@ -146,7 +147,7 @@ export function ClienteActionsMenu({ cliente }: Props) {
 
           {/* Excluir */}
           <button
-            onClick={handleDelete}
+            onClick={() => setConfirmOpen(true)}
             disabled={loadingDelete}
             className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-error transition-colors hover:bg-error/5 disabled:opacity-50"
           >
@@ -158,6 +159,16 @@ export function ClienteActionsMenu({ cliente }: Props) {
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+        title="Excluir cliente?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        loading={loadingDelete}
+      />
 
       <EditarClienteDrawer
         cliente={cliente}

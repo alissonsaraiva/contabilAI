@@ -33,6 +33,14 @@ function HeaderInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [maxStep, setMaxStep] = useState(0)
+  const [nomeEscritorio, setNomeEscritorio] = useState('ContabAI')
+
+  useEffect(() => {
+    fetch('/api/escritorio')
+      .then(r => r.json())
+      .then((e: { nome?: string | null }) => { if (e?.nome) setNomeEscritorio(e.nome) })
+      .catch(() => {})
+  }, [])
 
   const leadId = searchParams.get('leadId')
   const plano = searchParams.get('plano')
@@ -79,7 +87,7 @@ function HeaderInner() {
               calculate
             </span>
           </div>
-          <span className="text-[15px] font-semibold text-on-surface">ContabAI</span>
+          <span className="text-[15px] font-semibold text-on-surface">{nomeEscritorio}</span>
         </Link>
 
         {/* Salvar e sair */}

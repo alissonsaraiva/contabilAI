@@ -28,6 +28,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
   const plano = await prisma.plano.update({ where: { id }, data: parsed.data })
+  import('@/lib/rag/ingest').then(({ indexarPlanos }) => indexarPlanos()).catch(() => {})
   return NextResponse.json(plano)
 }
 

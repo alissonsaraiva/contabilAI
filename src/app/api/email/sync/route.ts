@@ -5,9 +5,15 @@ import { processarEmailRecebido } from '@/lib/email/processar'
 // Proteção por secret para chamadas do cron interno
 function autorizarCron(req: Request): boolean {
   const secret = process.env.CRON_SECRET
-  if (!secret) return true // sem secret configurado — permite (apenas dev)
-  const auth = req.headers.get('authorization')
-  return auth === `Bearer ${secret}`
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[email/sync] CRON_SECRET não configurado em produção — requisição bloqueada')
+      return false
+    }
+    return true // dev sem secret — permite
+  }
+  const authHeader = req.headers.get('authorization')
+  return authHeader === `Bearer ${secret}`
 }
 
 export async function POST(req: Request) {

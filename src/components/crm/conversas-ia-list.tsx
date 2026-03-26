@@ -4,10 +4,17 @@ import { useState } from 'react'
 import { formatDateTime } from '@/lib/utils'
 
 const CANAL_ICON: Record<string, string> = {
-  whatsapp: 'whatsapp',
+  whatsapp: 'chat_bubble',
   onboarding: 'chat',
   portal: 'web',
   crm: 'support_agent',
+}
+
+const CANAL_COLOR: Record<string, string> = {
+  whatsapp: 'bg-[#25D366]/15 text-[#25D366]',
+  onboarding: 'bg-primary/10 text-primary',
+  portal: 'bg-primary/10 text-primary',
+  crm: 'bg-primary/10 text-primary',
 }
 
 const CANAL_LABEL: Record<string, string> = {
@@ -56,6 +63,7 @@ export function ConversasIAList({ conversas }: Props) {
         const open = aberta === c.id
         const icon = CANAL_ICON[c.canal] ?? 'chat'
         const label = CANAL_LABEL[c.canal] ?? c.canal
+        const iconColor = CANAL_COLOR[c.canal] ?? 'bg-primary/10 text-primary'
         const total = c.mensagens.length
         const userMsgs = c.mensagens.filter(m => m.role === 'user').length
 
@@ -69,9 +77,9 @@ export function ConversasIAList({ conversas }: Props) {
               onClick={() => setAberta(open ? null : c.id)}
               className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-container-low/40"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconColor}`}>
                 <span
-                  className="material-symbols-outlined text-[18px] text-primary"
+                  className="material-symbols-outlined text-[18px]"
                   style={{ fontVariationSettings: "'FILL' 1" }}
                 >
                   {icon}

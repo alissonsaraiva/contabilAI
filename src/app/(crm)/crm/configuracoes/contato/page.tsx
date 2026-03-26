@@ -25,12 +25,20 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-type EmailConfig = { emailRemetente: string; emailNome: string; emailSenha: string }
+type EmailConfig = {
+  emailRemetente: string
+  emailNome:      string
+  emailSenha:     string
+  emailSmtpHost:  string
+  emailSmtpPort:  string
+  emailImapHost:  string
+  emailImapPort:  string
+}
 
 export default function ContatoPage() {
   const [loading, setLoading] = useState(false)
   const [loadingCep, setLoadingCep] = useState(false)
-  const [emailConfig, setEmailConfig] = useState<EmailConfig>({ emailRemetente: '', emailNome: '', emailSenha: '' })
+  const [emailConfig, setEmailConfig] = useState<EmailConfig>({ emailRemetente: '', emailNome: '', emailSenha: '', emailSmtpHost: '', emailSmtpPort: '', emailImapHost: '', emailImapPort: '' })
   const [savingEmail, setSavingEmail] = useState(false)
   const [testingSmtp, setTestingSmtp] = useState(false)
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) })
@@ -202,9 +210,9 @@ export default function ContatoPage() {
           </div>
         </div>
 
-        {/* E-mail de envio (SMTP Hostinger) */}
+        {/* E-mail de envio (SMTP/IMAP) */}
         <div>
-          <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">E-mail de envio (SMTP Hostinger)</p>
+          <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">E-mail de envio (SMTP / IMAP)</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div className="space-y-1.5">
               <label className={LABEL}>E-mail remetente</label>
@@ -234,7 +242,47 @@ export default function ContatoPage() {
                 onChange={e => setEmailConfig(c => ({ ...c, emailSenha: e.target.value }))}
                 autoComplete="new-password"
               />
-              <p className="text-[11px] text-on-surface-variant/50">Senha da conta de e-mail na Hostinger. Armazenada de forma encriptada.</p>
+              <p className="text-[11px] text-on-surface-variant/50">Senha da conta de e-mail. Armazenada de forma encriptada.</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className={LABEL}>Servidor SMTP</label>
+              <input
+                className={INPUT}
+                placeholder="smtp.hostinger.com"
+                value={emailConfig.emailSmtpHost}
+                onChange={e => setEmailConfig(c => ({ ...c, emailSmtpHost: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className={LABEL}>Porta SMTP</label>
+              <input
+                className={INPUT}
+                placeholder="587"
+                value={emailConfig.emailSmtpPort}
+                onChange={e => setEmailConfig(c => ({ ...c, emailSmtpPort: e.target.value }))}
+                inputMode="numeric"
+              />
+              <p className="text-[11px] text-on-surface-variant/50">587 (TLS) ou 465 (SSL). Padrão: 587.</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className={LABEL}>Servidor IMAP</label>
+              <input
+                className={INPUT}
+                placeholder="imap.hostinger.com"
+                value={emailConfig.emailImapHost}
+                onChange={e => setEmailConfig(c => ({ ...c, emailImapHost: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className={LABEL}>Porta IMAP</label>
+              <input
+                className={INPUT}
+                placeholder="993"
+                value={emailConfig.emailImapPort}
+                onChange={e => setEmailConfig(c => ({ ...c, emailImapPort: e.target.value }))}
+                inputMode="numeric"
+              />
+              <p className="text-[11px] text-on-surface-variant/50">993 (SSL). Padrão: 993.</p>
             </div>
           </div>
           <div className="mt-4 flex items-center gap-3">

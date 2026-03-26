@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
@@ -41,6 +42,7 @@ export default function WhatsAppPage() {
   const [loadingState, setLoadingState] = useState(false)
   const [actionLoading, setActionLoading] = useState('')
   const [webhookCopied, setWebhookCopied] = useState(false)
+  const [confirmLogout, setConfirmLogout] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const { register, handleSubmit, reset } = useForm<FormData>({
@@ -175,7 +177,6 @@ export default function WhatsAppPage() {
   }
 
   async function handleLogout() {
-    if (!confirm('Desconectar o WhatsApp desta instância?')) return
     setActionLoading('logout')
     try {
       const res = await fetch('/api/whatsapp/evolution', {
@@ -341,7 +342,7 @@ export default function WhatsAppPage() {
             </>
           ) : connState === 'open' ? (
             <button
-              onClick={handleLogout}
+              onClick={() => setConfirmLogout(true)}
               disabled={!!actionLoading}
               className="flex items-center gap-2 rounded-xl border border-error/30 px-4 py-2 text-[13px] font-semibold text-error hover:bg-error/8 transition-colors disabled:opacity-50"
             >
@@ -427,6 +428,15 @@ export default function WhatsAppPage() {
         <p className="mt-2 text-[11px] text-on-surface-variant/50">Registra automaticamente este URL na instância Evolution API</p>
       </div>
 
+      <ConfirmDialog
+        open={confirmLogout}
+        onClose={() => setConfirmLogout(false)}
+        onConfirm={() => { setConfirmLogout(false); handleLogout() }}
+        title="Desconectar WhatsApp?"
+        description="A instância será desconectada. Você precisará gerar um novo QR Code para reconectar."
+        confirmLabel="Desconectar"
+        loading={actionLoading === 'logout'}
+      />
     </div>
   )
 }

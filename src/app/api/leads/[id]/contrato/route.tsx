@@ -3,13 +3,14 @@ import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { uploadArquivo, storageKeys } from '@/lib/storage'
 import { ContratoPDF } from '@/lib/pdf/contrato-template'
-import { chunkText, embedTexts, storeEmbeddings } from '@/lib/rag'
+// RAG: indexarContrato é chamado via dynamic import em background
 import React from 'react'
 import type { PlanoTipo, FormaPagamento, StatusCliente } from '@prisma/client'
 
 type Params = { params: Promise<{ id: string }> }
 
-const PLANO_PRECOS: Record<string, number> = {
+// Fallback de preços caso o plano não esteja cadastrado no banco
+const PLANO_PRECOS_FALLBACK: Record<string, number> = {
   essencial: 199,
   profissional: 499,
   empresarial: 1200,
@@ -35,8 +36,16 @@ export async function POST(req: Request, { params }: Params) {
   const plano = lead.planoTipo ?? 'essencial'
   const vencimento = lead.vencimentoDia ?? 10
   const formaPagamento = lead.formaPagamento ?? 'pix'
-  const valor = PLANO_PRECOS[plano] ?? 199
   const agora = new Date()
+
+  // Preço: valorNegociado > plano do banco > fallback hardcoded
+  let valor: number
+  if (lead.valorNegociado) {
+    valor = Number(lead.valorNegociado)
+  } else {
+    const planoDB = await prisma.plano.findUnique({ where: { tipo: plano as PlanoTipo }, select: { valorMinimo: true } })
+    valor = planoDB ? Number(planoDB.valorMinimo) : (PLANO_PRECOS_FALLBACK[plano] ?? 199)
+  }
 
   const pdfElement = React.createElement(ContratoPDF, {
     nome: dados?.['Nome completo'] ?? lead.contatoEntrada,
@@ -56,6 +65,12 @@ export async function POST(req: Request, { params }: Params) {
     escritorioCnpj: escritorio?.cnpj,
     escritorioCrc: escritorio?.crc,
     escritorioCidade: escritorio?.cidade,
+    multaPercent: escritorio?.multaPercent ?? 2.0,
+    jurosMesPercent: escritorio?.jurosMesPercent ?? 1.0,
+    diasAtrasoMulta: escritorio?.diasAtrasoMulta ?? 15,
+    diasInadimplenciaRescisao: escritorio?.diasInadimplenciaRescisao ?? 60,
+    diasAvisoRescisao: escritorio?.diasAvisoRescisao ?? 30,
+    diasDocumentosAntecedencia: escritorio?.diasDocumentosAntecedencia ?? 5,
   // @react-pdf/renderer types require DocumentProps but ContratoPDF wraps Document internally
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any
@@ -112,7 +127,7 @@ export async function POST(req: Request, { params }: Params) {
     data: { status: 'assinado', stepAtual: 6 },
   })
 
-  // Converte lead em cliente automaticamente
+  // Converte lead em cliente automaticamente (dentro de transação para evitar race condition)
   const nome = dados?.['Nome completo'] ?? lead.contatoEntrada
   const cpf = dados?.['CPF']
   const email = dados?.['E-mail'] ?? lead.contatoEntrada
@@ -120,78 +135,71 @@ export async function POST(req: Request, { params }: Params) {
 
   if (nome && cpf && email) {
     try {
+      // Verifica se já existe antes de entrar na transação (otimização de leitura)
       let cliente = await prisma.cliente.findUnique({ where: { leadId: id } })
       if (!cliente) {
-        cliente = await prisma.cliente.create({
-          data: {
-            leadId: id,
-            nome,
-            cpf,
-            email,
-            telefone,
-            whatsapp: telefone,
-            planoTipo: plano as PlanoTipo,
-            valorMensal: valor,
-            vencimentoDia: vencimento,
-            formaPagamento: formaPagamento as FormaPagamento,
-            status: 'ativo' as StatusCliente,
-            dataInicio: agora,
-            ...(dados?.['CNPJ'] && { cnpj: dados['CNPJ'] }),
-            ...(dados?.['Razão Social'] && { razaoSocial: dados['Razão Social'] }),
-            ...(dados?.['Nome Fantasia'] && { nomeFantasia: dados['Nome Fantasia'] }),
-            ...(dados?.['Cidade'] && { cidade: dados['Cidade'] }),
-            ...(lead.responsavelId && { responsavelId: lead.responsavelId }),
-          },
-        })
+        try {
+          cliente = await prisma.$transaction(async (tx: any) => {
+            const c = await tx.cliente.create({
+              data: {
+                leadId: id,
+                nome,
+                cpf,
+                email,
+                telefone,
+                whatsapp: telefone,
+                planoTipo: plano as PlanoTipo,
+                valorMensal: valor,
+                vencimentoDia: vencimento,
+                formaPagamento: formaPagamento as FormaPagamento,
+                status: 'ativo' as StatusCliente,
+                dataInicio: agora,
+                ...(dados?.['CNPJ'] && { cnpj: dados['CNPJ'] }),
+                ...(dados?.['Razão Social'] && { razaoSocial: dados['Razão Social'] }),
+                ...(dados?.['Nome Fantasia'] && { nomeFantasia: dados['Nome Fantasia'] }),
+                ...(dados?.['Cidade'] && { cidade: dados['Cidade'] }),
+                ...(lead.responsavelId && { responsavelId: lead.responsavelId }),
+              },
+            })
+            await tx.contrato.update({ where: { id: contrato.id }, data: { clienteId: c.id } })
+            return c
+          })
+        } catch (err: any) {
+          if (err?.code === 'P2002') {
+            // Criado por request concorrente — busca o que foi criado
+            cliente = await prisma.cliente.findUnique({ where: { leadId: id } })
+          } else {
+            throw err
+          }
+        }
+      } else {
+        await prisma.contrato.update({ where: { id: contrato.id }, data: { clienteId: cliente.id } })
       }
-      await prisma.contrato.update({
-        where: { id: contrato.id },
-        data: { clienteId: cliente.id },
-      })
 
       // Indexa dados do cliente recém-criado (CRM + Portal + WhatsApp)
-      import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente)).catch(() => {})
+      if (cliente) {
+        import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente!)).catch(() => {})
+      }
     } catch (err) {
       console.error('[contrato] Erro ao converter lead em cliente:', err)
     }
   }
 
-  // Indexa o contrato no RAG em background (não bloqueia a resposta)
-  if (process.env.VOYAGE_API_KEY && process.env.VECTORS_DATABASE_URL) {
-    const textoContrato = [
-      `Contrato de Prestação de Serviços Contábeis`,
-      `Cliente: ${dados?.['Nome completo'] ?? lead.contatoEntrada}`,
-      `CPF: ${dados?.['CPF'] ?? ''}`,
-      `E-mail: ${dados?.['E-mail'] ?? lead.contatoEntrada}`,
-      `Telefone: ${dados?.['Telefone'] ?? ''}`,
-      dados?.['CNPJ'] ? `CNPJ: ${dados['CNPJ']}` : '',
-      dados?.['Razão Social'] ? `Razão Social: ${dados['Razão Social']}` : '',
-      dados?.['Cidade'] ? `Cidade: ${dados['Cidade']}` : '',
-      `Plano: ${plano} — R$ ${valor}/mês`,
-      `Vencimento: dia ${vencimento} — ${formaPagamento}`,
-      `Assinado em: ${agora.toISOString()}`,
-      `Assinatura digital: ${assinatura.trim()}`,
-    ].filter(Boolean).join('\n')
-
-    const chunks = chunkText(textoContrato)
-    if (chunks.length) {
-      embedTexts(chunks)
-        .then(embeddings =>
-          storeEmbeddings(
-            chunks.map((conteudo, i) => ({
-              escopo: 'lead' as const,
-              tipo: 'dados_lead' as const,
-              leadId: id,
-              titulo: `Contrato — ${dados?.['Nome completo'] ?? lead.contatoEntrada}`,
-              conteudo,
-              metadata: { contratoId: contrato.id, chunkIndex: i },
-            })),
-            embeddings,
-          ),
-        )
-        .catch(err => console.error('[rag] Erro ao indexar contrato:', err))
-    }
-  }
+  // Indexa o contrato no RAG em background com documentoId para permitir re-indexação idempotente
+  import('@/lib/rag/ingest').then(async ({ indexarContrato }) => {
+    await indexarContrato({
+      id: contrato.id,
+      leadId: id,
+      dados,
+      lead,
+      plano,
+      valor,
+      vencimento,
+      formaPagamento,
+      agora,
+      assinatura: assinatura.trim(),
+    })
+  }).catch(err => console.error('[rag] Erro ao indexar contrato:', err))
 
   return NextResponse.json({ ok: true, pdfUrl, contratoId: contrato.id })
 }
