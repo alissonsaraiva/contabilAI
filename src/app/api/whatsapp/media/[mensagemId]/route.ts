@@ -46,7 +46,7 @@ export async function GET(
     return NextResponse.json({ error: 'Mídia não encontrada na Evolution' }, { status: 404 })
   }
 
-  return new Response(media.buffer, {
+  return new Response(new Uint8Array(media.buffer), {
     headers: {
       'Content-Type': media.mimeType || 'audio/ogg',
       'Content-Disposition': 'inline',
