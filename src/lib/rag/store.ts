@@ -205,12 +205,13 @@ export type KnowledgeEntry = {
 }
 
 // Lista artigos únicos da base global — mostra apenas o chunk 0 de cada sourceId
+// Exclui entradas automáticas (escritório, planos) que não têm sourceId
 export async function listKnowledge(opts: {
   canal?: CanalRAG
   tipo?: TipoConhecimento
 } = {}): Promise<KnowledgeEntry[]> {
   const db = getPool()
-  const conditions = [`escopo = 'global'`, `(metadata->>'chunkIndex')::int = 0`]
+  const conditions = [`escopo = 'global'`, `(metadata->>'chunkIndex')::int = 0`, `metadata->>'sourceId' IS NOT NULL`]
   const values: unknown[] = []
   let idx = 1
 
