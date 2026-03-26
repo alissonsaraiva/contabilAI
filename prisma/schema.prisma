@@ -117,6 +117,12 @@ enum CanalEscalacao {
   onboarding
 }
 
+enum StatusMensagem {
+  pending
+  sent
+  failed
+}
+
 model Usuario {
   id                 String      @id @default(uuid())
   nome               String
@@ -453,12 +459,15 @@ model ConversaIA {
 }
 
 model MensagemIA {
-  id          String     @id @default(uuid())
+  id          String         @id @default(uuid())
   conversaId  String
-  conversa    ConversaIA @relation(fields: [conversaId], references: [id], onDelete: Cascade)
-  role        String     // 'user' | 'assistant'
-  conteudo    String     @db.Text
-  criadaEm   DateTime   @default(now())
+  conversa    ConversaIA     @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  role        String         // 'user' | 'assistant'
+  conteudo    String         @db.Text
+  status      StatusMensagem @default(pending)
+  tentativas  Int            @default(0)
+  erroEnvio   String?        @db.Text
+  criadaEm    DateTime       @default(now())
 
   @@index([conversaId, criadaEm])
   @@map("mensagens_ia")

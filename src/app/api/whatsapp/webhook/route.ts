@@ -9,6 +9,7 @@ import {
   addMensagens,
   addMensagemUsuario,
   atualizarIdentidadeConversa,
+  atualizarStatusMensagem,
 } from '@/lib/ai/conversa'
 import { sendHumanLike } from '@/lib/whatsapp/human-like'
 import { downloadMedia, detectMediaType, extractMediaCaption, extractMimeType, extractPdfText } from '@/lib/whatsapp/media'
@@ -111,6 +112,15 @@ async function criarLeadWhatsApp(remoteJid: string): Promise<string> {
 }
 
 export async function POST(req: Request) {
+  // Verificação estática antecipada — rejeita antes de qualquer acesso ao banco
+  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
+  if (WEBHOOK_SECRET) {
+    const headerApiKey = req.headers.get('apikey')
+    if (headerApiKey !== WEBHOOK_SECRET) {
+      return new Response('unauthorized', { status: 401 })
+    }
+  }
+
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return new Response('bad request', { status: 400 }) }
 
@@ -425,11 +435,22 @@ export async function POST(req: Request) {
       }
     }
 
-    // ── Persiste par user+assistant no banco ──────────────────────────────────
-    addMensagens(conversaId, textoFinal, resposta)
+    // ── Persiste par user+assistant (status pending até confirmação) ──────────
+    const mensagemId = await addMensagens(conversaId, textoFinal, resposta)
 
-    await sendHumanLike(cfg, remoteJid, resposta)
-    lastResponse.set(remoteJid, Date.now())
+    // ── Envia e atualiza status de entrega ────────────────────────────────────
+    const sendResult = await sendHumanLike(cfg, remoteJid, resposta)
+
+    if (sendResult.ok) {
+      lastResponse.set(remoteJid, Date.now())
+      atualizarStatusMensagem(mensagemId, 'sent').catch(() => {})
+    } else {
+      console.error('[whatsapp/webhook] falha no envio para', remoteJid, sendResult.error)
+      atualizarStatusMensagem(mensagemId, 'failed', {
+        tentativas: sendResult.attempts,
+        erroEnvio:  sendResult.error,
+      }).catch(() => {})
+    }
   } catch (err) {
     console.error('[whatsapp/webhook] erro:', err)
   }

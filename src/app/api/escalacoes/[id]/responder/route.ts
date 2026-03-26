@@ -71,22 +71,42 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
 
   // ── Envia pelo canal correto ────────────────────────────────────────────────
   if (esc.canal === 'whatsapp' && esc.remoteJid) {
-    try {
-      const row = await prisma.escritorio.findFirst({
-        select: { evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
-      })
-      if (row?.evolutionApiUrl && row.evolutionApiKey && row.evolutionInstance) {
-        const rawKey = row.evolutionApiKey
-        const apiKey = isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
-        await sendText(
-          { baseUrl: row.evolutionApiUrl, apiKey, instance: row.evolutionInstance },
-          esc.remoteJid,
-          mensagemFinal,
+    const row = await prisma.escritorio.findFirst({
+      select: { evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
+    })
+    if (row?.evolutionApiUrl && row.evolutionApiKey && row.evolutionInstance) {
+      const rawKey = row.evolutionApiKey
+      const apiKey = isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
+      const sendResult = await sendText(
+        { baseUrl: row.evolutionApiUrl, apiKey, instance: row.evolutionInstance },
+        esc.remoteJid,
+        mensagemFinal,
+      )
+      if (!sendResult.ok) {
+        console.error('[escalacoes/responder] falha ao enviar WhatsApp:', sendResult.error)
+        return NextResponse.json(
+          { error: 'erro ao enviar mensagem', detail: sendResult.error },
+          { status: 502 },
         )
       }
-    } catch (err) {
-      console.error('[escalacoes/responder] erro ao enviar WhatsApp:', err)
-      return NextResponse.json({ error: 'erro ao enviar mensagem' }, { status: 500 })
+
+      // Persiste a resposta no histórico da conversa
+      const conversaRow = await prisma.conversaIA.findFirst({
+        where: { canal: 'whatsapp', remoteJid: esc.remoteJid },
+        orderBy: { atualizadaEm: 'desc' },
+        select: { id: true },
+      })
+      if (conversaRow) {
+        prisma.mensagemIA.create({
+          data: {
+            conversaId: conversaRow.id,
+            role: 'assistant',
+            conteudo: mensagemFinal,
+            status: 'sent',
+            tentativas: 1,
+          },
+        }).catch(() => {})
+      }
     }
   }
   // Canal onboarding: a resposta fica em respostaEnviada — o widget faz poll e exibe

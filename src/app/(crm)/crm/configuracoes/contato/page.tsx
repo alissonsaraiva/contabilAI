@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import Link from 'next/link'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
@@ -25,22 +26,9 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-type EmailConfig = {
-  emailRemetente: string
-  emailNome:      string
-  emailSenha:     string
-  emailSmtpHost:  string
-  emailSmtpPort:  string
-  emailImapHost:  string
-  emailImapPort:  string
-}
-
 export default function ContatoPage() {
   const [loading, setLoading] = useState(false)
   const [loadingCep, setLoadingCep] = useState(false)
-  const [emailConfig, setEmailConfig] = useState<EmailConfig>({ emailRemetente: '', emailNome: '', emailSenha: '', emailSmtpHost: '', emailSmtpPort: '', emailImapHost: '', emailImapPort: '' })
-  const [savingEmail, setSavingEmail] = useState(false)
-  const [testingSmtp, setTestingSmtp] = useState(false)
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
@@ -48,43 +36,6 @@ export default function ContatoPage() {
       .then(r => r.json())
       .then(data => { if (data) reset(data) })
   }, [reset])
-
-  useEffect(() => {
-    fetch('/api/configuracoes/email')
-      .then(r => r.json())
-      .then(data => { if (data) setEmailConfig(data) })
-  }, [])
-
-  async function saveEmailConfig() {
-    setSavingEmail(true)
-    try {
-      const res = await fetch('/api/configuracoes/email', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(emailConfig),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Configurações de e-mail salvas!')
-    } catch {
-      toast.error('Erro ao salvar')
-    } finally {
-      setSavingEmail(false)
-    }
-  }
-
-  async function testarSmtp() {
-    setTestingSmtp(true)
-    try {
-      const res = await fetch('/api/configuracoes/email', { method: 'POST' })
-      const data = await res.json()
-      if (data.ok) toast.success('Conexão SMTP OK!')
-      else toast.error(`Erro: ${data.erro ?? 'Falha na conexão'}`)
-    } catch {
-      toast.error('Erro ao testar conexão')
-    } finally {
-      setTestingSmtp(false)
-    }
-  }
 
   async function buscarCep() {
     const cep = watch('cep')?.replace(/\D/g, '')
@@ -210,101 +161,14 @@ export default function ContatoPage() {
           </div>
         </div>
 
-        {/* E-mail de envio (SMTP/IMAP) */}
-        <div>
-          <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">E-mail de envio (SMTP / IMAP)</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-            <div className="space-y-1.5">
-              <label className={LABEL}>E-mail remetente</label>
-              <input
-                className={INPUT}
-                placeholder="contato@escritorio.com.br"
-                value={emailConfig.emailRemetente}
-                onChange={e => setEmailConfig(c => ({ ...c, emailRemetente: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className={LABEL}>Nome do remetente</label>
-              <input
-                className={INPUT}
-                placeholder="Escritório Contábil"
-                value={emailConfig.emailNome}
-                onChange={e => setEmailConfig(c => ({ ...c, emailNome: e.target.value }))}
-              />
-            </div>
-            <div className="col-span-2 space-y-1.5">
-              <label className={LABEL}>Senha do e-mail</label>
-              <input
-                type="password"
-                className={INPUT}
-                placeholder="••••••••"
-                value={emailConfig.emailSenha}
-                onChange={e => setEmailConfig(c => ({ ...c, emailSenha: e.target.value }))}
-                autoComplete="new-password"
-              />
-              <p className="text-[11px] text-on-surface-variant/50">Senha da conta de e-mail. Armazenada de forma encriptada.</p>
-            </div>
-            <div className="space-y-1.5">
-              <label className={LABEL}>Servidor SMTP</label>
-              <input
-                className={INPUT}
-                placeholder="smtp.hostinger.com"
-                value={emailConfig.emailSmtpHost}
-                onChange={e => setEmailConfig(c => ({ ...c, emailSmtpHost: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className={LABEL}>Porta SMTP</label>
-              <input
-                className={INPUT}
-                placeholder="587"
-                value={emailConfig.emailSmtpPort}
-                onChange={e => setEmailConfig(c => ({ ...c, emailSmtpPort: e.target.value }))}
-                inputMode="numeric"
-              />
-              <p className="text-[11px] text-on-surface-variant/50">587 (TLS) ou 465 (SSL). Padrão: 587.</p>
-            </div>
-            <div className="space-y-1.5">
-              <label className={LABEL}>Servidor IMAP</label>
-              <input
-                className={INPUT}
-                placeholder="imap.hostinger.com"
-                value={emailConfig.emailImapHost}
-                onChange={e => setEmailConfig(c => ({ ...c, emailImapHost: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className={LABEL}>Porta IMAP</label>
-              <input
-                className={INPUT}
-                placeholder="993"
-                value={emailConfig.emailImapPort}
-                onChange={e => setEmailConfig(c => ({ ...c, emailImapPort: e.target.value }))}
-                inputMode="numeric"
-              />
-              <p className="text-[11px] text-on-surface-variant/50">993 (SSL). Padrão: 993.</p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={saveEmailConfig}
-              disabled={savingEmail}
-              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-60 transition-colors"
-            >
-              {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
-              Salvar e-mail
-            </button>
-            <button
-              type="button"
-              onClick={testarSmtp}
-              disabled={testingSmtp}
-              className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface hover:bg-surface-container disabled:opacity-60 transition-colors"
-            >
-              {testingSmtp ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">wifi_tethering</span>}
-              Testar conexão
-            </button>
-          </div>
+        <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low/50 px-4 py-3 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[18px] text-on-surface-variant/60">mail</span>
+          <p className="text-[13px] text-on-surface-variant">
+            Configurações de e-mail (SMTP/IMAP) foram movidas para{' '}
+            <Link href="/crm/configuracoes/email" className="font-semibold text-primary hover:underline">
+              Configurações → E-mail
+            </Link>
+          </p>
         </div>
 
         <div className="mt-8 flex items-center justify-end gap-3 border-t border-outline-variant/15 pt-6">

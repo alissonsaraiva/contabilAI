@@ -137,7 +137,7 @@ export async function getHistorico(
 export function addMensagemUsuario(conversaId: string, conteudo: string): void {
   Promise.all([
     prisma.mensagemIA.create({
-      data: { conversaId, role: 'user', conteudo },
+      data: { conversaId, role: 'user', conteudo, status: 'sent' },
     }),
     prisma.conversaIA.update({
       where: { id: conversaId },
@@ -149,28 +149,49 @@ export function addMensagemUsuario(conversaId: string, conteudo: string): void {
 }
 
 /**
- * Persiste o par user+assistant no banco. Fire-and-forget.
- * Também atualiza atualizadaEm da conversa (necessário para o timeout de 24h).
+ * Persiste o par user+assistant no banco.
+ * A mensagem do assistente é criada com status 'pending' até confirmação de envio.
+ * Retorna o id da mensagem do assistente para atualização pós-envio.
  */
-export function addMensagens(
+export async function addMensagens(
   conversaId: string,
   user: string,
   assistant: string,
-): void {
-  Promise.all([
-    prisma.mensagemIA.createMany({
-      data: [
-        { conversaId, role: 'user',      conteudo: user },
-        { conversaId, role: 'assistant', conteudo: assistant },
-      ],
+): Promise<string> {
+  const [, assistantMsg] = await Promise.all([
+    prisma.mensagemIA.create({
+      data: { conversaId, role: 'user', conteudo: user, status: 'sent' },
+    }),
+    prisma.mensagemIA.create({
+      data: { conversaId, role: 'assistant', conteudo: assistant, status: 'pending' },
+      select: { id: true },
     }),
     // @updatedAt só é atualizado por update() — precisa ser explícito
     prisma.conversaIA.update({
       where: { id: conversaId },
       data:  { atualizadaEm: new Date() },
     }),
-  ]).catch((err) => {
-    console.error('[conversa] Falha ao persistir mensagens, conversaId:', conversaId, err)
+  ])
+  return assistantMsg.id
+}
+
+/**
+ * Atualiza o status de entrega de uma mensagem do assistente após tentativa de envio.
+ */
+export async function atualizarStatusMensagem(
+  mensagemId: string,
+  status: 'sent' | 'failed',
+  opts?: { tentativas?: number; erroEnvio?: string },
+): Promise<void> {
+  await prisma.mensagemIA.update({
+    where: { id: mensagemId },
+    data: {
+      status,
+      ...(opts?.tentativas !== undefined && { tentativas: opts.tentativas }),
+      erroEnvio: opts?.erroEnvio ?? null,
+    },
+  }).catch((err) => {
+    console.error('[conversa] Falha ao atualizar status da mensagem:', mensagemId, err)
   })
 }
 

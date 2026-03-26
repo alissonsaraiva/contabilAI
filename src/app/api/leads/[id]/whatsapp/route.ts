@@ -109,14 +109,11 @@ export async function POST(req: Request, { params }: Params) {
     })
   }
 
-  // Pausa a IA e salva mensagem do operador
+  // Fase 1: pausa a IA e registra a interação (independente do resultado do envio)
   await prisma.$transaction([
     prisma.conversaIA.update({
       where: { id: conversa.id },
       data: { pausadaEm: new Date(), pausadoPorId: session.user.id, atualizadaEm: new Date() },
-    }),
-    prisma.mensagemIA.create({
-      data: { conversaId: conversa.id, role: 'assistant', conteudo },
     }),
     prisma.interacao.create({
       data: {
@@ -129,8 +126,20 @@ export async function POST(req: Request, { params }: Params) {
     }),
   ])
 
-  // Envia via Evolution API
-  await sendText(cfg, remoteJid, conteudo)
+  // Fase 2: tenta enviar via Evolution API (com retry automático)
+  const sendResult = await sendText(cfg, remoteJid, conteudo)
+
+  // Fase 3: persiste a mensagem com o status correto
+  await prisma.mensagemIA.create({
+    data: {
+      conversaId: conversa.id,
+      role: 'assistant',
+      conteudo,
+      status: sendResult.ok ? 'sent' : 'failed',
+      tentativas: sendResult.ok ? 1 : ('attempts' in sendResult ? sendResult.attempts : 1),
+      erroEnvio: sendResult.ok ? null : sendResult.error,
+    },
+  })
 
   // Indexa no RAG (fire-and-forget)
   import('@/lib/rag/ingest').then(({ indexarInteracao }) =>
@@ -143,6 +152,13 @@ export async function POST(req: Request, { params }: Params) {
       criadoEm: new Date(),
     })
   ).catch(() => {})
+
+  if (!sendResult.ok) {
+    return NextResponse.json(
+      { error: 'Mensagem salva, mas falha ao entregar via WhatsApp', detail: sendResult.error },
+      { status: 502 },
+    )
+  }
 
   return NextResponse.json({ ok: true, conversaId: conversa.id })
 }
