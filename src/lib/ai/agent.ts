@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { registrarAgenteExecutou } from '@/lib/historico'
 import { getAiConfig } from './config'
 import { getToolDefinitions, getTool } from './tools/registry'
 import type { ToolContext, ToolExecuteResult } from './tools/types'
@@ -233,6 +234,16 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
         resultado,
         duracaoMs,
       }).catch(err => console.error('[agent] falha ao salvar auditoria:', err))
+
+      // Histórico central — fire-and-forget
+      registrarAgenteExecutou({
+        tool:      toolCall.name,
+        resumo:    resultado.resumo,
+        sucesso:   resultado.sucesso,
+        clienteId: contexto.clienteId,
+        leadId:    contexto.leadId,
+        duracaoMs,
+      })
 
       toolResultParts.push({
         type:        'tool_result',

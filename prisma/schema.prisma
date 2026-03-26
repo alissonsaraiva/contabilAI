@@ -90,22 +90,6 @@ enum Canal {
   outro
 }
 
-enum TipoInteracao {
-  whatsapp_enviado
-  email_enviado
-  email_recebido
-  ligacao
-  nota_interna
-  status_mudou
-  contrato_gerado
-  contrato_assinado
-  documento_enviado
-  tarefa_criada
-  cliente_ativado
-  ia_escalada
-  humano_respondeu
-}
-
 enum StatusEscalacao {
   pendente
   em_atendimento
@@ -316,19 +300,25 @@ model Tarefa {
 }
 
 model Interacao {
-  id         String        @id @default(uuid())
-  clienteId  String?
-  cliente    Cliente?      @relation(fields: [clienteId], references: [id])
-  leadId     String?
-  lead       Lead?         @relation(fields: [leadId], references: [id])
-  usuarioId  String?
-  usuario    Usuario?      @relation(fields: [usuarioId], references: [id])
-  tipo       TipoInteracao
-  titulo     String?
-  conteudo   String?       @db.Text
-  metadados  Json?
-  criadoEm  DateTime      @default(now())
+  id               String   @id @default(uuid())
+  clienteId        String?
+  cliente          Cliente? @relation(fields: [clienteId], references: [id])
+  leadId           String?
+  lead             Lead?    @relation(fields: [leadId], references: [id])
+  usuarioId        String?
+  usuario          Usuario? @relation(fields: [usuarioId], references: [id])
+  tipo             String   // string livre — veja TipoEvento em src/lib/historico.ts
+  origem           String   @default("sistema") // "usuario" | "ia" | "agente" | "sistema"
+  escritorioEvento Boolean  @default(false)      // aparece no feed global do dashboard
+  titulo           String?
+  conteudo         String?  @db.Text
+  metadados        Json?
+  criadoEm         DateTime @default(now())
 
+  @@index([clienteId, criadoEm])
+  @@index([leadId, criadoEm])
+  @@index([origem, criadoEm])
+  @@index([escritorioEvento, criadoEm])
   @@map("interacoes")
 }
 

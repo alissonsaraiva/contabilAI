@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { getAiConfig } from '@/lib/ai/config'
-import { formatBRL, formatCPF, formatCNPJ, formatDate, formatDateTime, formatTelefone } from '@/lib/utils'
+import { formatBRL, formatCPF, formatCNPJ, formatDate, formatTelefone } from '@/lib/utils'
 import {
   STATUS_CLIENTE_LABELS,
   STATUS_CLIENTE_COLORS,
@@ -17,6 +17,7 @@ import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
+import { HistoricoTimeline } from '@/components/crm/historico-timeline'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -26,20 +27,6 @@ const REGIME_LABELS: Record<string, string> = {
   LucroPresumido: 'Lucro Presumido',
   LucroReal: 'Lucro Real',
   Autonomo: 'Autônomo',
-}
-
-const TIPO_INTERACAO_ICONS: Record<string, string> = {
-  whatsapp_enviado: 'chat',
-  email_enviado: 'mail',
-  email_recebido: 'mark_email_unread',
-  ligacao: 'call',
-  nota_interna: 'sticky_note_2',
-  status_mudou: 'swap_horiz',
-  contrato_gerado: 'description',
-  contrato_assinado: 'verified',
-  documento_enviado: 'upload_file',
-  tarefa_criada: 'task_alt',
-  cliente_ativado: 'person_check',
 }
 
 const STATUS_CONTRATO_LABELS: Record<string, string> = {
@@ -79,11 +66,6 @@ export default async function ClienteDetailPage({ params }: Props) {
         documentos: true,
         contratos: true,
         tarefas: { orderBy: { criadoEm: 'desc' }, take: 10 },
-        interacoes: {
-          orderBy: { criadoEm: 'desc' },
-          take: 30,
-          include: { usuario: { select: { nome: true } } },
-        },
         responsavel: { select: { nome: true } },
       },
     }),
@@ -112,7 +94,7 @@ export default async function ClienteDetailPage({ params }: Props) {
     { value: 'socios', label: 'Sócios', count: cliente.socios.length },
     { value: 'documentos', label: 'Documentos', count: cliente.documentos.length },
     { value: 'contratos', label: 'Contratos', count: cliente.contratos.length },
-    { value: 'historico', label: 'Histórico', count: cliente.interacoes.length },
+    { value: 'historico', label: 'Histórico', count: null },
     { value: 'conversas', label: 'Conversas IA', count: conversas.length },
   ]
 
@@ -431,83 +413,20 @@ export default async function ClienteDetailPage({ params }: Props) {
 
         {/* ── Histórico ──────────────────────────────────── */}
         <TabsContent value="historico" className="m-0 focus-visible:outline-none">
-          <div className="mb-5 flex items-center justify-between">
-            <p className="text-[13px] text-on-surface-variant">
-              {cliente.interacoes.length} {cliente.interacoes.length === 1 ? 'registro' : 'registros'}
-            </p>
-            <div className="flex items-center gap-2">
-              <EnviarEmailDrawer
-                clienteId={cliente.id}
-                leadId={cliente.leadId ?? undefined}
-                clienteEmail={cliente.email}
-                clienteNome={cliente.nome}
-                documentos={cliente.documentos.map(d => ({
-                  id: d.id, nome: d.nome, url: d.url,
-                  mimeType: d.mimeType ?? null, tipo: d.tipo,
-                }))}
-              />
-              <NovaInteracaoDrawer clienteId={cliente.id} />
-            </div>
+          <div className="mb-5 flex items-center justify-end gap-2">
+            <EnviarEmailDrawer
+              clienteId={cliente.id}
+              leadId={cliente.leadId ?? undefined}
+              clienteEmail={cliente.email}
+              clienteNome={cliente.nome}
+              documentos={cliente.documentos.map((d: any) => ({
+                id: d.id, nome: d.nome, url: d.url,
+                mimeType: d.mimeType ?? null, tipo: d.tipo,
+              }))}
+            />
+            <NovaInteracaoDrawer clienteId={cliente.id} />
           </div>
-          {cliente.interacoes.length === 0 ? (
-            <EmptyState icon="history" msg="Nenhuma interação registrada" />
-          ) : (
-            <div className="space-y-0">
-              {cliente.interacoes.map((i, idx) => (
-                <div key={i.id} className="flex gap-4">
-                  {/* Dot + line */}
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${idx === 0
-                        ? 'bg-primary text-white'
-                        : 'bg-surface-container text-on-surface-variant'
-                        }`}
-                    >
-                      <span
-                        className="material-symbols-outlined text-[15px]"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        {TIPO_INTERACAO_ICONS[i.tipo] ?? 'circle'}
-                      </span>
-                    </div>
-                    {idx < cliente.interacoes.length - 1 && (
-                      <div className="mt-1 w-px flex-1 min-h-[1.5rem] bg-outline-variant/30" />
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="min-w-0 flex-1 pb-5">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-on-surface">{i.titulo ?? i.tipo}</p>
-                      <span className="shrink-0 text-xs text-on-surface-variant">
-                        {formatDateTime(i.criadoEm)}
-                      </span>
-                    </div>
-                    {i.conteudo && (
-                      <p className="mt-1 text-sm leading-relaxed text-on-surface-variant">
-                        {i.conteudo}
-                      </p>
-                    )}
-                    {/* Sugestão da Clara para emails recebidos */}
-                    {(i.tipo as string) === 'email_recebido' && (i.metadados as any)?.sugestao && (
-                      <div className="mt-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3">
-                        <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-primary/70">
-                          <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
-                          Sugestão de resposta de {nomeIa}
-                        </p>
-                        <p className="text-[13px] leading-relaxed text-on-surface-variant whitespace-pre-wrap">
-                          {(i.metadados as any).sugestao}
-                        </p>
-                      </div>
-                    )}
-                    {i.usuario && (
-                      <p className="mt-1.5 text-xs text-on-surface-variant/50">{i.usuario.nome}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <HistoricoTimeline clienteId={cliente.id} nomeIa={nomeIa} />
         </TabsContent>
       </Tabs>
 

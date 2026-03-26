@@ -1,20 +1,16 @@
+-- CreateEnum (baseline: criado via db push, recriado aqui para shadow DB)
+CREATE TYPE "TipoInteracao" AS ENUM (
+  'whatsapp_enviado', 'email_enviado', 'ligacao', 'nota_interna',
+  'status_mudou', 'contrato_gerado', 'contrato_assinado',
+  'documento_enviado', 'tarefa_criada', 'cliente_ativado',
+  'email_recebido', 'ia_escalada', 'humano_respondeu'
+);
+
 -- CreateEnum
 CREATE TYPE "StatusEscalacao" AS ENUM ('pendente', 'em_atendimento', 'resolvida');
 
 -- CreateEnum
 CREATE TYPE "CanalEscalacao" AS ENUM ('whatsapp', 'onboarding');
-
--- AlterEnum
--- This migration adds more than one value to an enum.
--- With PostgreSQL versions 11 and earlier, this is not possible
--- in a single migration. This can be worked around by creating
--- multiple migrations, each migration adding only one value to
--- the enum.
-
-
-ALTER TYPE "TipoInteracao" ADD VALUE 'email_recebido';
-ALTER TYPE "TipoInteracao" ADD VALUE 'ia_escalada';
-ALTER TYPE "TipoInteracao" ADD VALUE 'humano_respondeu';
 
 -- AlterTable
 ALTER TABLE "escritorio" DROP COLUMN "aimodelcrm",

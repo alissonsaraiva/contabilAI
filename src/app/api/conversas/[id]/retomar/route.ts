@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { registrarIaRetomada } from '@/lib/historico'
 
 export async function POST(
   _req: Request,
@@ -14,9 +15,18 @@ export async function POST(
 
   const { id } = await params
 
-  await prisma.conversaIA.update({
+  const conversa = await prisma.conversaIA.update({
     where: { id },
     data: { pausadaEm: null, pausadoPorId: null },
+    select: { clienteId: true, leadId: true },
+  })
+
+  registrarIaRetomada({
+    conversaId:   id,
+    operadorId:   user.id,
+    operadorNome: user.name ?? 'Operador',
+    clienteId:    conversa.clienteId ?? undefined,
+    leadId:       conversa.leadId    ?? undefined,
   })
 
   return NextResponse.json({ ok: true })

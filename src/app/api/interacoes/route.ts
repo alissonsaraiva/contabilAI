@@ -2,18 +2,15 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
 
 const createSchema = z.object({
   clienteId:  z.string().uuid().optional(),
   leadId:     z.string().uuid().optional(),
-  tipo: z.enum([
-    'whatsapp_enviado', 'email_enviado', 'ligacao', 'nota_interna',
-    'status_mudou', 'contrato_gerado', 'contrato_assinado',
-    'documento_enviado', 'tarefa_criada', 'cliente_ativado',
-  ]),
-  titulo:    z.string().optional(),
-  conteudo:  z.string().optional(),
-  metadados: z.record(z.string(), z.unknown()).optional(),
+  tipo:       z.string().min(1),  // string livre — veja TipoEvento em src/lib/historico.ts
+  titulo:     z.string().optional(),
+  conteudo:   z.string().optional(),
+  metadados:  z.record(z.string(), z.unknown()).optional(),
 })
 
 export async function POST(req: Request) {
@@ -32,10 +29,11 @@ export async function POST(req: Request) {
   const interacao = await prisma.interacao.create({
     data: {
       ...rest,
+      origem:    'usuario',
       usuarioId: (session.user as any).id,
       ...(clienteId ? { clienteId } : {}),
       ...(leadId    ? { leadId }    : {}),
-    } as any,
+    } as Prisma.InteracaoUncheckedCreateInput,
   })
 
   // Indexa a interação no RAG em background
