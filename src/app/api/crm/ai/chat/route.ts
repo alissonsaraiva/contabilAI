@@ -42,11 +42,25 @@ export async function POST(req: Request) {
 
   // Contexto de uso interno: contador ou admin usando o painel CRM
   // O CRM tem acesso legítimo a todos os clientes — sem restrição cross-client
-  const escopoLabel = clienteId
-    ? `cliente ID ${clienteId}`
-    : leadId
-      ? `lead ID ${leadId}`
-      : 'escopo geral do escritório'
+
+  // Resolve nome do cliente/lead para o contexto (evita expor UUID ao modelo)
+  let escopoLabel = 'escopo geral do escritório'
+  if (clienteId) {
+    const cliente = await prisma.cliente.findUnique({
+      where: { id: clienteId },
+      select: { nome: true, razaoSocial: true },
+    })
+    const nome = cliente?.razaoSocial ?? cliente?.nome
+    escopoLabel = nome ? `cliente: ${nome}` : 'cliente (dados não encontrados)'
+  } else if (leadId) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { contatoEntrada: true, dadosJson: true },
+    })
+    const dados = (lead?.dadosJson ?? {}) as Record<string, string>
+    const nome = dados['Nome completo'] ?? dados['Razão Social'] ?? lead?.contatoEntrada
+    escopoLabel = nome ? `lead: ${nome}` : 'lead (sem dados completos ainda)'
+  }
 
   let systemExtra = `CONTEXTO DE USO: Você está sendo consultado por um membro interno da equipe contábil (contador ou admin) via painel CRM. Responda de forma técnica e detalhada. O usuário tem acesso completo à base de clientes do escritório.
 

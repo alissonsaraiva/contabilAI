@@ -47,11 +47,14 @@ const JAILBREAK_PATTERNS = [
 
 // Cache de identificação: phone → contexto resolvido
 // 'desconhecido' = ainda não identificado, sem registro no banco
+// TTL de 30min: evita contexto obsoleto (ex: lead que virou cliente)
+const PHONE_CACHE_TTL_MS = 30 * 60 * 1000
 const phoneCache = new Map<string, {
   clienteId?: string
   leadId?: string
   tipo: 'cliente' | 'lead' | 'prospect' | 'desconhecido'
   conversaId?: string
+  cachedAt: number
 }>()
 
 // Normaliza número de telefone para busca — retorna variantes
@@ -239,14 +242,20 @@ export async function POST(req: Request) {
     // ── Identificação do contato ─────────────────────────────────────────────
     let cached = phoneCache.get(remoteJid)
 
+    // Invalida cache expirado
+    if (cached && Date.now() - cached.cachedAt > PHONE_CACHE_TTL_MS) {
+      phoneCache.delete(remoteJid)
+      cached = undefined
+    }
+
     if (!cached) {
       const encontrado = await buscarPorTelefone(remoteJid)
       if (encontrado.clienteId) {
-        cached = { clienteId: encontrado.clienteId, tipo: 'cliente' }
+        cached = { clienteId: encontrado.clienteId, tipo: 'cliente', cachedAt: Date.now() }
       } else if (encontrado.leadId) {
-        cached = { leadId: encontrado.leadId, tipo: 'lead' }
+        cached = { leadId: encontrado.leadId, tipo: 'lead', cachedAt: Date.now() }
       } else {
-        cached = { tipo: 'desconhecido' }
+        cached = { tipo: 'desconhecido', cachedAt: Date.now() }
       }
       phoneCache.set(remoteJid, cached)
     }
@@ -300,10 +309,35 @@ export async function POST(req: Request) {
           } catch (err) {
             console.error('[whatsapp/webhook] erro ao transcrever áudio:', err)
             await sendHumanLike(cfg, remoteJid, 'Desculpe, não consegui processar o áudio. Pode digitar sua mensagem?')
+            prisma.mensagemIA.create({
+              data: { conversaId, role: 'user', conteudo: '[áudio]', status: 'sent', whatsappMsgData: { key, message: msg } as object },
+            }).catch(() => {})
+            prisma.escalacao.create({
+              data: {
+                canal: 'whatsapp', status: 'pendente',
+                clienteId: cached.clienteId ?? null, leadId: cached.leadId ?? null,
+                remoteJid, conversaIAId: conversaId,
+                ultimaMensagem: '[Áudio não transcrito — erro na API Groq]',
+                motivoIA: `Falha na transcrição: ${(err as Error).message?.slice(0, 200)}`,
+              },
+            }).catch(() => {})
+            await prisma.conversaIA.update({ where: { id: conversaId }, data: { pausadaEm: new Date() } })
             return new Response('transcription_error', { status: 200 })
           }
         } else {
           await sendHumanLike(cfg, remoteJid, 'Recebi um áudio, mas a transcrição não está configurada. Por favor, envie sua mensagem por texto.')
+          prisma.mensagemIA.create({
+            data: { conversaId, role: 'user', conteudo: '[áudio]', status: 'sent', whatsappMsgData: { key, message: msg } as object },
+          }).catch(() => {})
+          prisma.escalacao.create({
+            data: {
+              canal: 'whatsapp', status: 'pendente',
+              clienteId: cached.clienteId ?? null, leadId: cached.leadId ?? null,
+              remoteJid, conversaIAId: conversaId,
+              ultimaMensagem: '[Áudio recebido — transcrição não configurada]',
+              motivoIA: 'Groq API key não configurada',
+            },
+          }).catch(() => {})
           return new Response('no_groq_key', { status: 200 })
         }
       } else if (mediaType === 'image') {
@@ -360,13 +394,34 @@ export async function POST(req: Request) {
 
     if (cached.clienteId) {
       context = { escopo: 'cliente+global', clienteId: cached.clienteId }
-      systemExtra = `CONTEXTO DO CONTATO: CLIENTE ATIVO\n\n${whatsappChannelGuardrail}`
+      // Busca nome do cliente para personalizar o atendimento
+      let nomeCliente: string | null = null
+      try {
+        const clienteRow = await prisma.cliente.findUnique({
+          where: { id: cached.clienteId },
+          select: { nome: true, razaoSocial: true },
+        })
+        nomeCliente = clienteRow?.razaoSocial ?? clienteRow?.nome ?? null
+      } catch { /* ignora — RAG já tem os dados */ }
+      const nomeLabel = nomeCliente ? ` — ${nomeCliente}` : ''
+      systemExtra = `CONTEXTO DO CONTATO: CLIENTE ATIVO${nomeLabel}\n\n${whatsappChannelGuardrail}`
     } else if (cached.leadId) {
       context = { escopo: 'lead+global', leadId: cached.leadId }
+      // Busca nome do lead
+      let nomeLead: string | null = null
+      try {
+        const leadRow = await prisma.lead.findUnique({
+          where: { id: cached.leadId },
+          select: { contatoEntrada: true, dadosJson: true },
+        })
+        const dados = (leadRow?.dadosJson ?? {}) as Record<string, string>
+        nomeLead = dados['Nome completo'] ?? dados['Razão Social'] ?? null
+      } catch { /* ignora */ }
       const tipoLabel = cached.tipo === 'prospect'
         ? 'PROSPECT (lead registrado, ainda não contratou)'
         : 'LEAD EM ONBOARDING (processo de contratação iniciado)'
-      systemExtra = `CONTEXTO DO CONTATO: ${tipoLabel}\n\n${whatsappChannelGuardrail}`
+      const nomeLabel = nomeLead ? ` — ${nomeLead}` : ''
+      systemExtra = `CONTEXTO DO CONTATO: ${tipoLabel}${nomeLabel}\n\n${whatsappChannelGuardrail}`
     } else {
       context = { escopo: 'global' }
       systemExtra = `CONTEXTO DO CONTATO: PRIMEIRO CONTATO (não identificado no sistema)\n\n${whatsappChannelGuardrail}`
@@ -421,7 +476,7 @@ export async function POST(req: Request) {
         // Indexa o novo lead de prospecção no RAG
         import('@/lib/rag/ingest').then(({ indexarLead }) =>
           indexarLead({ id: leadId, contatoEntrada: remoteJid.replace('@s.whatsapp.net', ''), canal: 'whatsapp', status: 'iniciado' })
-        ).catch(() => {})
+        ).catch(err => console.error('[whatsapp/webhook] falha ao indexar lead no RAG:', err))
       } catch (err) {
         console.error('[whatsapp/webhook] erro ao criar lead:', err)
       }
@@ -474,6 +529,19 @@ export async function POST(req: Request) {
       atualizarStatusMensagem(mensagemId, 'failed', {
         tentativas: sendResult.attempts,
         erroEnvio:  sendResult.error,
+      }).catch(() => {})
+      // Cria escalação para alertar operador que a mensagem não chegou ao cliente
+      prisma.escalacao.create({
+        data: {
+          canal:          'whatsapp',
+          status:         'pendente',
+          clienteId:      cached.clienteId ?? null,
+          leadId:         cached.leadId    ?? null,
+          remoteJid,
+          historico:      [...historico, { role: 'user', content: textoFinal }] as object[],
+          ultimaMensagem: textoFinal,
+          motivoIA:       `Falha na entrega após ${sendResult.attempts} tentativas: ${sendResult.error}`,
+        },
       }).catch(() => {})
     }
   } catch (err) {
