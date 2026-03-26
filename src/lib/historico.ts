@@ -15,6 +15,7 @@ import type { Prisma } from '@prisma/client'
 
 export type { TipoEvento } from '@/lib/historico-config'
 export { EVENTO_CONFIG, getEventoConfig } from '@/lib/historico-config'
+import type { TipoEvento } from '@/lib/historico-config'
 
 // ─── Payload interno ──────────────────────────────────────────────────────────
 
