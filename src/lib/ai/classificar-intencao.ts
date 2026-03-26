@@ -33,13 +33,37 @@ Exemplos:
 - "mostra os dados do cliente" → {"tipo":"acao","instrucao":"Buscar dados completos do cliente atual"}
 - "qual meu plano?" → {"tipo":"acao","instrucao":"Buscar dados do cliente incluindo plano e valor mensal"}`
 
+// ─── Fallback por keywords (quando nenhum provider disponível) ────────────────
+
+const ACAO_KEYWORDS = [
+  /\b(quantos?|quantas?)\b/i,
+  /\b(lista[rm]?|mostre?|exib[ae]|ver?|veja)\b/i,
+  /\b(prospec[çc][õo]es?|funil|pipeline|leads?)\b/i,
+  /\b(tarefas?|atividades?|pendentes?|venc[eo])\b/i,
+  /\b(clientes?|inadimpl|ativos?|cancelados?)\b/i,
+  /\b(cria[r]?|agendar?|adicionar?)\b.*\b(tarefa|atividade|lembrete)\b/i,
+  /\b(resumo|panorama|vis[ãa]o geral|como est[ãa]o)\b/i,
+  /\b(dados|informa[çc][õo]es?).*(cliente|lead|contrato)\b/i,
+]
+
+function classificarPorKeyword(mensagem: string): Intencao {
+  for (const re of ACAO_KEYWORDS) {
+    if (re.test(mensagem)) return { tipo: 'acao', instrucao: mensagem }
+  }
+  return { tipo: 'pergunta' }
+}
+
+// ─── Classificador principal ──────────────────────────────────────────────────
+
 export async function classificarIntencao(
   mensagem: string,
   contexto?: string,
 ): Promise<Intencao> {
   try {
     const config = await getAiConfig()
-    if (!config.anthropicApiKey) return { tipo: 'pergunta' }
+
+    // Sem Anthropic → tenta fallback por keywords
+    if (!config.anthropicApiKey) return classificarPorKeyword(mensagem)
 
     const provider = getProvider('claude')
     const prompt = contexto
@@ -59,7 +83,7 @@ export async function classificarIntencao(
     if (parsed.tipo !== 'pergunta' && parsed.tipo !== 'acao') return { tipo: 'pergunta' }
     return parsed
   } catch {
-    // Em caso de erro (parse, rede, etc.) → assume pergunta (fallback seguro)
-    return { tipo: 'pergunta' }
+    // Parse/rede falhou → tenta keywords antes de desistir
+    return classificarPorKeyword(mensagem)
   }
 }

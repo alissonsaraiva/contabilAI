@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
 type Estado = 'verificando' | 'ok' | 'erro'
@@ -98,9 +97,12 @@ export default function PortalVerificarPage() {
             </div>
             <h2 className="font-headline text-lg font-semibold text-on-surface">Link inválido</h2>
             <p className="text-sm text-on-surface-variant">{erroMsg}</p>
-            <Button asChild className="mt-2 h-10 w-full rounded-xl text-sm font-semibold">
-              <Link href="/portal/login">Voltar para o login</Link>
-            </Button>
+            <Link
+              href="/portal/login"
+              className="mt-2 flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
+            >
+              Voltar para o login
+            </Link>
           </div>
         )}
       </div>

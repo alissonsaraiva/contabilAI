@@ -72,7 +72,9 @@ export async function POST(req: Request) {
 
   let systemExtra = `CONTEXTO DE USO: Você está sendo consultado por um membro interno da equipe contábil (contador ou admin) via painel CRM. Responda de forma técnica e detalhada. O usuário tem acesso completo à base de clientes do escritório.
 
-FOCO ATUAL: ${escopoLabel}. Priorize informações deste contexto, mas pode consultar e comparar com outros clientes quando isso for útil para a análise.`
+FOCO ATUAL: ${escopoLabel}. Priorize informações deste contexto, mas pode consultar e comparar com outros clientes quando isso for útil para a análise.
+
+ACESSO A DADOS: Você tem acesso a dados em tempo real do CRM via sistema de agentes. Quando perguntas sobre leads, clientes, tarefas, prospecções ou dados específicos forem feitas, os dados reais serão fornecidos nesta conversa. NUNCA diga que não tem acesso ao banco de dados — caso os dados não tenham sido carregados, informe que houve um problema temporário ao consultar as informações.`
 
   const whereClause = clienteId
     ? { conversa: { clienteId } }
@@ -120,15 +122,17 @@ FOCO ATUAL: ${escopoLabel}. Priorize informações deste contexto, mas pode cons
         },
       })
 
-      if (resultado.sucesso && resultado.acoesExecutadas.length > 0) {
+      if (resultado.acoesExecutadas.length > 0) {
         // Injeta o resultado do agente como contexto real para o askAI formular a resposta
+        // Usa resultado.resposta independente de sucesso parcial — melhor do que "não tenho acesso"
         systemExtra += `\n\n--- DADOS CONSULTADOS EM TEMPO REAL ---
 ${resultado.resposta}
 --- FIM DOS DADOS REAIS ---
 Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, conversacional e objetivo. Não mencione que consultou um "agente" ou "banco de dados" — apenas apresente as informações como se fossem seu conhecimento atual.`
       }
     } catch (err) {
-      // Agente falhou → askAI responde normalmente (sem dados em tempo real)
+      // Agente falhou — instrui o LLM a informar o usuário (sem esconder o problema)
+      systemExtra += `\n\nNOTA DO SISTEMA: Ocorreu um problema temporário ao consultar os dados em tempo real. Informe o usuário de forma natural que não foi possível carregar os dados neste momento e sugira tentar novamente.`
       const { notificarAgenteFalhou } = await import('@/lib/notificacoes')
       notificarAgenteFalhou(err instanceof Error ? err.message : String(err)).catch(() => {})
     }
