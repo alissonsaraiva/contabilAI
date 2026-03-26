@@ -15,7 +15,6 @@ type FormData = {
   evolutionApiKey: string
   evolutionInstance: string
   whatsappAiEnabled: boolean
-  whatsappAiFeature: string
   systemPromptWhatsapp: string
 }
 
@@ -57,7 +56,6 @@ export default function WhatsAppPage() {
         evolutionApiKey:      '',
         evolutionInstance:    data.evolutionInstance ?? '',
         whatsappAiEnabled:    data.whatsappAiEnabled ?? false,
-        whatsappAiFeature:    data.whatsappAiFeature ?? 'onboarding',
         systemPromptWhatsapp: data.systemPromptWhatsapp ?? '',
       })
     })
@@ -111,7 +109,7 @@ export default function WhatsAppPage() {
         evolutionApiUrl:      data.evolutionApiUrl,
         evolutionInstance:    data.evolutionInstance,
         whatsappAiEnabled:    data.whatsappAiEnabled,
-        whatsappAiFeature:    data.whatsappAiFeature,
+        whatsappAiFeature:    'whatsapp',
         systemPromptWhatsapp: data.systemPromptWhatsapp,
       }
       if (data.evolutionApiKey) payload.evolutionApiKey = data.evolutionApiKey
@@ -124,11 +122,10 @@ export default function WhatsAppPage() {
       if (!res.ok) throw new Error()
       toast.success('Configurações salvas')
       reset({
-        evolutionApiUrl: data.evolutionApiUrl,
-        evolutionApiKey: '',
-        evolutionInstance: data.evolutionInstance,
-        whatsappAiEnabled: data.whatsappAiEnabled,
-        whatsappAiFeature: data.whatsappAiFeature,
+        evolutionApiUrl:      data.evolutionApiUrl,
+        evolutionApiKey:      '',
+        evolutionInstance:    data.evolutionInstance,
+        whatsappAiEnabled:    data.whatsappAiEnabled,
         systemPromptWhatsapp: data.systemPromptWhatsapp,
       })
     } catch {
@@ -372,16 +369,6 @@ export default function WhatsAppPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <label className={LABEL}>Canal de conhecimento</label>
-            <select {...register('whatsappAiFeature')} className={`${INPUT} cursor-pointer`}>
-              <option value="onboarding">Onboarding — indicado para novos contatos</option>
-              <option value="portal">Portal — foco em atendimento ao cliente</option>
-              <option value="crm">CRM — acesso à base interna</option>
-            </select>
-            <p className="text-[11px] text-on-surface-variant/50">Define qual base de conhecimento será usada nas respostas.</p>
-          </div>
-
           <div className="space-y-1.5">
             <label className={LABEL}>System Prompt — WhatsApp</label>
             <textarea
