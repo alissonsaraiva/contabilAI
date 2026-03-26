@@ -121,3 +121,5 @@ setTimeout(() => {
   checkAiHealth()
   setInterval(checkAiHealth, AI_HEALTH_INTERVAL_MS)
 }, 60_000)
+
+export {}
