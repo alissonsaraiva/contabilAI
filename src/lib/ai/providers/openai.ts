@@ -1,4 +1,4 @@
-import type { AIProvider, AIRequest, AIResponse } from './types'
+import type { AIProvider, AIRequest, AIResponse, AIMessageContentPart } from './types'
 
 export const openaiProvider: AIProvider = {
   name: 'openai',
@@ -22,7 +22,16 @@ export const openaiProvider: AIProvider = {
         temperature,
         messages: [
           { role: 'system', content: system },
-          ...messages.map(m => ({ role: m.role, content: m.content })),
+          ...messages.map(m => ({
+            role: m.role,
+            content: typeof m.content === 'string'
+              ? m.content
+              : m.content.map((part: AIMessageContentPart) =>
+                  part.type === 'text'
+                    ? { type: 'text', text: part.text }
+                    : { type: 'image_url', image_url: { url: `data:${part.mediaType};base64,${part.data}` } }
+                ),
+          })),
         ],
       }),
     })

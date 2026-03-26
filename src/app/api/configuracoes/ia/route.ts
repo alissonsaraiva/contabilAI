@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth'
 import { encrypt, maskKey, isEncrypted } from '@/lib/crypto'
 
 // Campos que são chaves secretas — encriptados no banco, mascarados na resposta
-const SECRET_FIELDS = ['anthropicApiKey', 'voyageApiKey', 'openaiApiKey', 'googleApiKey', 'evolutionApiKey'] as const
+const SECRET_FIELDS = ['anthropicApiKey', 'voyageApiKey', 'openaiApiKey', 'googleApiKey', 'evolutionApiKey', 'groqApiKey'] as const
 type SecretField = typeof SECRET_FIELDS[number]
 
 // GET — retorna config com chaves mascaradas
@@ -24,6 +24,7 @@ export async function GET() {
       openaiBaseUrl: true,
       openaiModel: true,
       googleApiKey: true,
+      groqApiKey: true,
       aiModelOnboarding: true,
       aiModelCrm: true,
       aiModelPortal: true,

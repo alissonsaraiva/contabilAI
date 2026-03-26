@@ -1,6 +1,10 @@
+export type AIMessageContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; mediaType: string; data: string }  // base64
+
 export type AIMessage = {
   role: 'user' | 'assistant'
-  content: string
+  content: string | AIMessageContentPart[]
 }
 
 export type AIRequest = {

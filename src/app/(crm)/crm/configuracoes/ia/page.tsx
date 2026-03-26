@@ -21,6 +21,7 @@ type FormData = {
   openaiApiKey: string
   openaiBaseUrl: string
   googleApiKey: string
+  groqApiKey: string
   aiProviderOnboarding: string
   aiProviderCrm: string
   aiProviderPortal: string
@@ -118,6 +119,7 @@ export default function ConfiguracoesIAPage() {
         openaiApiKey:          '',
         openaiBaseUrl:         data.openaiBaseUrl   ?? '',
         googleApiKey:          '',
+        groqApiKey:            '',
         aiProviderOnboarding:  data.aiProviderOnboarding ?? 'claude',
         aiProviderCrm:         data.aiProviderCrm        ?? 'claude',
         aiProviderPortal:      data.aiProviderPortal     ?? 'claude',
@@ -135,6 +137,7 @@ export default function ConfiguracoesIAPage() {
         voyageApiKey:    { configured: !!data.voyageApiKeyConfigured,    masked: data.voyageApiKey },
         openaiApiKey:    { configured: !!data.openaiApiKeyConfigured,    masked: data.openaiApiKey },
         googleApiKey:    { configured: !!data.googleApiKeyConfigured,    masked: data.googleApiKey },
+        groqApiKey:      { configured: !!data.groqApiKeyConfigured,      masked: data.groqApiKey },
       })
     })
   }, [reset])
@@ -169,6 +172,7 @@ export default function ConfiguracoesIAPage() {
           openaiApiKey:    data.openaiApiKey,
           openaiBaseUrl:   data.openaiBaseUrl,
           googleApiKey:    data.googleApiKey,
+          groqApiKey:      data.groqApiKey,
         }),
       })
       if (!res.ok) throw new Error()
@@ -179,12 +183,14 @@ export default function ConfiguracoesIAPage() {
         voyageApiKey:    { configured: !!updated.voyageApiKeyConfigured,    masked: updated.voyageApiKey },
         openaiApiKey:    { configured: !!updated.openaiApiKeyConfigured,    masked: updated.openaiApiKey },
         googleApiKey:    { configured: !!updated.googleApiKeyConfigured,    masked: updated.googleApiKey },
+        groqApiKey:      { configured: !!updated.groqApiKeyConfigured,      masked: updated.groqApiKey },
       })
       // Reset key fields
       setValue('anthropicApiKey', '')
       setValue('voyageApiKey', '')
       setValue('openaiApiKey', '')
       setValue('googleApiKey', '')
+      setValue('groqApiKey', '')
       // Reload models with new keys
       loadModels()
     } catch {
@@ -314,6 +320,10 @@ export default function ConfiguracoesIAPage() {
               <KeyField label="Google API Key" description="Necessária para usar Gemini"
                 placeholder="AIza..." fieldName="googleApiKey"
                 status={status.googleApiKey} register={register} />
+
+              <KeyField label="Groq API Key" description="Transcrição de áudio via Whisper (gratuito) — obtenha em console.groq.com"
+                placeholder="gsk_..." fieldName="groqApiKey"
+                status={status.groqApiKey} register={register} />
             </div>
           </div>
 

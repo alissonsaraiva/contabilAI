@@ -9,6 +9,7 @@ export type AiConfig = {
   openaiBaseUrl: string | null
   openaiModel: string | null
   googleApiKey: string | null
+  groqApiKey: string | null
   models: {
     onboarding: string
     crm: string
@@ -58,6 +59,7 @@ export async function getAiConfig(): Promise<AiConfig> {
         openaiBaseUrl: true,
         openaiModel: true,
         googleApiKey: true,
+        groqApiKey: true,
         aiModelOnboarding: true,
         aiModelCrm: true,
         aiModelPortal: true,
@@ -95,6 +97,7 @@ export async function getAiConfig(): Promise<AiConfig> {
     openaiBaseUrl:   s('openaiBaseUrl')  ?? process.env.OPENAI_BASE_URL  ?? null,
     openaiModel:     s('openaiModel')    ?? process.env.OPENAI_MODEL     ?? null,
     googleApiKey:    safeDecrypt(s('googleApiKey'))   ?? process.env.GOOGLE_API_KEY   ?? null,
+    groqApiKey:      safeDecrypt(s('groqApiKey'))     ?? process.env.GROQ_API_KEY     ?? null,
 
     models: {
       onboarding: s('aiModelOnboarding') ?? 'claude-haiku-4-5-20251001',

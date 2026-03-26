@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
-import { sendText, type EvolutionConfig } from '@/lib/evolution'
+import type { EvolutionConfig } from '@/lib/evolution'
 import { askAI, detectarEscalacao } from '@/lib/ai/ask'
 import type { AskContext } from '@/lib/ai/ask'
 import {
@@ -10,6 +10,10 @@ import {
   addMensagemUsuario,
   atualizarIdentidadeConversa,
 } from '@/lib/ai/conversa'
+import { sendHumanLike } from '@/lib/whatsapp/human-like'
+import { downloadMedia, detectMediaType, extractMediaCaption, extractMimeType, extractPdfText } from '@/lib/whatsapp/media'
+import { transcribeAudio } from '@/lib/ai/transcribe'
+import type { AIMessageContentPart } from '@/lib/ai/providers/types'
 
 export const runtime = 'nodejs'
 
@@ -128,28 +132,55 @@ export async function POST(req: Request) {
   }
 
   const remoteJid = key.remoteJid as string
+
+  // ── Filtra origens não-humanas ────────────────────────────────────────────
+  // Grupos — @g.us
   if (remoteJid.includes('@g.us')) return new Response('group', { status: 200 })
+  // Status/stories do WhatsApp — @broadcast ou status@broadcast
+  if (remoteJid.includes('@broadcast') || remoteJid.startsWith('status@')) return new Response('broadcast', { status: 200 })
+  // Canais/newsletters — @newsletter
+  if (remoteJid.includes('@newsletter')) return new Response('newsletter', { status: 200 })
+
+  // ── Filtra tipos de mensagem que não exigem resposta da IA ────────────────
+  const msg = data.message as Record<string, unknown> | null
+
+  // Reações (👍 ❤️ etc.) — não geram resposta
+  if (msg?.reactionMessage) return new Response('reaction', { status: 200 })
+  // Mensagens editadas — não reprocessar
+  if (msg?.editedMessage || (data.messageType as string) === 'editedMessage') return new Response('edit', { status: 200 })
+  // Mensagens deletadas/revogadas
+  if (msg?.protocolMessage) return new Response('protocol', { status: 200 })
+  // Notificações de sistema (entrou no grupo, alterou número, etc.)
+  if (data.messageStubType) return new Response('stub', { status: 200 })
+  // Enquetes
+  if (msg?.pollCreationMessage || msg?.pollUpdateMessage) return new Response('poll', { status: 200 })
+  // Contatos e localização — sem resposta útil por enquanto
+  if (msg?.contactMessage || msg?.contactsArrayMessage) return new Response('contact', { status: 200 })
+  if (msg?.locationMessage || msg?.liveLocationMessage) return new Response('location', { status: 200 })
 
   // Rate limiting — descarta mensagens recebidas em menos de RATE_LIMIT_MS após a última resposta
   const now = Date.now()
   const last = lastResponse.get(remoteJid)
   if (last && now - last < RATE_LIMIT_MS) return new Response('rate_limited', { status: 200 })
 
-  const msg = data.message as Record<string, unknown> | null
-  const text = (
+  const textRaw = (
     (msg?.conversation as string | undefined) ||
     ((msg?.extendedTextMessage as Record<string, unknown> | undefined)?.text as string | undefined) ||
     ''
   ).trim()
 
-  if (!text) return new Response('no text', { status: 200 })
+  // Detecta tipo de mídia (áudio, imagem, documento)
+  const mediaType = msg ? detectMediaType(msg) : null
+
+  // Se não há texto nem mídia reconhecida, ignora
+  if (!textRaw && !mediaType) return new Response('no text', { status: 200 })
 
   // Trunca mensagens muito longas antes de qualquer processamento
-  const textTruncado = text.length > MAX_MSG_LENGTH ? text.slice(0, MAX_MSG_LENGTH) : text
+  const textTruncado = textRaw.length > MAX_MSG_LENGTH ? textRaw.slice(0, MAX_MSG_LENGTH) : textRaw
 
   // Remove marcadores de controle internos para prevenir injeção de prompt
   const textSanitizado = textTruncado.replace(/##LEAD##|##HUMANO##/gi, '').trim()
-  if (!textSanitizado) return new Response('no text after sanitize', { status: 200 })
+  if (!textSanitizado && !mediaType) return new Response('no text after sanitize', { status: 200 })
 
   // Detecta padrões de jailbreak — loga para auditoria e bloqueia
   const isJailbreakAttempt = JAILBREAK_PATTERNS.some(p => p.test(textSanitizado))
@@ -162,12 +193,14 @@ export async function POST(req: Request) {
   let cfg: EvolutionConfig | null = null
   let aiEnabled = false
   let aiFeature = 'whatsapp'
+  let groqApiKey: string | null = null
 
   try {
     const row = await prisma.escritorio.findFirst({
       select: {
         evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true,
         whatsappAiEnabled: true, whatsappAiFeature: true,
+        groqApiKey: true,
       },
     })
     if (row?.evolutionApiUrl && row.evolutionApiKey && row.evolutionInstance) {
@@ -180,6 +213,7 @@ export async function POST(req: Request) {
     }
     aiEnabled = row?.whatsappAiEnabled ?? false
     aiFeature = row?.whatsappAiFeature ?? 'whatsapp'
+    groqApiKey = row?.groqApiKey ? (isEncrypted(row.groqApiKey as string) ? decrypt(row.groqApiKey as string) : row.groqApiKey as string) : null
   } catch { /* DB indisponível */ }
 
   if (!cfg || !aiEnabled) return new Response('ai disabled', { status: 200 })
@@ -234,6 +268,79 @@ export async function POST(req: Request) {
     // Carrega histórico persistido
     const historico = await getHistorico(conversaId)
 
+    // ── Processa mídia (áudio, imagem, PDF) ──────────────────────────────────
+    let textoFinal = textSanitizado
+    let mediaContentParts: AIMessageContentPart[] | null = null
+
+    if (mediaType && cfg) {
+      const caption = extractMediaCaption(msg!)
+      const mimeType = extractMimeType(msg!)
+
+      if (mediaType === 'audio') {
+        if (groqApiKey) {
+          try {
+            const media = await downloadMedia(cfg, { key, message: msg! })
+            if (media) {
+              const transcript = await transcribeAudio(media.buffer, media.mimeType || mimeType, groqApiKey)
+              if (transcript) {
+                textoFinal = transcript
+                console.log('[whatsapp/webhook] áudio transcrito:', transcript.slice(0, 80))
+              }
+            }
+          } catch (err) {
+            console.error('[whatsapp/webhook] erro ao transcrever áudio:', err)
+            await sendHumanLike(cfg, remoteJid, 'Desculpe, não consegui processar o áudio. Pode digitar sua mensagem?')
+            return new Response('transcription_error', { status: 200 })
+          }
+        } else {
+          await sendHumanLike(cfg, remoteJid, 'Recebi um áudio, mas a transcrição não está configurada. Por favor, envie sua mensagem por texto.')
+          return new Response('no_groq_key', { status: 200 })
+        }
+      } else if (mediaType === 'image') {
+        try {
+          const media = await downloadMedia(cfg, { key, message: msg! })
+          if (media) {
+            mediaContentParts = [
+              { type: 'image', mediaType: media.mimeType, data: media.buffer.toString('base64') },
+              ...(caption ? [{ type: 'text' as const, text: caption }] : []),
+            ]
+            textoFinal = caption || '[imagem enviada]'
+          }
+        } catch (err) {
+          console.error('[whatsapp/webhook] erro ao processar imagem:', err)
+        }
+      } else if (mediaType === 'document') {
+        try {
+          const media = await downloadMedia(cfg, { key, message: msg! })
+          if (media) {
+            if (media.mimeType.includes('pdf')) {
+              const pdfText = await extractPdfText(media.buffer)
+              const fileName = media.fileName ?? 'documento'
+              if (pdfText) {
+                textoFinal = `[Documento recebido: ${fileName}]\n\n${pdfText.slice(0, 3000)}`
+                console.log('[whatsapp/webhook] PDF extraído, chars:', pdfText.length)
+              }
+            } else if (media.mimeType.startsWith('image/')) {
+              // Documento é uma imagem (ex: foto de nota fiscal)
+              mediaContentParts = [
+                { type: 'image', mediaType: media.mimeType, data: media.buffer.toString('base64') },
+                ...(caption ? [{ type: 'text' as const, text: caption }] : []),
+              ]
+              textoFinal = caption || '[documento/imagem enviado]'
+            }
+          }
+        } catch (err) {
+          console.error('[whatsapp/webhook] erro ao processar documento:', err)
+        }
+      }
+    }
+
+    // Se não conseguiu extrair conteúdo algum, responde pedindo texto
+    if (!textoFinal && !mediaContentParts) {
+      await sendHumanLike(cfg, remoteJid, 'Desculpe, não consegui processar essa mensagem. Pode enviar por texto?')
+      return new Response('no_content', { status: 200 })
+    }
+
     // ── Monta contexto RAG ────────────────────────────────────────────────────
     let context: AskContext
     let systemExtra: string | undefined
@@ -257,12 +364,13 @@ export async function POST(req: Request) {
 
     // ── Chama a IA ────────────────────────────────────────────────────────────
     const result = await askAI({
-      pergunta:   textSanitizado,
+      pergunta:        textoFinal,
       context,
-      feature:    aiFeature as 'whatsapp',
+      feature:         aiFeature as 'whatsapp',
       historico,
       systemExtra,
-      maxTokens:  512,
+      maxTokens:       512,
+      mediaContent:    mediaContentParts ?? undefined,
     })
 
     // ── Detecta marcador ##LEAD## ─────────────────────────────────────────────
@@ -292,7 +400,7 @@ export async function POST(req: Request) {
         // Passa o histórico completo (inclui a mensagem atual) para a escalação
         const historicoEscalacao = [
           ...historico,
-          { role: 'user' as const, content: text },
+          { role: 'user' as const, content: textoFinal },
           { role: 'assistant' as const, content: resposta },
         ]
         await prisma.escalacao.create({
@@ -318,9 +426,9 @@ export async function POST(req: Request) {
     }
 
     // ── Persiste par user+assistant no banco ──────────────────────────────────
-    addMensagens(conversaId, textSanitizado, resposta)
+    addMensagens(conversaId, textoFinal, resposta)
 
-    await sendText(cfg, remoteJid, resposta)
+    await sendHumanLike(cfg, remoteJid, resposta)
     lastResponse.set(remoteJid, Date.now())
   } catch (err) {
     console.error('[whatsapp/webhook] erro:', err)

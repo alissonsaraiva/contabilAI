@@ -3,6 +3,7 @@ import type { SearchOpts, SearchResult } from '@/lib/rag'
 import type { TipoConhecimento, CanalRAG } from '@/lib/rag/types'
 import { getProvider } from './providers'
 import type { AIMessage } from './providers'
+import type { AIMessageContentPart } from './providers/types'
 import { getAiConfig } from './config'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -25,6 +26,7 @@ export type AskOpts = {
   tipos?: TipoConhecimento[]
   maxChunks?: number
   maxTokens?: number
+  mediaContent?: AIMessageContentPart[]
 }
 
 export type AskResult = {
@@ -96,8 +98,14 @@ Pessoa que entrou em contato sem histórico no sistema.
 - Use o contexto fornecido para embasar suas respostas
 - Nunca invente valores, prazos ou obrigações fiscais — se não tiver certeza, informe que vai verificar com a equipe
 - Seja cordial mas profissional
-- Mantenha as respostas curtas e diretas (canal WhatsApp — evite textos longos)
+- Mantenha as respostas curtas e diretas — evite textos longos
 - Para fechamento de contrato ou dúvidas complexas, direcione para falar com um contador da equipe
+
+## Formato obrigatório (chat — sem renderização de markdown)
+- NUNCA use markdown: sem **, ##, ---, __, _, \`código\`, [links], etc. — o chat exibe texto puro
+- Para listas, use "•" no início de cada item
+- Ao apresentar múltiplos planos ou opções, apresente um resumo curto e pergunte em qual a pessoa quer saber mais
+- Separe assuntos diferentes em mensagens curtas e naturais, como numa conversa de WhatsApp
 
 ## Escalonamento para humano
 Quando você identificar que a situação está ALÉM da sua capacidade de resolver bem — por exemplo: reclamação grave, situação emocional delicada, questão jurídica complexa, cliente muito insatisfeito, ou qualquer situação que exija julgamento humano — coloque exatamente o marcador ##HUMANO## no INÍCIO da sua resposta, seguido de uma linha com o motivo resumido entre colchetes, e depois o texto que será enviado ao contato.
@@ -117,6 +125,7 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     tipos,
     maxChunks = 5,
     maxTokens = 1024,
+    mediaContent,
   } = opts
 
   // 1. Carrega configuração (DB > env vars)
@@ -156,9 +165,15 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
 
   // 5. Chama o provider com credenciais da config
   const provider = getProvider(featureProvider)
+
+  // Última mensagem do usuário: usa mediaContent se disponível
+  const lastUserMessage: AIMessage = mediaContent && mediaContent.length > 0
+    ? { role: 'user', content: [...mediaContent, { type: 'text' as const, text: pergunta }] }
+    : { role: 'user', content: pergunta }
+
   const result = await provider.complete({
     system: systemParts.join('\n\n'),
-    messages: [...historico, { role: 'user', content: pergunta }],
+    messages: [...historico, lastUserMessage],
     maxTokens,
     temperature: 0.3,
     model,

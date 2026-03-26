@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { splitIntoChunks, calcTypingDelay, stripMarkdown } from '@/lib/utils/split-chunks'
 
 type Msg = { role: 'user' | 'assistant'; text: string }
 
@@ -15,9 +16,15 @@ function newSessionId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+// Gate: só renderiza o widget quando o lead já foi criado (leadId na URL)
 export function ChatWidget() {
   const searchParams = useSearchParams()
   const leadId = searchParams.get('leadId') ?? undefined
+  if (!leadId) return null
+  return <ChatWidgetInner leadId={leadId} />
+}
+
+function ChatWidgetInner({ leadId }: { leadId: string }) {
   const [sessionId] = useState(newSessionId)
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([GREETING])
@@ -57,6 +64,16 @@ export function ChatWidget() {
     return () => { if (pollRef.current) clearTimeout(pollRef.current) }
   }, [])
 
+  // Exibe chunks um por um com delay (comportamento humano)
+  async function displayChunks(chunks: string[]) {
+    for (const chunk of chunks) {
+      const delay = calcTypingDelay(chunk, 800, 3000)
+      await new Promise(resolve => setTimeout(resolve, delay))
+      setMsgs(m => [...m, { role: 'assistant', text: chunk }])
+    }
+    setLoading(false)
+  }
+
   async function handleSend() {
     const text = input.trim()
     if (!text || loading || escalacaoId) return
@@ -73,14 +90,21 @@ export function ChatWidget() {
         body: JSON.stringify({ message: text, history, leadId, sessionId }),
       })
       const data = await res.json()
+
       if (data.escalado && data.escalacaoId) {
         setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
         setEscalacaoId(data.escalacaoId)
         startPolling(data.escalacaoId)
         // loading permanece true até o poll resolver
       } else {
-        setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
-        setLoading(false)
+        // Divide em chunks e exibe um por um com delay (imita digitação humana)
+        const chunks = splitIntoChunks(data.reply ?? '')
+        if (chunks.length <= 1) {
+          setMsgs(m => [...m, { role: 'assistant', text: stripMarkdown(data.reply ?? '') }])
+          setLoading(false)
+        } else {
+          await displayChunks(chunks)
+        }
       }
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Desculpe, ocorreu um erro. Tente novamente.' }])

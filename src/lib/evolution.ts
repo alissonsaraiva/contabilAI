@@ -71,3 +71,16 @@ export async function setWebhook(cfg: EvolutionConfig, webhookUrl: string) {
     events: ['MESSAGES_UPSERT'],
   })
 }
+
+// Envia indicador de digitação (composing) por durationMs milissegundos
+export async function sendPresence(cfg: EvolutionConfig, to: string, durationMs: number = 2000) {
+  const number = to.replace('@s.whatsapp.net', '').replace('@g.us', '')
+  try {
+    return await evo(cfg, 'POST', `/chat/sendPresence/${cfg.instance}`, {
+      number,
+      options: { presence: 'composing', delay: durationMs },
+    })
+  } catch {
+    // Ignora erros de presença — não crítico
+  }
+}

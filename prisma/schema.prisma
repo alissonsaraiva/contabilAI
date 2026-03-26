@@ -388,6 +388,7 @@ model Escritorio {
   openaiBaseUrl     String?
   openaiModel       String?
   googleApiKey      String?  @db.Text
+  groqApiKey        String?  @db.Text
   aiModelOnboarding String?  @default("claude-haiku-4-5-20251001")
   aiModelCrm        String?  @default("claude-haiku-4-5-20251001")
   aiModelPortal     String?  @default("claude-haiku-4-5-20251001")
