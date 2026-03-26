@@ -1,32 +1,43 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
+import { useAssistente } from './assistente-context'
 
 type Msg = { role: 'user' | 'assistant'; text: string }
-
-const GREETING: Msg = {
-  role: 'assistant',
-  text: 'Olá! Sou a Clara, sua assistente de CRM. Pergunte qualquer coisa sobre este cliente — histórico de conversas, obrigações fiscais, situação do contrato, etc.',
-}
 
 function newSessionId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
-type Props = {
-  clienteId?: string
-  leadId?: string
-  nomeCliente: string
-}
+export function AssistenteCRM() {
+  const { clienteId, leadId, nomeCliente } = useAssistente()
 
-export function AssistenteCRM({ clienteId, leadId, nomeCliente }: Props) {
   const [open, setOpen] = useState(false)
-  const [msgs, setMsgs] = useState<Msg[]>([GREETING])
+  const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionId] = useState(newSessionId)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Greeting dinâmico baseado no contexto atual
+  const greeting: Msg = {
+    role: 'assistant',
+    text: clienteId || leadId
+      ? `Olá! Sou a Clara. Estou com o contexto de **${nomeCliente}** carregado — histórico de conversas, dados fiscais, interações e contratos. O que quer saber?`
+      : 'Olá! Sou a Clara, sua assistente de CRM. Posso ajudar com informações gerais do escritório, comparar clientes, ou navegar até um cliente/lead para ter contexto específico.',
+  }
+
+  // Reseta o chat quando o contexto muda (troca de cliente/lead)
+  const prevContextRef = useRef({ clienteId, leadId })
+  useEffect(() => {
+    const prev = prevContextRef.current
+    if (prev.clienteId !== clienteId || prev.leadId !== leadId) {
+      setMsgs([])
+      prevContextRef.current = { clienteId, leadId }
+    }
+  }, [clienteId, leadId])
 
   useEffect(() => {
     if (open) {
@@ -59,6 +70,8 @@ export function AssistenteCRM({ clienteId, leadId, nomeCliente }: Props) {
       setLoading(false)
     }
   }, [input, loading, sessionId, clienteId, leadId])
+
+  const allMsgs = msgs.length === 0 ? [greeting] : msgs
 
   return (
     <>
@@ -94,7 +107,7 @@ export function AssistenteCRM({ clienteId, leadId, nomeCliente }: Props) {
 
         {/* Mensagens */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 custom-scrollbar">
-          {msgs.map((m, i) => (
+          {allMsgs.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {m.role === 'assistant' && (
                 <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -103,12 +116,27 @@ export function AssistenteCRM({ clienteId, leadId, nomeCliente }: Props) {
                   </span>
                 </div>
               )}
-              <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap ${
+              <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
                 m.role === 'user'
-                  ? 'bg-primary text-white rounded-br-md'
+                  ? 'bg-primary text-white rounded-br-md whitespace-pre-wrap'
                   : 'bg-surface-container-low text-on-surface rounded-bl-md'
               }`}>
-                {m.text}
+                {m.role === 'assistant' ? (
+                  <ReactMarkdown components={{
+                    h1: ({ children }) => <p className="font-bold text-[14px] mt-2 mb-1 text-on-surface">{children}</p>,
+                    h2: ({ children }) => <p className="font-semibold text-[13px] mt-2 mb-1 text-on-surface">{children}</p>,
+                    h3: ({ children }) => <p className="font-semibold text-[12px] mt-1.5 mb-0.5 text-on-surface">{children}</p>,
+                    p:  ({ children }) => <p className="my-1">{children}</p>,
+                    strong: ({ children }) => <strong className="font-semibold text-on-surface">{children}</strong>,
+                    ul: ({ children }) => <ul className="my-1 space-y-0.5 pl-3">{children}</ul>,
+                    ol: ({ children }) => <ol className="my-1 space-y-0.5 pl-3 list-decimal">{children}</ol>,
+                    li: ({ children }) => <li className="flex gap-1.5"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-on-surface-variant/50" /><span>{children}</span></li>,
+                    hr: () => <hr className="my-2 border-outline-variant/20" />,
+                    code: ({ children }) => <code className="rounded bg-surface-container px-1 py-0.5 text-[11px] font-mono">{children}</code>,
+                  }}>
+                    {m.text}
+                  </ReactMarkdown>
+                ) : m.text}
               </div>
             </div>
           ))}
@@ -136,7 +164,7 @@ export function AssistenteCRM({ clienteId, leadId, nomeCliente }: Props) {
             <input
               ref={inputRef}
               className="flex-1 bg-transparent text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none"
-              placeholder="Pergunte sobre este cliente..."
+              placeholder={clienteId || leadId ? `Perguntar sobre ${nomeCliente}...` : 'Perguntar sobre o escritório...'}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
@@ -151,7 +179,7 @@ export function AssistenteCRM({ clienteId, leadId, nomeCliente }: Props) {
             </button>
           </div>
           <p className="mt-1.5 text-center text-[10px] text-on-surface-variant/40">
-            Acesso total — histórico, dados do contrato, conversas
+            {clienteId || leadId ? 'Acesso total — histórico, dados do contrato, conversas' : 'Contexto geral do escritório'}
           </p>
         </div>
       </div>

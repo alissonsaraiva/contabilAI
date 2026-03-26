@@ -14,7 +14,7 @@ import Link from 'next/link'
 import { NovaInteracaoDrawer } from '@/components/crm/nova-interacao-drawer'
 import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
-import { AssistenteCRM } from '@/components/crm/assistente-crm'
+import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
 
 type Props = { params: Promise<{ id: string }> }
@@ -506,7 +506,7 @@ export default async function ClienteDetailPage({ params }: Props) {
         </TabsContent>
       </Tabs>
 
-      <AssistenteCRM
+      <AssistenteContextSetter
         clienteId={cliente.id}
         leadId={cliente.leadId ?? undefined}
         nomeCliente={cliente.nome}

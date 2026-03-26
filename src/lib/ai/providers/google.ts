@@ -17,6 +17,7 @@ export const googleProvider: AIProvider = {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
         model: resolvedModel,
@@ -39,8 +40,8 @@ export const googleProvider: AIProvider = {
     })
 
     if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`Google Gemini API error ${res.status}: ${err}`)
+      const err = await res.text().catch(() => '')
+      throw new Error(`Google Gemini API error ${res.status}: ${err.slice(0, 300)}`)
     }
 
     const data = await res.json() as {

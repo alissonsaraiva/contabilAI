@@ -10,6 +10,7 @@ import { HistoricoList } from '@/components/crm/historico-list'
 import { IniciarOnboardingBtn } from '@/components/crm/iniciar-onboarding-btn'
 import { WhatsAppLeadDrawerButton } from '@/components/crm/whatsapp-lead-drawer-button'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
+import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -278,6 +279,11 @@ export default async function LeadDetailPage({ params }: Props) {
           <HistoricoList interacoes={lead.interacoes} />
         )}
       </div>
+
+      <AssistenteContextSetter
+        leadId={lead.id}
+        nomeCliente={nomeExibido ?? 'Lead'}
+      />
     </div>
   )
 }

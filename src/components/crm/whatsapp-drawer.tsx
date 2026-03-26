@@ -70,6 +70,15 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
   const [sending, setSending] = useState(false)
   const [reativando, setReativando] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const isNearBottomRef = useRef(true)
+  const isFirstLoadRef = useRef(true)
+
+  function onScroll() {
+    const el = scrollContainerRef.current
+    if (!el) return
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+  }
 
   const carregar = useCallback(async () => {
     try {
@@ -88,14 +97,27 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
   }, [apiPath])
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      isFirstLoadRef.current = true
+      return
+    }
     carregar()
     const interval = setInterval(carregar, POLL_INTERVAL)
     return () => clearInterval(interval)
   }, [open, carregar])
 
   useEffect(() => {
-    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!open || mensagens.length === 0) return
+    if (isFirstLoadRef.current) {
+      // Primeira carga: vai direto ao fundo sem animação
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+      isFirstLoadRef.current = false
+      return
+    }
+    // Polls seguintes: só rola se o usuário já estiver perto do fundo
+    if (isNearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [mensagens, open])
 
   async function enviar() {
@@ -191,7 +213,7 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
           )}
 
           {/* Mensagens */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
+          <div ref={scrollContainerRef} onScroll={onScroll} className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
             {semNumero ? (
               <div className="flex h-full flex-col items-center justify-center py-12 text-center">
                 <span className="material-symbols-outlined mb-3 text-[40px] text-on-surface-variant/25">

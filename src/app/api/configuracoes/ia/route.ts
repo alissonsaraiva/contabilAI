@@ -144,7 +144,10 @@ export async function POST() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.voyageApiKey}` },
       body: JSON.stringify({ input: ['test'], model: 'voyage-3-lite' }),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`)
+    }
     return { ok: true, label: 'voyage-3-lite' }
   }
 
@@ -155,7 +158,10 @@ export async function POST() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.groqApiKey}` },
       body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`)
+    }
     return { ok: true, label: 'whisper + llama-3.1' }
   }
 
@@ -168,7 +174,10 @@ export async function POST() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.openaiApiKey}` },
       body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`)
+    }
     return { ok: true, label: model }
   }
 
@@ -177,10 +186,13 @@ export async function POST() {
     const res = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.googleApiKey}` },
-      body: JSON.stringify({ model: 'gemini-2.0-flash', messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
+      body: JSON.stringify({ model: 'gemini-2.0-flash-lite', messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return { ok: true, label: 'gemini-2.0-flash' }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`)
+    }
+    return { ok: true, label: 'gemini-2.0-flash-lite' }
   }
 
   const wrap = async (fn: () => Promise<R>): Promise<R> => {
