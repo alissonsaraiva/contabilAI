@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation'
 type Props = {
   escalacaoId: string
   canal: string
+  nomeIa?: string
 }
 
 type Modo = 'ia' | 'direto'
 
-export function EscalacaoResponder({ escalacaoId, canal }: Props) {
+export function EscalacaoResponder({ escalacaoId, canal, nomeIa = 'Clara' }: Props) {
   const router = useRouter()
   const [modo, setModo] = useState<Modo>('ia')
   const [conteudo, setConteudo] = useState('')
@@ -85,10 +86,10 @@ export function EscalacaoResponder({ escalacaoId, canal }: Props) {
               style={{ fontVariationSettings: "'FILL' 1" }}>
               smart_toy
             </span>
-            <span className="text-[13px] font-semibold text-on-surface">Orientar Clara</span>
+            <span className="text-[13px] font-semibold text-on-surface">Orientar {nomeIa}</span>
           </div>
           <p className="text-[11px] text-on-surface-variant">
-            Clara reformula sua orientação no tom dela antes de enviar
+            {nomeIa} reformula sua orientação no tom dela antes de enviar
           </p>
         </button>
 
@@ -116,7 +117,7 @@ export function EscalacaoResponder({ escalacaoId, canal }: Props) {
       {/* Textarea */}
       <div>
         <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
-          {modo === 'ia' ? 'Sua orientação para a Clara' : 'Mensagem para o cliente'}
+          {modo === 'ia' ? `Sua orientação para ${nomeIa}` : 'Mensagem para o cliente'}
         </label>
         <textarea
           rows={4}
@@ -144,7 +145,7 @@ export function EscalacaoResponder({ escalacaoId, canal }: Props) {
           {loading ? (
             <>
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              {modo === 'ia' ? 'Clara está reformulando...' : 'Enviando...'}
+              {modo === 'ia' ? `${nomeIa} está reformulando...` : 'Enviando...'}
             </>
           ) : (
             <>
@@ -152,13 +153,13 @@ export function EscalacaoResponder({ escalacaoId, canal }: Props) {
                 style={{ fontVariationSettings: "'FILL' 1" }}>
                 {modo === 'ia' ? 'smart_toy' : 'send'}
               </span>
-              {modo === 'ia' ? 'Enviar via Clara' : 'Enviar diretamente'}
+              {modo === 'ia' ? `Enviar via ${nomeIa}` : 'Enviar diretamente'}
             </>
           )}
         </button>
         <p className="text-[11px] text-on-surface-variant/50">
           {modo === 'ia'
-            ? 'Clara reformulará e enviará automaticamente'
+            ? `${nomeIa} reformulará e enviará automaticamente`
             : 'A mensagem será enviada como está'}
         </p>
       </div>

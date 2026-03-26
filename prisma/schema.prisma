@@ -399,11 +399,19 @@ model Escritorio {
   aiModelCrm        String?  @default("claude-haiku-4-5-20251001")
   aiModelPortal     String?  @default("claude-haiku-4-5-20251001")
   aiModelWhatsapp   String?  @default("claude-haiku-4-5-20251001")
+  aiModelAgente     String?  @default("claude-haiku-4-5-20251001")
 
   aiProviderOnboarding String?  @default("claude")
   aiProviderCrm        String?  @default("claude")
   aiProviderPortal     String?  @default("claude")
   aiProviderWhatsapp   String?  @default("claude")
+  aiProviderAgente     String?  @default("claude")
+
+  // Nome de cada IA por feature (cada uma pode ter identidade própria)
+  nomeAssistenteOnboarding String?
+  nomeAssistenteCrm        String?
+  nomeAssistentePortal     String?
+  nomeAssistenteWhatsapp   String?
 
   // System prompts por feature (substituem o prompt padrão hardcoded)
   systemPromptOnboarding String? @db.Text
@@ -459,15 +467,16 @@ model ConversaIA {
 }
 
 model MensagemIA {
-  id          String         @id @default(uuid())
-  conversaId  String
-  conversa    ConversaIA     @relation(fields: [conversaId], references: [id], onDelete: Cascade)
-  role        String         // 'user' | 'assistant'
-  conteudo    String         @db.Text
-  status      StatusMensagem @default(pending)
-  tentativas  Int            @default(0)
-  erroEnvio   String?        @db.Text
-  criadaEm    DateTime       @default(now())
+  id                String         @id @default(uuid())
+  conversaId        String
+  conversa          ConversaIA     @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  role              String         // 'user' | 'assistant'
+  conteudo          String         @db.Text
+  status            StatusMensagem @default(pending)
+  tentativas        Int            @default(0)
+  erroEnvio         String?        @db.Text
+  whatsappMsgData   Json?          // payload { key, message } para re-fetch de mídia na Evolution
+  criadaEm          DateTime       @default(now())
 
   @@index([conversaId, criadaEm])
   @@map("mensagens_ia")
@@ -479,6 +488,7 @@ model Escalacao {
   status           StatusEscalacao  @default(pendente)
   clienteId        String?
   leadId           String?
+  conversaIAId     String?          // referência à ConversaIA (quando disponível)
   remoteJid        String?          // número WA ex: 5585988765432@s.whatsapp.net
   sessionId        String?          // para onboarding widget
   historico        Json             // array de { role, content }
@@ -491,4 +501,22 @@ model Escalacao {
   atualizadoEm    DateTime         @updatedAt
 
   @@map("escalacoes")
+}
+
+model AgenteAcao {
+  id            String   @id @default(uuid())
+  clienteId     String?
+  leadId        String?
+  solicitanteAI String   // 'crm' | 'whatsapp' | 'portal' | 'onboarding'
+  tool          String   // nome da ferramenta executada
+  input         Json     // parâmetros passados para a ferramenta
+  resultado     Json     // { sucesso, resumo, erro, dados }
+  sucesso       Boolean
+  duracaoMs     Int
+  criadoEm     DateTime @default(now())
+
+  @@index([clienteId, criadoEm])
+  @@index([leadId, criadoEm])
+  @@index([tool, criadoEm])
+  @@map("agente_acoes")
 }

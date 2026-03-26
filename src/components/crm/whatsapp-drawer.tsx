@@ -64,6 +64,8 @@ class WhatsAppDrawerBoundary extends Component<
 export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [pausada, setPausada] = useState(false)
+  const [conversaId, setConversaId] = useState<string | null>(null)
+  const [assumindo, setAssumindo] = useState(false)
   const [telefone, setTelefone] = useState<string | null>(null)
   const [semNumero, setSemNumero] = useState(false)
   const [texto, setTexto] = useState('')
@@ -92,6 +94,7 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
       setSemNumero(false)
       setMensagens(data.mensagens ?? [])
       setPausada(data.pausada ?? false)
+      setConversaId(data.conversa?.id ?? null)
       setTelefone(data.telefone ?? null)
     } catch {}
   }, [apiPath])
@@ -149,6 +152,24 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
     }
   }
 
+  async function assumirControle() {
+    if (!conversaId) return
+    setAssumindo(true)
+    try {
+      await fetch('/api/conversas/pausar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversaId }),
+      })
+      setPausada(true)
+      toast.success('Você assumiu o controle desta conversa')
+    } catch {
+      toast.error('Erro ao assumir controle')
+    } finally {
+      setAssumindo(false)
+    }
+  }
+
   async function reativarIA() {
     setReativando(true)
     try {
@@ -186,12 +207,21 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
               <button
                 onClick={reativarIA}
                 disabled={reativando}
-                className="flex items-center gap-1.5 rounded-full bg-orange-status/10 px-3 py-1.5 text-[11px] font-semibold text-orange-status transition-colors hover:bg-orange-status/20 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
               >
                 <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>
                   smart_toy
                 </span>
-                Reativar IA
+                {reativando ? 'Devolvendo...' : 'Devolver para IA'}
+              </button>
+            ) : conversaId ? (
+              <button
+                onClick={assumirControle}
+                disabled={assumindo}
+                className="flex items-center gap-1.5 rounded-full bg-surface-container px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[13px]">support_agent</span>
+                {assumindo ? 'Assumindo...' : 'Assumir controle'}
               </button>
             ) : mensagens.length > 0 ? (
               <span className="flex items-center gap-1 rounded-full bg-[#25D366]/10 px-2.5 py-1 text-[11px] font-semibold text-[#25D366]">
@@ -207,7 +237,7 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
           {pausada && (
             <div className="shrink-0 border-b border-orange-status/10 bg-orange-status/5 px-5 py-2.5">
               <p className="text-[12px] text-orange-status">
-                <span className="font-semibold">IA pausada.</span> Você está no controle. O contato não receberá respostas automáticas até você reativar.
+                <span className="font-semibold">Você está no controle.</span> A IA está pausada — o contato não receberá respostas automáticas até você devolver para a IA.
               </p>
             </div>
           )}
@@ -252,7 +282,14 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
                             : 'rounded-br-md bg-primary text-white'
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{m.conteudo}</p>
+                      {m.conteudo === '[áudio]' ? (
+                        <div className="flex flex-col gap-1">
+                          <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-8 w-44 rounded-md" />
+                          <p className="text-[10px] text-on-surface-variant/50">Áudio não transcrito</p>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{m.conteudo}</p>
+                      )}
                       <p className={`mt-1 text-[10px] ${m.role === 'user' ? 'text-on-surface-variant/50' : m.status === 'failed' ? 'text-error/60' : 'text-white/50'}`}>
                         {new Date(m.criadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </p>

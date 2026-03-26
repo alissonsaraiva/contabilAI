@@ -1,7 +1,28 @@
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 
+// ─── Cache em memória com TTL ─────────────────────────────────────────────────
+// Evita hit no banco a cada requisição de IA (pode ser centenas por minuto).
+// Invalidado explicitamente quando o admin salva a config.
+
+const CONFIG_TTL_MS = 60_000  // 60 segundos
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __aiConfigCache: { config: AiConfig; expiresAt: number } | undefined
+}
+
+export function invalidateAiConfigCache(): void {
+  global.__aiConfigCache = undefined
+}
+
 export type AiConfig = {
+  nomeAssistentes: {
+    onboarding: string | null
+    crm: string | null
+    portal: string | null
+    whatsapp: string | null
+  }
   provider: string
   anthropicApiKey: string | null
   voyageApiKey: string | null
@@ -15,12 +36,14 @@ export type AiConfig = {
     crm: string
     portal: string
     whatsapp: string
+    agente: string
   }
   providers: {
     onboarding: string
     crm: string
     portal: string
     whatsapp: string
+    agente: string
   }
   systemPrompts: {
     onboarding: string | null
@@ -47,11 +70,20 @@ function safeDecrypt(val: string | null | undefined): string | null {
 
 // Lê configuração de IA — DB tem prioridade sobre env vars
 export async function getAiConfig(): Promise<AiConfig> {
+  // Retorna do cache se ainda válido
+  if (global.__aiConfigCache && Date.now() < global.__aiConfigCache.expiresAt) {
+    return global.__aiConfigCache.config
+  }
+
   let row: Record<string, unknown> = {}
 
   try {
     const fetched = await prisma.escritorio.findFirst({
       select: {
+        nomeAssistenteOnboarding: true,
+        nomeAssistenteCrm: true,
+        nomeAssistentePortal: true,
+        nomeAssistenteWhatsapp: true,
         aiProvider: true,
         anthropicApiKey: true,
         voyageApiKey: true,
@@ -64,10 +96,12 @@ export async function getAiConfig(): Promise<AiConfig> {
         aiModelCrm: true,
         aiModelPortal: true,
         aiModelWhatsapp: true,
+        aiModelAgente: true,
         aiProviderOnboarding: true,
         aiProviderCrm: true,
         aiProviderPortal: true,
         aiProviderWhatsapp: true,
+        aiProviderAgente: true,
         systemPromptOnboarding: true,
         systemPromptCrm: true,
         systemPromptPortal: true,
@@ -88,29 +122,64 @@ export async function getAiConfig(): Promise<AiConfig> {
 
   const s = (k: string) => (row[k] as string | null | undefined) ?? null
 
-  return {
-    provider: s('aiProvider') ?? process.env.AI_PROVIDER ?? 'claude',
+  const defaultModelForProvider = (provider: string | null, openaiModel: string | null): string => {
+    switch (provider) {
+      case 'google': return 'gemini-2.5-flash'
+      case 'groq':   return 'llama-3.1-8b-instant'
+      case 'openai': return openaiModel ?? 'gpt-4o-mini'
+      default:       return 'claude-haiku-4-5-20251001'
+    }
+  }
+
+  // Usa o modelo salvo, mas ignora nomes Claude quando o provider não é Anthropic
+  const resolveModel = (stored: string | null, provider: string, openaiModel: string | null): string => {
+    if (!stored || (stored.startsWith('claude-') && provider !== 'claude')) {
+      return defaultModelForProvider(provider, openaiModel)
+    }
+    return stored
+  }
+
+  const globalProvider = s('aiProvider') ?? process.env.AI_PROVIDER ?? 'claude'
+  const openaiModel    = s('openaiModel') ?? process.env.OPENAI_MODEL ?? null
+
+  const providerOnboarding = s('aiProviderOnboarding') ?? globalProvider
+  const providerCrm        = s('aiProviderCrm')        ?? globalProvider
+  const providerPortal     = s('aiProviderPortal')     ?? globalProvider
+  const providerWhatsapp   = s('aiProviderWhatsapp')   ?? globalProvider
+  // Agente sempre usa Claude (tool use nativo) — fallback para o provider global se configurado
+  const providerAgente     = s('aiProviderAgente')     ?? 'claude'
+
+  const config: AiConfig = {
+    nomeAssistentes: {
+      onboarding: s('nomeAssistenteOnboarding'),
+      crm:        s('nomeAssistenteCrm'),
+      portal:     s('nomeAssistentePortal'),
+      whatsapp:   s('nomeAssistenteWhatsapp'),
+    },
+    provider: globalProvider,
 
     anthropicApiKey: safeDecrypt(s('anthropicApiKey')) ?? process.env.ANTHROPIC_API_KEY ?? null,
     voyageApiKey:    safeDecrypt(s('voyageApiKey'))    ?? process.env.VOYAGE_API_KEY    ?? null,
     openaiApiKey:    safeDecrypt(s('openaiApiKey'))    ?? process.env.OPENAI_API_KEY    ?? null,
     openaiBaseUrl:   s('openaiBaseUrl')  ?? process.env.OPENAI_BASE_URL  ?? null,
-    openaiModel:     s('openaiModel')    ?? process.env.OPENAI_MODEL     ?? null,
+    openaiModel,
     googleApiKey:    safeDecrypt(s('googleApiKey'))   ?? process.env.GOOGLE_API_KEY   ?? null,
     groqApiKey:      safeDecrypt(s('groqApiKey'))     ?? process.env.GROQ_API_KEY     ?? null,
 
     models: {
-      onboarding: s('aiModelOnboarding') ?? 'claude-haiku-4-5-20251001',
-      crm:        s('aiModelCrm')        ?? 'claude-haiku-4-5-20251001',
-      portal:     s('aiModelPortal')     ?? 'claude-haiku-4-5-20251001',
-      whatsapp:   s('aiModelWhatsapp')   ?? 'claude-haiku-4-5-20251001',
+      onboarding: resolveModel(s('aiModelOnboarding'), providerOnboarding, openaiModel),
+      crm:        resolveModel(s('aiModelCrm'),        providerCrm,        openaiModel),
+      portal:     resolveModel(s('aiModelPortal'),     providerPortal,     openaiModel),
+      whatsapp:   resolveModel(s('aiModelWhatsapp'),   providerWhatsapp,   openaiModel),
+      agente:     resolveModel(s('aiModelAgente'),     providerAgente,     openaiModel),
     },
 
     providers: {
-      onboarding: s('aiProviderOnboarding') ?? s('aiProvider') ?? 'claude',
-      crm:        s('aiProviderCrm')        ?? s('aiProvider') ?? 'claude',
-      portal:     s('aiProviderPortal')     ?? s('aiProvider') ?? 'claude',
-      whatsapp:   s('aiProviderWhatsapp')   ?? s('aiProvider') ?? 'claude',
+      onboarding: providerOnboarding,
+      crm:        providerCrm,
+      portal:     providerPortal,
+      whatsapp:   providerWhatsapp,
+      agente:     providerAgente,
     },
 
     systemPrompts: {
@@ -127,4 +196,8 @@ export async function getAiConfig(): Promise<AiConfig> {
       token:      safeDecrypt(s('evolutionApiKey')) ?? process.env.EVOLUTION_API_KEY ?? null,
     },
   }
+
+  // Armazena no cache antes de retornar
+  global.__aiConfigCache = { config, expiresAt: Date.now() + CONFIG_TTL_MS }
+  return config
 }

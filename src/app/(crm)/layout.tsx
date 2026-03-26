@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { CrmSidebar } from '@/components/layout/crm-sidebar'
 import { CrmHeader } from '@/components/layout/crm-header'
 import { getEscritorioConfig } from '@/lib/escritorio'
+import { getAiConfig } from '@/lib/ai/config'
 import { AssistenteProvider } from '@/components/crm/assistente-context'
 import { AssistenteCRM } from '@/components/crm/assistente-crm'
 
@@ -11,9 +12,10 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const session = await auth()
   if (!session) redirect('/login')
 
-  const [pendingEscalacoes, escritorio] = await Promise.all([
+  const [pendingEscalacoes, escritorio, aiConfig] = await Promise.all([
     prisma.escalacao.count({ where: { status: 'pendente' } }).catch(() => 0),
     getEscritorioConfig(),
+    getAiConfig(),
   ])
 
   return (
@@ -25,7 +27,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <main className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">{children}</main>
         </div>
       </div>
-      <AssistenteCRM />
+      <AssistenteCRM nomeIa={aiConfig.nomeAssistentes.crm ?? undefined} />
     </AssistenteProvider>
   )
 }

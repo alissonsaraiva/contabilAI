@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { encrypt, maskKey, isEncrypted } from '@/lib/crypto'
+import { invalidateAiConfigCache } from '@/lib/ai/config'
 
 // Campos que são chaves secretas — encriptados no banco, mascarados na resposta
 const SECRET_FIELDS = ['anthropicApiKey', 'voyageApiKey', 'openaiApiKey', 'googleApiKey', 'evolutionApiKey', 'groqApiKey'] as const
@@ -17,6 +18,10 @@ export async function GET() {
 
   const row = await prisma.escritorio.findFirst({
     select: {
+      nomeAssistenteOnboarding: true,
+      nomeAssistenteCrm: true,
+      nomeAssistentePortal: true,
+      nomeAssistenteWhatsapp: true,
       aiProvider: true,
       anthropicApiKey: true,
       voyageApiKey: true,
@@ -29,10 +34,12 @@ export async function GET() {
       aiModelCrm: true,
       aiModelPortal: true,
       aiModelWhatsapp: true,
+      aiModelAgente: true,
       aiProviderOnboarding: true,
       aiProviderCrm: true,
       aiProviderPortal: true,
       aiProviderWhatsapp: true,
+      aiProviderAgente: true,
       systemPromptOnboarding: true,
       systemPromptCrm: true,
       systemPromptPortal: true,
@@ -71,9 +78,10 @@ export async function PUT(req: Request) {
 
   // Campos de texto simples
   const plainFields = [
+    'nomeAssistenteOnboarding', 'nomeAssistenteCrm', 'nomeAssistentePortal', 'nomeAssistenteWhatsapp',
     'aiProvider', 'openaiBaseUrl', 'openaiModel',
-    'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal', 'aiModelWhatsapp',
-    'aiProviderOnboarding', 'aiProviderCrm', 'aiProviderPortal', 'aiProviderWhatsapp',
+    'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal', 'aiModelWhatsapp', 'aiModelAgente',
+    'aiProviderOnboarding', 'aiProviderCrm', 'aiProviderPortal', 'aiProviderWhatsapp', 'aiProviderAgente',
     'systemPromptOnboarding', 'systemPromptCrm', 'systemPromptPortal',
     // WhatsApp (saved from both IA and WhatsApp pages)
     'systemPromptWhatsapp', 'whatsappAiEnabled', 'whatsappAiFeature',
@@ -107,6 +115,9 @@ export async function PUT(req: Request) {
     update: { ...data, atualizadoEm: new Date() },
     create: { id: 'singleton', ...data },
   })
+
+  // Invalida o cache em memória para que a nova config seja lida imediatamente
+  invalidateAiConfigCache()
 
   return NextResponse.json({ ok: true })
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
+import { getAiConfig } from '@/lib/ai/config'
 import { formatBRL, formatCPF, formatCNPJ, formatDate, formatDateTime, formatTelefone } from '@/lib/utils'
 import {
   STATUS_CLIENTE_LABELS,
@@ -69,23 +70,27 @@ const DOC_STATUS_COLORS: Record<string, string> = {
 
 export default async function ClienteDetailPage({ params }: Props) {
   const { id } = await params
-  const cliente = await prisma.cliente.findUnique({
-    where: { id },
-    include: {
-      socios: true,
-      documentos: true,
-      contratos: true,
-      tarefas: { orderBy: { criadoEm: 'desc' }, take: 10 },
-      interacoes: {
-        orderBy: { criadoEm: 'desc' },
-        take: 30,
-        include: { usuario: { select: { nome: true } } },
+  const [aiConfig, cliente] = await Promise.all([
+    getAiConfig(),
+    prisma.cliente.findUnique({
+      where: { id },
+      include: {
+        socios: true,
+        documentos: true,
+        contratos: true,
+        tarefas: { orderBy: { criadoEm: 'desc' }, take: 10 },
+        interacoes: {
+          orderBy: { criadoEm: 'desc' },
+          take: 30,
+          include: { usuario: { select: { nome: true } } },
+        },
+        responsavel: { select: { nome: true } },
       },
-      responsavel: { select: { nome: true } },
-    },
-  })
+    }),
+  ])
 
   if (!cliente) notFound()
+  const nomeIa = aiConfig.nomeAssistentes.crm ?? 'Assistente'
 
   // Conversas IA: pelo clienteId direto + pelo leadId de origem
   const leadIds = cliente.leadId ? [cliente.leadId] : []
@@ -488,7 +493,7 @@ export default async function ClienteDetailPage({ params }: Props) {
                       <div className="mt-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3">
                         <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-primary/70">
                           <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
-                          Sugestão de resposta da Clara
+                          Sugestão de resposta de {nomeIa}
                         </p>
                         <p className="text-[13px] leading-relaxed text-on-surface-variant whitespace-pre-wrap">
                           {(i.metadados as any).sugestao}

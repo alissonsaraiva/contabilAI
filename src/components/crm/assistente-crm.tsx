@@ -10,7 +10,7 @@ function newSessionId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
-export function AssistenteCRM() {
+export function AssistenteCRM({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const { clienteId, leadId, nomeCliente } = useAssistente()
 
   const [open, setOpen] = useState(false)
@@ -25,8 +25,8 @@ export function AssistenteCRM() {
   const greeting: Msg = {
     role: 'assistant',
     text: clienteId || leadId
-      ? `Olá! Sou a Clara. Estou com o contexto de **${nomeCliente}** carregado — histórico de conversas, dados fiscais, interações e contratos. O que quer saber?`
-      : 'Olá! Sou a Clara, sua assistente de CRM. Posso ajudar com informações gerais do escritório, comparar clientes, ou navegar até um cliente/lead para ter contexto específico.',
+      ? `Olá! Sou ${nomeIa}. Estou com o contexto de **${nomeCliente}** carregado — histórico de conversas, dados fiscais, interações e contratos. O que quer saber?`
+      : `Olá! Sou ${nomeIa}, sua assistente de CRM. Posso ajudar com informações gerais do escritório, comparar clientes, ou navegar até um cliente/lead para ter contexto específico.`,
   }
 
   // Reseta o chat quando o contexto muda (troca de cliente/lead)

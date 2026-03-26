@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { formatDateTime } from '@/lib/utils'
 import Link from 'next/link'
 import { EscalacaoResponder } from '@/components/crm/escalacao-responder'
+import { getAiConfig } from '@/lib/ai/config'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -13,8 +14,12 @@ const CANAL_LABEL: Record<string, string> = {
 
 export default async function AtendimentoDetailPage({ params }: Props) {
   const { id } = await params
-  const esc = await prisma.escalacao.findUnique({ where: { id } })
+  const [esc, aiConfig] = await Promise.all([
+    prisma.escalacao.findUnique({ where: { id } }),
+    getAiConfig(),
+  ])
   if (!esc) notFound()
+  const nomeIa = (esc.canal === 'whatsapp' ? aiConfig.nomeAssistentes.whatsapp : aiConfig.nomeAssistentes.onboarding) ?? 'Assistente'
 
   const historico = (esc.historico as { role: string; content: string }[]) ?? []
   const resolvida = esc.status === 'resolvida'
@@ -61,7 +66,7 @@ export default async function AtendimentoDetailPage({ params }: Props) {
           </span>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-orange-status mb-1">
-              Motivo do escalonamento (Clara)
+              Motivo do escalonamento ({nomeIa})
             </p>
             <p className="text-[13px] text-on-surface">{esc.motivoIA}</p>
           </div>
@@ -87,7 +92,7 @@ export default async function AtendimentoDetailPage({ params }: Props) {
                   <p className={`mb-1 text-[10px] font-bold uppercase tracking-wider ${
                     m.role === 'user' ? 'text-white/60' : 'text-on-surface-variant/60'
                   }`}>
-                    {m.role === 'user' ? 'Cliente' : 'Clara'}
+                    {m.role === 'user' ? 'Cliente' : nomeIa}
                   </p>
                   {m.content}
                 </div>
@@ -127,7 +132,7 @@ export default async function AtendimentoDetailPage({ params }: Props) {
           )}
         </div>
       ) : (
-        <EscalacaoResponder escalacaoId={id} canal={esc.canal} />
+        <EscalacaoResponder escalacaoId={id} canal={esc.canal} nomeIa={nomeIa} />
       )}
     </div>
   )

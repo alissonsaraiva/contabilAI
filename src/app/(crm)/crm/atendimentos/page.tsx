@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { formatDateTime } from '@/lib/utils'
 import { AssumiirBtn } from './_components/assumir-btn'
+import { DevolverIaBtn } from './_components/devolver-ia-btn'
 
 const CANAL_ICON: Record<string, string> = {
   whatsapp:   'forum',
@@ -40,8 +42,7 @@ export default async function AtendimentosPage() {
     }),
     prisma.conversaIA.findMany({
       where: {
-        canal:     { not: 'crm' },
-        pausadaEm: null,
+        canal:        { not: 'crm' },
         atualizadaEm: { gte: limite24h },
       },
       orderBy: { atualizadaEm: 'desc' },
@@ -82,7 +83,7 @@ export default async function AtendimentosPage() {
           <span className="rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-bold text-on-surface-variant">
             {conversasAtivas.length}
           </span>
-          <span className="text-[11px] text-on-surface-variant/50">(últimas 24h, não pausadas)</span>
+          <span className="text-[11px] text-on-surface-variant/50">(últimas 24h)</span>
         </div>
 
         {conversasAtivas.length === 0 ? (
@@ -105,18 +106,20 @@ export default async function AtendimentosPage() {
               const canalLabel = CANAL_LABEL[c.canal] ?? c.canal
               const canalColor = CANAL_COLOR[c.canal] ?? 'text-on-surface-variant'
 
-              const destino = c.clienteId
-                ? `/crm/clientes/${c.clienteId}`
-                : c.leadId
-                ? `/crm/leads/${c.leadId}`
-                : null
+              const destino = `/crm/atendimentos/conversa/${c.id}`
+
+              const CardWrapper = ({ children }: { children: ReactNode }) => (
+                <Link
+                  href={destino}
+                  className="group block rounded-[14px] border border-outline-variant/15 bg-card p-4 shadow-sm transition-colors hover:bg-surface-container"
+                >
+                  {children}
+                </Link>
+              )
 
               return (
-                <div
-                  key={c.id}
-                  className="rounded-[14px] border border-outline-variant/15 bg-card p-4 shadow-sm"
-                >
-                  {/* Canal + hora */}
+                <CardWrapper key={c.id}>
+                  {/* Canal + hora + badge pausada */}
                   <div className="mb-2 flex items-center gap-2">
                     <span className={`material-symbols-outlined text-[16px] ${canalColor}`}
                       style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -131,13 +134,7 @@ export default async function AtendimentosPage() {
                   </div>
 
                   {/* Nome */}
-                  {destino ? (
-                    <Link href={destino} className="hover:underline">
-                      <p className="truncate text-[13px] font-semibold text-on-surface">{nomeExibido}</p>
-                    </Link>
-                  ) : (
-                    <p className="truncate text-[13px] font-semibold text-on-surface">{nomeExibido}</p>
-                  )}
+                  <p className="truncate text-[13px] font-semibold text-on-surface">{nomeExibido}</p>
 
                   {/* Última mensagem */}
                   {ultimaMensagem && (
@@ -149,8 +146,11 @@ export default async function AtendimentosPage() {
                     </p>
                   )}
 
-                  <AssumiirBtn conversaId={c.id} />
-                </div>
+                  {c.pausadaEm
+                    ? <DevolverIaBtn conversaId={c.id} />
+                    : <AssumiirBtn conversaId={c.id} />
+                  }
+                </CardWrapper>
               )
             })}
           </div>

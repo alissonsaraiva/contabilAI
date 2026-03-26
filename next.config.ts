@@ -25,7 +25,13 @@ const nextConfig: NextConfig = {
     'imapflow',
     'mailparser',
   ],
-  turbopack: {},
+  turbopack: {
+    // node:crypto e outros built-ins Node.js não existem no Edge Runtime
+    // Esta alias garante que o bundler Turbopack não os inclua no bundle Edge
+    resolveAlias: {
+      crypto: 'node:crypto',
+    },
+  },
   experimental: {
     cpus: 1,
     optimizePackageImports: [
@@ -36,7 +42,13 @@ const nextConfig: NextConfig = {
       'date-fns',
     ],
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, nextRuntime }) => {
+    // Previne warning de 'crypto' no Edge runtime — o código nunca executa lá
+    // (instrumentation.ts só importa instrumentation-node quando NEXT_RUNTIME === 'nodejs')
+    if (nextRuntime === 'edge') {
+      config.resolve = config.resolve ?? {}
+      config.resolve.fallback = { ...config.resolve.fallback, crypto: false }
+    }
     if (!isServer) {
       config.cache = false
     }

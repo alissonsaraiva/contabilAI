@@ -18,6 +18,10 @@ type TestResult = { ok: boolean; label?: string; error?: string }
 type TestResults = { anthropic: TestResult; voyage: TestResult; groq: TestResult; openai: TestResult; google: TestResult }
 
 type FormData = {
+  nomeAssistenteOnboarding: string
+  nomeAssistenteCrm: string
+  nomeAssistentePortal: string
+  nomeAssistenteWhatsapp: string
   anthropicApiKey: string
   voyageApiKey: string
   openaiApiKey: string
@@ -28,10 +32,12 @@ type FormData = {
   aiProviderCrm: string
   aiProviderPortal: string
   aiProviderWhatsapp: string
+  aiProviderAgente: string
   aiModelOnboarding: string
   aiModelCrm: string
   aiModelPortal: string
   aiModelWhatsapp: string
+  aiModelAgente: string
   systemPromptOnboarding: string
   systemPromptCrm: string
   systemPromptPortal: string
@@ -85,10 +91,11 @@ const PROVIDERS = [
 ]
 
 const SUB_IAS = [
-  { providerField: 'aiProviderOnboarding' as const, modelField: 'aiModelOnboarding' as const, promptField: 'systemPromptOnboarding' as const, label: 'Chat Onboarding',  icon: 'chat_bubble',   desc: 'Triagem de novos clientes' },
-  { providerField: 'aiProviderCrm'        as const, modelField: 'aiModelCrm'        as const, promptField: 'systemPromptCrm'        as const, label: 'Assistente CRM',   icon: 'support_agent', desc: 'Auxílio interno para o contador' },
-  { providerField: 'aiProviderPortal'     as const, modelField: 'aiModelPortal'     as const, promptField: 'systemPromptPortal'     as const, label: 'Portal Cliente',   icon: 'person',        desc: 'Chat do cliente com o escritório' },
-  { providerField: 'aiProviderWhatsapp'   as const, modelField: 'aiModelWhatsapp'   as const, promptField: null,                              label: 'IA WhatsApp',      icon: 'chat',          desc: 'Respostas automáticas via WhatsApp' },
+  { providerField: 'aiProviderOnboarding' as const, modelField: 'aiModelOnboarding' as const, promptField: 'systemPromptOnboarding' as const, nameField: 'nomeAssistenteOnboarding' as const, label: 'Chat Onboarding',    icon: 'chat_bubble',   desc: 'Triagem de novos clientes', note: null },
+  { providerField: 'aiProviderCrm'        as const, modelField: 'aiModelCrm'        as const, promptField: 'systemPromptCrm'        as const, nameField: 'nomeAssistenteCrm'        as const, label: 'Assistente CRM',   icon: 'support_agent', desc: 'Auxílio interno para o contador', note: null },
+  { providerField: 'aiProviderPortal'     as const, modelField: 'aiModelPortal'     as const, promptField: 'systemPromptPortal'     as const, nameField: 'nomeAssistentePortal'     as const, label: 'Portal Cliente',   icon: 'person',        desc: 'Chat do cliente com o escritório', note: null },
+  { providerField: 'aiProviderWhatsapp'   as const, modelField: 'aiModelWhatsapp'   as const, promptField: null,                              nameField: 'nomeAssistenteWhatsapp'   as const, label: 'IA WhatsApp',      icon: 'chat',          desc: 'Respostas automáticas via WhatsApp', note: null },
+  { providerField: 'aiProviderAgente'     as const, modelField: 'aiModelAgente'     as const, promptField: null,                              nameField: null,                               label: 'Agente Operacional', icon: 'smart_toy',    desc: 'Executa tarefas e consultas no CRM', note: 'Requer suporte a tool use. Recomendado: Claude.' },
 ]
 
 export default function ConfiguracoesIAPage() {
@@ -102,14 +109,20 @@ export default function ConfiguracoesIAPage() {
 
   const { register, handleSubmit, watch, setValue, reset } = useForm<FormData>({
     defaultValues: {
+      nomeAssistenteOnboarding: '',
+      nomeAssistenteCrm:        '',
+      nomeAssistentePortal:     '',
+      nomeAssistenteWhatsapp:   '',
       aiProviderOnboarding: 'claude',
       aiProviderCrm:        'claude',
       aiProviderPortal:     'claude',
       aiProviderWhatsapp:   'claude',
+      aiProviderAgente:     'claude',
       aiModelOnboarding:    'claude-haiku-4-5-20251001',
       aiModelCrm:           'claude-haiku-4-5-20251001',
       aiModelPortal:        'claude-haiku-4-5-20251001',
       aiModelWhatsapp:      'claude-haiku-4-5-20251001',
+      aiModelAgente:        'claude-haiku-4-5-20251001',
     },
   })
 
@@ -117,6 +130,10 @@ export default function ConfiguracoesIAPage() {
   useEffect(() => {
     fetch('/api/configuracoes/ia').then(r => r.json()).then(data => {
       reset({
+        nomeAssistenteOnboarding: data.nomeAssistenteOnboarding ?? '',
+        nomeAssistenteCrm:        data.nomeAssistenteCrm        ?? '',
+        nomeAssistentePortal:     data.nomeAssistentePortal     ?? '',
+        nomeAssistenteWhatsapp:   data.nomeAssistenteWhatsapp   ?? '',
         anthropicApiKey:       '',
         voyageApiKey:          '',
         openaiApiKey:          '',
@@ -127,10 +144,12 @@ export default function ConfiguracoesIAPage() {
         aiProviderCrm:         data.aiProviderCrm        ?? 'claude',
         aiProviderPortal:      data.aiProviderPortal     ?? 'claude',
         aiProviderWhatsapp:    data.aiProviderWhatsapp   ?? 'claude',
+        aiProviderAgente:      data.aiProviderAgente     ?? 'claude',
         aiModelOnboarding:     data.aiModelOnboarding    ?? 'claude-haiku-4-5-20251001',
         aiModelCrm:            data.aiModelCrm           ?? 'claude-haiku-4-5-20251001',
         aiModelPortal:         data.aiModelPortal        ?? 'claude-haiku-4-5-20251001',
         aiModelWhatsapp:       data.aiModelWhatsapp      ?? 'claude-haiku-4-5-20251001',
+        aiModelAgente:         data.aiModelAgente        ?? 'claude-haiku-4-5-20251001',
         systemPromptOnboarding: data.systemPromptOnboarding ?? '',
         systemPromptCrm:        data.systemPromptCrm        ?? '',
         systemPromptPortal:     data.systemPromptPortal     ?? '',
@@ -210,14 +229,20 @@ export default function ConfiguracoesIAPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          nomeAssistenteOnboarding: data.nomeAssistenteOnboarding || null,
+          nomeAssistenteCrm:        data.nomeAssistenteCrm        || null,
+          nomeAssistentePortal:     data.nomeAssistentePortal     || null,
+          nomeAssistenteWhatsapp:   data.nomeAssistenteWhatsapp   || null,
           aiProviderOnboarding:  data.aiProviderOnboarding,
           aiProviderCrm:         data.aiProviderCrm,
           aiProviderPortal:      data.aiProviderPortal,
           aiProviderWhatsapp:    data.aiProviderWhatsapp,
+          aiProviderAgente:      data.aiProviderAgente,
           aiModelOnboarding:     data.aiModelOnboarding,
           aiModelCrm:            data.aiModelCrm,
           aiModelPortal:         data.aiModelPortal,
           aiModelWhatsapp:       data.aiModelWhatsapp,
+          aiModelAgente:         data.aiModelAgente,
           systemPromptOnboarding: data.systemPromptOnboarding,
           systemPromptCrm:        data.systemPromptCrm,
           systemPromptPortal:     data.systemPromptPortal,
@@ -251,6 +276,7 @@ export default function ConfiguracoesIAPage() {
     aiProviderCrm:        watch('aiProviderCrm'),
     aiProviderPortal:     watch('aiProviderPortal'),
     aiProviderWhatsapp:   watch('aiProviderWhatsapp'),
+    aiProviderAgente:     watch('aiProviderAgente'),
   }
 
   return (
@@ -408,7 +434,7 @@ export default function ConfiguracoesIAPage() {
           )}
 
           <div className="space-y-4">
-            {SUB_IAS.map(({ providerField, modelField, promptField, label, icon, desc }) => {
+            {SUB_IAS.map(({ providerField, modelField, promptField, nameField, label, icon, desc, note }) => {
               const selectedProvider = watchedProviders[providerField] as 'claude' | 'openai' | 'google'
               const providerData = allModels[selectedProvider] ?? allModels.claude
               const models = providerData.models
@@ -484,6 +510,19 @@ export default function ConfiguracoesIAPage() {
                     )}
                   </div>
 
+                  {/* Nome da IA (identidade desta assistente) */}
+                  {nameField && (
+                    <div className="mb-4">
+                      <label className="text-[12px] font-semibold text-on-surface-variant mb-1.5 block">Nome da IA</label>
+                      <input
+                        {...register(nameField)}
+                        type="text"
+                        placeholder="Ex: Clara, Sofia, Ana... (deixe em branco para omitir)"
+                        className={INPUT}
+                      />
+                    </div>
+                  )}
+
                   {/* System prompt (not for WhatsApp — managed in WhatsApp page) */}
                   {promptField && (
                     <div>
@@ -496,10 +535,16 @@ export default function ConfiguracoesIAPage() {
                       />
                     </div>
                   )}
-                  {!promptField && (
+                  {!promptField && !note && (
                     <p className="text-[11px] text-on-surface-variant/60 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[13px]">info</span>
                       O system prompt do WhatsApp é configurado na aba WhatsApp
+                    </p>
+                  )}
+                  {note && (
+                    <p className="text-[11px] text-amber-600 flex items-center gap-1 mt-1">
+                      <span className="material-symbols-outlined text-[13px]">warning</span>
+                      {note}
                     </p>
                   )}
                 </div>

@@ -61,19 +61,110 @@ export async function POST(req: Request) {
     }
   }
 
+  // ── Verifica se conversa está pausada (humano assumiu o controle) ─────────
+  if (conversaId) {
+    const conversaRow = await prisma.conversaIA.findUnique({
+      where: { id: conversaId },
+      select: { pausadaEm: true },
+    })
+    if (conversaRow?.pausadaEm) {
+      // Salva mensagem do lead e cria escalação para o widget fazer poll
+      const historicoEscalacao = [
+        ...historico,
+        { role: 'user' as const, content: message },
+      ]
+      let escalacaoId: string | undefined
+      try {
+        // Reutiliza escalação aberta (pendente/em_atendimento) se existir
+        const existente = await prisma.escalacao.findFirst({
+          where: {
+            canal: 'onboarding',
+            status: { in: ['pendente', 'em_atendimento'] },
+            ...(leadId ? { leadId } : { sessionId: sessionId ?? undefined }),
+          },
+          orderBy: { criadoEm: 'desc' },
+        })
+        if (existente) {
+          escalacaoId = existente.id
+          await prisma.escalacao.update({
+            where: { id: existente.id },
+            data: { ultimaMensagem: message, historico: historicoEscalacao as object[] },
+          })
+        } else {
+          const esc = await prisma.escalacao.create({
+            data: {
+              canal:          'onboarding',
+              status:         'em_atendimento',
+              leadId:         leadId    ?? null,
+              sessionId:      sessionId ?? null,
+              historico:      historicoEscalacao as object[],
+              ultimaMensagem: message,
+              motivoIA:       'Conversa assumida por humano',
+            },
+          })
+          escalacaoId = esc.id
+        }
+      } catch (err) {
+        console.error('[onboarding/chat] erro ao criar escalação pausada:', err)
+      }
+      // Salva mensagem do usuário no histórico
+      if (conversaId) {
+        prisma.mensagemIA.create({
+          data: { conversaId, role: 'user', conteudo: message },
+        }).catch(() => {})
+      }
+      return NextResponse.json({
+        reply: 'Aguarde um momento, um especialista está verificando sua mensagem...',
+        escalado: true,
+        escalacaoId,
+      })
+    }
+  }
+
   // ── Escopo RAG ────────────────────────────────────────────────────────────
   const context = leadId
     ? { escopo: 'lead+global' as const, leadId }
     : { escopo: 'global' as const }
 
-  const { resposta: respostaRaw } = await askAI({
-    pergunta:  message,
-    context,
-    feature:   'onboarding',
-    historico,
-    tipos:     ['base_conhecimento', 'fiscal_normativo'],
-    maxTokens: 512,
-  })
+  let respostaRaw: string
+  try {
+    const result = await askAI({
+      pergunta:  message,
+      context,
+      feature:   'onboarding',
+      historico,
+      tipos:     ['base_conhecimento', 'fiscal_normativo'],
+      maxTokens: 512,
+    })
+    respostaRaw = result.resposta
+  } catch (aiErr) {
+    const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
+    console.error('[onboarding/chat] IA indisponível:', aiErrMsg)
+    // Cria escalação silenciosa para o CRM tomar conhecimento
+    let escalacaoId: string | undefined
+    try {
+      const esc = await prisma.escalacao.create({
+        data: {
+          canal:          'onboarding',
+          status:         'pendente',
+          leadId:         leadId    ?? null,
+          sessionId:      sessionId ?? null,
+          historico:      [...historico, { role: 'user', content: message }] as object[],
+          ultimaMensagem: message,
+          motivoIA:       `IA indisponível: ${aiErrMsg}`,
+        },
+      })
+      escalacaoId = esc.id
+    } catch (err) {
+      console.error('[onboarding/chat] erro ao criar escalação de falha IA:', err)
+    }
+    // Retorna mensagem amigável e inicia poll para o lead aguardar humano
+    return NextResponse.json({
+      reply: 'Estou com uma instabilidade no momento. Um especialista da nossa equipe já foi notificado e irá responder em breve.',
+      escalado: !!escalacaoId,
+      escalacaoId,
+    })
+  }
 
   // ── Detecta escalação ##HUMANO## ──────────────────────────────────────────
   const escalInfo = detectarEscalacao(respostaRaw)

@@ -25,6 +25,7 @@ export async function transcribeAudio(
     method: 'POST',
     headers: { Authorization: `Bearer ${groqApiKey}` },
     body: formData,
+    signal: AbortSignal.timeout(30_000),
   })
 
   if (!res.ok) {

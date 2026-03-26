@@ -42,11 +42,28 @@ function ChatWidgetInner({ leadId }: { leadId: string }) {
     }
   }, [open, msgs])
 
-  // Polling quando escalado — aguarda resposta humana
+  // Polling quando escalado — aguarda resposta humana (timeout 20min)
   const startPolling = useCallback((escId: string) => {
+    const deadline = Date.now() + 20 * 60 * 1000
     const poll = async () => {
+      // Timeout: desiste após 20min e reabilita o input
+      if (Date.now() > deadline) {
+        setMsgs(m => [...m, {
+          role: 'assistant',
+          text: 'Nossa equipe está ocupada no momento. Deixe seu contato que retornaremos assim que possível.',
+        }])
+        setEscalacaoId(null)
+        setLoading(false)
+        return
+      }
       try {
         const res = await fetch(`/api/escalacoes/${escId}/poll`)
+        if (!res.ok) {
+          // Escalação não encontrada ou erro — para o poll
+          setEscalacaoId(null)
+          setLoading(false)
+          return
+        }
         const data = await res.json()
         if (data.status === 'resolvida' && data.resposta) {
           setMsgs(m => [...m, { role: 'assistant', text: data.resposta }])
@@ -54,7 +71,7 @@ function ChatWidgetInner({ leadId }: { leadId: string }) {
           setLoading(false)
           return
         }
-      } catch { /* ignora */ }
+      } catch { /* ignora erros de rede, tenta novamente */ }
       pollRef.current = setTimeout(poll, 4000)
     }
     pollRef.current = setTimeout(poll, 4000)
@@ -91,11 +108,16 @@ function ChatWidgetInner({ leadId }: { leadId: string }) {
       })
       const data = await res.json()
 
-      if (data.escalado && data.escalacaoId) {
+      if (data.escalado) {
         setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
-        setEscalacaoId(data.escalacaoId)
-        startPolling(data.escalacaoId)
-        // loading permanece true até o poll resolver
+        if (data.escalacaoId) {
+          setEscalacaoId(data.escalacaoId)
+          startPolling(data.escalacaoId)
+          // loading permanece true até o poll resolver
+        } else {
+          // DB falhou ao criar escalação — reabilita input
+          setLoading(false)
+        }
       } else {
         // Divide em chunks e exibe um por um com delay (imita digitação humana)
         const chunks = splitIntoChunks(data.reply ?? '')

@@ -1,10 +1,10 @@
 import { embedText, searchSimilar } from '@/lib/rag'
 import type { SearchOpts, SearchResult } from '@/lib/rag'
 import type { TipoConhecimento, CanalRAG } from '@/lib/rag/types'
-import { getProvider } from './providers'
 import type { AIMessage } from './providers'
 import type { AIMessageContentPart } from './providers/types'
 import { getAiConfig } from './config'
+import { completeWithFallback } from './providers/fallback'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -113,6 +113,40 @@ Formato: ##HUMANO##[motivo breve]\n\nmensagem para o contato
 O marcador e o motivo são removidos automaticamente antes do envio — o contato nunca os vê. A mensagem será revisada por um membro da equipe antes de ser encaminhada.
 Use ##HUMANO## apenas quando realmente necessário — não para dúvidas simples que você consegue responder bem.`
 
+// ─── Helpers internos ────────────────────────────────────────────────────────
+
+/**
+ * Trunca o histórico para não exceder o context window do modelo.
+ * Mantém sempre as mensagens mais recentes — remove as mais antigas.
+ */
+const MAX_HISTORICO_CHARS = 24_000  // ~6k tokens — seguro para todos os providers
+
+function truncarHistorico(historico: AIMessage[]): AIMessage[] {
+  let total = 0
+  const result: AIMessage[] = []
+  for (let i = historico.length - 1; i >= 0; i--) {
+    const msg = historico[i]
+    const chars = typeof msg.content === 'string'
+      ? msg.content.length
+      : (msg.content as Array<{ type: string; text?: string }>)
+          .reduce((acc, p) => acc + (p.type === 'text' ? (p.text?.length ?? 0) : 500), 0)
+    if (total + chars > MAX_HISTORICO_CHARS && result.length > 0) break
+    result.unshift(msg)
+    total += chars
+  }
+  return result
+}
+
+/**
+ * Remove marcadores de controle (##HUMANO##, ##LEAD##) de dados externos
+ * antes de injetá-los no system prompt, evitando prompt injection via banco.
+ */
+function sanitizarTextoExterno(texto: string): string {
+  return texto
+    .replace(/##HUMANO##[^\n]*/g, '[escalação removida]')
+    .replace(/##LEAD##/g, '')
+}
+
 // ─── Função principal ─────────────────────────────────────────────────────────
 
 export async function askAI(opts: AskOpts): Promise<AskResult> {
@@ -128,7 +162,7 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     mediaContent,
   } = opts
 
-  // 1. Carrega configuração (DB > env vars)
+  // 1. Carrega configuração — usa cache em memória (TTL 60s)
   const config = await getAiConfig()
 
   // 2. Busca RAG — passa o canal da feature para filtrar a base de conhecimento
@@ -140,15 +174,22 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
       const embedding = await embedText(pergunta)
       fontes = await searchSimilar(embedding, searchOpts)
     }
-  } catch {
-    // RAG indisponível — continua sem contexto
+  } catch (err) {
+    // RAG indisponível — continua sem contexto (não bloqueia a resposta)
+    console.warn('[askAI] RAG indisponível:', (err as Error).message)
   }
 
   // 3. Monta system prompt — usa o do DB se configurado, senão o padrão
   // Guardrails de segurança são SEMPRE incluídos, independente do prompt configurado
   const storedPrompt = feature ? config.systemPrompts[feature as keyof typeof config.systemPrompts] : null
-  const systemParts = [storedPrompt ?? SYSTEM_BASE_DEFAULT, SYSTEM_SECURITY_GUARDRAILS]
-  if (systemExtra) systemParts.push(systemExtra)
+  const nomeIa = feature ? config.nomeAssistentes[feature as keyof typeof config.nomeAssistentes] : null
+  const basePrompt = storedPrompt ?? SYSTEM_BASE_DEFAULT
+  const promptComNome = nomeIa ? `Seu nome é ${nomeIa}.\n\n${basePrompt}` : basePrompt
+  const systemParts = [promptComNome, SYSTEM_SECURITY_GUARDRAILS]
+
+  // Sanitiza dados externos antes de injetar — previne prompt injection via banco/agente
+  if (systemExtra) systemParts.push(sanitizarTextoExterno(systemExtra))
+
   if (fontes.length > 0) {
     systemParts.push('\n--- CONTEXTO RELEVANTE ---')
     fontes.forEach((f, i) => {
@@ -160,29 +201,30 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
 
   // 4. Resolve modelo e provider por feature
   const modelFeature = feature as keyof typeof config.models
-  const model = config.models[modelFeature] ?? config.models.onboarding
   const featureProvider = config.providers[feature as keyof typeof config.providers] ?? config.provider
+  const model = config.models[modelFeature] ?? config.models.onboarding
 
-  // 5. Chama o provider com credenciais da config
-  const provider = getProvider(featureProvider)
+  // 5. Trunca histórico para evitar overflow do context window
+  const historicoTruncado = truncarHistorico(historico)
 
-  // Última mensagem do usuário: usa mediaContent se disponível
+  // 6. Última mensagem do usuário: usa mediaContent se disponível
   const lastUserMessage: AIMessage = mediaContent && mediaContent.length > 0
     ? { role: 'user', content: [...mediaContent, { type: 'text' as const, text: pergunta }] }
     : { role: 'user', content: pergunta }
 
-  const result = await provider.complete({
-    system: systemParts.join('\n\n'),
-    messages: [...historico, lastUserMessage],
-    maxTokens,
-    temperature: 0.3,
-    model,
-    apiKey:
-      featureProvider === 'claude'  ? config.anthropicApiKey ?? undefined :
-      featureProvider === 'google'  ? config.googleApiKey    ?? undefined :
-                                      config.openaiApiKey    ?? undefined,
-    baseUrl: featureProvider === 'openai' ? config.openaiBaseUrl ?? undefined : undefined,
-  })
+  // 7. Chama com fallback automático entre providers
+  const result = await completeWithFallback(
+    {
+      system:      systemParts.join('\n\n'),
+      messages:    [...historicoTruncado, lastUserMessage],
+      maxTokens,
+      temperature: 0.3,
+      model,
+      feature,
+    },
+    config,
+    featureProvider,
+  )
 
   return { resposta: result.text, fontes, provider: result.provider, model: result.model }
 }

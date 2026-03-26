@@ -2,8 +2,13 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { askAI } from '@/lib/ai/ask'
+import { getAiConfig } from '@/lib/ai/config'
 import { getOrCreateConversaSession, getHistorico, addMensagens } from '@/lib/ai/conversa'
 import { rateLimit } from '@/lib/rate-limit'
+import { classificarIntencao } from '@/lib/ai/classificar-intencao'
+import { executarAgente } from '@/lib/ai/agent'
+// Garante que todas as tools estejam registradas
+import '@/lib/ai/tools'
 
 const MSG_MAX_LENGTH = 4000
 
@@ -31,7 +36,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Limite de mensagens atingido. Aguarde alguns minutos.' }, { status: 429 })
   }
 
-  const conversaId = await getOrCreateConversaSession(sessionId, 'crm', { clienteId, leadId })
+  const [conversaId, aiConfig] = await Promise.all([
+    getOrCreateConversaSession(sessionId, 'crm', { clienteId, leadId }),
+    getAiConfig(),
+  ])
   const historico  = await getHistorico(conversaId)
 
   const context = clienteId
@@ -87,12 +95,45 @@ FOCO ATUAL: ${escopoLabel}. Priorize informações deste contexto, mas pode cons
 
     if (mensagensCanais.length > 0) {
       const linhas = mensagensCanais.map((m: { role: string; conteudo: string; criadaEm: Date; conversa: { canal: string } }) => {
-        const autor = m.role === 'user' ? 'Cliente' : 'Clara'
+        const autor = m.role === 'user' ? 'Cliente' : (aiConfig.nomeAssistentes.crm ?? 'Assistente')
         return `${autor} (${m.conversa.canal}): ${m.conteudo}`
       })
       systemExtra += `\n\nHISTÓRICO DE CONVERSAS DO CLIENTE (todos os canais — últimas mensagens):\n${linhas.join('\n')}`
     }
   }
+
+  // ── Classificação de intenção + delegação ao agente ──────────────────────────
+  // Classifica em paralelo com nada (rápido — não bloqueia nada ainda)
+  const intencao = await classificarIntencao(
+    message,
+    escopoLabel !== 'escopo geral do escritório' ? escopoLabel : undefined,
+  )
+
+  if (intencao.tipo === 'acao' && intencao.instrucao) {
+    try {
+      const resultado = await executarAgente({
+        instrucao: intencao.instrucao,
+        contexto: {
+          clienteId,
+          leadId,
+          solicitanteAI: 'crm',
+        },
+      })
+
+      if (resultado.sucesso && resultado.acoesExecutadas.length > 0) {
+        // Injeta o resultado do agente como contexto real para o askAI formular a resposta
+        systemExtra += `\n\n--- DADOS CONSULTADOS EM TEMPO REAL ---
+${resultado.resposta}
+--- FIM DOS DADOS REAIS ---
+Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, conversacional e objetivo. Não mencione que consultou um "agente" ou "banco de dados" — apenas apresente as informações como se fossem seu conhecimento atual.`
+      }
+    } catch (err) {
+      // Agente falhou → askAI responde normalmente (sem dados em tempo real)
+      const { notificarAgenteFalhou } = await import('@/lib/notificacoes')
+      notificarAgenteFalhou(err instanceof Error ? err.message : String(err)).catch(() => {})
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const { resposta, provider, model } = await askAI({
     pergunta:   message,

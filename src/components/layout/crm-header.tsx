@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { cn, getInitials } from '@/lib/utils'
 import {
@@ -51,9 +51,7 @@ function useAiHealthAlert() {
         const data = await res.json() as Record<string, { ok: boolean; checkedAt: number }>
         const down = Object.values(data).some(s => s.checkedAt > 0 && !s.ok)
         setAnyDown(down)
-      } catch {
-        // silencia erros de rede
-      }
+      } catch { /* silencia */ }
     }
     check()
     const id = setInterval(check, 5 * 60 * 1000)
@@ -63,11 +61,42 @@ function useAiHealthAlert() {
   return anyDown
 }
 
+type Notificacao = {
+  id: string
+  tipo: string
+  titulo: string
+  descricao?: string
+  href: string
+  criadaEm: string
+}
+
+function useNotificacoes() {
+  const [items, setItems] = useState<Notificacao[]>([])
+
+  useEffect(() => {
+    async function check() {
+      try {
+        const res = await fetch('/api/notificacoes')
+        if (!res.ok) return
+        setItems(await res.json() as Notificacao[])
+      } catch { /* silencia */ }
+    }
+    check()
+    const id = setInterval(check, 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  return items
+}
+
 export function CrmHeader({ user }: Props) {
   const pathname = usePathname()
+  const router = useRouter()
   const title = resolveTitle(pathname)
   const [mobileOpen, setMobileOpen] = useState(false)
   const aiDown = useAiHealthAlert()
+  const notificacoes = useNotificacoes()
+  const [notifOpen, setNotifOpen] = useState(false)
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-outline-variant/15 bg-card/80 px-4 md:px-8 backdrop-blur-md">
@@ -108,9 +137,67 @@ export function CrmHeader({ user }: Props) {
               <span className="text-[12px] font-semibold">IA offline</span>
             </Link>
           )}
-          <button className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
-            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 0" }}>notifications</span>
-          </button>
+          <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
+            <DropdownMenuTrigger className="hidden md:flex relative h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
+              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: notifOpen ? "'FILL' 1" : "'FILL' 0" }}>notifications</span>
+              {notificacoes.length > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9px] font-bold text-white">
+                  {notificacoes.length > 99 ? '99+' : notificacoes.length}
+                </span>
+              )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 rounded-xl p-0 shadow-lg border-outline-variant/15 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/10">
+                <span className="text-[13px] font-semibold text-on-surface">Notificações</span>
+                {notificacoes.length > 0 && (
+                  <span className="rounded-full bg-error/10 px-2 py-0.5 text-[11px] font-bold text-error">
+                    {notificacoes.length} pendente{notificacoes.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              {notificacoes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+                  <span className="material-symbols-outlined text-[32px] text-on-surface-variant/25">notifications</span>
+                  <p className="text-[12px] text-on-surface-variant/50">Nenhuma notificação</p>
+                </div>
+              ) : (
+                <div className="max-h-80 overflow-y-auto">
+                  {notificacoes.map(n => (
+                    <DropdownMenuItem
+                      key={n.id}
+                      className="cursor-pointer rounded-none px-4 py-3 flex-col items-start gap-0.5"
+                      onClick={() => { setNotifOpen(false); router.push(n.href) }}
+                    >
+                      <div className="flex w-full items-center gap-2">
+                        <span className="material-symbols-outlined text-[14px] text-error" style={{ fontVariationSettings: "'FILL' 1" }}>
+                          {n.tipo === 'escalacao'    ? 'escalator_warning'
+                          : n.tipo === 'ia_offline'  ? 'cloud_off'
+                          : n.tipo === 'agente_falhou' ? 'smart_toy'
+                          : 'warning'}
+                        </span>
+                        <span className="text-[12px] font-semibold text-on-surface truncate flex-1">{n.titulo}</span>
+                        <span className="shrink-0 text-[10px] text-on-surface-variant/40">
+                          {new Date(n.criadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      {n.descricao && (
+                        <p className="ml-5 line-clamp-1 text-[11px] text-on-surface-variant/60">{n.descricao}</p>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              )}
+              <div className="border-t border-outline-variant/10 px-4 py-2.5">
+                <Link
+                  href="/crm/atendimentos"
+                  onClick={() => setNotifOpen(false)}
+                  className="text-[11px] font-semibold text-primary hover:underline"
+                >
+                  Ver todos os atendimentos →
+                </Link>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
             <span className="material-symbols-outlined text-[20px]">help_outline</span>
           </button>

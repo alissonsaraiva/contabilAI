@@ -31,20 +31,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   let mensagemFinal = conteudo.trim()
 
-  // ── Modo IA: reformula no tom da Clara ──────────────────────────────────────
+  // ── Modo IA: reformula no tom da assistente ──────────────────────────────────
   if (modo === 'ia') {
     try {
       const config = await getAiConfig()
       const provider = getProvider(config.provider)
+      const nomeIa = (esc.canal === 'whatsapp' ? config.nomeAssistentes.whatsapp : config.nomeAssistentes.onboarding) ?? 'Assistente'
       const historico = (esc.historico as { role: string; content: string }[]) ?? []
       const ctxStr = historico
         .slice(-6)
-        .map(m => `${m.role === 'user' ? 'Cliente' : 'Clara'}: ${m.content}`)
+        .map(m => `${m.role === 'user' ? 'Cliente' : nomeIa}: ${m.content}`)
         .join('\n')
 
       const systemReformula = `${SYSTEM_BASE_DEFAULT}
 
-Você receberá uma orientação de um membro da equipe e deve reformulá-la no seu tom natural de assistente Clara — cordial, direto e em português brasileiro. NÃO mencione que recebeu orientação de alguém. Responda como se fosse sua própria resposta.`
+Você receberá uma orientação de um membro da equipe e deve reformulá-la no seu tom natural de assistente ${nomeIa} — cordial, direto e em português brasileiro. NÃO mencione que recebeu orientação de alguém. Responda como se fosse sua própria resposta.`
 
       const result = await provider.complete({
         system: systemReformula,

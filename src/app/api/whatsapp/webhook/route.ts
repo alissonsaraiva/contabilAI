@@ -15,6 +15,10 @@ import { sendHumanLike } from '@/lib/whatsapp/human-like'
 import { downloadMedia, detectMediaType, extractMediaCaption, extractMimeType, extractPdfText } from '@/lib/whatsapp/media'
 import { transcribeAudio } from '@/lib/ai/transcribe'
 import type { AIMessageContentPart } from '@/lib/ai/providers/types'
+import { classificarIntencao } from '@/lib/ai/classificar-intencao'
+import { executarAgente } from '@/lib/ai/agent'
+// Garante que todas as tools estejam registradas
+import '@/lib/ai/tools'
 
 export const runtime = 'nodejs'
 
@@ -426,6 +430,37 @@ export async function POST(req: Request) {
       context = { escopo: 'global' }
       systemExtra = `CONTEXTO DO CONTATO: PRIMEIRO CONTATO (não identificado no sistema)\n\n${whatsappChannelGuardrail}`
     }
+
+    // ── Classifica intenção e delega ao agente (quando aplicável) ─────────────
+    // WhatsApp só aciona o agente para clientes/leads identificados (contexto limitado)
+    if (cached.clienteId || cached.leadId) {
+      try {
+        const escopoLabel = cached.clienteId
+          ? systemExtra?.split('\n')[0].replace('CONTEXTO DO CONTATO: ', '') ?? undefined
+          : cached.leadId
+            ? systemExtra?.split('\n')[0].replace('CONTEXTO DO CONTATO: ', '') ?? undefined
+            : undefined
+        const intencao = await classificarIntencao(textoFinal, escopoLabel)
+        if (intencao.tipo === 'acao' && intencao.instrucao) {
+          const resultado = await executarAgente({
+            instrucao: intencao.instrucao,
+            contexto: {
+              clienteId: cached.clienteId ?? undefined,
+              leadId:    cached.leadId    ?? undefined,
+              solicitanteAI: 'whatsapp',
+            },
+          })
+          if (resultado.sucesso && resultado.acoesExecutadas.length > 0) {
+            systemExtra = (systemExtra ?? '') + `\n\n--- DADOS CONSULTADOS ---\n${resultado.resposta}\n--- FIM ---\nUse esses dados na resposta. Seja natural e conversacional — não mencione "banco de dados" ou "sistema".`
+          }
+        }
+      } catch (err) {
+        // Agente falhou — askAI responde normalmente
+        const { notificarAgenteFalhou } = await import('@/lib/notificacoes')
+        notificarAgenteFalhou(err instanceof Error ? err.message : String(err)).catch(() => {})
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // ── Chama a IA ────────────────────────────────────────────────────────────
     let result: Awaited<ReturnType<typeof askAI>>
