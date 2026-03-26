@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { getEventoConfig } from '@/lib/historico'
+import { getEventoConfig } from '@/lib/historico-config'
 import { formatDateTime } from '@/lib/utils'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
