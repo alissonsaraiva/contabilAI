@@ -19,7 +19,6 @@ import type {
   Canal,
   FormaPagamento,
   Regime,
-  TipoInteracao,
 } from '@prisma/client'
 
 export type {
@@ -43,7 +42,6 @@ export type {
   Canal,
   FormaPagamento,
   Regime,
-  TipoInteracao,
 }
 
 export type LeadComRelacoes = Lead & {
