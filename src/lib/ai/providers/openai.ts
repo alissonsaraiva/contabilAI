@@ -87,7 +87,7 @@ export const openaiProvider: AIProvider = {
   async complete({ system, messages, maxTokens = 1024, temperature = 0.3, model, apiKey, baseUrl }: AIRequest): Promise<AIResponse> {
     if (!apiKey) throw new Error('OPENAI_API_KEY não configurada')
 
-    const resolvedModel   = model ?? 'gpt-4o-mini'
+    const resolvedModel   = model || 'gpt-4o-mini'
     const resolvedBaseUrl = baseUrl?.trim() || 'https://api.openai.com/v1'
 
     const res = await fetch(`${resolvedBaseUrl}/chat/completions`, {
@@ -125,7 +125,7 @@ export const openaiProvider: AIProvider = {
   async completeWithTools({ system, messages, tools, maxTokens = 2048, temperature = 0.1, model, apiKey, baseUrl }: AIRequestWithTools): Promise<AIResponseWithTools> {
     if (!apiKey) throw new Error('OPENAI_API_KEY não configurada')
 
-    const resolvedModel   = model ?? 'gpt-4o-mini'
+    const resolvedModel   = model || 'gpt-4o-mini'
     const resolvedBaseUrl = baseUrl?.trim() || 'https://api.openai.com/v1'
 
     const res = await fetch(`${resolvedBaseUrl}/chat/completions`, {

@@ -126,7 +126,7 @@ export async function getAiConfig(): Promise<AiConfig> {
     switch (provider) {
       case 'google': return 'gemini-2.5-flash'
       case 'groq':   return 'llama-3.1-8b-instant'
-      case 'openai': return openaiModel ?? 'gpt-4o-mini'
+      case 'openai': return openaiModel || 'gpt-4o-mini'
       default:       return 'claude-haiku-4-5-20251001'
     }
   }
@@ -139,8 +139,8 @@ export async function getAiConfig(): Promise<AiConfig> {
     return stored
   }
 
-  const globalProvider = s('aiProvider') ?? process.env.AI_PROVIDER ?? 'claude'
-  const openaiModel    = s('openaiModel') ?? process.env.OPENAI_MODEL ?? null
+  const globalProvider = s('aiProvider') || process.env.AI_PROVIDER || 'claude'
+  const openaiModel    = s('openaiModel') || process.env.OPENAI_MODEL || null
 
   const providerOnboarding = s('aiProviderOnboarding') ?? globalProvider
   const providerCrm        = s('aiProviderCrm')        ?? globalProvider

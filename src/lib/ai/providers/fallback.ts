@@ -31,7 +31,7 @@ function apiKeyFor(config: AiConfig, provider: KnownProvider): string | null {
 function defaultModelFor(config: AiConfig, provider: KnownProvider): string {
   switch (provider) {
     case 'claude': return 'claude-haiku-4-5-20251001'
-    case 'openai': return config.openaiModel ?? 'gpt-4o-mini'
+    case 'openai': return config.openaiModel || 'gpt-4o-mini'
     case 'google': return 'gemini-2.5-flash'
   }
 }
