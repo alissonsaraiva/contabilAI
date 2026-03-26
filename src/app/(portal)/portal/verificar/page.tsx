@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Loader2 } from 'lucide-react'
@@ -14,10 +14,11 @@ const ERRO_MSG: Record<string, string> = {
   conta_inativa:  'Sua conta está inativa. Entre em contato com o escritório.',
 }
 
-export default function PortalVerificarPage() {
+// Componente interno que usa useSearchParams — precisa de Suspense no pai
+function VerificarContent() {
   const searchParams = useSearchParams()
   const router       = useRouter()
-  const [estado, setEstado] = useState<Estado>('verificando')
+  const [estado, setEstado]   = useState<Estado>('verificando')
   const [erroMsg, setErroMsg] = useState('')
 
   useEffect(() => {
@@ -65,6 +66,44 @@ export default function PortalVerificarPage() {
   }, [searchParams, router])
 
   return (
+    <div className="w-full max-w-[420px] rounded-[20px] border border-outline-variant/15 bg-card/60 p-8 text-center shadow-sm backdrop-blur-xl">
+      {estado === 'verificando' && (
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-sm font-medium text-on-surface-variant">Verificando seu acesso…</p>
+        </div>
+      )}
+
+      {estado === 'ok' && (
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-status/10">
+            <span className="material-symbols-outlined text-[28px] text-green-status" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          </div>
+          <p className="text-sm font-medium text-on-surface-variant">Acesso confirmado! Redirecionando…</p>
+        </div>
+      )}
+
+      {estado === 'erro' && (
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-error/10">
+            <span className="material-symbols-outlined text-[28px] text-error" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+          </div>
+          <h2 className="font-headline text-lg font-semibold text-on-surface">Link inválido</h2>
+          <p className="text-sm text-on-surface-variant">{erroMsg}</p>
+          <Link
+            href="/portal/login"
+            className="mt-2 flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            Voltar para o login
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function PortalVerificarPage() {
+  return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface-container-lowest px-4">
       <div className="mb-8 flex items-center gap-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
@@ -72,40 +111,13 @@ export default function PortalVerificarPage() {
         </div>
         <span className="font-headline text-2xl font-bold tracking-tight text-on-surface">ContabAI</span>
       </div>
-
-      <div className="w-full max-w-[420px] rounded-[20px] border border-outline-variant/15 bg-card/60 p-8 text-center shadow-sm backdrop-blur-xl">
-        {estado === 'verificando' && (
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-sm font-medium text-on-surface-variant">Verificando seu acesso…</p>
-          </div>
-        )}
-
-        {estado === 'ok' && (
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-status/10">
-              <span className="material-symbols-outlined text-[28px] text-green-status" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-            </div>
-            <p className="text-sm font-medium text-on-surface-variant">Acesso confirmado! Redirecionando…</p>
-          </div>
-        )}
-
-        {estado === 'erro' && (
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-error/10">
-              <span className="material-symbols-outlined text-[28px] text-error" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-            </div>
-            <h2 className="font-headline text-lg font-semibold text-on-surface">Link inválido</h2>
-            <p className="text-sm text-on-surface-variant">{erroMsg}</p>
-            <Link
-              href="/portal/login"
-              className="mt-2 flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
-            >
-              Voltar para o login
-            </Link>
-          </div>
-        )}
-      </div>
+      <Suspense fallback={
+        <div className="w-full max-w-[420px] rounded-[20px] border border-outline-variant/15 bg-card/60 p-8 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      }>
+        <VerificarContent />
+      </Suspense>
     </div>
   )
 }
