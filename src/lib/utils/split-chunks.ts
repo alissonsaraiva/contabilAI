@@ -7,10 +7,10 @@ const MAX_CHUNK_CHARS = 220
 export function stripMarkdown(text: string): string {
   return text
     .replace(/```[\s\S]*?```/g, '')                // code blocks (antes dos outros)
-    .replace(/\*\*(.+?)\*\*/gs, '$1')              // **bold** → bold
-    .replace(/\*(.+?)\*/gs, '$1')                  // *italic* → italic
-    .replace(/__(.+?)__/gs, '$1')                  // __bold__ → bold
-    .replace(/_(.+?)_/gs, '$1')                    // _italic_ → italic
+    .replace(/\*\*([\s\S]+?)\*\*/g, '$1')          // **bold** → bold
+    .replace(/\*([\s\S]+?)\*/g, '$1')              // *italic* → italic
+    .replace(/__([\s\S]+?)__/g, '$1')              // __bold__ → bold
+    .replace(/_([\s\S]+?)_/g, '$1')               // _italic_ → italic
     .replace(/^#{1,6}\s+/gm, '')                   // # headers
     .replace(/---+/g, '')                          // --- separadores (inline ou linha)
     .replace(/`([^`]+)`/g, '$1')                   // inline code
