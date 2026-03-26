@@ -120,7 +120,7 @@ export async function getAiConfig(): Promise<AiConfig> {
     // DB indisponível — usa apenas env vars
   }
 
-  const s = (k: string) => (row[k] as string | null | undefined) ?? null
+  const s = (k: string) => { const v = row[k] as string | null | undefined; return v || null }
 
   const defaultModelForProvider = (provider: string | null, openaiModel: string | null): string => {
     switch (provider) {
