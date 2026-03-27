@@ -9,13 +9,27 @@ export type Notificacao = {
   descricao?: string
   href: string
   criadaEm: string // ISO string — serializável via JSON
+  podeDescartar: boolean // false para escalações (são atendimentos reais pendentes)
+}
+
+// Tipos de notificação visíveis por papel
+// admin      → tudo
+// contador   → escalações apenas
+// assistente → escalações apenas
+const TIPOS_POR_PAPEL: Record<string, string[] | undefined> = {
+  admin:      undefined,                // sem filtro — vê tudo
+  contador:   ['escalacao'],
+  assistente: ['escalacao'],
 }
 
 export async function GET() {
   const session = await auth()
   const usuarioId = (session?.user as any)?.id
-  const tipo = (session?.user as any)?.tipo
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  const tipo = (session?.user as any)?.tipo as string | undefined
+
+  const tiposPermitidos = tipo ? TIPOS_POR_PAPEL[tipo] : null
+  // null = papel desconhecido/não autorizado; undefined = sem filtro (admin)
+  if (!session || tiposPermitidos === null) {
     return NextResponse.json([] as Notificacao[])
   }
 
@@ -35,7 +49,12 @@ export async function GET() {
     }),
     usuarioId
       ? prisma.notificacao.findMany({
-          where: { usuarioId, lida: false },
+          where: {
+            usuarioId,
+            lida: false,
+            // segurança extra: filtra na leitura além da criação
+            ...(tiposPermitidos ? { tipo: { in: tiposPermitidos } } : {}),
+          },
           orderBy: { criadoEm: 'desc' },
           take: 20,
           select: { id: true, tipo: true, titulo: true, mensagem: true, url: true, criadoEm: true },
@@ -52,13 +71,14 @@ export async function GET() {
 
   const deEscalacoes: Notificacao[] = escalacoes.map(e => ({
     id: e.id,
-    tipo: 'escalacao',
+    tipo: 'escalacao' as const,
     titulo: `Atendimento pendente · ${CANAL_LABEL[e.canal] ?? e.canal}`,
     descricao: e.motivoIA ?? e.ultimaMensagem?.slice(0, 80) ?? undefined,
     href: e.conversaIAId
       ? `/crm/atendimentos/conversa/${e.conversaIAId}`
       : `/crm/atendimentos`,
     criadaEm: e.criadoEm.toISOString(),
+    podeDescartar: false, // atendimento real pendente — só some quando resolvido
   }))
 
   const deBanco: Notificacao[] = notificacoesDB.map(n => ({
@@ -68,6 +88,7 @@ export async function GET() {
     descricao: n.mensagem ?? undefined,
     href: n.url ?? '/crm/configuracoes/ia/saude',
     criadaEm: n.criadoEm.toISOString(),
+    podeDescartar: true,
   }))
 
   // Mescla e ordena por data decrescente (mais recente primeiro)
@@ -76,4 +97,18 @@ export async function GET() {
   )
 
   return NextResponse.json(todas)
+}
+
+// Limpar todas as notificações do banco (lida = true) para o usuário atual
+export async function DELETE() {
+  const session = await auth()
+  const usuarioId = (session?.user as any)?.id
+  if (!session || !usuarioId) return NextResponse.json({ ok: false }, { status: 401 })
+
+  await prisma.notificacao.updateMany({
+    where: { usuarioId, lida: false },
+    data: { lida: true },
+  })
+
+  return NextResponse.json({ ok: true })
 }

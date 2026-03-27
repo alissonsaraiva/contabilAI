@@ -11,44 +11,34 @@ type Props = {
 export function PortalLinkButton({ clienteId, status }: Props) {
   const [loading, setLoading] = useState(false)
 
-  const bloqueado = status === 'suspenso' || status === 'cancelado'
+  if (status === 'suspenso' || status === 'cancelado') return null
 
-  async function handleClick() {
-    if (bloqueado || loading) return
+  async function handleInspecionar() {
     setLoading(true)
     try {
-      const res = await fetch(`/api/crm/clientes/${clienteId}/portal-link`, {
-        method: 'POST',
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error('Não foi possível gerar o link do portal.')
-        return
-      }
-      await navigator.clipboard.writeText(data.link)
-      toast.success('Link do portal copiado! Válido por 30 minutos.')
+      const res = await fetch(`/api/crm/clientes/${clienteId}/portal-link`, { method: 'POST' })
+      if (!res.ok) { toast.error('Não foi possível abrir o portal.'); return }
+      const data = await res.json() as { link?: string }
+      if (!data.link) { toast.error('Link inválido.'); return }
+      window.open(data.link, '_blank', 'noopener,noreferrer')
     } catch {
-      toast.error('Erro ao gerar link do portal.')
+      toast.error('Erro ao abrir o portal.')
     } finally {
       setLoading(false)
     }
   }
 
-  if (bloqueado) return null
-
   return (
     <button
-      onClick={handleClick}
+      onClick={handleInspecionar}
       disabled={loading}
-      className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/8 px-3 py-1.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+      title="Ver portal como o cliente (modo inspeção)"
+      className="flex items-center gap-1.5 rounded-xl border border-tertiary/30 bg-tertiary/8 px-3 py-1.5 text-[12px] font-semibold text-tertiary transition-colors hover:bg-tertiary/15 disabled:opacity-50"
     >
-      <span
-        className="material-symbols-outlined text-[15px]"
-        style={{ fontVariationSettings: "'FILL' 1" }}
-      >
-        {loading ? 'hourglass_empty' : 'open_in_new'}
+      <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+        {loading ? 'hourglass_empty' : 'visibility'}
       </span>
-      Portal
+      Inspecionar
     </button>
   )
 }

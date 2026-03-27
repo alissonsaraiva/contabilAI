@@ -1,6 +1,9 @@
 /**
  * Helpers para criar notificações no banco de dados.
- * Notificações são exibidas no sino do header do CRM para admins/contadores.
+ *
+ * Política de visibilidade por tipo:
+ *   ia_offline / agente_falhou / entrega_falhou → somente admin (infra/sistema)
+ *   escalacao                                   → admin + contador + assistente (equipe de atendimento)
  */
 
 import { prisma } from '@/lib/prisma'
@@ -25,9 +28,19 @@ function registrarCooldown(chave: string) {
   }
 }
 
-async function buscarDestinatarios(): Promise<string[]> {
+/** Somente admins — para notificações de infra/sistema */
+async function buscarAdmins(): Promise<string[]> {
   const usuarios = await prisma.usuario.findMany({
-    where: { ativo: true, tipo: { in: ['admin', 'contador'] } },
+    where: { ativo: true, tipo: 'admin' },
+    select: { id: true },
+  })
+  return usuarios.map(u => u.id)
+}
+
+/** Toda a equipe de atendimento — para notificações de escalação */
+async function buscarEquipeAtendimento(): Promise<string[]> {
+  const usuarios = await prisma.usuario.findMany({
+    where: { ativo: true, tipo: { in: ['admin', 'contador', 'assistente'] } },
     select: { id: true },
   })
   return usuarios.map(u => u.id)
@@ -71,7 +84,7 @@ export async function notificarIaOffline(provider: string, erro: string): Promis
       voyage:  'Voyage AI (RAG)',
     }
 
-    const ids = await buscarDestinatarios()
+    const ids = await buscarAdmins()
     await criarParaTodos(ids, {
       tipo:    'ia_offline',
       titulo:  `Provider offline: ${PROVIDER_LABELS[provider] ?? provider}`,
@@ -93,7 +106,7 @@ export async function notificarAgenteFalhou(erro: string): Promise<void> {
   registrarCooldown(chave)
 
   try {
-    const ids = await buscarDestinatarios()
+    const ids = await buscarAdmins()
     await criarParaTodos(ids, {
       tipo:    'agente_falhou',
       titulo:  'Agente operacional indisponível',
@@ -114,7 +127,7 @@ export async function notificarEscalacaoPortal(clienteId: string, escalacaoId: s
       where:  { id: clienteId },
       select: { nome: true },
     })
-    const ids = await buscarDestinatarios()
+    const ids = await buscarEquipeAtendimento()
     await criarParaTodos(ids, {
       tipo:    'escalacao',
       titulo:  `Atendimento solicitado pelo portal`,

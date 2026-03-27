@@ -3,6 +3,7 @@ import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import '@/lib/ai/tools' // registra todas as tools no registry
 import { getCapacidades } from '@/lib/ai/tools/registry'
+import { CapacidadesManager } from '@/components/crm/capacidades-manager'
 
 const FEATURE_LABELS: Record<string, string> = {
   crm:        'CRM',
@@ -21,19 +22,6 @@ const TOOL_LABELS: Record<string, string> = {
   atualizarStatusLead:   'Atualizar lead',
 }
 
-const CANAL_STYLE: Record<string, string> = {
-  crm:        'bg-primary/10 text-primary',
-  whatsapp:   'bg-green-500/10 text-green-700',
-  portal:     'bg-blue-500/10 text-blue-700',
-  onboarding: 'bg-orange-500/10 text-orange-700',
-}
-
-const CATEGORIA_ICON: Record<string, string> = {
-  'Tarefas':   'task_alt',
-  'Clientes':  'person',
-  'Funil':     'funnel',
-  'Histórico': 'history',
-}
 
 type Props = {
   searchParams: Promise<{ page?: string; tool?: string; solicitante?: string; sucesso?: string }>
@@ -99,9 +87,16 @@ export default async function AgentePage({ searchParams }: Props) {
     return [l.id, nome]
   }))
 
-  // Lê capacidades direto do registry — sempre em sincronia com as tools reais
+  // Lê capacidades e configurações do banco
+  const escritorio = await prisma.escritorio.findFirst({
+    select: { toolsDesabilitadas: true, toolsCanaisOverride: true },
+  })
+  const desabilitadasIniciais: string[] = Array.isArray(escritorio?.toolsDesabilitadas)
+    ? escritorio.toolsDesabilitadas as string[] : []
+  const canaisOverrideIniciais: Record<string, string[]> =
+    escritorio?.toolsCanaisOverride && typeof escritorio.toolsCanaisOverride === 'object' && !Array.isArray(escritorio.toolsCanaisOverride)
+      ? escritorio.toolsCanaisOverride as Record<string, string[]> : {}
   const capacidades = getCapacidades()
-  const categorias = [...new Set(capacidades.map(c => c.categoria))]
 
   return (
     <div className="space-y-6">
@@ -119,7 +114,7 @@ export default async function AgentePage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* ── Capacidades ────────────────────────────────────────────────────── */}
+      {/* ── Capacidades (interativo) ───────────────────────────────────────── */}
       <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 space-y-5">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
@@ -128,40 +123,11 @@ export default async function AgentePage({ searchParams }: Props) {
             {capacidades.length} ferramentas
           </span>
         </div>
-
-        <div className="space-y-4">
-          {categorias.map(cat => (
-            <div key={cat}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">
-                  {CATEGORIA_ICON[cat] ?? 'build'}
-                </span>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">{cat}</span>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {capacidades.filter(c => c.categoria === cat).map(cap => (
-                  <div
-                    key={cap.tool}
-                    className="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 p-3 space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-[13px] font-semibold text-on-surface leading-tight">{cap.label}</span>
-                      <span className="shrink-0 rounded-md bg-primary/8 px-1.5 py-0.5 font-mono text-[10px] text-primary/70">{cap.tool}</span>
-                    </div>
-                    <p className="text-[12px] text-on-surface-variant/80 leading-relaxed">{cap.descricao}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {cap.canais.map(canal => (
-                        <span key={canal} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${CANAL_STYLE[canal]}`}>
-                          {FEATURE_LABELS[canal]}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <CapacidadesManager
+          capacidades={capacidades}
+          desabilitadasIniciais={desabilitadasIniciais}
+          canaisOverrideIniciais={canaisOverrideIniciais}
+        />
       </div>
 
       {/* Filtros */}

@@ -68,25 +68,37 @@ type Notificacao = {
   descricao?: string
   href: string
   criadaEm: string
+  podeDescartar: boolean
 }
 
 function useNotificacoes() {
   const [items, setItems] = useState<Notificacao[]>([])
 
+  const load = async () => {
+    try {
+      const res = await fetch('/api/notificacoes')
+      if (!res.ok) return
+      setItems(await res.json() as Notificacao[])
+    } catch { /* silencia */ }
+  }
+
   useEffect(() => {
-    async function check() {
-      try {
-        const res = await fetch('/api/notificacoes')
-        if (!res.ok) return
-        setItems(await res.json() as Notificacao[])
-      } catch { /* silencia */ }
-    }
-    check()
-    const id = setInterval(check, 30_000)
+    load()
+    const id = setInterval(load, 30_000)
     return () => clearInterval(id)
   }, [])
 
-  return items
+  const descartar = async (id: string) => {
+    setItems(prev => prev.filter(n => n.id !== id))
+    try { await fetch(`/api/notificacoes/${id}`, { method: 'PATCH' }) } catch { /* silencia */ }
+  }
+
+  const descartarTudo = async () => {
+    setItems(prev => prev.filter(n => !n.podeDescartar))
+    try { await fetch('/api/notificacoes', { method: 'DELETE' }) } catch { /* silencia */ }
+  }
+
+  return { items, descartar, descartarTudo }
 }
 
 export function CrmHeader({ user }: Props) {
@@ -95,8 +107,13 @@ export function CrmHeader({ user }: Props) {
   const title = resolveTitle(pathname)
   const [mobileOpen, setMobileOpen] = useState(false)
   const aiDown = useAiHealthAlert()
-  const notificacoes = useNotificacoes()
+  const { items: notificacoes, descartar, descartarTudo } = useNotificacoes()
   const [notifOpen, setNotifOpen] = useState(false)
+
+  function navegar(href: string) {
+    setNotifOpen(false)
+    router.push(href)
+  }
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-outline-variant/15 bg-card/80 px-4 md:px-8 backdrop-blur-md">
@@ -147,46 +164,88 @@ export function CrmHeader({ user }: Props) {
               )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 rounded-xl p-0 shadow-lg border-outline-variant/15 overflow-hidden">
+              {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/10">
                 <span className="text-[13px] font-semibold text-on-surface">Notificações</span>
-                {notificacoes.length > 0 && (
-                  <span className="rounded-full bg-error/10 px-2 py-0.5 text-[11px] font-bold text-error">
-                    {notificacoes.length} pendente{notificacoes.length > 1 ? 's' : ''}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {notificacoes.some(n => n.podeDescartar) && (
+                    <button
+                      onClick={descartarTudo}
+                      className="text-[11px] text-on-surface-variant/50 hover:text-on-surface transition-colors"
+                    >
+                      Limpar tudo
+                    </button>
+                  )}
+                  {notificacoes.length > 0 && (
+                    <span className="rounded-full bg-error/10 px-2 py-0.5 text-[11px] font-bold text-error">
+                      {notificacoes.length} pendente{notificacoes.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Lista */}
               {notificacoes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
                   <span className="material-symbols-outlined text-[32px] text-on-surface-variant/25">notifications</span>
                   <p className="text-[12px] text-on-surface-variant/50">Nenhuma notificação</p>
                 </div>
               ) : (
-                <div className="max-h-80 overflow-y-auto">
+                <div className="max-h-80 overflow-y-auto divide-y divide-outline-variant/10">
                   {notificacoes.map(n => (
-                    <DropdownMenuItem
+                    <div
                       key={n.id}
-                      className="cursor-pointer rounded-none px-4 py-3 flex-col items-start gap-0.5"
-                      onClick={() => { setNotifOpen(false); router.push(n.href) }}
+                      className="group flex items-start gap-2 px-4 py-3 hover:bg-surface-container/50 cursor-pointer transition-colors"
+                      onClick={() => {
+                        if (n.podeDescartar) descartar(n.id)
+                        navegar(n.href)
+                      }}
                     >
-                      <div className="flex w-full items-center gap-2">
-                        <span className="material-symbols-outlined text-[14px] text-error" style={{ fontVariationSettings: "'FILL' 1" }}>
-                          {n.tipo === 'escalacao'    ? 'escalator_warning'
-                          : n.tipo === 'ia_offline'  ? 'cloud_off'
-                          : n.tipo === 'agente_falhou' ? 'smart_toy'
-                          : 'warning'}
-                        </span>
-                        <span className="text-[12px] font-semibold text-on-surface truncate flex-1">{n.titulo}</span>
-                        <span className="shrink-0 text-[10px] text-on-surface-variant/40">
+                      {/* Ícone */}
+                      <span
+                        className="mt-0.5 shrink-0 material-symbols-outlined text-[16px] text-error"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      >
+                        {n.tipo === 'escalacao'      ? 'escalator_warning'
+                        : n.tipo === 'ia_offline'    ? 'cloud_off'
+                        : n.tipo === 'agente_falhou' ? 'smart_toy'
+                        : 'warning'}
+                      </span>
+
+                      {/* Conteúdo */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-semibold text-on-surface truncate">{n.titulo}</p>
+                        {n.descricao && (
+                          <p className="line-clamp-1 text-[11px] text-on-surface-variant/60 mt-0.5">{n.descricao}</p>
+                        )}
+                        {!n.podeDescartar && (
+                          <p className="text-[10px] text-primary/60 mt-0.5 font-medium">Clique para atender</p>
+                        )}
+                      </div>
+
+                      {/* Hora + ações */}
+                      <div className="flex shrink-0 flex-col items-end gap-1.5 ml-1">
+                        <span className="text-[10px] text-on-surface-variant/40">
                           {new Date(n.criadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
+                        {n.podeDescartar ? (
+                          <button
+                            onClick={e => { e.stopPropagation(); descartar(n.id) }}
+                            className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded-full text-on-surface-variant/40 hover:bg-surface-container hover:text-on-surface transition-all"
+                            title="Descartar"
+                          >
+                            <span className="material-symbols-outlined text-[13px]">close</span>
+                          </button>
+                        ) : (
+                          <span className="material-symbols-outlined text-[13px] text-primary/50">arrow_forward</span>
+                        )}
                       </div>
-                      {n.descricao && (
-                        <p className="ml-5 line-clamp-1 text-[11px] text-on-surface-variant/60">{n.descricao}</p>
-                      )}
-                    </DropdownMenuItem>
+                    </div>
                   ))}
                 </div>
               )}
+
+              {/* Footer */}
               <div className="border-t border-outline-variant/10 px-4 py-2.5">
                 <Link
                   href="/crm/atendimentos"

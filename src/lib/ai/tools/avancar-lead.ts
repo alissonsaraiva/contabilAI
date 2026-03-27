@@ -4,7 +4,7 @@ import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
 const avancarLeadTool: Tool = {
   definition: {
-    name: 'avançarLead',
+    name: 'avancarLead',
     description:
       'Avança o lead para o próximo passo do funil de onboarding, opcionalmente definindo status, plano, valor negociado, forma de pagamento e dia de vencimento. Use quando o operador disser "avança o lead", "manda pra próxima etapa", "define o plano como X", "valor negociado é R$500", etc.',
     inputSchema: {

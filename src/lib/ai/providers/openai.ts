@@ -81,6 +81,19 @@ type OpenAIToolCallResponse = {
 
 // ─── Provider OpenAI ──────────────────────────────────────────────────────────
 
+/** Retorna true para modelos o-series (o1, o3, o4-mini, etc.) que usam max_completion_tokens */
+function isOSeries(model: string): boolean {
+  return /^o\d/.test(model)
+}
+
+/** Monta os parâmetros de tokens/temperatura compatíveis com o modelo */
+function tokenParams(model: string, maxTokens: number, temperature: number): Record<string, unknown> {
+  if (isOSeries(model)) {
+    return { max_completion_tokens: maxTokens }
+  }
+  return { max_tokens: maxTokens, temperature }
+}
+
 export const openaiProvider: AIProvider = {
   name: 'openai',
 
@@ -99,8 +112,7 @@ export const openaiProvider: AIProvider = {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: resolvedModel,
-          max_tokens: maxTokens,
-          temperature,
+          ...tokenParams(resolvedModel, maxTokens, temperature),
           messages: [
             { role: 'system', content: system },
             ...messages.map(m => ({
@@ -145,8 +157,7 @@ export const openaiProvider: AIProvider = {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: resolvedModel,
-          max_tokens: maxTokens,
-          temperature,
+          ...tokenParams(resolvedModel, maxTokens, temperature),
           tools: tools.map(t => ({
             type: 'function',
             function: { name: t.name, description: t.description, parameters: t.inputSchema },

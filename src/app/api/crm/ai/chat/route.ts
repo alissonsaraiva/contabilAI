@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 
 FOCO ATUAL: ${escopoLabel}. Priorize informações deste contexto, mas pode consultar e comparar com outros clientes quando isso for útil para a análise.
 
-ACESSO A DADOS: Você tem acesso a dados em tempo real do CRM via sistema de agentes. Quando perguntas sobre leads, clientes, tarefas, prospecções ou dados específicos forem feitas, os dados reais serão fornecidos nesta conversa. NUNCA diga que não tem acesso ao banco de dados — caso os dados não tenham sido carregados, informe que houve um problema temporário ao consultar as informações.`
+ACESSO A DADOS: Você tem acesso a dados em tempo real do CRM via sistema de agentes. Quando perguntas sobre leads, clientes, tarefas, prospecções ou dados específicos forem feitas, os dados reais serão fornecidos nesta conversa. NUNCA diga que não tem acesso ao banco de dados — caso os dados não tenham sido fornecidos nesta mensagem, responda com o que já sabe do histórico ou peça ao operador para repetir a pergunta.`
 
   const whereClause = clienteId
     ? { conversa: { clienteId } }
@@ -131,8 +131,7 @@ ${resultado.resposta}
 Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, conversacional e objetivo. Não mencione que consultou um "agente" ou "banco de dados" — apenas apresente as informações como se fossem seu conhecimento atual.`
       }
     } catch (err) {
-      // Agente falhou — instrui o LLM a informar o usuário (sem esconder o problema)
-      systemExtra += `\n\nNOTA DO SISTEMA: Ocorreu um problema temporário ao consultar os dados em tempo real. Informe o usuário de forma natural que não foi possível carregar os dados neste momento e sugira tentar novamente.`
+      // Agente falhou — notifica o admin via central de notificações, não o operador no chat
       const { notificarAgenteFalhou } = await import('@/lib/notificacoes')
       notificarAgenteFalhou(err instanceof Error ? err.message : String(err)).catch(() => {})
     }
@@ -160,7 +159,7 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, convers
     import('@/lib/notificacoes')
       .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
       .catch(() => {})
-    return NextResponse.json({ reply: 'IA temporariamente indisponível. Verifique a saúde dos providers em Configurações → IA → Saúde.' })
+    return NextResponse.json({ reply: 'Estou enfrentando uma instabilidade no momento. Tente novamente em alguns instantes.' })
   }
 
   addMensagens(conversaId, message, resposta)
