@@ -18,6 +18,7 @@ import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
+import { PortalLinkButton } from '@/components/crm/portal-link-button'
 import { HistoricoTimeline } from '@/components/crm/historico-timeline'
 import { ClienteStatusSelect } from '@/components/crm/cliente-status-select'
 import { ReprocessarPdfButton } from '@/components/crm/reprocessar-pdf-button'
@@ -136,7 +137,7 @@ export default async function ClienteDetailPage({ params }: Props) {
             {cliente.cidade && (
               <span className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px]">location_on</span>
-                {cliente.cidade}/{cliente.uf}
+                {[cliente.cidade, cliente.uf].filter(Boolean).join('/')}
               </span>
             )}
             {cliente.responsavel && (
@@ -155,6 +156,7 @@ export default async function ClienteDetailPage({ params }: Props) {
 
           <div className="mt-3 flex items-center gap-2">
             <WhatsAppDrawerButton clienteId={cliente.id} clienteNome={cliente.nome} />
+            <PortalLinkButton clienteId={cliente.id} status={cliente.status} />
           </div>
         </div>
       </div>
@@ -220,7 +222,7 @@ export default async function ClienteDetailPage({ params }: Props) {
                   />
                 )}
                 {cliente.bairro && <InfoRow label="Bairro" value={cliente.bairro} />}
-                {cliente.cidade && <InfoRow label="Cidade" value={`${cliente.cidade}/${cliente.uf}`} />}
+                {cliente.cidade && <InfoRow label="Cidade" value={[cliente.cidade, cliente.uf].filter(Boolean).join('/')} />}
                 {cliente.cep && <InfoRow label="CEP" value={cliente.cep} />}
               </InfoCard>
             )}

@@ -1,1 +1,1 @@
-ALTER TABLE "escritorios" ADD COLUMN IF NOT EXISTS "toolsCanaisOverride" JSONB;
+ALTER TABLE "escritorio" ADD COLUMN IF NOT EXISTS "toolsCanaisOverride" JSONB;
