@@ -220,11 +220,11 @@ export default function IntegracoesPage() {
         </div>
 
         {/* ZapSign */}
-        <div className={provedor === 'zapsign' ? '' : 'opacity-40 pointer-events-none'}>
+        {provedor === 'zapsign' && (
           <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">ZapSign</span>
-              {provedor === 'zapsign' && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Ativo</span>}
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Ativo</span>
             </div>
             <div>
               <FieldLabel label="API Token" configured={configured.zapsignToken} />
@@ -237,14 +237,14 @@ export default function IntegracoesPage() {
               <p className="mt-1 text-[11px] text-on-surface-variant/60">Dashboard ZapSign → Configurações → Integrações → API Token</p>
             </div>
           </div>
-        </div>
+        )}
 
         {/* ClickSign */}
-        <div className={provedor === 'clicksign' ? '' : 'opacity-40 pointer-events-none'}>
+        {provedor === 'clicksign' && (
           <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">ClickSign</span>
-              {provedor === 'clicksign' && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Ativo</span>}
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Ativo</span>
             </div>
             <div>
               <FieldLabel label="Access Token (API Key)" configured={configured.clicksignKey} />
@@ -267,7 +267,7 @@ export default function IntegracoesPage() {
               <p className="mt-1 text-[11px] text-on-surface-variant/60">ClickSign → Configurações → Webhooks → HMAC SHA256 Secret</p>
             </div>
           </div>
-        </div>
+        )}
 
       </Section>
 

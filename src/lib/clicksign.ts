@@ -113,7 +113,8 @@ export async function enviarClickSign(
         email: signatario.email,
         name: signatario.nome,
         has_documentation: false,
-        auth: 'email',
+        auth_mode: 'email',
+        delivery: 'email',
       },
     },
   })
