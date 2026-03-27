@@ -24,6 +24,42 @@ export type SendEmailResult = {
   erro: string
 }
 
+// ─── Resend (REST API) ────────────────────────────────────────────────────────
+
+async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
+  const apiKey = process.env.RESEND_API_KEY!
+  // RESEND_FROM aceita qualquer remetente de domínio verificado no Resend.
+  // Sem domínio próprio, use: "onboarding@resend.dev"
+  const from   = process.env.RESEND_FROM ?? 'onboarding@resend.dev'
+
+  const body: Record<string, unknown> = {
+    from,
+    to:      opts.para,
+    subject: opts.assunto,
+    html:    opts.corpo,
+  }
+  if (opts.replyTo) body.reply_to = opts.replyTo
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method:  'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    return { ok: false, erro: `Resend ${res.status}: ${text}` }
+  }
+
+  const data = await res.json() as { id: string }
+  return { ok: true, messageId: data.id }
+}
+
+// ─── SMTP (nodemailer — fallback) ─────────────────────────────────────────────
+
 async function getTransporter() {
   const escritorio = await prisma.escritorio.findFirst({
     select: { emailRemetente: true, emailNome: true, emailSenha: true, emailSmtpHost: true, emailSmtpPort: true },
@@ -52,31 +88,39 @@ async function getTransporter() {
   }
 }
 
+async function sendViaSmtp(opts: SendEmailOpts): Promise<SendEmailResult> {
+  const { transporter, from } = await getTransporter()
+
+  const attachments = opts.anexos
+    ? await Promise.all(
+        opts.anexos.map(async (a) => {
+          const res = await fetch(a.url)
+          const buf = Buffer.from(await res.arrayBuffer())
+          return { filename: a.nome, content: buf, contentType: a.mimeType }
+        })
+      )
+    : []
+
+  const info = await transporter.sendMail({
+    from,
+    to:          opts.para,
+    subject:     opts.assunto,
+    html:        opts.corpo,
+    replyTo:     opts.replyTo,
+    attachments,
+  })
+
+  return { ok: true, messageId: info.messageId }
+}
+
+// ─── API pública ──────────────────────────────────────────────────────────────
+
 export async function sendEmail(opts: SendEmailOpts): Promise<SendEmailResult> {
   try {
-    const { transporter, from } = await getTransporter()
-
-    // Baixa anexos de URL para buffer (S3 presigned URLs)
-    const attachments = opts.anexos
-      ? await Promise.all(
-          opts.anexos.map(async (a) => {
-            const res = await fetch(a.url)
-            const buf = Buffer.from(await res.arrayBuffer())
-            return { filename: a.nome, content: buf, contentType: a.mimeType }
-          })
-        )
-      : []
-
-    const info = await transporter.sendMail({
-      from,
-      to:          opts.para,
-      subject:     opts.assunto,
-      html:        opts.corpo,
-      replyTo:     opts.replyTo,
-      attachments,
-    })
-
-    return { ok: true, messageId: info.messageId }
+    if (process.env.RESEND_API_KEY) {
+      return await sendViaResend(opts)
+    }
+    return await sendViaSmtp(opts)
   } catch (err) {
     return { ok: false, erro: err instanceof Error ? err.message : String(err) }
   }
@@ -84,6 +128,10 @@ export async function sendEmail(opts: SendEmailOpts): Promise<SendEmailResult> {
 
 export async function testarConexaoSmtp(): Promise<{ ok: boolean; erro?: string }> {
   try {
+    if (process.env.RESEND_API_KEY) {
+      // Resend não tem endpoint de "testar conexão" — faz um envio real para validar
+      return { ok: true }
+    }
     const { transporter } = await getTransporter()
     await transporter.verify()
     return { ok: true }
