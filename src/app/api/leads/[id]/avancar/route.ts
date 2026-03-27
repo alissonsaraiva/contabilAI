@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 const avancarSchema = z.object({
-  status:         z.enum(['iniciado','simulador','plano_escolhido','dados_preenchidos','socios_preenchidos','revisao','contrato_gerado','aguardando_assinatura','assinado','expirado','cancelado']).optional(),
+  status:         z.enum(['iniciado','simulador','plano_escolhido','dados_preenchidos','revisao','contrato_gerado','aguardando_assinatura','assinado','expirado','cancelado']).optional(),
   dadosJson:      z.record(z.string(), z.unknown()).optional().nullable(),
   planoTipo:      z.enum(['essencial', 'profissional', 'empresarial', 'startup']).optional(),
   valorNegociado: z.number().positive().optional().nullable(),

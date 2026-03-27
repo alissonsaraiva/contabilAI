@@ -19,9 +19,11 @@ import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
 import { PortalLinkButton } from '@/components/crm/portal-link-button'
+import { PortalChatButton } from '@/components/crm/portal-chat-button'
 import { HistoricoTimeline } from '@/components/crm/historico-timeline'
 import { ClienteStatusSelect } from '@/components/crm/cliente-status-select'
 import { ReprocessarPdfButton } from '@/components/crm/reprocessar-pdf-button'
+import { EditarClienteButton } from '@/components/crm/editar-cliente-button'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -99,7 +101,7 @@ export default async function ClienteDetailPage({ params }: Props) {
     { value: 'socios', label: 'Sócios', count: cliente.socios.length },
     { value: 'documentos', label: 'Documentos', count: cliente.documentos.length },
     { value: 'contratos', label: 'Contratos', count: cliente.contratos.length },
-    { value: 'historico', label: 'Histórico', count: null },
+    { value: 'historico', label: 'Interações', count: null },
     { value: 'conversas', label: 'Conversas IA', count: conversas.length },
   ]
 
@@ -155,7 +157,25 @@ export default async function ClienteDetailPage({ params }: Props) {
           </div>
 
           <div className="mt-3 flex items-center gap-2">
+            <EditarClienteButton cliente={{
+              id: cliente.id,
+              nome: cliente.nome,
+              cpf: cliente.cpf,
+              email: cliente.email,
+              telefone: cliente.telefone,
+              planoTipo: cliente.planoTipo,
+              valorMensal: Number(cliente.valorMensal),
+              vencimentoDia: cliente.vencimentoDia,
+              formaPagamento: cliente.formaPagamento,
+              cnpj: cliente.cnpj,
+              razaoSocial: cliente.razaoSocial,
+              regime: cliente.regime,
+              cidade: cliente.cidade,
+              uf: cliente.uf,
+              status: cliente.status,
+            }} />
             <WhatsAppDrawerButton clienteId={cliente.id} clienteNome={cliente.nome} />
+            <PortalChatButton clienteId={cliente.id} clienteNome={cliente.nome} status={cliente.status} />
             <PortalLinkButton clienteId={cliente.id} status={cliente.status} />
           </div>
         </div>

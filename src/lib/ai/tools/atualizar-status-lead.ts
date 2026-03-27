@@ -14,7 +14,6 @@ const ETAPA_MAP: Record<string, string> = {
   'simulou':           'simulador',
   'plano escolhido':   'plano_escolhido',
   'dados preenchidos': 'dados_preenchidos',
-  'socios preenchidos':'socios_preenchidos',
   'revisao':           'revisao',
   'em revisão':        'revisao',
   'contrato gerado':   'contrato_gerado',

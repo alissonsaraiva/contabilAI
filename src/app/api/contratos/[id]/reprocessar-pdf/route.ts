@@ -17,12 +17,20 @@ async function buscarPdfClickSign(clicksignKey: string, apiKey: string): Promise
 
   const data = (await res.json()) as {
     document?: {
-      downloads?: { url?: string }[]
-      original_file_url?: string
+      downloads?: {
+        signed_file_url?: string
+        original_file_url?: string
+      }
     }
   }
 
-  return data.document?.downloads?.[0]?.url ?? data.document?.original_file_url ?? null
+  // A ClickSign retorna downloads como objeto (não array)
+  // Prioriza o PDF assinado (com overlay da ClickSign), fallback para o original
+  return (
+    data.document?.downloads?.signed_file_url ??
+    data.document?.downloads?.original_file_url ??
+    null
+  )
 }
 
 async function buscarPdfZapSign(docToken: string, rawToken: string): Promise<string | null> {

@@ -6,14 +6,34 @@ import { signOut } from 'next-auth/react'
 import { cn, getInitials } from '@/lib/utils'
 import type { SessionUser } from '@/types'
 
-const NAV_ITEMS = [
-  { href: '/crm/dashboard',      icon: 'dashboard',      label: 'Dashboard' },
-  { href: '/crm/prospeccao',     icon: 'contact_phone',  label: 'Prospecção' },
-  { href: '/crm/leads',          icon: 'rocket_launch',  label: 'Onboarding' },
-  { href: '/crm/clientes',       icon: 'group',          label: 'Clientes' },
-  { href: '/crm/atendimentos',   icon: 'support_agent',  label: 'Atendimentos', badge: true },
-  { href: '/crm/tarefas',        icon: 'check_circle',   label: 'Tarefas' },
-  { href: '/crm/configuracoes',  icon: 'settings',       label: 'Configurações' },
+type NavItem = {
+  href: string
+  icon: string
+  label: string
+  badge?: boolean
+}
+
+type NavGroup = {
+  label?: string
+  items: NavItem[]
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    items: [
+      { href: '/crm/dashboard', icon: 'dashboard', label: 'Dashboard' },
+    ],
+  },
+  {
+    label: 'Comercial',
+    items: [
+      { href: '/crm/prospeccao',   icon: 'contact_phone', label: 'Prospecção' },
+      { href: '/crm/leads',        icon: 'rocket_launch',  label: 'Onboarding' },
+      { href: '/crm/clientes',     icon: 'group',          label: 'Clientes' },
+      { href: '/crm/atendimentos', icon: 'support_agent',  label: 'Atendimentos', badge: true },
+      { href: '/crm/tarefas',      icon: 'check_circle',   label: 'Tarefas' },
+    ],
+  },
 ]
 
 type Props = { user: SessionUser; pendingEscalacoes?: number; nomeEscritorio?: string }
@@ -40,40 +60,50 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, nomeEscritorio = 'Cont
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 px-4 py-6 mt-2">
-        <div className="mb-4 px-3 text-[11px] font-semibold uppercase tracking-widest text-white/30">Menu Principal</div>
-        {NAV_ITEMS.map(({ href, icon, label, badge }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
-          const showBadge = badge && pendingEscalacoes > 0
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium transition-all duration-200',
-                active
-                  ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/10'
-                  : 'text-white/60 hover:bg-white/5 hover:text-white',
-              )}
-            >
-              <span
-                className="material-symbols-outlined text-[18px]"
-                style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
-              >
-                {icon}
-              </span>
-              <span>{label}</span>
-              {showBadge && !active && (
-                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
-                  {pendingEscalacoes > 9 ? '9+' : pendingEscalacoes}
-                </span>
-              )}
-              {active && (
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
-              )}
-            </Link>
-          )
-        })}
+      <nav className="flex-1 overflow-y-auto px-4 py-6 mt-2">
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={gi} className={gi > 0 ? 'mt-5' : ''}>
+            {group.label && (
+              <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                {group.label}
+              </div>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map(({ href, icon, label, badge }: NavItem) => {
+                const active = pathname === href || pathname.startsWith(href + '/')
+                const showBadge = badge && pendingEscalacoes > 0
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(
+                      'flex items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium transition-all duration-200',
+                      active
+                        ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/10'
+                        : 'text-white/60 hover:bg-white/5 hover:text-white',
+                    )}
+                  >
+                    <span
+                      className="material-symbols-outlined text-[18px]"
+                      style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
+                    >
+                      {icon}
+                    </span>
+                    <span>{label}</span>
+                    {showBadge && !active && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
+                        {pendingEscalacoes > 9 ? '9+' : pendingEscalacoes}
+                      </span>
+                    )}
+                    {active && (
+                      <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* User */}

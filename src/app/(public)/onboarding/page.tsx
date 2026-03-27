@@ -31,7 +31,6 @@ function getResumeUrl(lead: LeadResponse): string {
     simulador: `/onboarding/plano?leadId=${lead.id}`,
     plano_escolhido: `/onboarding/dados?leadId=${lead.id}`,
     dados_preenchidos: `/onboarding/revisao?leadId=${lead.id}`,
-    socios_preenchidos: `/onboarding/revisao?leadId=${lead.id}`,
     revisao: `/onboarding/contrato?leadId=${lead.id}`,
     contrato_gerado: `/onboarding/contrato?leadId=${lead.id}`,
     aguardando_assinatura: `/onboarding/contrato?leadId=${lead.id}`,

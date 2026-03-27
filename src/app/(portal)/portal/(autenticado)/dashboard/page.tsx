@@ -57,6 +57,42 @@ export default async function PortalDashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Banner inadimplência / suspensão */}
+      {(cliente.status === 'inadimplente' || cliente.status === 'suspenso') && (
+        <div className={`flex items-start gap-4 rounded-2xl border px-5 py-4 ${
+          cliente.status === 'inadimplente'
+            ? 'border-error/25 bg-error/8'
+            : 'border-orange-status/25 bg-orange-status/8'
+        }`}>
+          <span
+            className={`material-symbols-outlined mt-0.5 shrink-0 text-[22px] ${
+              cliente.status === 'inadimplente' ? 'text-error' : 'text-orange-status'
+            }`}
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            {cliente.status === 'inadimplente' ? 'error' : 'warning'}
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className={`text-[14px] font-bold ${cliente.status === 'inadimplente' ? 'text-error' : 'text-orange-status'}`}>
+              {cliente.status === 'inadimplente' ? 'Pagamento em aberto' : 'Conta suspensa'}
+            </p>
+            <p className={`mt-0.5 text-[13px] leading-relaxed ${cliente.status === 'inadimplente' ? 'text-error/80' : 'text-orange-status/80'}`}>
+              {cliente.status === 'inadimplente'
+                ? 'Identificamos uma pendência financeira na sua conta. Para evitar a suspensão dos serviços, entre em contato com o escritório o quanto antes.'
+                : 'Sua conta está temporariamente suspensa. Entre em contato com o escritório para regularizar sua situação.'}
+            </p>
+          </div>
+          <Link
+            href="/portal/suporte"
+            className={`shrink-0 rounded-xl px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors ${
+              cliente.status === 'inadimplente' ? 'bg-error hover:bg-error/90' : 'bg-orange-status hover:bg-orange-status/90'
+            }`}
+          >
+            Falar agora
+          </Link>
+        </div>
+      )}
+
       {/* Boas-vindas */}
       <div className="flex flex-col gap-1">
         <h1 className="font-headline text-2xl font-semibold text-on-surface">

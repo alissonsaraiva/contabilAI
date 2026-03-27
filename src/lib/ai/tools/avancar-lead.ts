@@ -18,7 +18,7 @@ const avancarLeadTool: Tool = {
           type: 'string',
           enum: [
             'iniciado', 'simulador', 'plano_escolhido', 'dados_preenchidos',
-            'socios_preenchidos', 'revisao', 'contrato_gerado',
+            'revisao', 'contrato_gerado',
             'aguardando_assinatura', 'assinado', 'expirado', 'cancelado',
           ],
           description: 'Novo status do lead (opcional — se omitido, apenas incrementa o passo).',

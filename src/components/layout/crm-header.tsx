@@ -9,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -17,13 +16,25 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import type { SessionUser } from '@/types'
 
-const NAV_ITEMS = [
-  { href: '/crm/dashboard',    icon: 'dashboard',    label: 'Dashboard' },
-  { href: '/crm/prospeccao',   icon: 'contact_phone', label: 'Prospecção' },
-  { href: '/crm/leads',        icon: 'rocket_launch', label: 'Onboarding' },
-  { href: '/crm/clientes',     icon: 'group',        label: 'Clientes' },
-  { href: '/crm/tarefas',      icon: 'check_circle', label: 'Tarefas' },
-  { href: '/crm/configuracoes', icon: 'settings',    label: 'Configurações' },
+type NavItem = { href: string; icon: string; label: string }
+type NavGroup = { label?: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    items: [
+      { href: '/crm/dashboard', icon: 'dashboard', label: 'Dashboard' },
+    ],
+  },
+  {
+    label: 'Comercial',
+    items: [
+      { href: '/crm/prospeccao',   icon: 'contact_phone', label: 'Prospecção' },
+      { href: '/crm/leads',        icon: 'rocket_launch',  label: 'Onboarding' },
+      { href: '/crm/clientes',     icon: 'group',          label: 'Clientes' },
+      { href: '/crm/atendimentos', icon: 'support_agent',  label: 'Atendimentos' },
+      { href: '/crm/tarefas',      icon: 'check_circle',   label: 'Tarefas' },
+    ],
+  },
 ]
 
 function resolveTitle(pathname: string): string {
@@ -272,12 +283,12 @@ export function CrmHeader({ user }: Props) {
               </Avatar>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-outline-variant/15">
-              <DropdownMenuLabel className="font-normal px-2.5 py-2">
+              <div className="px-2.5 py-2">
                 <div className="flex flex-col space-y-1">
                   <p className="text-[14px] font-semibold text-on-surface">{user.name}</p>
                   <p className="text-[12px] font-medium text-on-surface-variant/80">{user.email}</p>
                 </div>
-              </DropdownMenuLabel>
+              </div>
               <DropdownMenuSeparator className="bg-outline-variant/10 -mx-1.5" />
               <DropdownMenuItem
                 onClick={() => signOut({ callbackUrl: '/login' })}
@@ -308,35 +319,45 @@ export function CrmHeader({ user }: Props) {
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 space-y-1 px-4 py-4">
-            <div className="mb-4 px-3 text-[11px] font-semibold uppercase tracking-widest text-white/30">Menu Principal</div>
-            {NAV_ITEMS.map(({ href, icon, label }) => {
-              const active = pathname === href || pathname.startsWith(href + '/')
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
-                    active
-                      ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/10'
-                      : 'text-white/60 hover:bg-white/5 hover:text-white',
-                  )}
-                >
-                  <span
-                    className="material-symbols-outlined text-[20px]"
-                    style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
-                  >
-                    {icon}
-                  </span>
-                  <span>{label}</span>
-                  {active && (
-                    <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
-                  )}
-                </Link>
-              )
-            })}
+          <nav className="flex-1 overflow-y-auto px-4 py-4">
+            {NAV_GROUPS.map((group, gi) => (
+              <div key={gi} className={gi > 0 ? 'mt-5' : ''}>
+                {group.label && (
+                  <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                    {group.label}
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  {group.items.map(({ href, icon, label }: NavItem) => {
+                    const active = pathname === href || pathname.startsWith(href + '/')
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setMobileOpen(false)}
+                        className={cn(
+                          'flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
+                          active
+                            ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/10'
+                            : 'text-white/60 hover:bg-white/5 hover:text-white',
+                        )}
+                      >
+                        <span
+                          className="material-symbols-outlined text-[20px]"
+                          style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
+                        >
+                          {icon}
+                        </span>
+                        <span>{label}</span>
+                        {active && (
+                          <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+                        )}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
 
           {/* User */}

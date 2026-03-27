@@ -31,7 +31,6 @@ enum StatusLead {
   simulador
   plano_escolhido
   dados_preenchidos
-  socios_preenchidos
   revisao
   contrato_gerado
   aguardando_assinatura

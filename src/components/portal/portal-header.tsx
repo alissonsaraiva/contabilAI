@@ -8,7 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -76,12 +75,12 @@ export function PortalHeader({ user }: Props) {
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-outline-variant/15">
-            <DropdownMenuLabel className="font-normal px-2.5 py-2">
+            <div className="px-2.5 py-2">
               <div className="flex flex-col space-y-0.5">
                 <p className="text-[14px] font-semibold text-on-surface">{user.name}</p>
                 <p className="text-[12px] text-on-surface-variant/80">{user.email}</p>
               </div>
-            </DropdownMenuLabel>
+            </div>
             <DropdownMenuSeparator className="bg-outline-variant/10 -mx-1.5" />
             <DropdownMenuItem
               onClick={() => signOut({ callbackUrl: '/portal/login' })}

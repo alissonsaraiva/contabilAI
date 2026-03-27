@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { decrypt, isEncrypted } from '@/lib/crypto'
-import { sendText } from '@/lib/evolution'
+import { sendText, sendMedia } from '@/lib/evolution'
 import { getProvider } from '@/lib/ai/providers'
 import { getAiConfig } from '@/lib/ai/config'
 import { SYSTEM_BASE_DEFAULT } from '@/lib/ai/ask'
@@ -17,9 +17,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const { id } = await params
-  const { modo, conteudo } = await req.json() as { modo: 'ia' | 'direto'; conteudo: string }
+  const { modo, conteudo, mediaUrl, mediaType, mediaFileName, mediaMimeType } = await req.json() as {
+    modo: 'ia' | 'direto'
+    conteudo: string
+    mediaUrl?: string
+    mediaType?: 'image' | 'document'
+    mediaFileName?: string
+    mediaMimeType?: string
+  }
 
-  if (!modo || !conteudo?.trim()) {
+  const hasMedia = !!mediaUrl && !!mediaType && !!mediaFileName && !!mediaMimeType
+  if (!modo || (!conteudo?.trim() && !hasMedia)) {
     return NextResponse.json({ error: 'modo e conteudo são obrigatórios' }, { status: 400 })
   }
 
@@ -78,11 +86,21 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
     if (row?.evolutionApiUrl && row.evolutionApiKey && row.evolutionInstance) {
       const rawKey = row.evolutionApiKey
       const apiKey = isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
-      const sendResult = await sendText(
-        { baseUrl: row.evolutionApiUrl, apiKey, instance: row.evolutionInstance },
-        esc.remoteJid,
-        mensagemFinal,
-      )
+      const evoCfg = { baseUrl: row.evolutionApiUrl, apiKey, instance: row.evolutionInstance }
+
+      let sendResult
+      if (hasMedia) {
+        sendResult = await sendMedia(evoCfg, esc.remoteJid, {
+          mediatype: mediaType!,
+          mimetype:  mediaMimeType!,
+          fileName:  mediaFileName!,
+          caption:   mensagemFinal || undefined,
+          mediaUrl:  mediaUrl!,
+        })
+      } else {
+        sendResult = await sendText(evoCfg, esc.remoteJid, mensagemFinal)
+      }
+
       if (!sendResult.ok) {
         console.error('[escalacoes/responder] falha ao enviar WhatsApp:', sendResult.error)
         return NextResponse.json(

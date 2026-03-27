@@ -101,7 +101,6 @@ const resumirFunilTool: Tool = {
       simulador:             'Simulou planos',
       plano_escolhido:       'Plano escolhido',
       dados_preenchidos:     'Dados preenchidos',
-      socios_preenchidos:    'Sócios preenchidos',
       revisao:               'Em revisão',
       contrato_gerado:       'Contrato gerado',
       aguardando_assinatura: 'Aguardando assinatura',

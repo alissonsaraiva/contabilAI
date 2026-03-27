@@ -7,7 +7,6 @@ const STATUS_LEAD_COLORS: Record<string, string> = {
   simulador: 'bg-blue-100 text-blue-700',
   plano_escolhido: 'bg-cyan-100 text-cyan-700',
   dados_preenchidos: 'bg-yellow-100 text-yellow-700',
-  socios_preenchidos: 'bg-orange-100 text-orange-700',
   revisao: 'bg-purple-100 text-purple-700',
   contrato_gerado: 'bg-indigo-100 text-indigo-700',
   aguardando_assinatura: 'bg-pink-100 text-pink-700',

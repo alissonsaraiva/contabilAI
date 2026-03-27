@@ -132,7 +132,13 @@ export default async function AtendimentoDetailPage({ params }: Props) {
           )}
         </div>
       ) : (
-        <EscalacaoResponder escalacaoId={id} canal={esc.canal} nomeIa={nomeIa} />
+        <EscalacaoResponder
+          escalacaoId={id}
+          canal={esc.canal}
+          nomeIa={nomeIa}
+          entidadeId={esc.clienteId ?? esc.leadId ?? undefined}
+          entidadeTipo={esc.clienteId ? 'cliente' : esc.leadId ? 'lead' : undefined}
+        />
       )}
     </div>
   )

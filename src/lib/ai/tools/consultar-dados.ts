@@ -32,7 +32,7 @@ const consultarDadosTool: Tool = {
               type: 'string',
               description:
                 'Clientes: ativo|inadimplente|suspenso|cancelado|encerrado. ' +
-                'Leads: iniciado|simulador|plano_escolhido|dados_preenchidos|socios_preenchidos|revisao|contrato_gerado|aguardando_assinatura|assinado|expirado. ' +
+                'Leads: iniciado|simulador|plano_escolhido|dados_preenchidos|revisao|contrato_gerado|aguardando_assinatura|assinado|expirado. ' +
                 'Tarefas: pendente|em_andamento|aguardando_cliente|concluida|cancelada.',
             },
             plano: {

@@ -11,7 +11,7 @@ const updateSchema = z.object({
   vencimentoDia:  z.number().int().min(1).max(31).optional().nullable(),
   formaPagamento: z.enum(['pix', 'boleto', 'cartao']).optional().nullable(),
   funil:          z.string().optional(),
-  status:         z.enum(['iniciado','simulador','plano_escolhido','dados_preenchidos','socios_preenchidos','revisao','contrato_gerado','aguardando_assinatura','assinado','expirado','cancelado']).optional(),
+  status:         z.enum(['iniciado','simulador','plano_escolhido','dados_preenchidos','revisao','contrato_gerado','aguardando_assinatura','assinado','expirado','cancelado']).optional(),
   dadosJson:      z.record(z.string(), z.unknown()).optional().nullable(),
 }).strict()
 
