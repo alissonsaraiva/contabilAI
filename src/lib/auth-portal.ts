@@ -65,9 +65,8 @@ const portalAuth = NextAuth({
           select: { id: true, nome: true, status: true },
         })
         if (!cliente) return '/portal/login?erro=email_nao_cadastrado'
-        if (cliente.status === 'cancelado' || cliente.status === 'encerrado') {
-          return '/portal/login?erro=conta_inativa'
-        }
+        if (cliente.status === 'suspenso')  return '/portal/login?erro=conta_suspensa'
+        if (cliente.status === 'cancelado') return '/portal/login?erro=conta_cancelada'
         ;(user as any).id   = cliente.id
         ;(user as any).nome = cliente.nome
         ;(user as any).tipo = 'cliente'

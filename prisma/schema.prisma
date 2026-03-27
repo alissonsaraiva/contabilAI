@@ -45,7 +45,6 @@ enum StatusCliente {
   inadimplente
   suspenso
   cancelado
-  encerrado
 }
 
 enum StatusContrato {
@@ -205,6 +204,10 @@ model Cliente {
   vencimentoDia       Int
   formaPagamento      FormaPagamento
   status              StatusCliente   @default(ativo)
+  motivoInativacao    String?         @db.Text
+  inativadoEm         DateTime?
+  inativadoPorId      String?
+  reativadoEm         DateTime?
   responsavelId       String?
   responsavel         Usuario?        @relation("ClienteResponsavel", fields: [responsavelId], references: [id])
   observacoesInternas String?         @db.Text
@@ -213,13 +216,14 @@ model Cliente {
   criadoEm            DateTime        @default(now())
   atualizadoEm        DateTime        @updatedAt
 
-  socios     Socio[]
-  documentos Documento[]
-  contratos  Contrato[]
-  tarefas       Tarefa[]
-  interacoes    Interacao[]
-  conversas     ConversaIA[]
-  portalTokens  PortalToken[]
+  socios          Socio[]
+  documentos      Documento[]
+  contratos       Contrato[]
+  tarefas         Tarefa[]
+  interacoes      Interacao[]
+  conversas       ConversaIA[]
+  portalTokens    PortalToken[]
+  statusHistorico ClienteStatusHistorico[]
 
   @@map("clientes")
 }
@@ -521,6 +525,21 @@ model PortalToken {
 
   @@index([clienteId])
   @@map("portal_tokens")
+}
+
+model ClienteStatusHistorico {
+  id           String        @id @default(uuid())
+  clienteId    String
+  cliente      Cliente       @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  statusAntes  StatusCliente
+  statusDepois StatusCliente
+  motivo       String?       @db.Text
+  operadorId   String?
+  operadorNome String?
+  criadoEm     DateTime      @default(now())
+
+  @@index([clienteId, criadoEm])
+  @@map("cliente_status_historico")
 }
 
 model AgenteAcao {

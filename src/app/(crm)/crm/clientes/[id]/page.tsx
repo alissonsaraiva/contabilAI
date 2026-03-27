@@ -5,9 +5,11 @@ import { getAiConfig } from '@/lib/ai/config'
 import { formatBRL, formatCPF, formatCNPJ, formatDate, formatTelefone } from '@/lib/utils'
 import {
   STATUS_CLIENTE_LABELS,
+  STATUS_CLIENTE_COLORS,
   PLANO_LABELS,
   PLANO_COLORS,
   FORMA_PAGAMENTO_LABELS,
+  type StatusCliente,
 } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
@@ -67,6 +69,7 @@ export default async function ClienteDetailPage({ params }: Props) {
         contratos: true,
         tarefas: { orderBy: { criadoEm: 'desc' }, take: 10 },
         responsavel: { select: { nome: true } },
+        statusHistorico: { orderBy: { criadoEm: 'desc' }, take: 20 },
       },
     }),
   ])
@@ -225,6 +228,18 @@ export default async function ClienteDetailPage({ params }: Props) {
               <InfoRow label="Status" value={STATUS_CLIENTE_LABELS[cliente.status]} />
               {cliente.responsavel && <InfoRow label="Responsável" value={cliente.responsavel.nome} />}
               {cliente.dataInicio && <InfoRow label="Início" value={formatDate(cliente.dataInicio)} />}
+              {(cliente as any).inativadoEm && (
+                <InfoRow label="Inativado em" value={formatDate((cliente as any).inativadoEm)} />
+              )}
+              {(cliente as any).reativadoEm && (
+                <InfoRow label="Reativado em" value={formatDate((cliente as any).reativadoEm)} />
+              )}
+              {(cliente as any).motivoInativacao && (
+                <div className="pt-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Motivo inativação</p>
+                  <p className="mt-1 text-sm leading-relaxed text-on-surface">{(cliente as any).motivoInativacao}</p>
+                </div>
+              )}
               {cliente.observacoesInternas && (
                 <div className="pt-1">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Observações</p>
@@ -411,6 +426,37 @@ export default async function ClienteDetailPage({ params }: Props) {
 
         {/* ── Histórico ──────────────────────────────────── */}
         <TabsContent value="historico" className="m-0 focus-visible:outline-none">
+          {/* Histórico de status */}
+          {(cliente as any).statusHistorico?.length > 0 && (
+            <div className="mb-6 overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-outline-variant/10">
+                <span className="material-symbols-outlined text-[20px] text-primary/80" style={{ fontVariationSettings: "'FILL' 1" }}>history</span>
+                <h3 className="font-headline text-base font-semibold text-on-surface">Histórico de status</h3>
+              </div>
+              <div className="divide-y divide-outline-variant/10">
+                {(cliente as any).statusHistorico.map((h: any) => (
+                  <div key={h.id} className="flex items-start gap-4 px-6 py-3.5">
+                    <div className="mt-0.5 flex shrink-0 items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_CLIENTE_COLORS[h.statusAntes as StatusCliente] ?? ''}`}>
+                        {STATUS_CLIENTE_LABELS[h.statusAntes as StatusCliente] ?? h.statusAntes}
+                      </span>
+                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant">arrow_forward</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_CLIENTE_COLORS[h.statusDepois as StatusCliente] ?? ''}`}>
+                        {STATUS_CLIENTE_LABELS[h.statusDepois as StatusCliente] ?? h.statusDepois}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {h.motivo && <p className="text-sm text-on-surface truncate">{h.motivo}</p>}
+                      <p className="text-[12px] text-on-surface-variant">
+                        {h.operadorNome ? `${h.operadorNome} · ` : ''}{formatDate(h.criadoEm)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="mb-5 flex items-center justify-end gap-2">
             <EnviarEmailDrawer
               clienteId={cliente.id}

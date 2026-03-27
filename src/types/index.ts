@@ -108,11 +108,10 @@ export const STATUS_CONTRATO_LABELS: Record<StatusContrato, string> = {
 }
 
 export const STATUS_CLIENTE_LABELS: Record<StatusCliente, string> = {
-  ativo: 'Ativo',
+  ativo:        'Ativo',
   inadimplente: 'Inadimplente',
-  suspenso: 'Suspenso',
-  cancelado: 'Cancelado',
-  encerrado: 'Encerrado',
+  suspenso:     'Suspenso',
+  cancelado:    'Cancelado',
 }
 
 export const CANAL_LABELS: Record<Canal, string> = {
@@ -170,5 +169,4 @@ export const STATUS_CLIENTE_COLORS: Record<StatusCliente, string> = {
   inadimplente: 'bg-error/10 text-error',
   suspenso:     'bg-orange-status/10 text-orange-status',
   cancelado:    'bg-surface-container text-on-surface-variant',
-  encerrado:    'bg-surface-container text-on-surface-variant',
 }

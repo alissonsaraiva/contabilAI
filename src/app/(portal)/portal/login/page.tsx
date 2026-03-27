@@ -13,6 +13,8 @@ import { toast } from 'sonner'
 const ERRO_LABELS: Record<string, string> = {
   email_nao_cadastrado: 'Nenhuma conta encontrada com esse e-mail. Use o e-mail que você cadastrou no onboarding ou tente o link de acesso.',
   conta_inativa:        'Sua conta está inativa. Entre em contato com o escritório.',
+  conta_suspensa:       'Seu acesso ao portal está temporariamente suspenso. Entre em contato com o escritório para regularizar.',
+  conta_cancelada:      'Sua conta foi cancelada. Se deseja reativar os serviços, entre em contato com o escritório.',
   token_invalido:       'Link de acesso inválido ou expirado. Solicite um novo abaixo.',
   token_expirado:       'Este link de acesso expirou. Solicite um novo abaixo.',
 }
@@ -45,11 +47,7 @@ function LoginForm() {
         setEnviado(true)
       } else {
         const { error } = await res.json()
-        if (error === 'email_nao_cadastrado') {
-          toast.error('Nenhuma conta encontrada. Use o e-mail que você cadastrou no onboarding.')
-        } else {
-          toast.error('Não foi possível enviar o link. Tente novamente.')
-        }
+        toast.error(ERRO_LABELS[error] ?? 'Não foi possível enviar o link. Tente novamente.')
       }
     } finally {
       setLoading(false)

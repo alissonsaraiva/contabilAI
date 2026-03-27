@@ -19,8 +19,11 @@ export async function POST(req: NextRequest) {
   if (!cliente) {
     return NextResponse.json({ error: 'email_nao_cadastrado' }, { status: 404 })
   }
-  if (cliente.status === 'cancelado' || cliente.status === 'encerrado') {
-    return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
+  if (cliente.status === 'suspenso') {
+    return NextResponse.json({ error: 'conta_suspensa' }, { status: 403 })
+  }
+  if (cliente.status === 'cancelado') {
+    return NextResponse.json({ error: 'conta_cancelada' }, { status: 403 })
   }
 
   const link = await criarTokenPortal(cliente.id, 30 * 60 * 1000) // 30 min

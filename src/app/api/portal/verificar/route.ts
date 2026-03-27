@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (record.expiresAt < new Date()) {
     return NextResponse.json({ error: 'token_expirado' }, { status: 400 })
   }
-  if (record.cliente.status === 'cancelado' || record.cliente.status === 'encerrado') {
+  if (record.cliente.status !== 'ativo' && record.cliente.status !== 'inadimplente') {
     return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
   }
 
