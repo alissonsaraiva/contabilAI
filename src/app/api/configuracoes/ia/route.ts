@@ -149,6 +149,22 @@ export async function POST() {
   }
 
   async function testVoyage(): Promise<R> {
+    // OpenAI é o embedding primário — testa ele primeiro, Voyage é fallback
+    if (config.openaiApiKey) {
+      const baseUrl = config.openaiBaseUrl?.trim() || 'https://api.openai.com/v1'
+      const res = await fetch(`${baseUrl}/embeddings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.openaiApiKey}` },
+        body: JSON.stringify({ input: ['test'], model: 'text-embedding-3-small', dimensions: 512 }),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        throw new Error(`OpenAI Embeddings HTTP ${res.status}: ${body}`)
+      }
+      const voyageFallback = config.voyageApiKey ? ' + Voyage fallback' : ''
+      return { ok: true, label: `text-embedding-3-small (512d)${voyageFallback}` }
+    }
+    // Sem OpenAI — testa Voyage diretamente
     if (!config.voyageApiKey) return { ok: false, error: 'Não configurada' }
     const res = await fetch('https://api.voyageai.com/v1/embeddings', {
       method: 'POST',
@@ -159,7 +175,7 @@ export async function POST() {
       const body = await res.text().catch(() => '')
       throw new Error(`HTTP ${res.status}: ${body}`)
     }
-    return { ok: true, label: 'voyage-3-lite' }
+    return { ok: true, label: 'voyage-3-lite (512d)' }
   }
 
   async function testGroq(): Promise<R> {

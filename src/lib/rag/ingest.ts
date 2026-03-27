@@ -61,19 +61,24 @@ export const PLANOS_INFO = [
   },
 ]
 
-async function getVoyageKey(): Promise<string | null> {
+type EmbedKeys = { openai: string | null; voyage: string | null }
+
+async function getEmbeddingKeys(): Promise<EmbedKeys> {
   try {
     const cfg = await getAiConfig()
-    return cfg.voyageApiKey
+    return { openai: cfg.openaiApiKey, voyage: cfg.voyageApiKey }
   } catch {
-    return process.env.VOYAGE_API_KEY ?? null
+    return {
+      openai: process.env.OPENAI_API_KEY ?? null,
+      voyage: process.env.VOYAGE_API_KEY ?? null,
+    }
   }
 }
 
 async function indexar(
   texto: string,
   row: Omit<EmbeddingRow, 'conteudo'>,
-  voyageKey: string,
+  keys: EmbedKeys,
 ): Promise<void> {
   const chunks = chunkText(texto)
   if (!chunks.length) return
@@ -87,7 +92,7 @@ async function indexar(
     await deleteEmbeddings({ clienteId: row.clienteId, tipo: row.tipo })
   }
 
-  const embeddings = await embedTexts(chunks, voyageKey)
+  const embeddings = await embedTexts(chunks, keys)
   const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
     ...row,
     conteudo,
@@ -109,8 +114,8 @@ type LeadData = {
 }
 
 export async function indexarLead(lead: LeadData): Promise<void> {
-  const key = await getVoyageKey()
-  if (!key) return
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
 
   const dados = (lead.dadosJson ?? {}) as Record<string, string>
 
@@ -139,7 +144,7 @@ export async function indexarLead(lead: LeadData): Promise<void> {
     tipo: 'dados_lead',
     leadId: lead.id,
     titulo: dados['Nome completo'] ?? lead.contatoEntrada,
-  }, key)
+  }, keys)
 }
 
 // ─── Cliente ───────────────────────────────────────────────────────────────
@@ -175,8 +180,8 @@ type ClienteData = {
 }
 
 export async function indexarCliente(cliente: ClienteData): Promise<void> {
-  const key = await getVoyageKey()
-  if (!key) return
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
 
   const sociosLinhas = (cliente.socios ?? []).map(s => [
     `  - ${s.nome} (CPF: ${s.cpf})${s.principal ? ' — sócio principal' : ''}`,
@@ -214,7 +219,7 @@ export async function indexarCliente(cliente: ClienteData): Promise<void> {
       clienteId: cliente.id,
       titulo: cliente.razaoSocial ?? cliente.nome,
       documentoId: `dados_empresa_crm:${cliente.id}`,
-    }, key),
+    }, keys),
     indexar(linhas, {
       escopo: 'cliente',
       canal: 'portal',
@@ -222,7 +227,7 @@ export async function indexarCliente(cliente: ClienteData): Promise<void> {
       clienteId: cliente.id,
       titulo: cliente.razaoSocial ?? cliente.nome,
       documentoId: `dados_empresa_portal:${cliente.id}`,
-    }, key),
+    }, keys),
     indexar(linhas, {
       escopo: 'cliente',
       canal: 'whatsapp',
@@ -230,7 +235,7 @@ export async function indexarCliente(cliente: ClienteData): Promise<void> {
       clienteId: cliente.id,
       titulo: cliente.razaoSocial ?? cliente.nome,
       documentoId: `dados_empresa_whatsapp:${cliente.id}`,
-    }, key),
+    }, keys),
   ])
 }
 
@@ -258,8 +263,8 @@ export async function indexarInteracao(interacao: InteracaoData): Promise<void> 
   const isPortal = TIPOS_CRM_E_PORTAL.includes(interacao.tipo)
   if (!isCrm && !isPortal) return
 
-  const key = await getVoyageKey()
-  if (!key) return
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
 
   const data = interacao.criadoEm ? interacao.criadoEm.toLocaleDateString('pt-BR') : ''
   const linhas = [
@@ -283,7 +288,7 @@ export async function indexarInteracao(interacao: InteracaoData): Promise<void> 
       ...base,
       canal,
       documentoId: `interacao_${canal}:${interacao.id}`,
-    }, key)
+    }, keys)
   ))
 }
 
@@ -308,8 +313,8 @@ type EscritorioData = {
 
 // Indexa os dados do escritório em canal 'geral' — disponível para todas as IAs
 export async function indexarEscritorio(escritorio: EscritorioData): Promise<void> {
-  const key = await getVoyageKey()
-  if (!key) return
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
 
   const linhas = [
     `Escritório de contabilidade: ${escritorio.nomeFantasia ?? escritorio.nome}`,
@@ -332,7 +337,7 @@ export async function indexarEscritorio(escritorio: EscritorioData): Promise<voi
     tipo: 'base_conhecimento',
     documentoId: `escritorio:${escritorio.id}`,
     titulo: `Dados do escritório — ${escritorio.nomeFantasia ?? escritorio.nome}`,
-  }, key)
+  }, keys)
 }
 
 // ─── Contrato ────────────────────────────────────────────────────────────────
@@ -353,8 +358,8 @@ type ContratoIndexData = {
 // Indexa contrato assinado no canal 'onboarding' (escopo lead).
 // Usa documentoId fixo para garantir idempotência em re-assinaturas.
 export async function indexarContrato(data: ContratoIndexData): Promise<void> {
-  const key = await getVoyageKey()
-  if (!key) return
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
 
   const { id, leadId, dados, lead, plano, valor, vencimento, formaPagamento, agora, assinatura } = data
 
@@ -380,7 +385,7 @@ export async function indexarContrato(data: ContratoIndexData): Promise<void> {
     leadId,
     titulo: `Contrato — ${dados?.['Nome completo'] ?? lead.contatoEntrada}`,
     documentoId: `contrato:${id}`,
-  }, key)
+  }, keys)
 }
 
 // ─── Tarefa ──────────────────────────────────────────────────────────────────
@@ -408,8 +413,8 @@ export async function indexarTarefa(tarefa: TarefaData): Promise<void> {
     return
   }
 
-  const key = await getVoyageKey()
-  if (!key) return
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
 
   const prazoStr = tarefa.prazo ? tarefa.prazo.toLocaleDateString('pt-BR') : null
   const concluidaStr = tarefa.concluidaEm ? tarefa.concluidaEm.toLocaleDateString('pt-BR') : null
@@ -430,7 +435,7 @@ export async function indexarTarefa(tarefa: TarefaData): Promise<void> {
     clienteId: tarefa.clienteId,
     titulo: tarefa.titulo,
     documentoId: `tarefa:${tarefa.id}`,
-  }, key)
+  }, keys)
 }
 
 // ─── Escalação ───────────────────────────────────────────────────────────────
@@ -451,8 +456,8 @@ export async function indexarEscalacao(escalacao: EscalacaoData): Promise<void> 
   if (!escalacao.clienteId && !escalacao.leadId) return
   if (!escalacao.motivoIA && !escalacao.orientacaoHumana) return
 
-  const key = await getVoyageKey()
-  if (!key) return
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
 
   const data = escalacao.criadoEm ? escalacao.criadoEm.toLocaleDateString('pt-BR') : ''
 
@@ -472,7 +477,7 @@ export async function indexarEscalacao(escalacao: EscalacaoData): Promise<void> 
     leadId:    escalacao.leadId    ?? undefined,
     titulo: `Escalação — ${escalacao.canal}`,
     documentoId: `escalacao:${escalacao.id}`,
-  }, key)
+  }, keys)
 }
 
 // ─── Planos ──────────────────────────────────────────────────────────────────
@@ -480,8 +485,8 @@ export async function indexarEscalacao(escalacao: EscalacaoData): Promise<void> 
 // Indexa os planos no canal 'geral' — disponível para todas as IAs.
 // Lê do banco (tabela Plano). Se vazio, usa PLANOS_INFO como fallback.
 export async function indexarPlanos(): Promise<void> {
-  const key = await getVoyageKey()
-  if (!key) return
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
 
   // Tenta carregar do banco — usa fallback hardcoded se banco retornar vazio
   let planosParaIndexar: Array<{ nome: string; descricao?: string | null; valorMinimo: unknown; valorMaximo: unknown; servicos: unknown }>
@@ -528,5 +533,5 @@ export async function indexarPlanos(): Promise<void> {
     tipo: 'base_conhecimento',
     documentoId: 'planos:v1',
     titulo: 'Planos e preços do escritório',
-  }, key)
+  }, keys)
 }

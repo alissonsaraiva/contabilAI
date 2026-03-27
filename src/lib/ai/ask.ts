@@ -170,22 +170,25 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
   const searchOpts = buildSearchOpts(context, tipos, maxChunks, canal)
   let fontes: SearchResult[] = []
   try {
-    if (config.voyageApiKey) {
-      const embedding = await embedText(pergunta)
+    if (config.openaiApiKey || config.voyageApiKey) {
+      const embedding = await embedText(pergunta, { openai: config.openaiApiKey, voyage: config.voyageApiKey })
       fontes = await searchSimilar(embedding, searchOpts)
     }
   } catch (err) {
     // RAG indisponível — continua sem contexto (não bloqueia a resposta)
     const errMsg = (err as Error).message
     console.warn('[askAI] RAG indisponível:', errMsg)
-    // Atualiza health do Voyage em memória e notifica equipe na transição ok→falhou
+    // Atualiza health em memória e notifica equipe na transição ok→falhou
     try {
       const { setProviderHealth, getAiHealth } = await import('@/lib/ai/health-cache')
-      const eraOk = getAiHealth().voyage.checkedAt === 0 || getAiHealth().voyage.ok
-      setProviderHealth('voyage', { ok: false, error: errMsg })
+      // Identifica qual provider de embedding falhou pela mensagem de erro
+      const failedProvider: 'openai' | 'voyage' = errMsg.includes('OpenAI') ? 'openai' : 'voyage'
+      const snap = getAiHealth()
+      const eraOk = snap[failedProvider].checkedAt === 0 || snap[failedProvider].ok
+      setProviderHealth(failedProvider, { ok: false, error: errMsg })
       if (eraOk) {
         const { notificarIaOffline } = await import('@/lib/notificacoes')
-        notificarIaOffline('voyage', errMsg).catch(() => {})
+        notificarIaOffline(failedProvider, errMsg).catch(() => {})
       }
     } catch { /* não bloqueia a resposta */ }
   }

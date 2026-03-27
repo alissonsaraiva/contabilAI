@@ -92,6 +92,8 @@ async function checkAiHealth() {
       }, 'groq'))
     }
 
+    // Sonda Voyage (fallback de embedding)
+    // OpenAI é o embedding primário mas usa a mesma chave/health slot da sonda de chat acima
     if (config.voyageApiKey) {
       probes.push(probe(async () => {
         const res = await fetch('https://api.voyageai.com/v1/embeddings', {
