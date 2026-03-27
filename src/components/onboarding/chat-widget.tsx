@@ -200,7 +200,9 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
                       : 'bg-surface-container-low text-on-surface rounded-bl-md'
                   }`}
                 >
-                  {m.text}
+                  {m.text.split('\n').map((line, i, arr) => (
+                    <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+                  ))}
                 </div>
               </div>
             ))}

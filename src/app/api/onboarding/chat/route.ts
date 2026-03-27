@@ -163,7 +163,7 @@ export async function POST(req: Request) {
       historico,
       systemExtra,
       tipos:      ['base_conhecimento', 'fiscal_normativo'],
-      maxTokens:  512,
+      maxTokens:  300,
     })
     respostaRaw = result.resposta
   } catch (aiErr) {
