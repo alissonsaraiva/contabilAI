@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 const SUB_TABS = [
   { href: '/crm/configuracoes/ia',       label: 'Configuração', icon: 'tune',          exact: true },
   { href: '/crm/configuracoes/ia/saude', label: 'Saúde',        icon: 'monitor_heart', exact: false },
-  { href: '/crm/configuracoes/ia/log',   label: 'Log de Ações', icon: 'history',       exact: false },
+  { href: '/crm/configuracoes/ia/log',   label: 'Agente Operacional', icon: 'smart_toy', exact: false },
 ]
 
 export default function IaLayout({ children }: { children: React.ReactNode }) {

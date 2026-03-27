@@ -19,6 +19,87 @@ const TOOL_LABELS: Record<string, string> = {
   atualizarStatusLead:   'Atualizar lead',
 }
 
+// ── Capacidades do Agente Operacional ────────────────────────────────────────
+// Adicionar aqui quando novas ferramentas forem implementadas.
+type Canais = ('crm' | 'whatsapp' | 'portal' | 'onboarding')[]
+type Capacidade = {
+  tool: string
+  label: string
+  descricao: string
+  canais: Canais
+  categoria: string
+}
+
+const CAPACIDADES: Capacidade[] = [
+  // ── Tarefas ──
+  {
+    tool: 'listarTarefas',
+    label: 'Listar tarefas',
+    descricao: 'Lista tarefas com filtros por cliente, status, prioridade, vencidas ou urgentes.',
+    canais: ['crm', 'whatsapp', 'portal'],
+    categoria: 'Tarefas',
+  },
+  {
+    tool: 'criarTarefa',
+    label: 'Criar tarefa',
+    descricao: 'Cria uma tarefa com título, descrição, cliente, prioridade e prazo. Aceita linguagem natural: "amanhã", "semana que vem", "em 3 dias".',
+    canais: ['crm', 'whatsapp'],
+    categoria: 'Tarefas',
+  },
+  // ── Clientes ──
+  {
+    tool: 'buscarDadosCliente',
+    label: 'Buscar dados do cliente',
+    descricao: 'Retorna perfil completo por nome, CPF, CNPJ ou e-mail — plano, status, últimas tarefas e interações.',
+    canais: ['crm', 'whatsapp', 'portal', 'onboarding'],
+    categoria: 'Clientes',
+  },
+  // ── Funil / Leads ──
+  {
+    tool: 'resumirFunil',
+    label: 'Resumir funil',
+    descricao: 'Visão geral do pipeline: total por etapa, quantos leads entraram hoje e na última semana.',
+    canais: ['crm'],
+    categoria: 'Funil',
+  },
+  {
+    tool: 'listarLeadsInativos',
+    label: 'Leads inativos',
+    descricao: 'Identifica leads parados há X dias sem atividade para retomada proativa.',
+    canais: ['crm'],
+    categoria: 'Funil',
+  },
+  {
+    tool: 'atualizarStatusLead',
+    label: 'Atualizar status do lead',
+    descricao: 'Move um lead de etapa no funil com registro automático de auditoria.',
+    canais: ['crm'],
+    categoria: 'Funil',
+  },
+  // ── Histórico ──
+  {
+    tool: 'registrarInteracao',
+    label: 'Registrar interação',
+    descricao: 'Loga ligação, e-mail, nota interna ou mensagem WhatsApp como interação do cliente ou lead.',
+    canais: ['crm'],
+    categoria: 'Histórico',
+  },
+]
+
+const CANAL_STYLE: Record<string, string> = {
+  crm:        'bg-primary/10 text-primary',
+  whatsapp:   'bg-green-500/10 text-green-700',
+  portal:     'bg-blue-500/10 text-blue-700',
+  onboarding: 'bg-orange-500/10 text-orange-700',
+}
+
+const CATEGORIA_ICON: Record<string, string> = {
+  'Tarefas':   'task_alt',
+  'Clientes':  'person',
+  'Funil':     'funnel',
+  'Histórico': 'history',
+}
+
 type Props = {
   searchParams: Promise<{ page?: string; tool?: string; solicitante?: string; sucesso?: string }>
 }
@@ -81,6 +162,9 @@ export default async function AgentePage({ searchParams }: Props) {
     return [l.id, nome]
   }))
 
+  // Agrupa capacidades por categoria
+  const categorias = [...new Set(CAPACIDADES.map(c => c.categoria))]
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -88,12 +172,57 @@ export default async function AgentePage({ searchParams }: Props) {
         <div>
           <h1 className="text-xl font-semibold text-on-surface">Agente Operacional</h1>
           <p className="mt-0.5 text-sm text-on-surface-variant">
-            Log de ações executadas pelo agente de IA
+            O que o agente sabe fazer e o log de ações executadas
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm text-on-surface-variant">
           <span className="material-symbols-outlined text-[16px]">history</span>
           <span>{total} ação{total !== 1 ? 'ões' : ''} registrada{total !== 1 ? 's' : ''}</span>
+        </div>
+      </div>
+
+      {/* ── Capacidades ────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 space-y-5">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+          <h2 className="text-[14px] font-semibold text-on-surface">Capacidades disponíveis</h2>
+          <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+            {CAPACIDADES.length} ferramentas
+          </span>
+        </div>
+
+        <div className="space-y-4">
+          {categorias.map(cat => (
+            <div key={cat}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">
+                  {CATEGORIA_ICON[cat] ?? 'build'}
+                </span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">{cat}</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {CAPACIDADES.filter(c => c.categoria === cat).map(cap => (
+                  <div
+                    key={cap.tool}
+                    className="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 p-3 space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[13px] font-semibold text-on-surface leading-tight">{cap.label}</span>
+                      <span className="shrink-0 rounded-md bg-primary/8 px-1.5 py-0.5 font-mono text-[10px] text-primary/70">{cap.tool}</span>
+                    </div>
+                    <p className="text-[12px] text-on-surface-variant/80 leading-relaxed">{cap.descricao}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {cap.canais.map(canal => (
+                        <span key={canal} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${CANAL_STYLE[canal]}`}>
+                          {FEATURE_LABELS[canal]}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
