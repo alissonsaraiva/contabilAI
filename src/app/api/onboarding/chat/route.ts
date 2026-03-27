@@ -121,6 +121,29 @@ export async function POST(req: Request) {
     }
   }
 
+  // ── Contexto direto do lead (não depende do RAG) ──────────────────────────
+  let systemExtra: string | undefined
+  if (leadId) {
+    try {
+      const lead = await prisma.lead.findUnique({
+        where:  { id: leadId },
+        select: { planoTipo: true, dadosJson: true, status: true },
+      })
+      if (lead) {
+        const dados = (lead.dadosJson ?? {}) as Record<string, string>
+        const nome = dados['Nome completo'] ?? dados['Razão Social'] ?? null
+        const partes = [
+          `CONTEXTO DO LEAD EM ATENDIMENTO:`,
+          nome             ? `• Nome: ${nome}` : null,
+          lead.planoTipo   ? `• Plano selecionado: ${lead.planoTipo}` : null,
+          dados['Regime Tributário'] ? `• Regime: ${dados['Regime Tributário']}` : null,
+          dados['Cidade']  ? `• Cidade: ${dados['Cidade']}` : null,
+        ].filter(Boolean)
+        if (partes.length > 1) systemExtra = partes.join('\n')
+      }
+    } catch { /* DB indisponível — continua sem contexto extra */ }
+  }
+
   // ── Escopo RAG ────────────────────────────────────────────────────────────
   const context = leadId
     ? { escopo: 'lead+global' as const, leadId }
@@ -129,12 +152,13 @@ export async function POST(req: Request) {
   let respostaRaw: string
   try {
     const result = await askAI({
-      pergunta:  message,
+      pergunta:   message,
       context,
-      feature:   'onboarding',
+      feature:    'onboarding',
       historico,
-      tipos:     ['base_conhecimento', 'fiscal_normativo'],
-      maxTokens: 512,
+      systemExtra,
+      tipos:      ['base_conhecimento', 'fiscal_normativo'],
+      maxTokens:  512,
     })
     respostaRaw = result.resposta
   } catch (aiErr) {
