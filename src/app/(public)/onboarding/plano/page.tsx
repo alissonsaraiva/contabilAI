@@ -77,10 +77,10 @@ export default function PlanoPage({ searchParams }: Props) {
     if (!leadId) return
     setLoading(true)
     try {
-      await fetch(`/api/leads/${leadId}`, {
-        method: 'PUT',
+      await fetch('/api/onboarding/salvar-progresso', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planoTipo: selecionado, status: 'plano_escolhido', stepAtual: 3 }),
+        body: JSON.stringify({ leadId, planoTipo: selecionado, status: 'plano_escolhido', stepAtual: 3 }),
       })
       router.push(`/onboarding/dados?leadId=${leadId}&plano=${selecionado}`)
     } catch {

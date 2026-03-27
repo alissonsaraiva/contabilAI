@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { splitIntoChunks, calcTypingDelay, stripMarkdown } from '@/lib/utils/split-chunks'
+import { stripMarkdown } from '@/lib/utils/split-chunks'
 
 type Msg = { role: 'user' | 'assistant'; text: string }
 
@@ -22,11 +22,12 @@ function newSessionId() {
 export function ChatWidget() {
   const searchParams = useSearchParams()
   const leadId = searchParams.get('leadId') ?? undefined
+  const plano  = searchParams.get('plano')  ?? undefined
   if (!leadId) return null
-  return <ChatWidgetInner leadId={leadId} />
+  return <ChatWidgetInner leadId={leadId} plano={plano} />
 }
 
-function ChatWidgetInner({ leadId }: { leadId: string }) {
+function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) {
   const [sessionId] = useState(newSessionId)
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([buildGreeting('nosso assistente')])
@@ -99,16 +100,6 @@ function ChatWidgetInner({ leadId }: { leadId: string }) {
     return () => { if (pollRef.current) clearTimeout(pollRef.current) }
   }, [])
 
-  // Exibe chunks um por um com delay (comportamento humano)
-  async function displayChunks(chunks: string[]) {
-    for (const chunk of chunks) {
-      const delay = calcTypingDelay(chunk, 800, 3000)
-      await new Promise(resolve => setTimeout(resolve, delay))
-      setMsgs(m => [...m, { role: 'assistant', text: chunk }])
-    }
-    setLoading(false)
-  }
-
   async function handleSend() {
     const text = input.trim()
     if (!text || loading || escalacaoId) return
@@ -122,7 +113,7 @@ function ChatWidgetInner({ leadId }: { leadId: string }) {
       const res = await fetch('/api/onboarding/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, leadId, sessionId }),
+        body: JSON.stringify({ message: text, history, leadId, sessionId, plano }),
       })
       const data = await res.json()
 
@@ -137,14 +128,8 @@ function ChatWidgetInner({ leadId }: { leadId: string }) {
           setLoading(false)
         }
       } else {
-        // Divide em chunks e exibe um por um com delay (imita digitação humana)
-        const chunks = splitIntoChunks(data.reply ?? '')
-        if (chunks.length <= 1) {
-          setMsgs(m => [...m, { role: 'assistant', text: stripMarkdown(data.reply ?? '') }])
-          setLoading(false)
-        } else {
-          await displayChunks(chunks)
-        }
+        setMsgs(m => [...m, { role: 'assistant', text: stripMarkdown(data.reply ?? '') }])
+        setLoading(false)
       }
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Desculpe, ocorreu um erro. Tente novamente.' }])

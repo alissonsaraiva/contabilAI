@@ -17,26 +17,50 @@ function isPhone(v: string) {
   return /^[\d\s()\-+]+$/.test(v) && !/[@a-zA-Z]/.test(v)
 }
 
+function formatCEP(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 8)
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d
+}
+
 export default function DadosPage({ searchParams }: Props) {
   const { leadId, plano = '' } = use(searchParams)
   const router = useRouter()
   const precisaCnpj = PLANOS_COM_CNPJ.includes(plano)
   const [loading, setLoading] = useState(false)
+  const [cepLoading, setCepLoading] = useState(false)
+  const [cepEmpresaLoading, setCepEmpresaLoading] = useState(false)
   const [form, setForm] = useState({
     nome: '', cpf: '', email: '', telefone: '',
-    cnpj: '', razaoSocial: '', cidade: '',
+    // endereço pessoal
+    cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '',
+    // empresa
+    cnpj: '', razaoSocial: '',
+    cepEmpresa: '', enderecoEmpresa: '', numeroEmpresa: '', complementoEmpresa: '', bairroEmpresa: '', cidadeEmpresa: '', estadoEmpresa: '',
   })
   const [erros, setErros] = useState<Record<string, string>>({})
 
   const autoSavePayload = useMemo(() => JSON.stringify({
     dadosJson: {
-      'Nome completo': form.nome,
-      'CPF': form.cpf,
-      'E-mail': form.email,
-      'Telefone': form.telefone,
-      ...(form.cnpj && { 'CNPJ': form.cnpj }),
-      ...(form.razaoSocial && { 'Razão Social': form.razaoSocial }),
-      ...(form.cidade && { 'Cidade': form.cidade }),
+      'Nome completo':   form.nome,
+      'CPF':             form.cpf,
+      'E-mail':          form.email,
+      'Telefone':        form.telefone,
+      ...(form.cep         && { 'CEP':          form.cep }),
+      ...(form.logradouro  && { 'Logradouro':   form.logradouro }),
+      ...(form.numero      && { 'Número':        form.numero }),
+      ...(form.complemento && { 'Complemento':  form.complemento }),
+      ...(form.bairro      && { 'Bairro':        form.bairro }),
+      ...(form.cidade      && { 'Cidade':        form.cidade }),
+      ...(form.estado      && { 'Estado':        form.estado }),
+      ...(form.cnpj        && { 'CNPJ':          form.cnpj }),
+      ...(form.razaoSocial && { 'Razão Social':  form.razaoSocial }),
+      ...(form.cepEmpresa          && { 'CEP Empresa':          form.cepEmpresa }),
+      ...(form.enderecoEmpresa     && { 'Endereço Empresa':     form.enderecoEmpresa }),
+      ...(form.numeroEmpresa       && { 'Número Empresa':       form.numeroEmpresa }),
+      ...(form.complementoEmpresa  && { 'Complemento Empresa':  form.complementoEmpresa }),
+      ...(form.bairroEmpresa       && { 'Bairro Empresa':       form.bairroEmpresa }),
+      ...(form.cidadeEmpresa       && { 'Cidade Empresa':       form.cidadeEmpresa }),
+      ...(form.estadoEmpresa       && { 'Estado Empresa':       form.estadoEmpresa }),
     },
   }), [form])
 
@@ -47,17 +71,30 @@ export default function DadosPage({ searchParams }: Props) {
     fetch(`/api/leads/${leadId}`)
       .then(r => r.json())
       .then((lead: { contatoEntrada?: string; dadosJson?: Record<string, string> }) => {
-        const dados = lead.dadosJson
-        if (dados && Object.keys(dados).length > 0) {
+        const d = lead.dadosJson
+        if (d && Object.keys(d).length > 0) {
           setForm(f => ({
             ...f,
-            nome: dados['Nome completo'] ?? f.nome,
-            cpf: dados['CPF'] ?? f.cpf,
-            email: dados['E-mail'] ?? f.email,
-            telefone: dados['Telefone'] ?? f.telefone,
-            cnpj: dados['CNPJ'] ?? f.cnpj,
-            razaoSocial: dados['Razão Social'] ?? f.razaoSocial,
-            cidade: dados['Cidade'] ?? f.cidade,
+            nome:               d['Nome completo']          ?? f.nome,
+            cpf:                d['CPF']                    ?? f.cpf,
+            email:              d['E-mail']                 ?? f.email,
+            telefone:           d['Telefone']               ?? f.telefone,
+            cep:                d['CEP']                    ?? f.cep,
+            logradouro:         d['Logradouro']             ?? f.logradouro,
+            numero:             d['Número']                 ?? f.numero,
+            complemento:        d['Complemento']            ?? f.complemento,
+            bairro:             d['Bairro']                 ?? f.bairro,
+            cidade:             d['Cidade']                 ?? f.cidade,
+            estado:             d['Estado']                 ?? f.estado,
+            cnpj:               d['CNPJ']                   ?? f.cnpj,
+            razaoSocial:        d['Razão Social']           ?? f.razaoSocial,
+            cepEmpresa:         d['CEP Empresa']            ?? f.cepEmpresa,
+            enderecoEmpresa:    d['Endereço Empresa']       ?? f.enderecoEmpresa,
+            numeroEmpresa:      d['Número Empresa']         ?? f.numeroEmpresa,
+            complementoEmpresa: d['Complemento Empresa']    ?? f.complementoEmpresa,
+            bairroEmpresa:      d['Bairro Empresa']         ?? f.bairroEmpresa,
+            cidadeEmpresa:      d['Cidade Empresa']         ?? f.cidadeEmpresa,
+            estadoEmpresa:      d['Estado Empresa']         ?? f.estadoEmpresa,
           }))
         } else {
           const contato = lead.contatoEntrada ?? ''
@@ -71,6 +108,38 @@ export default function DadosPage({ searchParams }: Props) {
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
     setErros(e => ({ ...e, [field]: '' }))
+  }
+
+  async function buscarCEP(cep: string, prefix: '' | 'Empresa') {
+    const digits = cep.replace(/\D/g, '')
+    if (digits.length !== 8) return
+    const setter = prefix === 'Empresa' ? setCepEmpresaLoading : setCepLoading
+    setter(true)
+    try {
+      const res = await fetch(`/api/validacoes/cep/${digits}`)
+      if (!res.ok) return
+      const data = await res.json() as { logradouro?: string; bairro?: string; localidade?: string; uf?: string; erro?: boolean }
+      if (data.erro) return
+      if (prefix === 'Empresa') {
+        setForm(f => ({
+          ...f,
+          enderecoEmpresa: data.logradouro  ?? f.enderecoEmpresa,
+          bairroEmpresa:   data.bairro      ?? f.bairroEmpresa,
+          cidadeEmpresa:   data.localidade  ?? f.cidadeEmpresa,
+          estadoEmpresa:   data.uf          ?? f.estadoEmpresa,
+        }))
+      } else {
+        setForm(f => ({
+          ...f,
+          logradouro: data.logradouro ?? f.logradouro,
+          bairro:     data.bairro     ?? f.bairro,
+          cidade:     data.localidade ?? f.cidade,
+          estado:     data.uf         ?? f.estado,
+        }))
+      }
+    } catch { /* ignora */ } finally {
+      setter(false)
+    }
   }
 
   function validate() {
@@ -90,20 +159,34 @@ export default function DadosPage({ searchParams }: Props) {
 
     setLoading(true)
     try {
-      await fetch(`/api/leads/${leadId}`, {
-        method: 'PUT',
+      await fetch('/api/onboarding/salvar-progresso', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          leadId,
           status: 'dados_preenchidos',
           stepAtual: 4,
           dadosJson: {
-            'Nome completo': form.nome,
-            'CPF': form.cpf,
-            'E-mail': form.email,
-            'Telefone': form.telefone,
-            ...(form.cnpj && { 'CNPJ': form.cnpj }),
-            ...(form.razaoSocial && { 'Razão Social': form.razaoSocial }),
-            ...(form.cidade && { 'Cidade': form.cidade }),
+            'Nome completo':   form.nome,
+            'CPF':             form.cpf,
+            'E-mail':          form.email,
+            'Telefone':        form.telefone,
+            ...(form.cep         && { 'CEP':          form.cep }),
+            ...(form.logradouro  && { 'Logradouro':   form.logradouro }),
+            ...(form.numero      && { 'Número':        form.numero }),
+            ...(form.complemento && { 'Complemento':  form.complemento }),
+            ...(form.bairro      && { 'Bairro':        form.bairro }),
+            ...(form.cidade      && { 'Cidade':        form.cidade }),
+            ...(form.estado      && { 'Estado':        form.estado }),
+            ...(form.cnpj        && { 'CNPJ':          form.cnpj }),
+            ...(form.razaoSocial && { 'Razão Social':  form.razaoSocial }),
+            ...(form.cepEmpresa          && { 'CEP Empresa':          form.cepEmpresa }),
+            ...(form.enderecoEmpresa     && { 'Endereço Empresa':     form.enderecoEmpresa }),
+            ...(form.numeroEmpresa       && { 'Número Empresa':       form.numeroEmpresa }),
+            ...(form.complementoEmpresa  && { 'Complemento Empresa':  form.complementoEmpresa }),
+            ...(form.bairroEmpresa       && { 'Bairro Empresa':       form.bairroEmpresa }),
+            ...(form.cidadeEmpresa       && { 'Cidade Empresa':       form.cidadeEmpresa }),
+            ...(form.estadoEmpresa       && { 'Estado Empresa':       form.estadoEmpresa }),
           },
         }),
       })
@@ -159,6 +242,66 @@ export default function DadosPage({ searchParams }: Props) {
           </div>
         </div>
 
+        {/* Endereço pessoal */}
+        <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-4">
+          <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
+            Endereço <span className="normal-case font-normal text-on-surface-variant/60">(opcional)</span>
+          </p>
+
+          <div>
+            <label className={LABEL}>CEP</label>
+            <div className="relative">
+              <input
+                className={INPUT}
+                placeholder="00000-000"
+                value={form.cep}
+                onChange={e => {
+                  const v = formatCEP(e.target.value)
+                  set('cep', v)
+                  if (v.replace(/\D/g, '').length === 8) buscarCEP(v, '')
+                }}
+                inputMode="numeric"
+                maxLength={9}
+              />
+              {cepLoading && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className={LABEL}>Logradouro</label>
+            <input className={INPUT} placeholder="Rua, Av., Travessa..." value={form.logradouro} onChange={e => set('logradouro', e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={LABEL}>Número</label>
+              <input className={INPUT} placeholder="123" value={form.numero} onChange={e => set('numero', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Complemento</label>
+              <input className={INPUT} placeholder="Apto, sala..." value={form.complemento} onChange={e => set('complemento', e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className={LABEL}>Bairro</label>
+            <input className={INPUT} placeholder="Bairro" value={form.bairro} onChange={e => set('bairro', e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-[1fr_80px] gap-3">
+            <div>
+              <label className={LABEL}>Cidade</label>
+              <input className={INPUT} placeholder="Fortaleza" value={form.cidade} onChange={e => set('cidade', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>UF</label>
+              <input className={INPUT} placeholder="CE" value={form.estado} onChange={e => set('estado', e.target.value.toUpperCase().slice(0, 2))} maxLength={2} />
+            </div>
+          </div>
+        </div>
+
         {/* Dados da empresa */}
         <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-4">
           <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
@@ -177,8 +320,56 @@ export default function DadosPage({ searchParams }: Props) {
           </div>
 
           <div>
-            <label className={LABEL}>Cidade</label>
-            <input className={INPUT} placeholder="Ex: Fortaleza / CE" value={form.cidade} onChange={e => set('cidade', e.target.value)} />
+            <label className={LABEL}>CEP da empresa</label>
+            <div className="relative">
+              <input
+                className={INPUT}
+                placeholder="00000-000"
+                value={form.cepEmpresa}
+                onChange={e => {
+                  const v = formatCEP(e.target.value)
+                  set('cepEmpresa', v)
+                  if (v.replace(/\D/g, '').length === 8) buscarCEP(v, 'Empresa')
+                }}
+                inputMode="numeric"
+                maxLength={9}
+              />
+              {cepEmpresaLoading && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className={LABEL}>Endereço da empresa</label>
+            <input className={INPUT} placeholder="Rua, Av., Travessa..." value={form.enderecoEmpresa} onChange={e => set('enderecoEmpresa', e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={LABEL}>Número</label>
+              <input className={INPUT} placeholder="123" value={form.numeroEmpresa} onChange={e => set('numeroEmpresa', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Complemento</label>
+              <input className={INPUT} placeholder="Sala, andar..." value={form.complementoEmpresa} onChange={e => set('complementoEmpresa', e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className={LABEL}>Bairro</label>
+            <input className={INPUT} placeholder="Bairro" value={form.bairroEmpresa} onChange={e => set('bairroEmpresa', e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-[1fr_80px] gap-3">
+            <div>
+              <label className={LABEL}>Cidade</label>
+              <input className={INPUT} placeholder="Fortaleza" value={form.cidadeEmpresa} onChange={e => set('cidadeEmpresa', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>UF</label>
+              <input className={INPUT} placeholder="CE" value={form.estadoEmpresa} onChange={e => set('estadoEmpresa', e.target.value.toUpperCase().slice(0, 2))} maxLength={2} />
+            </div>
           </div>
         </div>
 

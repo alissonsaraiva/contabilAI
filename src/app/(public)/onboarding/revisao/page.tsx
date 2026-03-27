@@ -65,10 +65,11 @@ export default function RevisaoPage({ searchParams }: Props) {
     if (!leadId) return
     setLoading(true)
     try {
-      await fetch(`/api/leads/${leadId}`, {
-        method: 'PUT',
+      await fetch('/api/onboarding/salvar-progresso', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          leadId,
           status: 'revisao',
           stepAtual: 5,
           vencimentoDia: vencimento,

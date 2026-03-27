@@ -7,10 +7,11 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit'
 const MSG_MAX_LENGTH = 2000
 
 export async function POST(req: Request) {
-  const { message, sessionId, leadId } = await req.json() as {
+  const { message, sessionId, leadId, plano } = await req.json() as {
     message:    string
     sessionId?: string
     leadId?:    string
+    plano?:     string
   }
 
   if (!message?.trim() || message.length > MSG_MAX_LENGTH) {
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
         const partes = [
           `CONTEXTO DO LEAD EM ATENDIMENTO:`,
           nome                       ? `• Nome: ${nome}` : null,
-          lead.planoTipo             ? `• Plano selecionado: ${lead.planoTipo}` : null,
+          (lead.planoTipo ?? plano)   ? `• Plano selecionado: ${lead.planoTipo ?? plano}` : null,
           dados['Regime Tributário'] ? `• Regime: ${dados['Regime Tributário']}` : null,
           dados['Cidade']            ? `• Cidade: ${dados['Cidade']}` : null,
           lead.status                ? `• Status no fluxo: ${lead.status}` : null,

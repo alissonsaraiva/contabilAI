@@ -67,10 +67,11 @@ export default function SimuladorPage({ searchParams }: Props) {
     if (!leadId || !canContinue) return
     setLoading(true)
     try {
-      await fetch(`/api/leads/${leadId}`, {
-        method: 'PUT',
+      await fetch('/api/onboarding/salvar-progresso', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          leadId,
           status: 'simulador',
           stepAtual: 2,
           dadosJson: { simulador: form },
