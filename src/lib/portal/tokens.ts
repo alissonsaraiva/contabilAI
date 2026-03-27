@@ -16,6 +16,6 @@ export async function criarTokenPortal(
   await prisma.portalToken.deleteMany({ where: { clienteId } })
   await prisma.portalToken.create({ data: { clienteId, token: hash, expiresAt } })
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
   return `${baseUrl}/portal/verificar?token=${rawToken}`
 }

@@ -60,8 +60,9 @@ export async function POST(req: Request) {
   const eventName = payload.event?.name
   const doc = payload.event?.data?.document
 
-  // Só processa quando o documento é fechado (todos assinaram)
-  if (eventName !== 'document:auto_closed' || !doc?.key) {
+  // Aceita tanto o formato REST quanto o formato legado da ClickSign
+  const isAutoClose = eventName === 'document:auto_closed' || eventName === 'Event::AutoClose'
+  if (!isAutoClose || !doc?.key) {
     return NextResponse.json({ ok: true, ignored: true })
   }
 
