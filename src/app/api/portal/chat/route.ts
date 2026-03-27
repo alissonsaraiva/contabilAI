@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth } from '@/lib/auth-portal'
 import { askAI } from '@/lib/ai/ask'
 import { getAiConfig } from '@/lib/ai/config'
 import { getOrCreateConversaSession, getHistorico, addMensagens } from '@/lib/ai/conversa'

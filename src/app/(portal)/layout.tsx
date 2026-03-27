@@ -1,3 +1,5 @@
+import { PortalSessionProvider } from '@/components/portal/portal-session-provider'
+
 export default function PortalRootLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return <PortalSessionProvider>{children}</PortalSessionProvider>
 }

@@ -1,11 +1,12 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
-import Google from 'next-auth/providers/google'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { rateLimit } from '@/lib/rate-limit'
 
+// Auth exclusivo do CRM (usuários internos: contador, admin).
+// O portal do cliente usa src/lib/auth-portal.ts com cookie separado.
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     // ── Provider interno: email + senha para Usuario (CRM) ──────────────────
@@ -47,33 +48,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           precisaTrocarSenha: usuario.precisaTrocarSenha,
         }
       },
-    }),
-
-    // ── Provider portal: magic link (token gerado pela nossa API) ───────────
-    Credentials({
-      id: 'portal-token',
-      credentials: {
-        clienteId: { type: 'text' },
-        nome:      { type: 'text' },
-        email:     { type: 'email' },
-      },
-      async authorize(credentials) {
-        if (!credentials?.clienteId || !credentials?.email) return null
-        // A validação do token foi feita na API /api/portal/verificar
-        // Aqui apenas criamos a sessão com os dados do cliente
-        return {
-          id:    credentials.clienteId as string,
-          name:  credentials.nome     as string,
-          email: credentials.email    as string,
-          tipo:  'cliente',
-        }
-      },
-    }),
-
-    // ── Provider portal: Google OAuth ────────────────────────────────────────
-    Google({
-      clientId:     process.env.GOOGLE_CLIENT_ID     ?? '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
     }),
   ],
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { getOrCreateConversaSession, getHistorico } from '@/lib/ai/conversa'
 import { notificarEscalacaoPortal } from '@/lib/notificacoes'

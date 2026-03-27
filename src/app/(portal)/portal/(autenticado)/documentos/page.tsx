@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { auth } from '@/lib/auth-portal'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { Card } from '@/components/ui/card'
