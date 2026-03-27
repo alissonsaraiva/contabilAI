@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email/send'
-import crypto from 'crypto'
+import { criarTokenPortal } from '@/lib/portal/tokens'
 
 export async function POST(req: NextRequest) {
   const { email } = await req.json()
@@ -23,21 +23,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
   }
 
-  // Gera token e hash
-  const rawToken = crypto.randomBytes(32).toString('base64url')
-  const hash     = crypto.createHash('sha256').update(rawToken).digest('hex')
-  const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 min
-
-  // Remove tokens antigos deste cliente
-  await prisma.portalToken.deleteMany({ where: { clienteId: cliente.id } })
-
-  await prisma.portalToken.create({
-    data: { clienteId: cliente.id, token: hash, expiresAt },
-  })
-
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
-  const link    = `${baseUrl}/portal/verificar?token=${rawToken}`
-
+  const link = await criarTokenPortal(cliente.id, 30 * 60 * 1000) // 30 min
   const nome = cliente.nome.split(' ')[0]
 
   await sendEmail({

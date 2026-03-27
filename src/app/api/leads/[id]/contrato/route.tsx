@@ -176,9 +176,17 @@ export async function POST(req: Request, { params }: Params) {
         await prisma.contrato.update({ where: { id: contrato.id }, data: { clienteId: cliente.id } })
       }
 
-      // Indexa dados do cliente recém-criado (CRM + Portal + WhatsApp)
+      // RAG + e-mail de boas-vindas em background
       if (cliente) {
-        import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente!)).catch(() => {})
+        import('@/lib/rag/ingest')
+          .then(({ indexarCliente }) => indexarCliente(cliente!))
+          .catch(() => {})
+
+        import('@/lib/email/boas-vindas')
+          .then(({ enviarBoasVindas }) =>
+            enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })
+          )
+          .catch((err) => console.error('[contrato] Erro ao enviar boas-vindas:', err))
       }
     } catch (err) {
       console.error('[contrato] Erro ao converter lead em cliente:', err)

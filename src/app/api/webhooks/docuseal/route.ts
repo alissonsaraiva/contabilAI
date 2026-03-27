@@ -117,9 +117,16 @@ export async function POST(req: Request) {
       }
 
       if (cliente) {
+        // RAG + e-mail de boas-vindas em background (não bloqueia a resposta ao DocuSeal)
         import('@/lib/rag/ingest')
           .then(({ indexarCliente }) => indexarCliente(cliente!))
           .catch(() => {})
+
+        import('@/lib/email/boas-vindas')
+          .then(({ enviarBoasVindas }) =>
+            enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })
+          )
+          .catch((err) => console.error('[docuseal webhook] Erro ao enviar boas-vindas:', err))
       }
     } catch (err) {
       console.error('[docuseal webhook] Erro ao converter lead em cliente:', err)
