@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { ContratoPDF } from '@/lib/pdf/contrato-template'
-import { enviarContratoParaAssinatura, docusealConfigurado } from '@/lib/docuseal'
+import { enviarContratoParaAssinatura, zapsignConfigurado } from '@/lib/zapsign'
 import React from 'react'
 import type { PlanoTipo, FormaPagamento } from '@prisma/client'
 
@@ -19,9 +19,9 @@ export async function POST(_req: Request, { params }: Params) {
   // Rota acessível do onboarding público (sem auth) e do CRM (com auth)
   // Segurança: leadId é UUID — difícil de adivinhar. Consistente com /contrato (POST).
 
-  if (!docusealConfigurado()) {
+  if (!zapsignConfigurado()) {
     return NextResponse.json(
-      { error: 'DocuSeal não configurado. Defina DOCUSEAL_API_URL e DOCUSEAL_API_KEY.' },
+      { error: 'ZapSign não configurado. Defina ZAPSIGN_API_TOKEN no .env.' },
       { status: 503 },
     )
   }
@@ -61,7 +61,7 @@ export async function POST(_req: Request, { params }: Params) {
     valor = planoDB ? Number(planoDB.valorMinimo) : (PLANO_PRECOS_FALLBACK[plano] ?? 199)
   }
 
-  // Gera o PDF com espaço para assinatura eletrônica (assinatura = '' → campo vazio no template)
+  // Gera o PDF com dados reais do cliente
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfElement = React.createElement(ContratoPDF, {
     nome,
@@ -76,7 +76,7 @@ export async function POST(_req: Request, { params }: Params) {
     vencimentoDia: vencimento,
     formaPagamento,
     assinadoEm: agora,
-    assinatura: '',  // será assinado eletronicamente via DocuSeal
+    assinatura: '',  // campo vazio — ZapSign sobrepõe a assinatura eletrônica
     escritorioNome: escritorio?.nome ?? 'ContabAI',
     escritorioCnpj: escritorio?.cnpj,
     escritorioCrc: escritorio?.crc,
@@ -91,9 +91,9 @@ export async function POST(_req: Request, { params }: Params) {
 
   const pdfBuffer = await renderToBuffer(pdfElement as never)
 
-  // Upload PDF → DocuSeal → URL de assinatura
+  // Upload PDF dinâmico → ZapSign → URL de assinatura
   const nomeContrato = `Contrato ${nome} — ${escritorio?.nome ?? 'ContabAI'}`
-  const { templateId, submissionId, signUrl } = await enviarContratoParaAssinatura(
+  const { docToken, signUrl } = await enviarContratoParaAssinatura(
     pdfBuffer,
     nomeContrato,
     { nome, email },
@@ -112,16 +112,14 @@ export async function POST(_req: Request, { params }: Params) {
       dadosSnapshot: dados,
       geradoEm: agora,
       enviadoEm: agora,
-      docusealTemplateId: templateId,
-      docusealSubmissionId: submissionId,
-      docusealSignUrl: signUrl,
+      zapsignDocToken: docToken,
+      zapsignSignUrl: signUrl,
     },
     update: {
       status: 'aguardando_assinatura',
       enviadoEm: agora,
-      docusealTemplateId: templateId,
-      docusealSubmissionId: submissionId,
-      docusealSignUrl: signUrl,
+      zapsignDocToken: docToken,
+      zapsignSignUrl: signUrl,
     },
   })
 

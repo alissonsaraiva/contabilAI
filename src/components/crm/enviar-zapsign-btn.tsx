@@ -6,15 +6,12 @@ import { toast } from 'sonner'
 
 type Props = {
   leadId: string
-  /** Status atual do contrato, se existir */
   contratoStatus?: string
-  /** URL de assinatura já gerada, se disponível */
   signUrl?: string | null
-  /** Modo compacto para a barra de ações do header */
   compact?: boolean
 }
 
-export function EnviarDocuSealBtn({ leadId, contratoStatus, signUrl, compact }: Props) {
+export function EnviarZapSignBtn({ leadId, contratoStatus, signUrl, compact }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
@@ -28,7 +25,7 @@ export function EnviarDocuSealBtn({ leadId, contratoStatus, signUrl, compact }: 
       const data = await res.json() as { ok?: boolean; error?: string; signUrl?: string }
 
       if (!res.ok || !data.ok) {
-        toast.error(data.error ?? 'Erro ao enviar para DocuSeal')
+        toast.error(data.error ?? 'Erro ao enviar para ZapSign')
         return
       }
 
@@ -55,7 +52,7 @@ export function EnviarDocuSealBtn({ leadId, contratoStatus, signUrl, compact }: 
         ) : (
           <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>draw</span>
         )}
-        {jaEnviado ? 'Reenviar DocuSeal' : 'Enviar para assinatura'}
+        {jaEnviado ? 'Reenviar contrato' : 'Enviar para assinatura'}
       </button>
     )
   }
@@ -70,14 +67,14 @@ export function EnviarDocuSealBtn({ leadId, contratoStatus, signUrl, compact }: 
         {loading ? (
           <>
             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            Enviando para DocuSeal…
+            Enviando contrato…
           </>
         ) : (
           <>
             <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
               draw
             </span>
-            {jaEnviado ? 'Reenviar para assinatura' : 'Enviar para assinatura (DocuSeal)'}
+            {jaEnviado ? 'Reenviar para assinatura' : 'Enviar para assinatura (ZapSign)'}
           </>
         )}
       </button>

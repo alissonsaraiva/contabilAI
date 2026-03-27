@@ -1,47 +1,57 @@
 /**
- * Webhook DocuSeal — recebe eventos de assinatura.
- * Configurar em: DocuSeal → Settings → Webhooks → URL: https://seudominio/api/webhooks/docuseal
- * Eventos: submission.completed
+ * Webhook ZapSign — recebe eventos de assinatura.
+ * Configurar em: ZapSign → Configurações → Integrações → Webhooks
+ * URL: https://seudominio/api/webhooks/zapsign
+ * Evento: doc_signed (quando todos assinam, status = "signed")
  */
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import type { PlanoTipo, FormaPagamento, StatusCliente } from '@prisma/client'
 
-type DocuSealWebhookPayload = {
+type ZapSignWebhookPayload = {
   event_type: string
-  timestamp: string
-  data: {
-    id: number           // submission ID
+  token: string        // doc token
+  status: 'pending' | 'signed'
+  name: string
+  signed_file?: string | null
+  signer_who_signed?: {
+    token: string
+    name: string
+    email: string
     status: string
-    template_id?: number
-    submitters?: Array<{ email: string; name: string; signed_at?: string }>
+    signed_at: string
   }
+  signers?: Array<{
+    token: string
+    name: string
+    email: string
+    status: string
+    signed_at: string | null
+  }>
 }
 
 export async function POST(req: Request) {
-  let payload: DocuSealWebhookPayload
+  let payload: ZapSignWebhookPayload
   try {
-    payload = await req.json() as DocuSealWebhookPayload
+    payload = await req.json() as ZapSignWebhookPayload
   } catch {
     return NextResponse.json({ error: 'payload inválido' }, { status: 400 })
   }
 
-  // Aceita submission.completed (todos assinaram) e form.completed (cada assinante)
-  // Para um único signatário, form.completed = submission.completed — aceitamos os dois
-  if (!['submission.completed', 'form.completed'].includes(payload.event_type)) {
+  // Só processa doc_signed quando todos os signatários assinaram (status === "signed")
+  if (payload.event_type !== 'doc_signed' || payload.status !== 'signed') {
     return NextResponse.json({ ok: true, ignored: true })
   }
 
-  const submissionId = payload.data?.id
-  if (!submissionId) return NextResponse.json({ error: 'submission id ausente' }, { status: 400 })
+  const docToken = payload.token
+  if (!docToken) return NextResponse.json({ error: 'doc token ausente' }, { status: 400 })
 
   const contrato = await prisma.contrato.findFirst({
-    where: { docusealSubmissionId: submissionId },
+    where: { zapsignDocToken: docToken },
     include: { lead: true },
   })
 
   if (!contrato) {
-    // Pode ser de outro sistema — não retorna erro
     return NextResponse.json({ ok: true, found: false })
   }
 
@@ -53,7 +63,11 @@ export async function POST(req: Request) {
 
   await prisma.contrato.update({
     where: { id: contrato.id },
-    data: { status: 'assinado', assinadoEm: agora },
+    data: {
+      status: 'assinado',
+      assinadoEm: agora,
+      ...(payload.signed_file && { pdfUrl: payload.signed_file }),
+    },
   })
 
   await prisma.lead.update({
@@ -117,7 +131,7 @@ export async function POST(req: Request) {
       }
 
       if (cliente) {
-        // RAG + e-mail de boas-vindas em background (não bloqueia a resposta ao DocuSeal)
+        // RAG + e-mail de boas-vindas em background (não bloqueia a resposta ao ZapSign)
         import('@/lib/rag/ingest')
           .then(({ indexarCliente }) => indexarCliente(cliente!))
           .catch(() => {})
@@ -126,10 +140,10 @@ export async function POST(req: Request) {
           .then(({ enviarBoasVindas }) =>
             enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })
           )
-          .catch((err) => console.error('[docuseal webhook] Erro ao enviar boas-vindas:', err))
+          .catch((err) => console.error('[zapsign webhook] Erro ao enviar boas-vindas:', err))
       }
     } catch (err) {
-      console.error('[docuseal webhook] Erro ao converter lead em cliente:', err)
+      console.error('[zapsign webhook] Erro ao converter lead em cliente:', err)
     }
   }
   // ─────────────────────────────────────────────────────────────────────────

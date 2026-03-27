@@ -264,12 +264,11 @@ model Contrato {
   lead             Lead           @relation(fields: [leadId], references: [id])
   clienteId        String?
   cliente          Cliente?       @relation(fields: [clienteId], references: [id])
-  clicksignKey         String?        @unique
-  clicksignUrl         String?
-  clicksignSignUrl     String?
-  docusealTemplateId   Int?
-  docusealSubmissionId Int?
-  docusealSignUrl      String?
+  clicksignKey     String?  @unique
+  clicksignUrl     String?
+  clicksignSignUrl String?
+  zapsignDocToken  String?  @unique
+  zapsignSignUrl   String?
   status               StatusContrato @default(rascunho)
   planoTipo        PlanoTipo
   valorMensal      Decimal        @db.Decimal(10, 2)

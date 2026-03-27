@@ -11,7 +11,7 @@ import { IniciarOnboardingBtn } from '@/components/crm/iniciar-onboarding-btn'
 import { WhatsAppLeadDrawerButton } from '@/components/crm/whatsapp-lead-drawer-button'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
-import { EnviarDocuSealBtn } from '@/components/crm/enviar-docuseal-btn'
+import { EnviarZapSignBtn } from '@/components/crm/enviar-zapsign-btn'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -96,10 +96,10 @@ export default async function LeadDetailPage({ params }: Props) {
           <WhatsAppLeadDrawerButton leadId={lead.id} nomeExibido={nomeExibido} />
           <EditarLeadDrawer lead={lead} />
           {!isProspecto && lead.contrato?.status !== 'assinado' && (
-            <EnviarDocuSealBtn
+            <EnviarZapSignBtn
               leadId={lead.id}
               contratoStatus={lead.contrato?.status}
-              signUrl={lead.contrato?.docusealSignUrl}
+              signUrl={lead.contrato?.zapsignSignUrl}
               compact
             />
           )}
@@ -221,10 +221,10 @@ export default async function LeadDetailPage({ params }: Props) {
                   </a>
                 )}
               </div>
-              <EnviarDocuSealBtn
+              <EnviarZapSignBtn
                 leadId={id}
                 contratoStatus={lead.contrato.status}
-                signUrl={lead.contrato.docusealSignUrl}
+                signUrl={lead.contrato.zapsignSignUrl}
               />
             </div>
           )}
