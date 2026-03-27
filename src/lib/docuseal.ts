@@ -1,6 +1,9 @@
 /**
  * Cliente DocuSeal — assinatura eletrônica self-hosted.
- * Requer DOCUSEAL_API_URL e DOCUSEAL_API_KEY no .env
+ * Requer DOCUSEAL_API_URL, DOCUSEAL_API_KEY e DOCUSEAL_TEMPLATE_ID no .env
+ *
+ * DOCUSEAL_TEMPLATE_ID: ID do template criado manualmente no painel DocuSeal.
+ * A versão community não suporta criação de templates via API.
  */
 
 function baseUrl() {
@@ -11,8 +14,13 @@ function apiKey() {
   return process.env.DOCUSEAL_API_KEY ?? ''
 }
 
+function templateId(): number | null {
+  const id = process.env.DOCUSEAL_TEMPLATE_ID
+  return id ? Number(id) : null
+}
+
 export function docusealConfigurado(): boolean {
-  return !!(process.env.DOCUSEAL_API_URL && process.env.DOCUSEAL_API_KEY)
+  return !!(process.env.DOCUSEAL_API_URL && process.env.DOCUSEAL_API_KEY && process.env.DOCUSEAL_TEMPLATE_ID)
 }
 
 async function docusealFetch<T>(
@@ -68,39 +76,18 @@ type DocuSealSubmitter = {
 // ─── Funções públicas ─────────────────────────────────────────────────────────
 
 /**
- * Faz upload de um PDF e cria um template no DocuSeal.
- * Retorna o ID do template criado.
- */
-export async function criarTemplate(pdfBuffer: Buffer, nome: string): Promise<number> {
-  const form = new FormData()
-  form.append('name', nome)
-  form.append(
-    'documents[][file]',
-    new Blob([new Uint8Array(pdfBuffer)], { type: 'application/pdf' }),
-    'contrato.pdf',
-  )
-
-  const data = await docusealFetch<DocuSealTemplate>('/api/templates', {
-    method: 'POST',
-    body: form,
-  })
-
-  return data.id
-}
-
-/**
- * Cria uma submissão para um template existente com um único signatário.
+ * Cria uma submissão para o template fixo configurado em DOCUSEAL_TEMPLATE_ID.
  * Retorna o ID da submissão e a URL de assinatura do signatário.
  */
 export async function criarSubmissao(
-  templateId: number,
+  tmplId: number,
   signatario: { nome: string; email: string },
   sendEmail = true,
 ): Promise<{ submissionId: number; signUrl: string }> {
   const data = await docusealFetch<DocuSealSubmitter[]>('/api/submissions', {
     method: 'POST',
     json: {
-      template_id: templateId,
+      template_id: tmplId,
       send_email: sendEmail,
       submitters: [{ name: signatario.nome, email: signatario.email }],
     },
@@ -116,14 +103,18 @@ export async function criarSubmissao(
 }
 
 /**
- * Fluxo completo: upload PDF → cria template → cria submissão → retorna URLs.
+ * Cria uma submissão usando o template fixo (DOCUSEAL_TEMPLATE_ID).
+ * O PDF gerado é ignorado neste fluxo — o documento exibido ao signatário
+ * é o template configurado manualmente no painel DocuSeal.
  */
 export async function enviarContratoParaAssinatura(
-  pdfBuffer: Buffer,
-  nomeContrato: string,
+  _pdfBuffer: Buffer,
+  _nomeContrato: string,
   signatario: { nome: string; email: string },
 ): Promise<{ templateId: number; submissionId: number; signUrl: string }> {
-  const templateId = await criarTemplate(pdfBuffer, nomeContrato)
-  const { submissionId, signUrl } = await criarSubmissao(templateId, signatario)
-  return { templateId, submissionId, signUrl }
+  const tmplId = templateId()
+  if (!tmplId) throw new Error('DOCUSEAL_TEMPLATE_ID não configurado. Crie um template no painel DocuSeal e defina esta variável.')
+
+  const { submissionId, signUrl } = await criarSubmissao(tmplId, signatario)
+  return { templateId: tmplId, submissionId, signUrl }
 }
