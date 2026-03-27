@@ -21,7 +21,7 @@ export async function POST(_req: Request, { params }: Params) {
 
   if (!docusealConfigurado()) {
     return NextResponse.json(
-      { error: 'DocuSeal não configurado. Defina DOCUSEAL_API_URL, DOCUSEAL_API_KEY e DOCUSEAL_TEMPLATE_ID.' },
+      { error: 'DocuSeal não configurado. Defina DOCUSEAL_API_URL e DOCUSEAL_API_KEY.' },
       { status: 503 },
     )
   }

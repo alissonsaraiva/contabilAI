@@ -1,9 +1,10 @@
 /**
  * Cliente DocuSeal — assinatura eletrônica self-hosted.
- * Requer DOCUSEAL_API_URL, DOCUSEAL_API_KEY e DOCUSEAL_TEMPLATE_ID no .env
+ * Requer DOCUSEAL_API_URL e DOCUSEAL_API_KEY no .env.
  *
- * DOCUSEAL_TEMPLATE_ID: ID do template criado manualmente no painel DocuSeal.
- * A versão community não suporta criação de templates via API.
+ * DOCUSEAL_TEMPLATE_ID é opcional (legado). A abordagem atual cria um
+ * template dinâmico por contrato a partir do PDF gerado com os dados reais
+ * do cliente — eliminando a necessidade de configurar um template fixo.
  */
 
 function baseUrl() {
@@ -14,13 +15,8 @@ function apiKey() {
   return process.env.DOCUSEAL_API_KEY ?? ''
 }
 
-function templateId(): number | null {
-  const id = process.env.DOCUSEAL_TEMPLATE_ID
-  return id ? Number(id) : null
-}
-
 export function docusealConfigurado(): boolean {
-  return !!(process.env.DOCUSEAL_API_URL && process.env.DOCUSEAL_API_KEY && process.env.DOCUSEAL_TEMPLATE_ID)
+  return !!(process.env.DOCUSEAL_API_URL && process.env.DOCUSEAL_API_KEY)
 }
 
 async function docusealFetch<T>(
@@ -61,7 +57,7 @@ async function docusealFetch<T>(
 
 // ─── Tipos da API DocuSeal ────────────────────────────────────────────────────
 
-type DocuSealTemplate = { id: number; name: string }
+type DocuSealTemplate = { id: number; name: string; slug?: string }
 
 type DocuSealSubmitter = {
   id: number
@@ -76,7 +72,7 @@ type DocuSealSubmitter = {
 // ─── Funções públicas ─────────────────────────────────────────────────────────
 
 /**
- * Cria uma submissão para o template fixo configurado em DOCUSEAL_TEMPLATE_ID.
+ * Cria uma submissão para um template existente pelo ID.
  * Retorna o ID da submissão e a URL de assinatura do signatário.
  */
 export async function criarSubmissao(
@@ -103,17 +99,60 @@ export async function criarSubmissao(
 }
 
 /**
- * Cria uma submissão usando o template fixo (DOCUSEAL_TEMPLATE_ID).
- * O PDF gerado é ignorado neste fluxo — o documento exibido ao signatário
- * é o template configurado manualmente no painel DocuSeal.
+ * Cria um template DocuSeal a partir de um PDF gerado dinamicamente e,
+ * em seguida, cria uma submissão para assinatura eletrônica.
+ *
+ * O campo de assinatura é posicionado sobre a área de assinatura do
+ * CONTRATANTE na última página do PDF (coordenadas relativas 0–1).
+ *
+ * Coordenadas calculadas para o template ContratoPDF (A4, fonte 9.5pt):
+ *   - Coluna direita (CONTRATANTE) começa em x ≈ 0.54 da página
+ *   - Linha de assinatura está a ~y ≈ 0.82 da página (no rodapé)
  */
 export async function enviarContratoParaAssinatura(
-  _pdfBuffer: Buffer,
-  _nomeContrato: string,
+  pdfBuffer: Buffer,
+  nomeContrato: string,
   signatario: { nome: string; email: string },
 ): Promise<{ templateId: number; submissionId: number; signUrl: string }> {
-  const tmplId = templateId()
-  if (!tmplId) throw new Error('DOCUSEAL_TEMPLATE_ID não configurado. Crie um template no painel DocuSeal e defina esta variável.')
+  const base64Pdf = pdfBuffer.toString('base64')
+
+  // Cria o template com o PDF personalizado e define o campo de assinatura
+  const template = await docusealFetch<DocuSealTemplate>('/api/templates', {
+    method: 'POST',
+    json: {
+      name: nomeContrato,
+      documents: [
+        {
+          name: 'contrato.pdf',
+          file: `data:application/pdf;base64,${base64Pdf}`,
+          fields: [
+            {
+              name: 'Assinatura',
+              type: 'signature',
+              role: 'First Party',
+              required: true,
+              areas: [
+                {
+                  // Coluna direita (CONTRATANTE), linha de assinatura
+                  // A4 paddingHorizontal: 60, largura útil: 475pt
+                  // Coluna direita começa em ~55% da largura útil → x ≈ 0.54
+                  // Linha de assinatura a ~82% da altura da página (última página)
+                  x: 0.54,
+                  y: 0.82,
+                  w: 0.36,
+                  h: 0.04,
+                  page: 0,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  })
+
+  const tmplId = template.id
+  if (!tmplId) throw new Error('DocuSeal: template criado sem ID na resposta')
 
   const { submissionId, signUrl } = await criarSubmissao(tmplId, signatario)
   return { templateId: tmplId, submissionId, signUrl }
