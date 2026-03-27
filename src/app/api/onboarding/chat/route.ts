@@ -121,25 +121,11 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── Contexto fixo: fluxo de onboarding ───────────────────────────────────
-  const FLUXO_ONBOARDING = `FLUXO DE CADASTRO (etapas em ordem):
-1. Simulador — o lead simula impostos e descobre o regime ideal
-2. Escolha do plano — seleciona o plano de contabilidade
-3. Dados pessoais/empresariais — preenche nome, CPF/CNPJ, endereço, regime tributário
-4. Revisão — confere os dados antes de gerar o contrato
-5. Contrato — contrato gerado automaticamente; enviado por e-mail via DocuSeal para assinatura eletrônica
-6. Confirmação — página exibe status "aguardando assinatura"; lead recebe e-mail com link para assinar (válido 24h)
-7. Após assinar — conta ativada automaticamente; e-mail de boas-vindas enviado com link de acesso ao Portal do Cliente
-8. Portal do Cliente — lead vira cliente ativo; acessa documentos, financeiro, suporte e chat com a equipe
-
-REGRAS PARA RESPONDER SOBRE O FLUXO:
-• Se o lead perguntar "o que acontece depois?" ou "qual é o próximo passo?", guie pela etapa seguinte com base no status atual
-• Se perguntar sobre o portal, explique que o acesso chega por e-mail logo após a assinatura
-• Se perguntar sobre o contrato, explique que é enviado por e-mail para assinatura eletrônica (DocuSeal) — não precisa imprimir nada
-• Se perguntar sobre prazo de ativação, informe que é imediato após a assinatura`
-
   // ── Contexto direto do lead (não depende do RAG) ──────────────────────────
-  let systemExtra: string = FLUXO_ONBOARDING
+  // O fluxo de etapas e regras de atendimento ficam no system prompt do CRM
+  // (Configurações → IA → Prompts → Onboarding) — editável sem deploy.
+  // Aqui só injetamos dados dinâmicos buscados do banco por request.
+  let systemExtra: string | undefined
   if (leadId) {
     try {
       const lead = await prisma.lead.findUnique({
@@ -150,16 +136,16 @@ REGRAS PARA RESPONDER SOBRE O FLUXO:
         const dados = (lead.dadosJson ?? {}) as Record<string, string>
         const nome = dados['Nome completo'] ?? dados['Razão Social'] ?? null
         const partes = [
-          `\nCONTEXTO DO LEAD EM ATENDIMENTO:`,
+          `CONTEXTO DO LEAD EM ATENDIMENTO:`,
           nome                       ? `• Nome: ${nome}` : null,
           lead.planoTipo             ? `• Plano selecionado: ${lead.planoTipo}` : null,
           dados['Regime Tributário'] ? `• Regime: ${dados['Regime Tributário']}` : null,
           dados['Cidade']            ? `• Cidade: ${dados['Cidade']}` : null,
           lead.status                ? `• Status no fluxo: ${lead.status}` : null,
         ].filter(Boolean)
-        if (partes.length > 1) systemExtra += '\n' + partes.join('\n')
+        if (partes.length > 1) systemExtra = partes.join('\n')
       }
-    } catch { /* DB indisponível — continua só com o fluxo */ }
+    } catch { /* DB indisponível — continua sem contexto extra */ }
   }
 
   // ── Escopo RAG ────────────────────────────────────────────────────────────
