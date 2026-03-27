@@ -1,6 +1,6 @@
 /**
- * GET  /api/agente/tools  — lista todas as tools com status habilitado/desabilitado
- * PUT  /api/agente/tools  — salva a lista de tools desabilitadas
+ * GET  /api/agente/tools  — lista todas as tools com status habilitado/desabilitado e canais efetivos
+ * PUT  /api/agente/tools  — salva a lista de tools desabilitadas e overrides de canais
  */
 
 import { NextResponse } from 'next/server'
@@ -18,19 +18,25 @@ export async function GET() {
   }
 
   const row = await prisma.escritorio.findFirst({
-    select: { toolsDesabilitadas: true },
+    select: { toolsDesabilitadas: true, toolsCanaisOverride: true },
   })
 
   const desabilitadas: string[] = Array.isArray(row?.toolsDesabilitadas)
     ? (row.toolsDesabilitadas as string[])
     : []
 
+  const canaisOverride: Record<string, string[]> =
+    row?.toolsCanaisOverride && typeof row.toolsCanaisOverride === 'object' && !Array.isArray(row.toolsCanaisOverride)
+      ? (row.toolsCanaisOverride as Record<string, string[]>)
+      : {}
+
   const capacidades = getCapacidades().map(c => ({
     ...c,
     habilitada: !desabilitadas.includes(c.tool),
+    canaisEfetivos: canaisOverride[c.tool] ?? c.canais,
   }))
 
-  return NextResponse.json({ capacidades, desabilitadas })
+  return NextResponse.json({ capacidades, desabilitadas, canaisOverride })
 }
 
 export async function PUT(req: Request) {
@@ -40,18 +46,25 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'Apenas admins podem alterar tools' }, { status: 403 })
   }
 
-  const body = await req.json() as { desabilitadas: string[] }
+  const body = await req.json() as { desabilitadas?: string[]; canaisOverride?: Record<string, string[]> }
   const desabilitadas = Array.isArray(body.desabilitadas) ? body.desabilitadas : []
+  const canaisOverride =
+    body.canaisOverride && typeof body.canaisOverride === 'object' && !Array.isArray(body.canaisOverride)
+      ? body.canaisOverride
+      : {}
 
   const row = await prisma.escritorio.findFirst({ select: { id: true } })
   if (!row) return NextResponse.json({ error: 'Escritório não encontrado' }, { status: 404 })
 
   await prisma.escritorio.update({
     where: { id: row.id },
-    data:  { toolsDesabilitadas: desabilitadas },
+    data: {
+      toolsDesabilitadas: desabilitadas,
+      toolsCanaisOverride: canaisOverride,
+    },
   })
 
   invalidateAiConfigCache()
 
-  return NextResponse.json({ ok: true, desabilitadas })
+  return NextResponse.json({ ok: true, desabilitadas, canaisOverride })
 }

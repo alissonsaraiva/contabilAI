@@ -17,7 +17,25 @@ type ToolCapacidade = {
   descricao: string
   categoria: string
   canais: string[]
+  canaisEfetivos: string[]
   habilitada: boolean
+}
+
+const TODOS_CANAIS = ['crm', 'whatsapp', 'portal', 'onboarding'] as const
+type Canal = typeof TODOS_CANAIS[number]
+
+const CANAL_LABEL: Record<Canal, string> = {
+  crm: 'CRM',
+  whatsapp: 'WhatsApp',
+  portal: 'Portal',
+  onboarding: 'Onboarding',
+}
+
+const CANAL_COLORS: Record<Canal, string> = {
+  crm:        'bg-primary/10 text-primary border-primary/20',
+  whatsapp:   'bg-green-status/10 text-green-status border-green-status/20',
+  portal:     'bg-tertiary/10 text-tertiary border-tertiary/20',
+  onboarding: 'bg-orange-status/10 text-orange-status border-orange-status/20',
 }
 
 type Model = { value: string; label: string }
@@ -121,6 +139,9 @@ export default function ConfiguracoesIAPage() {
   const [tools, setTools]             = useState<ToolCapacidade[]>([])
   const [toolsLoading, setToolsLoading] = useState(false)
   const [toolsSaving, setToolsSaving]   = useState(false)
+  const [canaisOverride, setCanaisOverride] = useState<Record<string, string[]>>({})
+  // Modal de edição de canais: nome da tool sendo editada (null = fechado)
+  const [editingTool, setEditingTool] = useState<string | null>(null)
 
   const { register, handleSubmit, watch, setValue, reset } = useForm<FormData>({
     defaultValues: {
@@ -201,7 +222,10 @@ export default function ConfiguracoesIAPage() {
     setToolsLoading(true)
     fetch('/api/agente/tools')
       .then(r => r.json())
-      .then((data: { capacidades: ToolCapacidade[] }) => setTools(data.capacidades ?? []))
+      .then((data: { capacidades: ToolCapacidade[]; canaisOverride: Record<string, string[]> }) => {
+        setTools(data.capacidades ?? [])
+        setCanaisOverride(data.canaisOverride ?? {})
+      })
       .catch(() => {})
       .finally(() => setToolsLoading(false))
   }, [])
@@ -212,6 +236,18 @@ export default function ConfiguracoesIAPage() {
     setTools(prev => prev.map(t => t.tool === toolName ? { ...t, habilitada: !t.habilitada } : t))
   }
 
+  function toggleCanal(toolName: string, canal: string) {
+    setCanaisOverride(prev => {
+      const tool = tools.find(t => t.tool === toolName)
+      const current = prev[toolName] ?? tool?.canais ?? []
+      const next = current.includes(canal) ? current.filter(c => c !== canal) : [...current, canal]
+      const updated = { ...prev, [toolName]: next }
+      // Atualiza canaisEfetivos na lista de tools
+      setTools(ts => ts.map(t => t.tool === toolName ? { ...t, canaisEfetivos: next } : t))
+      return updated
+    })
+  }
+
   async function saveTools() {
     setToolsSaving(true)
     try {
@@ -219,12 +255,16 @@ export default function ConfiguracoesIAPage() {
       const res = await fetch('/api/agente/tools', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ desabilitadas }),
+        body: JSON.stringify({ desabilitadas, canaisOverride }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const data = await res.json() as { error?: string }
+        throw new Error(data.error ?? 'Erro desconhecido')
+      }
+      setEditingTool(null)
       toast.success('Ferramentas do agente salvas!')
-    } catch {
-      toast.error('Erro ao salvar ferramentas')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar ferramentas')
     } finally {
       setToolsSaving(false)
     }
@@ -475,6 +515,90 @@ export default function ConfiguracoesIAPage() {
       {/* ── Tab: Ferramentas do Agente ── */}
       {tab === 'ferramentas' && (
         <>
+          {/* Modal de edição de canais */}
+          {editingTool && (() => {
+            const tool = tools.find(t => t.tool === editingTool)
+            if (!tool) return null
+            const efetivos = canaisOverride[tool.tool] ?? tool.canais
+            return (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
+                onClick={() => setEditingTool(null)}
+              >
+                <div
+                  className="w-full max-w-sm rounded-2xl border border-outline-variant/15 bg-card p-6 shadow-xl"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-[15px] font-semibold text-on-surface">{tool.label}</h3>
+                      <p className="text-[12px] text-on-surface-variant/70 mt-0.5">{tool.descricao}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingTool(null)}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                  </div>
+
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50">
+                    Agentes com acesso
+                  </p>
+                  <div className="space-y-2">
+                    {TODOS_CANAIS.map(canal => {
+                      const ativo = efetivos.includes(canal)
+                      return (
+                        <button
+                          key={canal}
+                          type="button"
+                          onClick={() => toggleCanal(tool.tool, canal)}
+                          className={cn(
+                            'flex w-full items-center justify-between rounded-xl border px-4 py-2.5 text-left transition-colors',
+                            ativo
+                              ? CANAL_COLORS[canal] + ' border-current/20'
+                              : 'border-outline-variant/15 bg-surface-container-low/30 text-on-surface-variant/50 hover:bg-surface-container-low',
+                          )}
+                        >
+                          <span className="text-[13px] font-semibold">{CANAL_LABEL[canal]}</span>
+                          <span className={cn(
+                            'relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors',
+                            ativo ? 'bg-current/70' : 'bg-outline-variant/30',
+                          )}>
+                            <span className={cn(
+                              'inline-block h-4 w-4 transform rounded-full bg-white shadow transition',
+                              ativo ? 'translate-x-4' : 'translate-x-0',
+                            )} />
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="mt-5 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingTool(null)}
+                      className="rounded-xl border border-outline-variant/20 px-4 py-2 text-[13px] font-semibold text-on-surface-variant hover:bg-surface-container"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveTools}
+                      disabled={toolsSaving}
+                      className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {toolsSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
             <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -483,7 +607,7 @@ export default function ConfiguracoesIAPage() {
                 </div>
                 <div>
                   <h3 className="text-[14px] font-semibold text-on-surface">Ferramentas do Agente Operacional</h3>
-                  <p className="text-[12px] text-on-surface-variant/80">Desabilite ferramentas que não deseja que o agente use. Afeta todos os canais.</p>
+                  <p className="text-[12px] text-on-surface-variant/80">Habilite/desabilite ferramentas e configure quais agentes têm acesso a cada uma.</p>
                 </div>
               </div>
               {toolsLoading && <Loader2 className="h-4 w-4 animate-spin text-on-surface-variant/40" />}
@@ -494,7 +618,6 @@ export default function ConfiguracoesIAPage() {
             )}
 
             {tools.length > 0 && (() => {
-              // Agrupa por categoria
               const categorias = [...new Set(tools.map(t => t.categoria))]
               return (
                 <div className="space-y-5">
@@ -502,35 +625,72 @@ export default function ConfiguracoesIAPage() {
                     <div key={categoria}>
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-2 px-1">{categoria}</p>
                       <div className="divide-y divide-outline-variant/10 rounded-xl border border-outline-variant/15 overflow-hidden">
-                        {tools.filter(t => t.categoria === categoria).map(tool => (
-                          <div key={tool.tool} className="flex items-center justify-between gap-4 px-4 py-3 bg-surface-container-low/30 hover:bg-surface-container-low/60 transition-colors">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[13px] font-semibold text-on-surface">{tool.label}</span>
-                                <div className="flex gap-1">
-                                  {tool.canais.map(canal => (
-                                    <span key={canal} className="rounded-full border border-outline-variant/20 bg-card px-1.5 py-0.5 text-[10px] font-medium text-on-surface-variant/60">{canal}</span>
-                                  ))}
+                        {tools.filter(t => t.categoria === categoria).map(tool => {
+                          const efetivos = tool.canaisEfetivos ?? tool.canais
+                          return (
+                            <div
+                              key={tool.tool}
+                              className={cn(
+                                'flex items-center gap-3 px-4 py-3 transition-colors',
+                                tool.habilitada
+                                  ? 'bg-surface-container-low/30 hover:bg-surface-container-low/60'
+                                  : 'bg-surface-container/40 opacity-60',
+                              )}
+                            >
+                              {/* Info da tool */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-[13px] font-semibold text-on-surface">{tool.label}</span>
+                                  <code className="rounded bg-surface-container px-1 py-0.5 text-[10px] text-on-surface-variant/50">{tool.tool}</code>
+                                </div>
+                                <p className="text-[11px] text-on-surface-variant/60 mt-0.5 line-clamp-1">{tool.descricao}</p>
+                                {/* Badges de canais efetivos */}
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {TODOS_CANAIS.map(canal => {
+                                    const ativo = efetivos.includes(canal)
+                                    return (
+                                      <span
+                                        key={canal}
+                                        className={cn(
+                                          'rounded-full border px-1.5 py-0.5 text-[10px] font-semibold',
+                                          ativo ? CANAL_COLORS[canal] : 'border-outline-variant/10 bg-surface-container text-on-surface-variant/30',
+                                        )}
+                                      >
+                                        {CANAL_LABEL[canal]}
+                                      </span>
+                                    )
+                                  })}
                                 </div>
                               </div>
-                              <p className="text-[11px] text-on-surface-variant/60 mt-0.5 truncate">{tool.descricao}</p>
+
+                              {/* Botão editar canais */}
+                              <button
+                                type="button"
+                                onClick={() => setEditingTool(tool.tool)}
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-on-surface-variant/40 transition-colors hover:bg-surface-container hover:text-primary"
+                                title="Editar acesso por agente"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">edit</span>
+                              </button>
+
+                              {/* Toggle habilitar/desabilitar */}
+                              <button
+                                type="button"
+                                onClick={() => toggleTool(tool.tool)}
+                                className={cn(
+                                  'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                                  tool.habilitada ? 'bg-primary' : 'bg-outline-variant/40',
+                                )}
+                                aria-label={tool.habilitada ? 'Desabilitar' : 'Habilitar'}
+                              >
+                                <span className={cn(
+                                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                                  tool.habilitada ? 'translate-x-4' : 'translate-x-0',
+                                )} />
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => toggleTool(tool.tool)}
-                              className={cn(
-                                'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                                tool.habilitada ? 'bg-primary' : 'bg-outline-variant/40',
-                              )}
-                              aria-label={tool.habilitada ? 'Desabilitar' : 'Habilitar'}
-                            >
-                              <span className={cn(
-                                'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                                tool.habilitada ? 'translate-x-4' : 'translate-x-0',
-                              )} />
-                            </button>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
@@ -550,7 +710,7 @@ export default function ConfiguracoesIAPage() {
               className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center"
             >
               {toolsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
-              Salvar
+              Salvar tudo
             </button>
           </div>
         </>

@@ -144,11 +144,26 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
 
   // 3. Monta tools disponíveis — aplica escopo por feature se toolsPermitidas não foi fornecido
   //    e exclui as tools desabilitadas pelo admin nas configurações de IA
+  //    e respeita os canaisOverride configurados (o admin pode restringir/ampliar canais por tool)
   const escopoTools = toolsPermitidas ?? TOOLS_POR_FEATURE[solicitanteSeguro]
   const desabilitadas = new Set(config.toolsDesabilitadas)
-  const nomesAtivos = escopoTools
-    ? escopoTools.filter((n: string) => !desabilitadas.has(n))
-    : getTools().map((t) => t.definition.name).filter((n: string) => !desabilitadas.has(n))
+  const canaisOverride = config.toolsCanaisOverride
+
+  const allTools = getTools()
+  const nomesAtivos = (escopoTools
+    ? allTools.filter(t => escopoTools.includes(t.definition.name))
+    : allTools
+  )
+    .filter(t => !desabilitadas.has(t.definition.name))
+    .filter(t => {
+      // Se há override de canais para esta tool, verifica se o solicitante está incluído
+      const override = canaisOverride[t.definition.name]
+      if (override) return (override as string[]).includes(solicitanteSeguro)
+      // Sem override: usa os canais do meta da tool como referência
+      // (não bloqueia se a tool não define canais — retrocompatibilidade)
+      return t.meta.canais.length === 0 || (t.meta.canais as string[]).includes(solicitanteSeguro)
+    })
+    .map(t => t.definition.name)
   const toolDefinitions = getToolDefinitions(nomesAtivos)
 
   if (toolDefinitions.length === 0) {

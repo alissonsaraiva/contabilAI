@@ -423,6 +423,8 @@ model Escritorio {
 
   // Agente Operacional — tools desabilitadas pelo admin (array de nomes de tools)
   toolsDesabilitadas     Json?   // string[] — ex: ["enviarEmail", "criarLead"]
+  // Agente Operacional — canais disponíveis por tool (substitui o padrão do meta)
+  toolsCanaisOverride    Json?   // Record<string, string[]> — ex: {"enviarEmail": ["crm"]}
 
   // Email — SMTP/IMAP configuráveis (senha armazenada encriptada)
   emailRemetente   String?  // ex: contato@escritorio.com.br

@@ -53,6 +53,8 @@ export type AiConfig = {
   }
   /** Tools desabilitadas pelo admin — filtradas antes de enviar ao LLM */
   toolsDesabilitadas: string[]
+  /** Canais disponíveis por tool — overrides do padrão do meta */
+  toolsCanaisOverride: Record<string, string[]>
   whatsapp: {
     aiEnabled: boolean
     aiFeature: string
@@ -116,6 +118,7 @@ export async function getAiConfig(): Promise<AiConfig> {
         zapiInstanceId: true,
         zapiToken: true,
         toolsDesabilitadas: true,
+        toolsCanaisOverride: true,
       },
     })
     if (fetched) row = fetched as Record<string, unknown>
@@ -200,6 +203,10 @@ export async function getAiConfig(): Promise<AiConfig> {
     },
 
     toolsDesabilitadas: Array.isArray(row['toolsDesabilitadas']) ? row['toolsDesabilitadas'] as string[] : [],
+    toolsCanaisOverride:
+      row['toolsCanaisOverride'] && typeof row['toolsCanaisOverride'] === 'object' && !Array.isArray(row['toolsCanaisOverride'])
+        ? row['toolsCanaisOverride'] as Record<string, string[]>
+        : {},
   }
 
   // Armazena no cache antes de retornar
