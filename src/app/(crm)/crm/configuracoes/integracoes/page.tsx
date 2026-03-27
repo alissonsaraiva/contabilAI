@@ -9,7 +9,6 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
-const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 
 const schema = z.object({
   provedorAssinatura:  z.enum(['zapsign', 'clicksign']).optional(),
@@ -24,8 +23,23 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
+type Configured = {
+  zapsignToken:        boolean
+  clicksignKey:        boolean
+  clicksignHmacSecret: boolean
+  zapiInstanceId:      boolean
+  zapiToken:           boolean
+  serproCpfToken:      boolean
+  serproCnpjToken:     boolean
+}
+
 export default function IntegracoesPage() {
   const [loading, setLoading] = useState(false)
+  const [configured, setConfigured] = useState<Configured>({
+    zapsignToken: false, clicksignKey: false, clicksignHmacSecret: false,
+    zapiInstanceId: false, zapiToken: false, serproCpfToken: false, serproCnpjToken: false,
+  })
+
   const { register, handleSubmit, reset, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { provedorAssinatura: 'zapsign' },
@@ -36,24 +50,88 @@ export default function IntegracoesPage() {
   useEffect(() => {
     fetch('/api/escritorio')
       .then(r => r.json())
-      .then(data => { if (data) reset({ provedorAssinatura: 'zapsign', ...data }) })
+      .then((data: Record<string, unknown>) => {
+        if (!data) return
+        // Só passa campos do schema — evita que campos extras do escritório quebrem o zodResolver
+        reset({
+          provedorAssinatura: (data.provedorAssinatura as string) === 'clicksign' ? 'clicksign' : 'zapsign',
+          zapsignToken:        '',
+          clicksignKey:        '',
+          clicksignHmacSecret: '',
+          zapiInstanceId:      '',
+          zapiToken:           '',
+          serproCpfToken:      '',
+          serproCnpjToken:     '',
+        })
+        setConfigured({
+          zapsignToken:        !!data.zapsignToken,
+          clicksignKey:        !!data.clicksignKey,
+          clicksignHmacSecret: !!data.clicksignHmacSecret,
+          zapiInstanceId:      !!data.zapiInstanceId,
+          zapiToken:           !!data.zapiToken,
+          serproCpfToken:      !!data.serproCpfToken,
+          serproCnpjToken:     !!data.serproCnpjToken,
+        })
+      })
   }, [reset])
 
   async function onSubmit(data: FormData) {
     setLoading(true)
     try {
+      // Filtra campos vazios para não sobrescrever chaves existentes com string vazia
+      const payload: Record<string, unknown> = {
+        provedorAssinatura: data.provedorAssinatura,
+      }
+      if (data.zapsignToken)        payload.zapsignToken        = data.zapsignToken
+      if (data.clicksignKey)        payload.clicksignKey        = data.clicksignKey
+      if (data.clicksignHmacSecret) payload.clicksignHmacSecret = data.clicksignHmacSecret
+      if (data.zapiInstanceId)      payload.zapiInstanceId      = data.zapiInstanceId
+      if (data.zapiToken)           payload.zapiToken           = data.zapiToken
+      if (data.serproCpfToken)      payload.serproCpfToken      = data.serproCpfToken
+      if (data.serproCnpjToken)     payload.serproCnpjToken     = data.serproCnpjToken
+
       const res = await fetch('/api/escritorio', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error()
+
+      // Atualiza indicadores de configurado com o que foi salvo
+      setConfigured(prev => ({
+        zapsignToken:        prev.zapsignToken        || !!data.zapsignToken,
+        clicksignKey:        prev.clicksignKey        || !!data.clicksignKey,
+        clicksignHmacSecret: prev.clicksignHmacSecret || !!data.clicksignHmacSecret,
+        zapiInstanceId:      prev.zapiInstanceId      || !!data.zapiInstanceId,
+        zapiToken:           prev.zapiToken           || !!data.zapiToken,
+        serproCpfToken:      prev.serproCpfToken      || !!data.serproCpfToken,
+        serproCnpjToken:     prev.serproCnpjToken     || !!data.serproCnpjToken,
+      }))
       toast.success('Integrações salvas!')
     } catch {
       toast.error('Erro ao salvar')
     } finally {
       setLoading(false)
     }
+  }
+
+  function ConfiguradoBadge({ field }: { field: keyof Configured }) {
+    if (!configured[field]) return null
+    return (
+      <span className="flex items-center gap-1 text-[11px] font-semibold text-green-600">
+        <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+        Configurado
+      </span>
+    )
+  }
+
+  function FieldLabel({ label, field }: { label: string; field: keyof Configured }) {
+    return (
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-[13px] font-semibold text-on-surface-variant">{label}</label>
+        <ConfiguradoBadge field={field} />
+      </div>
+    )
   }
 
   return (
@@ -76,8 +154,8 @@ export default function IntegracoesPage() {
         {/* Seletor de provedor */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { value: 'zapsign',   label: 'ZapSign',   sub: 'Brasileira · ICP-Basic', color: 'text-green-600' },
-            { value: 'clicksign', label: 'ClickSign',  sub: 'Brasileira · ICP-Basic', color: 'text-blue-600' },
+            { value: 'zapsign',   label: 'ZapSign',  sub: 'Brasileira · ICP-Basic' },
+            { value: 'clicksign', label: 'ClickSign', sub: 'Brasileira · ICP-Basic' },
           ].map(opt => (
             <label
               key={opt.value}
@@ -114,11 +192,11 @@ export default function IntegracoesPage() {
               )}
             </div>
             <div>
-              <label className={LABEL}>API Token</label>
+              <FieldLabel label="API Token" field="zapsignToken" />
               <input
                 {...register('zapsignToken')}
                 className={INPUT}
-                placeholder="Cole o token da aba Configurações → Integrações do ZapSign"
+                placeholder={configured.zapsignToken ? 'Nova chave (deixe em branco para manter)' : 'Cole o token da aba Configurações → Integrações do ZapSign'}
                 type="password"
                 autoComplete="off"
               />
@@ -139,11 +217,11 @@ export default function IntegracoesPage() {
               )}
             </div>
             <div>
-              <label className={LABEL}>Access Token (API Key)</label>
+              <FieldLabel label="Access Token (API Key)" field="clicksignKey" />
               <input
                 {...register('clicksignKey')}
                 className={INPUT}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                placeholder={configured.clicksignKey ? 'Nova chave (deixe em branco para manter)' : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}
                 type="password"
                 autoComplete="off"
               />
@@ -152,11 +230,11 @@ export default function IntegracoesPage() {
               </p>
             </div>
             <div>
-              <label className={LABEL}>HMAC Secret (Webhook)</label>
+              <FieldLabel label="HMAC Secret (Webhook)" field="clicksignHmacSecret" />
               <input
                 {...register('clicksignHmacSecret')}
                 className={INPUT}
-                placeholder="Chave HMAC SHA256 fornecida pelo ClickSign"
+                placeholder={configured.clicksignHmacSecret ? 'Nova chave (deixe em branco para manter)' : 'Chave HMAC SHA256 fornecida pelo ClickSign'}
                 type="password"
                 autoComplete="off"
               />
@@ -181,15 +259,15 @@ export default function IntegracoesPage() {
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           {[
-            { name: 'zapiInstanceId', label: 'Instance ID', placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
-            { name: 'zapiToken',      label: 'Token',        placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
+            { name: 'zapiInstanceId' as const, label: 'Instance ID', placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
+            { name: 'zapiToken'      as const, label: 'Token',        placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
           ].map(campo => (
             <div key={campo.name} className="space-y-1.5">
-              <label className={LABEL}>{campo.label}</label>
+              <FieldLabel label={campo.label} field={campo.name} />
               <input
-                {...register(campo.name as keyof FormData)}
+                {...register(campo.name)}
                 className={INPUT}
-                placeholder={campo.placeholder}
+                placeholder={configured[campo.name] ? 'Nova chave (deixe em branco para manter)' : campo.placeholder}
                 type="password"
                 autoComplete="off"
               />
@@ -211,15 +289,15 @@ export default function IntegracoesPage() {
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           {[
-            { name: 'serproCpfToken',  label: 'Token CPF',  placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
-            { name: 'serproCnpjToken', label: 'Token CNPJ', placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
+            { name: 'serproCpfToken'  as const, label: 'Token CPF',  placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
+            { name: 'serproCnpjToken' as const, label: 'Token CNPJ', placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
           ].map(campo => (
             <div key={campo.name} className="space-y-1.5">
-              <label className={LABEL}>{campo.label}</label>
+              <FieldLabel label={campo.label} field={campo.name} />
               <input
-                {...register(campo.name as keyof FormData)}
+                {...register(campo.name)}
                 className={INPUT}
-                placeholder={campo.placeholder}
+                placeholder={configured[campo.name] ? 'Nova chave (deixe em branco para manter)' : campo.placeholder}
                 type="password"
                 autoComplete="off"
               />

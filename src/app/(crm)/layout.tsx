@@ -7,6 +7,7 @@ import { getEscritorioConfig } from '@/lib/escritorio'
 import { getAiConfig } from '@/lib/ai/config'
 import { AssistenteProvider } from '@/components/crm/assistente-context'
 import { AssistenteCRM } from '@/components/crm/assistente-crm'
+import { Toaster } from '@/components/ui/sonner'
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -28,6 +29,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         </div>
       </div>
       <AssistenteCRM nomeIa={aiConfig.nomeAssistentes.crm ?? undefined} />
+      <Toaster richColors position="top-right" />
     </AssistenteProvider>
   )
 }
