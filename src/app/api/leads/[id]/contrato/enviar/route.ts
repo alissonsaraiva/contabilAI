@@ -2,7 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { ContratoPDF } from '@/lib/pdf/contrato-template'
-import { enviarContratoParaAssinatura, zapsignConfigurado } from '@/lib/zapsign'
+import { enviarZapSign } from '@/lib/zapsign'
+import { enviarClickSign } from '@/lib/clicksign'
 import React from 'react'
 import type { PlanoTipo, FormaPagamento } from '@prisma/client'
 
@@ -16,23 +17,26 @@ const PLANO_PRECOS_FALLBACK: Record<string, number> = {
 }
 
 export async function POST(_req: Request, { params }: Params) {
-  // Rota acessível do onboarding público (sem auth) e do CRM (com auth)
-  // Segurança: leadId é UUID — difícil de adivinhar. Consistente com /contrato (POST).
-
-  if (!zapsignConfigurado()) {
-    return NextResponse.json(
-      { error: 'ZapSign não configurado. Defina ZAPSIGN_API_TOKEN no .env.' },
-      { status: 503 },
-    )
-  }
-
   const { id } = await params
+
   const [lead, escritorio] = await Promise.all([
     prisma.lead.findUnique({ where: { id } }),
     prisma.escritorio.findFirst(),
   ])
 
   if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 })
+
+  // Verifica qual provedor está configurado
+  const provedor = escritorio?.provedorAssinatura ?? 'zapsign'
+  const zapsignToken  = escritorio?.zapsignToken  ?? ''
+  const clicksignKey  = escritorio?.clicksignKey  ?? ''
+
+  if (provedor === 'zapsign' && !zapsignToken) {
+    return NextResponse.json({ error: 'ZapSign não configurado. Acesse Configurações → Integrações.' }, { status: 503 })
+  }
+  if (provedor === 'clicksign' && !clicksignKey) {
+    return NextResponse.json({ error: 'ClickSign não configurado. Acesse Configurações → Integrações.' }, { status: 503 })
+  }
 
   const dados = lead.dadosJson as Record<string, string> | null
   const nome = dados?.['Nome completo'] ?? lead.contatoEntrada
@@ -61,7 +65,7 @@ export async function POST(_req: Request, { params }: Params) {
     valor = planoDB ? Number(planoDB.valorMinimo) : (PLANO_PRECOS_FALLBACK[plano] ?? 199)
   }
 
-  // Gera o PDF com dados reais do cliente
+  // Gera PDF com dados reais do cliente
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfElement = React.createElement(ContratoPDF, {
     nome,
@@ -76,7 +80,7 @@ export async function POST(_req: Request, { params }: Params) {
     vencimentoDia: vencimento,
     formaPagamento,
     assinadoEm: agora,
-    assinatura: '',  // campo vazio — ZapSign sobrepõe a assinatura eletrônica
+    assinatura: '',
     escritorioNome: escritorio?.nome ?? 'ContabAI',
     escritorioCnpj: escritorio?.cnpj,
     escritorioCrc: escritorio?.crc,
@@ -90,16 +94,24 @@ export async function POST(_req: Request, { params }: Params) {
   } as never) as never
 
   const pdfBuffer = await renderToBuffer(pdfElement as never)
-
-  // Upload PDF dinâmico → ZapSign → URL de assinatura
   const nomeContrato = `Contrato ${nome} — ${escritorio?.nome ?? 'ContabAI'}`
-  const { docToken, signUrl } = await enviarContratoParaAssinatura(
-    pdfBuffer,
-    nomeContrato,
-    { nome, email },
-  )
 
-  // Persiste contrato com status aguardando_assinatura
+  // Envia para o provedor configurado
+  let zapsignDocToken: string | undefined
+  let clicksignDocKey: string | undefined
+  let signUrl: string
+
+  if (provedor === 'clicksign') {
+    const result = await enviarClickSign(clicksignKey, pdfBuffer, nomeContrato, { nome, email })
+    clicksignDocKey = result.docKey
+    signUrl = result.signUrl
+  } else {
+    const result = await enviarZapSign(zapsignToken, pdfBuffer, nomeContrato, { nome, email })
+    zapsignDocToken = result.docToken
+    signUrl = result.signUrl
+  }
+
+  // Persiste contrato
   const contrato = await prisma.contrato.upsert({
     where: { leadId: id },
     create: {
@@ -112,22 +124,21 @@ export async function POST(_req: Request, { params }: Params) {
       dadosSnapshot: dados,
       geradoEm: agora,
       enviadoEm: agora,
-      zapsignDocToken: docToken,
-      zapsignSignUrl: signUrl,
+      ...(zapsignDocToken  && { zapsignDocToken, zapsignSignUrl: signUrl }),
+      ...(clicksignDocKey  && { clicksignKey: clicksignDocKey, clicksignSignUrl: signUrl }),
     },
     update: {
       status: 'aguardando_assinatura',
       enviadoEm: agora,
-      zapsignDocToken: docToken,
-      zapsignSignUrl: signUrl,
+      ...(zapsignDocToken  && { zapsignDocToken, zapsignSignUrl: signUrl }),
+      ...(clicksignDocKey  && { clicksignKey: clicksignDocKey, clicksignSignUrl: signUrl }),
     },
   })
 
-  // Avança o step do lead
   await prisma.lead.update({
     where: { id },
     data: { status: 'aguardando_assinatura', stepAtual: Math.max(lead.stepAtual, 5) },
   })
 
-  return NextResponse.json({ ok: true, contratoId: contrato.id, signUrl })
+  return NextResponse.json({ ok: true, contratoId: contrato.id, signUrl, provedor })
 }

@@ -1,0 +1,142 @@
+/**
+ * Webhook ClickSign — recebe eventos de assinatura.
+ * Configurar em: ClickSign → Configurações → Webhooks
+ * URL: https://seudominio/api/webhooks/clicksign
+ * Evento: document:auto_closed (todos assinaram e documento fechado automaticamente)
+ */
+import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+import type { PlanoTipo, FormaPagamento, StatusCliente } from '@prisma/client'
+
+type ClickSignWebhookPayload = {
+  event: {
+    name: string           // 'document:auto_closed' | 'document:signed' | etc.
+    data: {
+      document: {
+        key: string
+        status: string
+        downloads?: { url?: string }[]
+        signers?: Array<{
+          key: string
+          email: string
+          name: string
+          signed_at?: string
+        }>
+      }
+    }
+  }
+}
+
+export async function POST(req: Request) {
+  let payload: ClickSignWebhookPayload
+  try {
+    payload = await req.json() as ClickSignWebhookPayload
+  } catch {
+    return NextResponse.json({ error: 'payload inválido' }, { status: 400 })
+  }
+
+  const eventName = payload.event?.name
+  const doc = payload.event?.data?.document
+
+  // Só processa quando o documento é fechado (todos assinaram)
+  if (eventName !== 'document:auto_closed' || !doc?.key) {
+    return NextResponse.json({ ok: true, ignored: true })
+  }
+
+  const docKey = doc.key
+
+  const contrato = await prisma.contrato.findFirst({
+    where: { clicksignKey: docKey },
+    include: { lead: true },
+  })
+
+  if (!contrato) return NextResponse.json({ ok: true, found: false })
+  if (contrato.status === 'assinado') return NextResponse.json({ ok: true, already: true })
+
+  const agora = new Date()
+  const signedFileUrl = doc.downloads?.[0]?.url ?? null
+
+  await prisma.contrato.update({
+    where: { id: contrato.id },
+    data: {
+      status: 'assinado',
+      assinadoEm: agora,
+      ...(signedFileUrl && { pdfUrl: signedFileUrl }),
+    },
+  })
+
+  await prisma.lead.update({
+    where: { id: contrato.leadId },
+    data: { status: 'assinado', stepAtual: 6 },
+  })
+
+  // ── Converte lead em cliente automaticamente ──────────────────────────────
+  const lead = contrato.lead
+  const dados = lead.dadosJson as Record<string, string> | null
+  const nome = dados?.['Nome completo'] ?? lead.contatoEntrada
+  const cpf = dados?.['CPF']
+  const email = dados?.['E-mail'] ?? lead.contatoEntrada
+  const telefone = dados?.['Telefone'] ?? lead.contatoEntrada
+
+  if (nome && cpf && email) {
+    try {
+      let cliente = await prisma.cliente.findUnique({ where: { leadId: lead.id } })
+      if (!cliente) {
+        const plano = lead.planoTipo ?? 'essencial'
+
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          cliente = await prisma.$transaction(async (tx: any) => {
+            const c = await tx.cliente.create({
+              data: {
+                leadId: lead.id,
+                nome,
+                cpf,
+                email,
+                telefone,
+                whatsapp: telefone,
+                planoTipo: plano as PlanoTipo,
+                valorMensal: contrato.valorMensal,
+                vencimentoDia: contrato.vencimentoDia,
+                formaPagamento: contrato.formaPagamento as FormaPagamento,
+                status: 'ativo' as StatusCliente,
+                dataInicio: agora,
+                ...(dados?.['CNPJ'] && { cnpj: dados['CNPJ'] }),
+                ...(dados?.['Razão Social'] && { razaoSocial: dados['Razão Social'] }),
+                ...(dados?.['Nome Fantasia'] && { nomeFantasia: dados['Nome Fantasia'] }),
+                ...(dados?.['Cidade'] && { cidade: dados['Cidade'] }),
+                ...(lead.responsavelId && { responsavelId: lead.responsavelId }),
+              },
+            })
+            await tx.contrato.update({ where: { id: contrato.id }, data: { clienteId: c.id } })
+            return c
+          })
+        } catch (err: unknown) {
+          if ((err as { code?: string })?.code === 'P2002') {
+            cliente = await prisma.cliente.findUnique({ where: { leadId: lead.id } })
+          } else {
+            throw err
+          }
+        }
+      } else {
+        await prisma.contrato.update({ where: { id: contrato.id }, data: { clienteId: cliente.id } })
+      }
+
+      if (cliente) {
+        import('@/lib/rag/ingest')
+          .then(({ indexarCliente }) => indexarCliente(cliente!))
+          .catch(() => {})
+
+        import('@/lib/email/boas-vindas')
+          .then(({ enviarBoasVindas }) =>
+            enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })
+          )
+          .catch((err) => console.error('[clicksign webhook] Erro ao enviar boas-vindas:', err))
+      }
+    } catch (err) {
+      console.error('[clicksign webhook] Erro ao converter lead em cliente:', err)
+    }
+  }
+
+  return NextResponse.json({ ok: true })
+}

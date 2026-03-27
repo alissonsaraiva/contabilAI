@@ -1,24 +1,18 @@
 /**
  * Cliente ZapSign — assinatura eletrônica brasileira.
- * Requer ZAPSIGN_API_TOKEN no .env (Dashboard → Configurações → Integrações → API Token).
- *
+ * Token configurado em CRM → Configurações → Integrações.
  * Documentação: https://docs.zapsign.com.br
  */
 
+import { decrypt, isEncrypted } from '@/lib/crypto'
+
 const BASE_URL = 'https://api.zapsign.com.br/api/v1'
 
-function apiToken() {
-  return process.env.ZAPSIGN_API_TOKEN ?? ''
+function resolveToken(raw: string): string {
+  return isEncrypted(raw) ? decrypt(raw) : raw
 }
 
-export function zapsignConfigurado(): boolean {
-  return !!process.env.ZAPSIGN_API_TOKEN
-}
-
-async function zapsignFetch<T>(path: string, options: { method?: string; json?: unknown }): Promise<T> {
-  const token = apiToken()
-  if (!token) throw new Error('ZapSign não configurado: defina ZAPSIGN_API_TOKEN no .env')
-
+async function zapsignFetch<T>(token: string, path: string, options: { method?: string; json?: unknown }): Promise<T> {
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
   let body: string | undefined
 
@@ -28,7 +22,7 @@ async function zapsignFetch<T>(path: string, options: { method?: string; json?: 
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30_000) // PDF upload pode demorar
+  const timeout = setTimeout(() => controller.abort(), 30_000)
   let res: Response
   try {
     res = await fetch(`${BASE_URL}${path}`, {
@@ -73,30 +67,26 @@ type ZapSignDoc = {
 
 // ─── Funções públicas ─────────────────────────────────────────────────────────
 
-/**
- * Envia um PDF para assinatura eletrônica via ZapSign.
- * Retorna o token do documento e a URL de assinatura do signatário.
- *
- * O base64 deve ser raw (sem prefixo data:application/pdf;base64,).
- */
-export async function enviarContratoParaAssinatura(
+export async function enviarZapSign(
+  rawToken: string,
   pdfBuffer: Buffer,
   nomeContrato: string,
   signatario: { nome: string; email: string },
 ): Promise<{ docToken: string; signUrl: string }> {
+  const token = resolveToken(rawToken)
   const base64Pdf = pdfBuffer.toString('base64')
 
-  const doc = await zapsignFetch<ZapSignDoc>('/docs/', {
+  const doc = await zapsignFetch<ZapSignDoc>(token, '/docs/', {
     method: 'POST',
     json: {
       name: nomeContrato,
       base64_pdf: base64Pdf,
       signers: [
         {
-          name:                  signatario.nome,
-          email:                 signatario.email,
-          auth_mode:             'tokenEmail', // valida identidade por token no e-mail
-          send_automatic_email:  true,
+          name:                 signatario.nome,
+          email:                signatario.email,
+          auth_mode:            'tokenEmail',
+          send_automatic_email: true,
         },
       ],
     },
@@ -105,15 +95,5 @@ export async function enviarContratoParaAssinatura(
   const signer = doc.signers[0]
   if (!signer) throw new Error('ZapSign: nenhum signatário retornado')
 
-  return {
-    docToken: doc.token,
-    signUrl:  signer.sign_url,
-  }
-}
-
-/**
- * Busca o status e a URL de assinatura atualizada de um documento.
- */
-export async function buscarDocumento(docToken: string): Promise<ZapSignDoc> {
-  return zapsignFetch<ZapSignDoc>(`/docs/${docToken}/`, {})
+  return { docToken: doc.token, signUrl: signer.sign_url }
 }

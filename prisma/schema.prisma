@@ -363,7 +363,11 @@ model Escritorio {
   bairro           String?
   cidade           String?
   uf               String?
-  clicksignKey     String?
+  // Assinatura eletrônica
+  provedorAssinatura String?  @default("zapsign")  // "zapsign" | "clicksign"
+  zapsignToken       String?  @db.Text              // encriptado
+  clicksignKey       String?                        // encriptado
+
   zapiInstanceId   String?
   zapiToken        String?
   serproCpfToken   String?
