@@ -33,6 +33,81 @@ type Configured = {
   serproCnpjToken:     boolean
 }
 
+// ── Seção colapsável ────────────────────────────────────────────────────────
+function Section({
+  icon, title, subtitle, configCount, defaultOpen = false, children,
+}: {
+  icon: string
+  title: string
+  subtitle: string
+  configCount: number   // quantos campos estão configurados nessa seção
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+      {/* Header clicável */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center gap-3 p-5 text-left transition-colors hover:bg-surface-container-low/60"
+      >
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+          <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+            {icon}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[14px] font-semibold text-on-surface">{title}</h3>
+            {configCount > 0 && (
+              <span className="flex items-center gap-0.5 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-bold text-green-600">
+                <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                {configCount} configurado{configCount > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <p className="text-[12px] text-on-surface-variant/80">{subtitle}</p>
+        </div>
+        <span
+          className={cn(
+            'material-symbols-outlined text-[20px] text-on-surface-variant/50 transition-transform duration-200 shrink-0',
+            open && 'rotate-180',
+          )}
+        >
+          expand_more
+        </span>
+      </button>
+
+      {/* Conteúdo */}
+      {open && (
+        <div className="border-t border-outline-variant/10 p-5 space-y-5">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Label com badge Configurado ─────────────────────────────────────────────
+function FieldLabel({ label, configured }: { label: string; configured: boolean }) {
+  return (
+    <div className="flex items-center justify-between mb-1.5">
+      <label className="text-[13px] font-semibold text-on-surface-variant">{label}</label>
+      {configured && (
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-green-600">
+          <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          Configurado
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function IntegracoesPage() {
   const [loading, setLoading] = useState(false)
   const [configured, setConfigured] = useState<Configured>({
@@ -52,16 +127,10 @@ export default function IntegracoesPage() {
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
         if (!data) return
-        // Só passa campos do schema — evita que campos extras do escritório quebrem o zodResolver
         reset({
           provedorAssinatura: (data.provedorAssinatura as string) === 'clicksign' ? 'clicksign' : 'zapsign',
-          zapsignToken:        '',
-          clicksignKey:        '',
-          clicksignHmacSecret: '',
-          zapiInstanceId:      '',
-          zapiToken:           '',
-          serproCpfToken:      '',
-          serproCnpjToken:     '',
+          zapsignToken: '', clicksignKey: '', clicksignHmacSecret: '',
+          zapiInstanceId: '', zapiToken: '', serproCpfToken: '', serproCnpjToken: '',
         })
         setConfigured({
           zapsignToken:        !!data.zapsignToken,
@@ -78,10 +147,7 @@ export default function IntegracoesPage() {
   async function onSubmit(data: FormData) {
     setLoading(true)
     try {
-      // Filtra campos vazios para não sobrescrever chaves existentes com string vazia
-      const payload: Record<string, unknown> = {
-        provedorAssinatura: data.provedorAssinatura,
-      }
+      const payload: Record<string, unknown> = { provedorAssinatura: data.provedorAssinatura }
       if (data.zapsignToken)        payload.zapsignToken        = data.zapsignToken
       if (data.clicksignKey)        payload.clicksignKey        = data.clicksignKey
       if (data.clicksignHmacSecret) payload.clicksignHmacSecret = data.clicksignHmacSecret
@@ -97,7 +163,6 @@ export default function IntegracoesPage() {
       })
       if (!res.ok) throw new Error()
 
-      // Atualiza indicadores de configurado com o que foi salvo
       setConfigured(prev => ({
         zapsignToken:        prev.zapsignToken        || !!data.zapsignToken,
         clicksignKey:        prev.clicksignKey        || !!data.clicksignKey,
@@ -115,41 +180,18 @@ export default function IntegracoesPage() {
     }
   }
 
-  function ConfiguradoBadge({ field }: { field: keyof Configured }) {
-    if (!configured[field]) return null
-    return (
-      <span className="flex items-center gap-1 text-[11px] font-semibold text-green-600">
-        <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-        Configurado
-      </span>
-    )
-  }
-
-  function FieldLabel({ label, field }: { label: string; field: keyof Configured }) {
-    return (
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-[13px] font-semibold text-on-surface-variant">{label}</label>
-        <ConfiguradoBadge field={field} />
-      </div>
-    )
-  }
+  // Contadores por seção para mostrar no header colapsado
+  const assinaturaCount =
+    (provedor === 'zapsign'   ? (configured.zapsignToken ? 1 : 0) : 0) +
+    (provedor === 'clicksign' ? (configured.clicksignKey ? 1 : 0) + (configured.clicksignHmacSecret ? 1 : 0) : 0)
+  const zapiCount    = (configured.zapiInstanceId ? 1 : 0) + (configured.zapiToken ? 1 : 0)
+  const serproCount  = (configured.serproCpfToken ? 1 : 0) + (configured.serproCnpjToken ? 1 : 0)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
 
       {/* ── Assinatura Eletrônica ──────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-            <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-              draw
-            </span>
-          </div>
-          <div>
-            <h3 className="text-[14px] font-semibold text-on-surface">Assinatura Eletrônica</h3>
-            <p className="text-[12px] text-on-surface-variant/80">Escolha o provedor para envio de contratos</p>
-          </div>
-        </div>
+      <Section icon="draw" title="Assinatura Eletrônica" subtitle="Provedor para envio e assinatura de contratos" configCount={assinaturaCount} defaultOpen>
 
         {/* Seletor de provedor */}
         <div className="grid grid-cols-2 gap-3">
@@ -166,12 +208,7 @@ export default function IntegracoesPage() {
                   : 'border-outline-variant/20 hover:border-outline-variant/40',
               )}
             >
-              <input
-                type="radio"
-                value={opt.value}
-                {...register('provedorAssinatura')}
-                className="accent-primary"
-              />
+              <input type="radio" value={opt.value} {...register('provedorAssinatura')} className="accent-primary" />
               <div>
                 <p className={cn('text-[13px] font-semibold', provedor === opt.value ? 'text-primary' : 'text-on-surface')}>
                   {opt.label}
@@ -182,131 +219,99 @@ export default function IntegracoesPage() {
           ))}
         </div>
 
-        {/* ZapSign token */}
+        {/* ZapSign */}
         <div className={provedor === 'zapsign' ? '' : 'opacity-40 pointer-events-none'}>
           <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">ZapSign</span>
-              {provedor === 'zapsign' && (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Ativo</span>
-              )}
+              {provedor === 'zapsign' && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Ativo</span>}
             </div>
             <div>
-              <FieldLabel label="API Token" field="zapsignToken" />
+              <FieldLabel label="API Token" configured={configured.zapsignToken} />
               <input
                 {...register('zapsignToken')}
                 className={INPUT}
                 placeholder={configured.zapsignToken ? 'Nova chave (deixe em branco para manter)' : 'Cole o token da aba Configurações → Integrações do ZapSign'}
-                type="password"
-                autoComplete="off"
+                type="password" autoComplete="off"
               />
-              <p className="mt-1 text-[11px] text-on-surface-variant/60">
-                Dashboard ZapSign → Configurações → Integrações → API Token
-              </p>
+              <p className="mt-1 text-[11px] text-on-surface-variant/60">Dashboard ZapSign → Configurações → Integrações → API Token</p>
             </div>
           </div>
         </div>
 
-        {/* ClickSign key */}
+        {/* ClickSign */}
         <div className={provedor === 'clicksign' ? '' : 'opacity-40 pointer-events-none'}>
           <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">ClickSign</span>
-              {provedor === 'clicksign' && (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Ativo</span>
-              )}
+              {provedor === 'clicksign' && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Ativo</span>}
             </div>
             <div>
-              <FieldLabel label="Access Token (API Key)" field="clicksignKey" />
+              <FieldLabel label="Access Token (API Key)" configured={configured.clicksignKey} />
               <input
                 {...register('clicksignKey')}
                 className={INPUT}
                 placeholder={configured.clicksignKey ? 'Nova chave (deixe em branco para manter)' : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}
-                type="password"
-                autoComplete="off"
+                type="password" autoComplete="off"
               />
-              <p className="mt-1 text-[11px] text-on-surface-variant/60">
-                ClickSign → Conta → Integrações → Access Token
-              </p>
+              <p className="mt-1 text-[11px] text-on-surface-variant/60">ClickSign → Conta → Integrações → Access Token</p>
             </div>
             <div>
-              <FieldLabel label="HMAC Secret (Webhook)" field="clicksignHmacSecret" />
+              <FieldLabel label="HMAC Secret (Webhook)" configured={configured.clicksignHmacSecret} />
               <input
                 {...register('clicksignHmacSecret')}
                 className={INPUT}
                 placeholder={configured.clicksignHmacSecret ? 'Nova chave (deixe em branco para manter)' : 'Chave HMAC SHA256 fornecida pelo ClickSign'}
-                type="password"
-                autoComplete="off"
+                type="password" autoComplete="off"
               />
-              <p className="mt-1 text-[11px] text-on-surface-variant/60">
-                ClickSign → Configurações → Webhooks → HMAC SHA256 Secret
-              </p>
+              <p className="mt-1 text-[11px] text-on-surface-variant/60">ClickSign → Configurações → Webhooks → HMAC SHA256 Secret</p>
             </div>
           </div>
         </div>
-      </div>
+
+      </Section>
 
       {/* ── Z-API (WhatsApp) ───────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-            <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
-          </div>
-          <div>
-            <h3 className="text-[14px] font-semibold text-on-surface">Z-API (WhatsApp)</h3>
-            <p className="text-[12px] text-on-surface-variant/80">Envio de mensagens automáticas via WhatsApp</p>
-          </div>
-        </div>
+      <Section icon="chat" title="Z-API (WhatsApp)" subtitle="Envio de mensagens automáticas via WhatsApp" configCount={zapiCount}>
         <div className="grid gap-4 md:grid-cols-2">
           {[
             { name: 'zapiInstanceId' as const, label: 'Instance ID', placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
             { name: 'zapiToken'      as const, label: 'Token',        placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
           ].map(campo => (
-            <div key={campo.name} className="space-y-1.5">
-              <FieldLabel label={campo.label} field={campo.name} />
+            <div key={campo.name}>
+              <FieldLabel label={campo.label} configured={configured[campo.name]} />
               <input
                 {...register(campo.name)}
                 className={INPUT}
                 placeholder={configured[campo.name] ? 'Nova chave (deixe em branco para manter)' : campo.placeholder}
-                type="password"
-                autoComplete="off"
+                type="password" autoComplete="off"
               />
             </div>
           ))}
         </div>
-      </div>
+      </Section>
 
       {/* ── Serpro ────────────────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-            <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
-          </div>
-          <div>
-            <h3 className="text-[14px] font-semibold text-on-surface">Serpro</h3>
-            <p className="text-[12px] text-on-surface-variant/80">Validação de CPF e CNPJ</p>
-          </div>
-        </div>
+      <Section icon="verified_user" title="Serpro" subtitle="Validação de CPF e CNPJ" configCount={serproCount}>
         <div className="grid gap-4 md:grid-cols-2">
           {[
             { name: 'serproCpfToken'  as const, label: 'Token CPF',  placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
             { name: 'serproCnpjToken' as const, label: 'Token CNPJ', placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
           ].map(campo => (
-            <div key={campo.name} className="space-y-1.5">
-              <FieldLabel label={campo.label} field={campo.name} />
+            <div key={campo.name}>
+              <FieldLabel label={campo.label} configured={configured[campo.name]} />
               <input
                 {...register(campo.name)}
                 className={INPUT}
                 placeholder={configured[campo.name] ? 'Nova chave (deixe em branco para manter)' : campo.placeholder}
-                type="password"
-                autoComplete="off"
+                type="password" autoComplete="off"
               />
             </div>
           ))}
         </div>
-      </div>
+      </Section>
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end pt-1">
         <button
           onClick={handleSubmit(onSubmit)}
           disabled={loading}
