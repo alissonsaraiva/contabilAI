@@ -1,26 +1,71 @@
 import { prisma } from '@/lib/prisma'
-import Link from 'next/link'
 import { formatBRL, formatCPF, formatDate } from '@/lib/utils'
 import { STATUS_CLIENTE_LABELS, PLANO_LABELS, STATUS_CLIENTE_COLORS, PLANO_COLORS } from '@/types'
 import { NovoClienteDrawer } from '@/components/crm/novo-cliente-drawer'
 import { ClienteActionsMenu } from '@/components/crm/cliente-actions-menu'
+import { ClienteRow } from '@/components/crm/cliente-row'
+import { ClientesSearchBar } from '@/components/crm/clientes-search-bar'
+import { ClientesPaginacao } from '@/components/crm/clientes-paginacao'
+import { Suspense } from 'react'
 
-export default async function ClientesPage() {
-  const raw = await prisma.cliente.findMany({
-    orderBy: { criadoEm: 'desc' },
-    include: { responsavel: { select: { nome: true } } },
-  })
+const PER_PAGE = 10
+
+type Props = {
+  searchParams: Promise<{ q?: string; page?: string; status?: string; plano?: string }>
+}
+
+export default async function ClientesPage({ searchParams }: Props) {
+  const { q = '', page: pageParam, status, plano } = await searchParams
+  const page = Math.max(1, Number(pageParam ?? '1'))
+
+  const skip = (page - 1) * PER_PAGE
+  const qClean = q.replace(/\D/g, '')
+
+  const [raw, total] = await Promise.all([
+    prisma.cliente.findMany({
+      where: {
+        AND: [
+          q ? { OR: [
+            { nome: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+            { cpf: { contains: qClean } },
+          ]} : {},
+          status ? { status: status as any } : {},
+          plano  ? { planoTipo: plano as any } : {},
+        ],
+      },
+      orderBy: { criadoEm: 'desc' },
+      skip,
+      take: PER_PAGE,
+      include: { responsavel: { select: { nome: true } } },
+    }),
+    prisma.cliente.count({
+      where: {
+        AND: [
+          q ? { OR: [
+            { nome: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+            { cpf: { contains: qClean } },
+          ]} : {},
+          status ? { status: status as any } : {},
+          plano  ? { planoTipo: plano as any } : {},
+        ],
+      },
+    }),
+  ])
+
   const clientes = raw.map((c) => ({ ...c, valorMensal: Number(c.valorMensal) }))
+  const totalPages = Math.ceil(total / PER_PAGE)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight text-on-surface">
             Clientes
             <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20">
-              {clientes.length} total
+              {total} total
             </span>
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
@@ -30,12 +75,17 @@ export default async function ClientesPage() {
         <NovoClienteDrawer />
       </div>
 
+      {/* Search */}
+      <Suspense>
+        <ClientesSearchBar />
+      </Suspense>
+
       {/* Table */}
       <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
         {clientes.length === 0 ? (
           <div className="flex h-32 flex-col items-center justify-center">
             <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
-              Nenhum cliente ainda.
+              {q ? 'Nenhum cliente encontrado.' : 'Nenhum cliente ainda.'}
             </span>
           </div>
         ) : (
@@ -55,12 +105,10 @@ export default async function ClientesPage() {
               </thead>
               <tbody className="divide-y divide-outline-variant/15">
                 {clientes.map((c) => (
-                  <tr key={c.id} className="group transition-colors hover:bg-surface-container-low/50">
+                  <ClienteRow key={c.id} href={`/crm/clientes/${c.id}`}>
                     <td className="px-6 py-3.5">
-                      <Link href={`/crm/clientes/${c.id}`} className="block group/link">
-                        <span className="text-[14px] font-semibold text-on-surface group-hover/link:text-primary transition-colors">{c.nome}</span>
-                        <span className="block text-xs text-on-surface-variant/80 mt-0.5">{c.email}</span>
-                      </Link>
+                      <span className="block text-[14px] font-semibold text-on-surface group-hover:text-primary transition-colors">{c.nome}</span>
+                      <span className="block text-xs text-on-surface-variant/80 mt-0.5">{c.email}</span>
                     </td>
                     <td className="px-6 py-3.5">
                       <span className="font-mono text-[13px] text-on-surface-variant/90">
@@ -86,16 +134,23 @@ export default async function ClientesPage() {
                     <td className="px-6 py-3.5 text-[13px] text-on-surface-variant/80">
                       {c.dataInicio ? formatDate(c.dataInicio) : formatDate(c.criadoEm)}
                     </td>
-                    <td className="px-6 py-3.5 text-right">
+                    <td className="px-6 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <ClienteActionsMenu cliente={c} />
                     </td>
-                  </tr>
+                  </ClienteRow>
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Suspense>
+          <ClientesPaginacao page={page} totalPages={totalPages} total={total} perPage={PER_PAGE} />
+        </Suspense>
+      )}
     </div>
   )
 }

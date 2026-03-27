@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, startOfDayBrasilia } from '@/lib/utils'
 import { CANAL_LABELS, STATUS_LEAD_LABELS, PLANO_LABELS, CANAL_COLORS, STATUS_LEAD_COLORS, PLANO_COLORS } from '@/types'
 import Link from 'next/link'
 import { HistoricoTimeline } from '@/components/crm/historico-timeline'
@@ -9,7 +9,7 @@ async function getDashboardData() {
     await Promise.all([
       prisma.cliente.count({ where: { status: 'ativo' } }),
       prisma.lead.count({
-        where: { criadoEm: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+        where: { criadoEm: { gte: startOfDayBrasilia() } },
       }),
       prisma.contrato.count({ where: { status: 'aguardando_assinatura' } }),
       prisma.tarefa.count({
@@ -37,6 +37,7 @@ const kpiConfig = [
     iconColor: 'text-green-status',
     badge: 'Ativos',
     badgeClass: 'bg-green-status/10 text-green-status',
+    href: '/crm/clientes?status=ativo',
   },
   {
     key: 'leadsHoje' as const,
@@ -46,6 +47,7 @@ const kpiConfig = [
     iconColor: 'text-primary',
     badge: 'Hoje',
     badgeClass: 'bg-primary/10 text-primary',
+    href: '/crm/leads',
   },
   {
     key: 'aguardandoAssinatura' as const,
@@ -55,6 +57,7 @@ const kpiConfig = [
     iconColor: 'text-cyan-600',
     badge: 'Pendente',
     badgeClass: 'bg-cyan-500/10 text-cyan-700',
+    href: '/crm/leads',
   },
   {
     key: 'tarefasVencendo' as const,
@@ -64,6 +67,7 @@ const kpiConfig = [
     iconColor: 'text-orange-status',
     badge: 'Alerta',
     badgeClass: 'bg-orange-status/10 text-orange-status',
+    href: '/crm/tarefas',
   },
 ]
 
@@ -74,10 +78,11 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       {/* KPIs */}
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {kpiConfig.map(({ key, title, icon, iconBg, iconColor, badge, badgeClass }) => (
-          <div
+        {kpiConfig.map(({ key, title, icon, iconBg, iconColor, badge, badgeClass, href }) => (
+          <Link
             key={key}
-            className="rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm transition-all duration-200 hover:shadow-md flex flex-col justify-between"
+            href={href}
+            className="rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-outline-variant/30 flex flex-col justify-between"
           >
             <div className="mb-4 flex items-start justify-between">
               <div className={`flex h-10 w-10 items-center justify-center rounded-[10px] ${iconBg}`}>
@@ -95,7 +100,7 @@ export default async function DashboardPage() {
               </p>
               <p className="mt-1 text-3xl font-semibold tracking-tight text-on-surface">{data[key]}</p>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 

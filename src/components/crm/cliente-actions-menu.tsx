@@ -4,17 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import type { StatusCliente } from '@prisma/client'
 import { EditarClienteDrawer, type ClienteEditData } from './editar-cliente-drawer'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-
-const STATUS_OPTIONS: { value: StatusCliente; label: string }[] = [
-  { value: 'ativo', label: 'Ativo' },
-  { value: 'inadimplente', label: 'Inadimplente' },
-  { value: 'suspenso', label: 'Suspenso' },
-  { value: 'cancelado', label: 'Cancelado' },
-  { value: 'encerrado', label: 'Encerrado' },
-]
 
 type Props = { cliente: ClienteEditData }
 
@@ -22,7 +13,6 @@ export function ClienteActionsMenu({ cliente }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
-  const [loadingStatus, setLoadingStatus] = useState<string | null>(null)
   const [loadingDelete, setLoadingDelete] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, right: 0 })
@@ -49,26 +39,6 @@ export function ClienteActionsMenu({ cliente }: Props) {
     if (open) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
-
-  async function changeStatus(status: StatusCliente) {
-    if (status === cliente.status) { setOpen(false); return }
-    setLoadingStatus(status)
-    try {
-      const res = await fetch(`/api/clientes/${cliente.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Status atualizado')
-      setOpen(false)
-      router.refresh()
-    } catch {
-      toast.error('Erro ao atualizar status')
-    } finally {
-      setLoadingStatus(null)
-    }
-  }
 
   async function handleDelete() {
     setLoadingDelete(true)
@@ -119,28 +89,6 @@ export function ClienteActionsMenu({ cliente }: Props) {
             <span className="material-symbols-outlined text-[16px] text-on-surface-variant">edit</span>
             Editar cliente
           </button>
-
-          {/* Divider */}
-          <div className="mx-3 my-1 border-t border-outline-variant/15" />
-
-          {/* Mudar status */}
-          <p className="px-4 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">
-            Mudar status
-          </p>
-          {STATUS_OPTIONS.filter(s => s.value !== cliente.status).map(s => (
-            <button
-              key={s.value}
-              onClick={() => changeStatus(s.value)}
-              disabled={loadingStatus !== null}
-              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-50"
-            >
-              {loadingStatus === s.value
-                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-primary/30 border-t-primary" />
-                : <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40" />
-              }
-              {s.label}
-            </button>
-          ))}
 
           {/* Divider */}
           <div className="mx-3 my-1 border-t border-outline-variant/15" />

@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+
+const TZ = 'America/Sao_Paulo'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -33,11 +33,34 @@ export function formatTelefone(tel: string): string {
 }
 
 export function formatDate(data: Date | string): string {
-  return format(new Date(data), 'dd/MM/yyyy', { locale: ptBR })
+  return new Date(data).toLocaleDateString('pt-BR', {
+    timeZone: TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
 }
 
 export function formatDateTime(data: Date | string): string {
-  return format(new Date(data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+  const d = new Date(data)
+  const datePart = d.toLocaleDateString('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' })
+  const timePart = d.toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
+  return `${datePart} às ${timePart}`
+}
+
+/** Retorna meia-noite de hoje no fuso de Brasília como objeto Date (útil para queries Prisma) */
+export function startOfDayBrasilia(): Date {
+  const now = new Date()
+  // Converte para partes de data em Brasília
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now)
+  const year  = parts.find(p => p.type === 'year')!.value
+  const month = parts.find(p => p.type === 'month')!.value
+  const day   = parts.find(p => p.type === 'day')!.value
+  // Cria meia-noite Brasília → UTC automaticamente
+  return new Date(`${year}-${month}-${day}T00:00:00-03:00`)
 }
 
 export function validarCPF(cpf: string): boolean {

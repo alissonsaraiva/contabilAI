@@ -5,7 +5,6 @@ import { getAiConfig } from '@/lib/ai/config'
 import { formatBRL, formatCPF, formatCNPJ, formatDate, formatTelefone } from '@/lib/utils'
 import {
   STATUS_CLIENTE_LABELS,
-  STATUS_CLIENTE_COLORS,
   PLANO_LABELS,
   PLANO_COLORS,
   FORMA_PAGAMENTO_LABELS,
@@ -18,6 +17,7 @@ import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
 import { HistoricoTimeline } from '@/components/crm/historico-timeline'
+import { ClienteStatusSelect } from '@/components/crm/cliente-status-select'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -112,9 +112,7 @@ export default async function ClienteDetailPage({ params }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-headline text-2xl font-semibold text-on-surface">{cliente.nome}</h1>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_CLIENTE_COLORS[cliente.status]}`}>
-              {STATUS_CLIENTE_LABELS[cliente.status]}
-            </span>
+            <ClienteStatusSelect clienteId={cliente.id} status={cliente.status} />
             <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${PLANO_COLORS[cliente.planoTipo]}`}>
               {PLANO_LABELS[cliente.planoTipo]}
             </span>
