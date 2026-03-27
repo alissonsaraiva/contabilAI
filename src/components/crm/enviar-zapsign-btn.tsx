@@ -25,7 +25,7 @@ export function EnviarZapSignBtn({ leadId, contratoStatus, signUrl, compact }: P
       const data = await res.json() as { ok?: boolean; error?: string; signUrl?: string }
 
       if (!res.ok || !data.ok) {
-        toast.error(data.error ?? 'Erro ao enviar para ZapSign')
+        toast.error(data.error ?? 'Erro ao enviar contrato')
         return
       }
 
@@ -74,7 +74,7 @@ export function EnviarZapSignBtn({ leadId, contratoStatus, signUrl, compact }: P
             <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
               draw
             </span>
-            {jaEnviado ? 'Reenviar para assinatura' : 'Enviar para assinatura (ZapSign)'}
+            {jaEnviado ? 'Reenviar para assinatura' : 'Enviar para assinatura'}
           </>
         )}
       </button>

@@ -99,7 +99,7 @@ export default async function LeadDetailPage({ params }: Props) {
             <EnviarZapSignBtn
               leadId={lead.id}
               contratoStatus={lead.contrato?.status}
-              signUrl={lead.contrato?.zapsignSignUrl}
+              signUrl={lead.contrato?.zapsignSignUrl ?? lead.contrato?.clicksignSignUrl}
               compact
             />
           )}
