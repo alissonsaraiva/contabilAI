@@ -118,22 +118,22 @@ export default function DadosPage({ searchParams }: Props) {
     try {
       const res = await fetch(`/api/validacoes/cep/${digits}`)
       if (!res.ok) return
-      const data = await res.json() as { logradouro?: string; bairro?: string; localidade?: string; uf?: string; erro?: boolean }
+      const data = await res.json() as { logradouro?: string; bairro?: string; cidade?: string; uf?: string; erro?: boolean }
       if (data.erro) return
       if (prefix === 'Empresa') {
         setForm(f => ({
           ...f,
-          enderecoEmpresa: data.logradouro  ?? f.enderecoEmpresa,
-          bairroEmpresa:   data.bairro      ?? f.bairroEmpresa,
-          cidadeEmpresa:   data.localidade  ?? f.cidadeEmpresa,
-          estadoEmpresa:   data.uf          ?? f.estadoEmpresa,
+          enderecoEmpresa: data.logradouro ?? f.enderecoEmpresa,
+          bairroEmpresa:   data.bairro     ?? f.bairroEmpresa,
+          cidadeEmpresa:   data.cidade     ?? f.cidadeEmpresa,
+          estadoEmpresa:   data.uf         ?? f.estadoEmpresa,
         }))
       } else {
         setForm(f => ({
           ...f,
           logradouro: data.logradouro ?? f.logradouro,
           bairro:     data.bairro     ?? f.bairro,
-          cidade:     data.localidade ?? f.cidade,
+          cidade:     data.cidade     ?? f.cidade,
           estado:     data.uf         ?? f.estado,
         }))
       }
