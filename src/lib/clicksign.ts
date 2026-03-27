@@ -112,8 +112,7 @@ export async function enviarClickSign(
       signer: {
         email: signatario.email,
         name: signatario.nome,
-        has_documentation: false,
-        auth_mode: 'email',
+        auths: ['email'],
         delivery: 'email',
       },
     },
@@ -134,11 +133,8 @@ export async function enviarClickSign(
     },
   })
 
-  // 4. Notifica o signatário por e-mail
-  await clicksignFetch<unknown>(apiKey, '/api/v1/notify_signers', {
-    method: 'POST',
-    json: { document_key: docKey },
-  })
+  // Nota: ClickSign envia o e-mail automaticamente quando delivery='email' está no signatário.
+  // Chamada a notify_signers removida pois o endpoint não existe na v1.
 
   const signerToken = listResp.list.token ?? listResp.list.widget_key ?? signerKey
   const signUrl = `https://app.clicksign.com/sign/${signerToken}`
