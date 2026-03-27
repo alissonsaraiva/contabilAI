@@ -11,6 +11,7 @@ import { IniciarOnboardingBtn } from '@/components/crm/iniciar-onboarding-btn'
 import { WhatsAppLeadDrawerButton } from '@/components/crm/whatsapp-lead-drawer-button'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
+import { EnviarDocuSealBtn } from '@/components/crm/enviar-docuseal-btn'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -94,6 +95,14 @@ export default async function LeadDetailPage({ params }: Props) {
         <div className="flex shrink-0 flex-wrap gap-3">
           <WhatsAppLeadDrawerButton leadId={lead.id} nomeExibido={nomeExibido} />
           <EditarLeadDrawer lead={lead} />
+          {!isProspecto && lead.contrato?.status !== 'assinado' && (
+            <EnviarDocuSealBtn
+              leadId={lead.id}
+              contratoStatus={lead.contrato?.status}
+              signUrl={lead.contrato?.docusealSignUrl}
+              compact
+            />
+          )}
           {isProspecto
             ? <IniciarOnboardingBtn leadId={lead.id} />
             : <AvancarEtapaBtn leadId={lead.id} />
@@ -212,6 +221,11 @@ export default async function LeadDetailPage({ params }: Props) {
                   </a>
                 )}
               </div>
+              <EnviarDocuSealBtn
+                leadId={id}
+                contratoStatus={lead.contrato.status}
+                signUrl={lead.contrato.docusealSignUrl}
+              />
             </div>
           )}
 
