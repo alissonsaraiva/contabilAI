@@ -6,9 +6,11 @@ import { splitIntoChunks, calcTypingDelay, stripMarkdown } from '@/lib/utils/spl
 
 type Msg = { role: 'user' | 'assistant'; text: string }
 
-const GREETING: Msg = {
-  role: 'assistant',
-  text: 'Olá! Sou o assistente da ContabAI. Tire suas dúvidas sobre planos, impostos, regime tributário ou qualquer coisa relacionada à contabilidade. 😊',
+function buildGreeting(nomeIa: string): Msg {
+  return {
+    role: 'assistant',
+    text: `Olá! Sou ${nomeIa}. Tire suas dúvidas sobre planos, impostos, regime tributário ou qualquer coisa relacionada à contabilidade. 😊`,
+  }
 }
 
 // Gera um ID de sessão por instância do widget
@@ -27,7 +29,23 @@ export function ChatWidget() {
 function ChatWidgetInner({ leadId }: { leadId: string }) {
   const [sessionId] = useState(newSessionId)
   const [open, setOpen] = useState(false)
-  const [msgs, setMsgs] = useState<Msg[]>([GREETING])
+  const [msgs, setMsgs] = useState<Msg[]>([buildGreeting('nosso assistente')])
+
+  // Busca nome da IA configurado no CRM e atualiza a saudação
+  useEffect(() => {
+    fetch('/api/onboarding/config')
+      .then(r => r.json())
+      .then((data: { nomeIa?: string }) => {
+        if (data.nomeIa) {
+          setMsgs(prev =>
+            prev.length === 1 && prev[0].role === 'assistant'
+              ? [buildGreeting(data.nomeIa!)]
+              : prev,
+          )
+        }
+      })
+      .catch(() => {})
+  }, [])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [escalacaoId, setEscalacaoId] = useState<string | null>(null)

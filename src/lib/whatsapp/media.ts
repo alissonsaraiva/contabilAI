@@ -13,14 +13,22 @@ export async function downloadMedia(
 ): Promise<MediaResult | null> {
   try {
     const url = `${cfg.baseUrl.replace(/\/$/, '')}/message/getBase64FromMediaMessage/${cfg.instance}`
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: cfg.apiKey,
-      },
-      body: JSON.stringify({ message: messageData }),
-    })
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10_000)
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: cfg.apiKey,
+        },
+        body: JSON.stringify({ message: messageData }),
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeout)
+    }
 
     if (!res.ok) return null
 

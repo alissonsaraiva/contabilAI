@@ -9,14 +9,23 @@ export async function embedTexts(texts: string[], apiKey?: string): Promise<numb
   const key = apiKey ?? process.env.VOYAGE_API_KEY
   if (!key) throw new Error('VOYAGE_API_KEY não configurada')
 
-  const res = await fetch(VOYAGE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({ input: texts, model: VOYAGE_MODEL }),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5_000) // 5s — falha rápido se Voyage estiver lenta/rate-limitada
+
+  let res: Response
+  try {
+    res = await fetch(VOYAGE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({ input: texts, model: VOYAGE_MODEL }),
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
 
   if (!res.ok) {
     const err = await res.text()

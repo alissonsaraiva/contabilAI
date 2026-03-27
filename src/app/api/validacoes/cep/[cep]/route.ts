@@ -9,7 +9,14 @@ export async function GET(_req: Request, { params }: Params) {
     return NextResponse.json({ error: 'CEP inválido' }, { status: 400 })
   }
 
-  const res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5_000)
+  let res: Response
+  try {
+    res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`, { signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
   if (!res.ok) return NextResponse.json({ error: 'CEP não encontrado' }, { status: 404 })
   const data = await res.json()
   if (data.erro) return NextResponse.json({ error: 'CEP não encontrado' }, { status: 404 })

@@ -38,28 +38,36 @@ export const googleProvider: AIProvider = {
 
     const resolvedModel = model ?? 'gemini-2.5-flash'
 
-    const res = await fetch(`${GOOGLE_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: googleHeaders(apiKey),
-      body: JSON.stringify({
-        model: resolvedModel,
-        max_tokens: maxTokens,
-        temperature,
-        messages: [
-          { role: 'system', content: system },
-          ...messages.map(m => ({
-            role: m.role,
-            content: typeof m.content === 'string'
-              ? m.content
-              : m.content.map((part: AIMessageContentPart) =>
-                  part.type === 'text'
-                    ? { type: 'text', text: part.text }
-                    : { type: 'image_url', image_url: { url: `data:${part.mediaType};base64,${part.data}` } }
-                ),
-          })),
-        ],
-      }),
-    })
+    const ctrl1 = new AbortController()
+    const t1 = setTimeout(() => ctrl1.abort(), 60_000)
+    let res: Response
+    try {
+      res = await fetch(`${GOOGLE_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: googleHeaders(apiKey),
+        body: JSON.stringify({
+          model: resolvedModel,
+          max_tokens: maxTokens,
+          temperature,
+          messages: [
+            { role: 'system', content: system },
+            ...messages.map(m => ({
+              role: m.role,
+              content: typeof m.content === 'string'
+                ? m.content
+                : m.content.map((part: AIMessageContentPart) =>
+                    part.type === 'text'
+                      ? { type: 'text', text: part.text }
+                      : { type: 'image_url', image_url: { url: `data:${part.mediaType};base64,${part.data}` } }
+                  ),
+            })),
+          ],
+        }),
+        signal: ctrl1.signal,
+      })
+    } finally {
+      clearTimeout(t1)
+    }
 
     if (!res.ok) {
       const err = await res.text().catch(() => '')
@@ -75,24 +83,32 @@ export const googleProvider: AIProvider = {
 
     const resolvedModel = model ?? 'gemini-2.5-flash'
 
-    const res = await fetch(`${GOOGLE_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: googleHeaders(apiKey),
-      body: JSON.stringify({
-        model: resolvedModel,
-        max_tokens: maxTokens,
-        temperature,
-        tools: tools.map(t => ({
-          type: 'function',
-          function: { name: t.name, description: t.description, parameters: t.inputSchema },
-        })),
-        tool_choice: 'auto',
-        messages: [
-          { role: 'system', content: system },
-          ...mapToOpenAIMessages(messages),
-        ],
-      }),
-    })
+    const ctrl2 = new AbortController()
+    const t2 = setTimeout(() => ctrl2.abort(), 60_000)
+    let res: Response
+    try {
+      res = await fetch(`${GOOGLE_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: googleHeaders(apiKey),
+        body: JSON.stringify({
+          model: resolvedModel,
+          max_tokens: maxTokens,
+          temperature,
+          tools: tools.map(t => ({
+            type: 'function',
+            function: { name: t.name, description: t.description, parameters: t.inputSchema },
+          })),
+          tool_choice: 'auto',
+          messages: [
+            { role: 'system', content: system },
+            ...mapToOpenAIMessages(messages),
+          ],
+        }),
+        signal: ctrl2.signal,
+      })
+    } finally {
+      clearTimeout(t2)
+    }
 
     if (!res.ok) {
       const err = await res.text().catch(() => '')

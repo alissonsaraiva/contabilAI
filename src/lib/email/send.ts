@@ -94,7 +94,10 @@ async function sendViaSmtp(opts: SendEmailOpts): Promise<SendEmailResult> {
   const attachments = opts.anexos
     ? await Promise.all(
         opts.anexos.map(async (a) => {
-          const res = await fetch(a.url)
+          const ac = new AbortController()
+          const at = setTimeout(() => ac.abort(), 10_000)
+          let res: Response
+          try { res = await fetch(a.url, { signal: ac.signal }) } finally { clearTimeout(at) }
           const buf = Buffer.from(await res.arrayBuffer())
           return { filename: a.nome, content: buf, contentType: a.mimeType }
         })
