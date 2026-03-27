@@ -364,9 +364,10 @@ model Escritorio {
   cidade           String?
   uf               String?
   // Assinatura eletrônica
-  provedorAssinatura String?  @default("zapsign")  // "zapsign" | "clicksign"
-  zapsignToken       String?  @db.Text              // encriptado
-  clicksignKey       String?                        // encriptado
+  provedorAssinatura   String?  @default("zapsign")  // "zapsign" | "clicksign"
+  zapsignToken         String?  @db.Text              // encriptado
+  clicksignKey         String?                        // encriptado
+  clicksignHmacSecret  String?                        // HMAC SHA256 secret (plain — não é chave de acesso)
 
   zapiInstanceId   String?
   zapiToken        String?

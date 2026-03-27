@@ -12,13 +12,14 @@ const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-su
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 
 const schema = z.object({
-  provedorAssinatura: z.enum(['zapsign', 'clicksign']).optional(),
-  zapsignToken:       z.string().optional(),
-  clicksignKey:       z.string().optional(),
-  zapiInstanceId:     z.string().optional(),
-  zapiToken:          z.string().optional(),
-  serproCpfToken:     z.string().optional(),
-  serproCnpjToken:    z.string().optional(),
+  provedorAssinatura:  z.enum(['zapsign', 'clicksign']).optional(),
+  zapsignToken:        z.string().optional(),
+  clicksignKey:        z.string().optional(),
+  clicksignHmacSecret: z.string().optional(),
+  zapiInstanceId:      z.string().optional(),
+  zapiToken:           z.string().optional(),
+  serproCpfToken:      z.string().optional(),
+  serproCnpjToken:     z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -148,6 +149,19 @@ export default function IntegracoesPage() {
               />
               <p className="mt-1 text-[11px] text-on-surface-variant/60">
                 ClickSign → Conta → Integrações → Access Token
+              </p>
+            </div>
+            <div>
+              <label className={LABEL}>HMAC Secret (Webhook)</label>
+              <input
+                {...register('clicksignHmacSecret')}
+                className={INPUT}
+                placeholder="Chave HMAC SHA256 fornecida pelo ClickSign"
+                type="password"
+                autoComplete="off"
+              />
+              <p className="mt-1 text-[11px] text-on-surface-variant/60">
+                ClickSign → Configurações → Webhooks → HMAC SHA256 Secret
               </p>
             </div>
           </div>

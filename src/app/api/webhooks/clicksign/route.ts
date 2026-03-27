@@ -6,7 +6,24 @@
  */
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { PlanoTipo, FormaPagamento, StatusCliente } from '@prisma/client'
+
+async function verificarHmac(req: Request, rawBody: string): Promise<boolean> {
+  const escritorio = await prisma.escritorio.findFirst({ select: { clicksignHmacSecret: true } })
+  const secret = escritorio?.clicksignHmacSecret
+  if (!secret) return true // sem secret configurado → aceita (para não bloquear antes de configurar)
+
+  const assinatura = req.headers.get('X-Clicksign-Hmac-SHA256')
+  if (!assinatura) return false
+
+  const hmac = createHmac('sha256', secret).update(rawBody, 'utf8').digest('base64')
+  try {
+    return timingSafeEqual(Buffer.from(hmac), Buffer.from(assinatura))
+  } catch {
+    return false
+  }
+}
 
 type ClickSignWebhookPayload = {
   event: {
@@ -28,9 +45,14 @@ type ClickSignWebhookPayload = {
 }
 
 export async function POST(req: Request) {
+  const rawBody = await req.text()
+  if (!(await verificarHmac(req, rawBody))) {
+    return NextResponse.json({ error: 'assinatura inválida' }, { status: 401 })
+  }
+
   let payload: ClickSignWebhookPayload
   try {
-    payload = await req.json() as ClickSignWebhookPayload
+    payload = JSON.parse(rawBody) as ClickSignWebhookPayload
   } catch {
     return NextResponse.json({ error: 'payload inválido' }, { status: 400 })
   }
