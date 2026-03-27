@@ -108,8 +108,16 @@ jobs:
             # Re-tag para o nome que o docker-compose.yml espera
             docker tag ${GHCR_IMAGE}:${DEPLOY_TAG} contabai:latest
 
-            # Roda migrations
+            # Resolve migrations com falha antes de aplicar (idempotente)
             DB_URL=$(grep '^DATABASE_URL=' "$APP_DIR/.env" | cut -d= -f2- | sed 's/^["'"'"']//;s/["'"'"']$//')
+            docker run --rm \
+              --network contabil_net \
+              -e DATABASE_URL="$DB_URL" \
+              --entrypoint sh \
+              ${GHCR_IMAGE}-migrate:${DEPLOY_TAG} \
+              -c "npx prisma migrate resolve --rolled-back 20260327000001_assinatura_provedor 2>/dev/null || true" || true
+
+            # Roda migrations
             docker run --rm \
               --network contabil_net \
               -e DATABASE_URL="$DB_URL" \
