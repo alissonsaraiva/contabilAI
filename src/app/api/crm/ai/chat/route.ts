@@ -74,7 +74,12 @@ export async function POST(req: Request) {
 
 FOCO ATUAL: ${escopoLabel}. Priorize informações deste contexto, mas pode consultar e comparar com outros clientes quando isso for útil para a análise.
 
-ACESSO A DADOS: Você tem acesso a dados em tempo real do CRM via sistema de agentes. Quando perguntas sobre leads, clientes, tarefas, prospecções ou dados específicos forem feitas, os dados reais serão fornecidos nesta conversa. NUNCA diga que não tem acesso ao banco de dados — caso os dados não tenham sido fornecidos nesta mensagem, responda com o que já sabe do histórico ou peça ao operador para repetir a pergunta.`
+ACESSO A DADOS: Você possui acesso em tempo real a TODOS os dados do CRM — clientes, leads, tarefas, funil, prospecção, métricas, histórico, contratos, interações. Os dados já foram consultados automaticamente antes desta resposta e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL".
+REGRAS OBRIGATÓRIAS:
+- NUNCA peça ao usuário dados que existem no CRM — busque-os você mesmo
+- NUNCA diga que não tem acesso ao banco de dados ou ao sistema
+- Se os dados não aparecerem abaixo, significa que o sistema não encontrou resultados — informe isso claramente, mas não peça ao usuário para fornecer a informação manualmente
+- Se a pergunta exigir dados que ainda não foram buscados, informe que pode buscá-los e peça confirmação — mas nunca transfira a responsabilidade de busca para o usuário`
 
   const whereClause = clienteId
     ? { conversa: { clienteId } }
@@ -122,14 +127,11 @@ ACESSO A DADOS: Você tem acesso a dados em tempo real do CRM via sistema de age
         },
       })
 
-      if (resultado.acoesExecutadas.length > 0) {
-        // Injeta o resultado do agente como contexto real para o askAI formular a resposta
-        // Usa resultado.resposta independente de sucesso parcial — melhor do que "não tenho acesso"
-        systemExtra += `\n\n--- DADOS CONSULTADOS EM TEMPO REAL ---
+      // Injeta sempre — mesmo que nenhuma tool tenha sido chamada o agente pode ter uma resposta útil
+      systemExtra += `\n\n--- DADOS CONSULTADOS EM TEMPO REAL ---
 ${resultado.resposta}
 --- FIM DOS DADOS REAIS ---
 Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, conversacional e objetivo. Não mencione que consultou um "agente" ou "banco de dados" — apenas apresente as informações como se fossem seu conhecimento atual.`
-      }
     } catch (err) {
       // Agente falhou — notifica o admin via central de notificações, não o operador no chat
       const { notificarAgenteFalhou } = await import('@/lib/notificacoes')

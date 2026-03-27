@@ -38,7 +38,7 @@ const resumirFunilTool: Tool = {
       ...(diasAtras ? { criadoEm: { gte: new Date(Date.now() - diasAtras * 86_400_000) } } : {}),
     }
 
-    const [porEtapa, totalAtivos, criadosHoje, criadosSemana] = await Promise.all([
+    const [porEtapa, totalAtivos, criadosHoje, criadosSemana, assinadosSemana, totalCriados] = await Promise.all([
       // Agrupamento por status/etapa
       prisma.lead.groupBy({
         by: ['status'],
@@ -67,13 +67,30 @@ const resumirFunilTool: Tool = {
           criadoEm: { gte: new Date(Date.now() - 7 * 86_400_000) },
         },
       }),
+
+      // Convertidos (assinados) nos últimos 30 dias — para taxa de conversão
+      prisma.lead.count({
+        where: {
+          ...whereBase,
+          status:    'assinado',
+          atualizadoEm: { gte: new Date(Date.now() - 30 * 86_400_000) },
+        },
+      }),
+
+      // Total criado nos últimos 30 dias — denominador da taxa de conversão
+      prisma.lead.count({
+        where: {
+          ...whereBase,
+          criadoEm: { gte: new Date(Date.now() - 30 * 86_400_000) },
+        },
+      }),
     ])
 
     if (totalAtivos === 0) {
       const funilLabel = funil === 'todos' ? 'nenhum funil' : `funil "${funil}"`
       return {
         sucesso: true,
-        dados: { totalAtivos: 0, porEtapa: [], criadosHoje, criadosSemana },
+        dados: { totalAtivos: 0, porEtapa: [], criadosHoje, criadosSemana, taxaConversao30d: 0 },
         resumo: `Nenhum lead ativo encontrado no ${funilLabel}${diasAtras ? ` nos últimos ${diasAtras} dias` : ''}.`,
       }
     }
@@ -95,12 +112,17 @@ const resumirFunilTool: Tool = {
       `• ${statusLabel[g.status] ?? g.status}: ${g._count.id} lead${g._count.id > 1 ? 's' : ''}`
     )
 
+    const taxaConversao30d = totalCriados > 0
+      ? Math.round((assinadosSemana / totalCriados) * 100)
+      : 0
+
     const funilLabel = funil === 'todos' ? 'todos os funis' : `funil "${funil}"`
     const resumo = [
       `Resumo do ${funilLabel}:`,
       `• Total ativo: ${totalAtivos} lead${totalAtivos > 1 ? 's' : ''}`,
       `• Criados hoje: ${criadosHoje}`,
       `• Criados nos últimos 7 dias: ${criadosSemana}`,
+      `• Taxa de conversão (30 dias): ${taxaConversao30d}% — ${assinadosSemana} assinados de ${totalCriados} criados`,
       '',
       'Por etapa:',
       ...linhas,
@@ -108,7 +130,7 @@ const resumirFunilTool: Tool = {
 
     return {
       sucesso: true,
-      dados: { totalAtivos, porEtapa, criadosHoje, criadosSemana },
+      dados: { totalAtivos, porEtapa, criadosHoje, criadosSemana, assinadosSemana, totalCriados30d: totalCriados, taxaConversao30d },
       resumo,
     }
   },

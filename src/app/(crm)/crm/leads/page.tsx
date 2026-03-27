@@ -27,35 +27,39 @@ function periodoParaData(periodo: string): Date | null {
   return d
 }
 
+type Coluna = { status: StatusLead; label: string; dot: string; leads: any[]; total: number }
+
 type Props = { searchParams: Promise<{ periodo?: string }> }
 
 export default async function LeadsPage({ searchParams }: Props) {
   const { periodo = '30d' } = await searchParams
   const desde = periodoParaData(periodo)
 
-  const leads = await prisma.lead.findMany({
-    where: {
-      funil: 'onboarding',
-      status: { notIn: ['cancelado', 'expirado', 'assinado'] },
-      ...(desde && { criadoEm: { gte: desde } }),
-    },
-    orderBy: { criadoEm: 'desc' },
-    include: { responsavel: { select: { nome: true } } },
-  })
+  const filtroData = desde ? { criadoEm: { gte: desde } } : {}
 
-  // Total de assinados no período (para mostrar no header)
-  const totalAssinados = await prisma.lead.count({
-    where: {
-      funil: 'onboarding',
-      status: 'assinado',
-      ...(desde && { criadoEm: { gte: desde } }),
-    },
-  })
+  const [grouped, totalAssinados] = await Promise.all([
+    Promise.all(
+      COLUNAS.map(async (col) => {
+        const [items, total] = await Promise.all([
+          prisma.lead.findMany({
+            where: { funil: 'onboarding', status: col.status, ...filtroData },
+            orderBy: { criadoEm: 'desc' },
+            take: CAP_POR_COLUNA,
+            include: { responsavel: { select: { nome: true } } },
+          }),
+          prisma.lead.count({
+            where: { funil: 'onboarding', status: col.status, ...filtroData },
+          }),
+        ])
+        return { ...col, leads: items, total }
+      })
+    ),
+    prisma.lead.count({
+      where: { funil: 'onboarding', status: 'assinado', ...filtroData },
+    }),
+  ])
 
-  const grouped = COLUNAS.map((col) => {
-    const todos = leads.filter((l) => l.status === col.status)
-    return { ...col, leads: todos.slice(0, CAP_POR_COLUNA), total: todos.length }
-  })
+  const totalAbertos = grouped.reduce((s: number, c: { total: number }) => s + c.total, 0)
 
   return (
     <div className="space-y-6">
@@ -65,7 +69,7 @@ export default async function LeadsPage({ searchParams }: Props) {
           <h1 className="text-2xl font-semibold tracking-tight text-on-surface flex items-center gap-3">
             Onboarding
             <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20">
-              {leads.length} em aberto
+              {totalAbertos} em aberto
             </span>
             {totalAssinados > 0 && (
               <span className="rounded-md bg-green-status/10 px-2 py-0.5 text-xs font-bold text-green-status border border-green-status/20">
@@ -90,7 +94,7 @@ export default async function LeadsPage({ searchParams }: Props) {
         <Tabs defaultValue="iniciado" className="w-full">
           <div className="mb-6 overflow-x-auto custom-scrollbar pb-2">
             <TabsList className="inline-flex h-12 w-max min-w-full items-center justify-start gap-1 rounded-full bg-surface-container/80 p-1 text-on-surface-variant ring-1 ring-inset ring-outline-variant/20">
-              {grouped.map((col) => (
+              {(grouped as Coluna[]).map((col) => (
                 <TabsTrigger
                   key={col.status}
                   value={col.status}
@@ -111,7 +115,7 @@ export default async function LeadsPage({ searchParams }: Props) {
             </TabsList>
           </div>
 
-          {grouped.map((col) => (
+          {(grouped as Coluna[]).map((col) => (
             <TabsContent key={col.status} value={col.status} className="m-0 focus-visible:outline-none">
               <div className="flex flex-col gap-3">
                 {col.leads.length === 0 ? (
@@ -143,7 +147,7 @@ export default async function LeadsPage({ searchParams }: Props) {
       {/* ── Desktop View: Kanban (hidden on mobile, flex on md) ── */}
       <div className="hidden md:block overflow-x-auto pb-4 custom-scrollbar">
         <div className="flex gap-5" style={{ minWidth: 'max-content' }}>
-          {grouped.map((col) => (
+          {(grouped as Coluna[]).map((col) => (
             <div key={col.status} className="flex w-[280px] flex-col gap-3">
               {/* Column header */}
               <div className="flex items-center justify-between pb-1">

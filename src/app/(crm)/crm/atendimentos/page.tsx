@@ -30,10 +30,12 @@ export default async function AtendimentosPage() {
     prisma.escalacao.findMany({
       where: { status: 'pendente' },
       orderBy: { criadoEm: 'asc' },
+      take: 50,
     }),
     prisma.escalacao.findMany({
       where: { status: 'em_atendimento' },
       orderBy: { atualizadoEm: 'desc' },
+      take: 50,
     }),
     prisma.escalacao.findMany({
       where: { status: 'resolvida' },
@@ -46,6 +48,7 @@ export default async function AtendimentosPage() {
         atualizadaEm: { gte: limite24h },
       },
       orderBy: { atualizadaEm: 'desc' },
+      take: 50,
       include: {
         cliente: { select: { id: true, nome: true } },
         lead:    { select: { id: true, contatoEntrada: true, dadosJson: true } },

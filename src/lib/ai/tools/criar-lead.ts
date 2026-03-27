@@ -12,7 +12,19 @@ const criarLeadTool: Tool = {
       properties: {
         contatoEntrada: {
           type: 'string',
-          description: 'Contato principal do lead: e-mail, telefone ou nome. Campo de identificação inicial.',
+          description: 'Contato principal do lead: e-mail, telefone ou nome. Usado como identificador para evitar duplicatas.',
+        },
+        nome: {
+          type: 'string',
+          description: 'Nome completo do lead (opcional, mas recomendado para facilitar buscas futuras).',
+        },
+        email: {
+          type: 'string',
+          description: 'E-mail do lead (opcional).',
+        },
+        telefone: {
+          type: 'string',
+          description: 'Telefone ou WhatsApp do lead (opcional).',
         },
         canal: {
           type: 'string',
@@ -42,6 +54,9 @@ const criarLeadTool: Tool = {
 
   async execute(input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {
     const contatoEntrada = input.contatoEntrada as string
+    const nome           = input.nome          as string | undefined
+    const email          = input.email         as string | undefined
+    const telefone       = input.telefone      as string | undefined
     const canal          = (input.canal        as string | undefined) ?? 'outro'
     const funil          = (input.funil        as string | undefined) ?? 'prospeccao'
     const observacoes    = input.observacoes   as string | undefined
@@ -64,21 +79,29 @@ const criarLeadTool: Tool = {
       }
     }
 
+    // Monta dadosJson inicial se houver campos estruturados
+    const dadosIniciais: Record<string, string> = {}
+    if (nome)     dadosIniciais['nome']     = nome
+    if (email)    dadosIniciais['E-mail']   = email
+    if (telefone) dadosIniciais['Telefone'] = telefone
+
     const lead = await prisma.lead.create({
       data: {
         contatoEntrada,
         canal:       canal as never,
         funil:       funil as never,
         observacoes,
+        ...(Object.keys(dadosIniciais).length > 0 ? { dadosJson: dadosIniciais } : {}),
       },
     })
 
     import('@/lib/rag/ingest').then(({ indexarLead }) => indexarLead(lead)).catch(() => {})
 
+    const nomeDisplay = nome ?? contatoEntrada
     return {
       sucesso: true,
       dados:   { leadId: lead.id, retomado: false },
-      resumo:  `Lead "${contatoEntrada}" criado no funil "${funil}" via canal "${canal}".`,
+      resumo:  `Lead "${nomeDisplay}" criado no funil "${funil}" via canal "${canal}".${nome ? ` Contato: ${contatoEntrada}.` : ''}`,
     }
   },
 }

@@ -3,15 +3,30 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { Card } from '@/components/ui/card'
 
-export default async function PortalDocumentosPage() {
+const PER_PAGE = 20
+
+type Props = { searchParams: Promise<{ page?: string }> }
+
+export default async function PortalDocumentosPage({ searchParams }: Props) {
   const session   = await auth()
   const clienteId = (session?.user as any)?.id
   if (!clienteId) redirect('/portal/login')
 
-  const documentos = await prisma.documento.findMany({
-    where:   { clienteId },
-    orderBy: { criadoEm: 'desc' },
-  })
+  const sp   = await searchParams
+  const page = Math.max(1, parseInt(sp.page ?? '1'))
+  const skip = (page - 1) * PER_PAGE
+
+  const [documentos, total] = await Promise.all([
+    prisma.documento.findMany({
+      where:   { clienteId },
+      orderBy: { criadoEm: 'desc' },
+      skip,
+      take: PER_PAGE,
+    }),
+    prisma.documento.count({ where: { clienteId } }),
+  ])
+
+  const totalPages = Math.ceil(total / PER_PAGE)
 
   const STATUS_LABEL: Record<string, { label: string; color: string }> = {
     pendente:  { label: 'Pendente',  color: 'text-yellow-600 bg-yellow-500/10' },
@@ -22,11 +37,16 @@ export default async function PortalDocumentosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-headline text-2xl font-semibold text-on-surface">Documentos</h1>
-        <p className="text-sm text-on-surface-variant/70 mt-1">
-          Seus documentos enviados e pendentes de entrega ao escritório.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-headline text-2xl font-semibold text-on-surface">Documentos</h1>
+          <p className="text-sm text-on-surface-variant/70 mt-1">
+            Seus documentos enviados e pendentes de entrega ao escritório.
+          </p>
+        </div>
+        {total > 0 && (
+          <span className="text-sm text-on-surface-variant">{total} documento{total !== 1 ? 's' : ''}</span>
+        )}
       </div>
 
       {documentos.length === 0 ? (
@@ -68,6 +88,30 @@ export default async function PortalDocumentosPage() {
             })}
           </ul>
         </Card>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-on-surface-variant">Página {page} de {totalPages}</span>
+          <div className="flex gap-2">
+            {page > 1 && (
+              <a
+                href={`?page=${page - 1}`}
+                className="rounded-lg border border-outline-variant px-3 py-1.5 text-on-surface hover:bg-surface-container transition-colors"
+              >
+                ← Anterior
+              </a>
+            )}
+            {page < totalPages && (
+              <a
+                href={`?page=${page + 1}`}
+                className="rounded-lg border border-outline-variant px-3 py-1.5 text-on-surface hover:bg-surface-container transition-colors"
+              >
+                Próxima →
+              </a>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

@@ -21,6 +21,19 @@ function buildRemoteJid(phone: string): string {
   return `${withCountry}@s.whatsapp.net`
 }
 
+// Deduplicação: evita reenvio acidental da mesma mensagem para o mesmo número em 90s
+const _enviados = new Map<string, number>()
+function jáEnviado(phone: string, mensagem: string): boolean {
+  const chave = `${phone.replace(/\D/g, '')}::${mensagem.slice(0, 40)}`
+  const ultimo = _enviados.get(chave)
+  if (ultimo && Date.now() - ultimo < 90_000) return true
+  _enviados.set(chave, Date.now())
+  for (const [k, ts] of _enviados) {
+    if (Date.now() - ts > 90_000) _enviados.delete(k)
+  }
+  return false
+}
+
 const enviarWhatsAppLeadTool: Tool = {
   definition: {
     name: 'enviarWhatsAppLead',
@@ -76,6 +89,16 @@ const enviarWhatsAppLeadTool: Tool = {
         sucesso: false,
         erro:   'Lead sem número de WhatsApp identificável.',
         resumo: 'Não foi possível identificar o telefone do lead.',
+      }
+    }
+
+    if (jáEnviado(phone, mensagem)) {
+      const dados2 = lead.dadosJson as Record<string, unknown> | null
+      const nomeLead2 = (dados2?.nome as string | undefined) ?? lead.contatoEntrada
+      return {
+        sucesso: true,
+        dados:   { deduplicado: true },
+        resumo:  `Mensagem idêntica para lead "${nomeLead2}" já enviada nos últimos 90 segundos — ignorado para evitar duplicata.`,
       }
     }
 

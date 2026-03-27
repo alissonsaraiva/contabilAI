@@ -43,6 +43,7 @@ export default async function TarefasPage({ searchParams }: Props) {
     prisma.tarefa.findMany({
       where: { status: { notIn: ['concluida', 'cancelada'] }, ...whereExtra },
       orderBy: [{ prioridade: 'desc' }, { prazo: 'asc' }],
+      take: 200,
       include: {
         responsavel: { select: { nome: true } },
         cliente: { select: { nome: true } },

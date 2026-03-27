@@ -40,6 +40,9 @@ const buscarDadosClienteTool: Tool = {
       }
     }
 
+    // Normaliza CPF/CNPJ removendo formatação antes de buscar
+    const buscaNorm = busca ? busca.replace(/[.\-\/\s]/g, '') : undefined
+
     const cliente = clienteId
       ? await prisma.cliente.findUnique({
           where: { id: clienteId },
@@ -63,9 +66,14 @@ const buscarDadosClienteTool: Tool = {
             OR: [
               { nome:        { contains: busca!, mode: 'insensitive' } },
               { email:       { contains: busca!, mode: 'insensitive' } },
-              { cpf:         busca! },
-              { cnpj:        busca! },
               { razaoSocial: { contains: busca!, mode: 'insensitive' } },
+              // Busca por CPF/CNPJ com ou sem formatação
+              { cpf:  busca! },
+              { cnpj: busca! },
+              ...(buscaNorm && buscaNorm !== busca ? [
+                { cpf:  buscaNorm },
+                { cnpj: buscaNorm },
+              ] : []),
             ],
           },
           include: {

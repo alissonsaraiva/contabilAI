@@ -1,7 +1,22 @@
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email/send'
+import { wrapEmailHtml } from '@/lib/email/template'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
+
+// Deduplicação: evita reenvio acidental do mesmo e-mail para o mesmo destinatário em 90s
+const _enviados = new Map<string, number>()
+function jáEnviado(para: string, assunto: string): boolean {
+  const chave = `${para}::${assunto}`
+  const ultimo = _enviados.get(chave)
+  if (ultimo && Date.now() - ultimo < 90_000) return true
+  _enviados.set(chave, Date.now())
+  // Limpa entradas expiradas
+  for (const [k, ts] of _enviados) {
+    if (Date.now() - ts > 90_000) _enviados.delete(k)
+  }
+  return false
+}
 
 const enviarEmailTool: Tool = {
   definition: {
@@ -50,7 +65,20 @@ const enviarEmailTool: Tool = {
     const clienteId = (input.clienteId as string | undefined) ?? ctx.clienteId
     const leadId    = (input.leadId    as string | undefined) ?? ctx.leadId
 
-    const resultado = await sendEmail({ para, assunto, corpo })
+    // Evita duplicatas (ex: boas-vindas automática + e-mail manual com mesmo assunto)
+    if (jáEnviado(para, assunto)) {
+      return {
+        sucesso: true,
+        dados:   { deduplicado: true },
+        resumo:  `E-mail para ${para} com assunto "${assunto}" já foi enviado nos últimos 90 segundos — ignorado para evitar duplicata.`,
+      }
+    }
+
+    // Busca nome do escritório para o template (fire-and-forget se falhar)
+    const escritorio = await prisma.escritorio.findFirst({ select: { nome: true } }).catch(() => null)
+    const corpoHtml  = wrapEmailHtml(corpo, { nomeEscritorio: escritorio?.nome ?? 'ContabAI', assunto })
+
+    const resultado = await sendEmail({ para, assunto, corpo: corpoHtml })
 
     if (!resultado.ok) {
       return {

@@ -3,8 +3,12 @@ import { auth } from '@/lib/auth-portal'
 import { askAI } from '@/lib/ai/ask'
 import { getAiConfig } from '@/lib/ai/config'
 import { getOrCreateConversaSession, getHistorico, addMensagens } from '@/lib/ai/conversa'
+import { classificarIntencao } from '@/lib/ai/classificar-intencao'
+import { executarAgente } from '@/lib/ai/agent'
 import { rateLimit } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
+// Garante que todas as tools estejam registradas
+import '@/lib/ai/tools'
 
 const MSG_MAX_LENGTH = 2000
 
@@ -45,7 +49,7 @@ export async function POST(req: Request) {
   const historico = await getHistorico(conversaId)
   const nomeCara  = aiConfig.nomeAssistentes.portal ?? 'Clara'
 
-  const systemExtra = `Você é ${nomeCara}, assistente virtual do Portal do Cliente ContabAI. Você atende exclusivamente o cliente ${cliente?.nome ?? user.name}.
+  let systemExtra = `Você é ${nomeCara}, assistente virtual do Portal do Cliente ContabAI. Você atende exclusivamente o cliente ${cliente?.nome ?? user.name}.
 
 DADOS DO CLIENTE:
 - Plano: ${cliente?.planoTipo ?? 'não informado'}
@@ -54,12 +58,42 @@ DADOS DO CLIENTE:
 - Regime tributário: ${cliente?.regime ?? 'não informado'}
 - Localidade: ${cliente?.cidade ?? ''}${cliente?.uf ? '/' + cliente.uf : ''}
 
+ACESSO A DADOS: Você tem acesso em tempo real aos dados do cliente — documentos, histórico de interações, tarefas, planos disponíveis. Os dados já foram consultados automaticamente e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL". Use esses dados para responder diretamente, sem pedir ao cliente para acessar outra seção do portal.
+
 REGRAS:
 - Responda perguntas sobre serviços contábeis, obrigações fiscais, abertura de empresa, simples nacional, MEI, etc.
-- Para assuntos específicos do escritório (documentos, pagamentos, contratos), oriente o cliente a acessar as seções do portal ou a entrar em contato com o escritório.
+- Quando o cliente pedir documentos, histórico ou informações do plano, use os dados reais já consultados.
 - Seja cordial, objetivo e use linguagem simples. Evite jargões técnicos desnecessários.
-- NUNCA acesse dados de outros clientes ou dados que não sejam os do ${cliente?.nome ?? 'cliente'}.
+- NUNCA acesse dados de outros clientes — você atende SOMENTE ${cliente?.nome ?? 'este cliente'}.
 - Se o cliente pedir para falar com um humano ou escalar o atendimento, informe que ele pode usar a opção "Solicitar atendimento humano" no chat.`
+
+  // ── Classificação de intenção + agente (escopo portal — somente leitura) ────
+  const intencao = await classificarIntencao(message, `cliente: ${cliente?.nome ?? user.name}`)
+
+  if (intencao.tipo === 'acao' && intencao.instrucao) {
+    try {
+      const resultado = await executarAgente({
+        instrucao: intencao.instrucao,
+        contexto: {
+          clienteId,
+          solicitanteAI: 'portal', // restringe às tools do escopo portal (somente leitura)
+        },
+      })
+
+      systemExtra += `\n\n--- DADOS CONSULTADOS EM TEMPO REAL ---
+${resultado.resposta}
+--- FIM DOS DADOS REAIS ---
+Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigável. Não mencione "agente" ou "banco de dados".`
+    } catch (err) {
+      // Falha silenciosa para o cliente — notifica admin
+      import('@/lib/notificacoes')
+        .then(({ notificarAgenteFalhou }) =>
+          notificarAgenteFalhou(err instanceof Error ? err.message : String(err))
+        )
+        .catch(() => {})
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   let resposta: string
   let provider: string

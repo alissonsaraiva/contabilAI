@@ -30,6 +30,10 @@ const registrarInteracaoTool: Tool = {
           type: 'string',
           description: 'ID do lead. Usar quando for um lead em prospecção/onboarding.',
         },
+        dataOcorrencia: {
+          type: 'string',
+          description: 'Data e hora em que a interação ocorreu, no formato ISO 8601 (ex: "2025-03-20T14:30:00"). Use quando o operador estiver registrando uma interação passada, como "registra que eu liguei ontem às 14h". Se omitido, usa a data/hora atual.',
+        },
       },
       required: ['tipo', 'titulo'],
     },
@@ -42,11 +46,12 @@ const registrarInteracaoTool: Tool = {
     canais: ['crm'],
   },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const tipo      = input.tipo      as string
-    const titulo    = input.titulo    as string
-    const conteudo  = input.conteudo  as string | undefined
-    const clienteId = (input.clienteId as string | undefined) ?? ctx.clienteId
-    const leadId    = (input.leadId    as string | undefined) ?? ctx.leadId
+    const tipo           = input.tipo           as string
+    const titulo         = input.titulo         as string
+    const conteudo       = input.conteudo       as string | undefined
+    const clienteId      = (input.clienteId as string | undefined) ?? ctx.clienteId
+    const leadId         = (input.leadId    as string | undefined) ?? ctx.leadId
+    const dataOcorrencia = input.dataOcorrencia as string | undefined
 
     if (!clienteId && !leadId) {
       return {
@@ -56,6 +61,8 @@ const registrarInteracaoTool: Tool = {
       }
     }
 
+    const criadoEm = dataOcorrencia ? new Date(dataOcorrencia) : undefined
+
     const interacao = await prisma.interacao.create({
       data: {
         clienteId,
@@ -63,7 +70,12 @@ const registrarInteracaoTool: Tool = {
         tipo:     tipo as never,
         titulo,
         conteudo,
-        metadados: { registradoPorAI: true, solicitante: ctx.solicitanteAI },
+        ...(criadoEm && !isNaN(criadoEm.getTime()) ? { criadoEm } : {}),
+        metadados: {
+          registradoPorAI: true,
+          solicitante: ctx.solicitanteAI,
+          ...(dataOcorrencia ? { dataOcorrenciaOriginal: dataOcorrencia } : {}),
+        },
       },
     })
 
@@ -75,10 +87,14 @@ const registrarInteracaoTool: Tool = {
       whatsapp_enviado: 'Mensagem WhatsApp',
     }
 
+    const dataDisplay = criadoEm && !isNaN(criadoEm.getTime())
+      ? ` (data: ${criadoEm.toLocaleDateString('pt-BR')})`
+      : ''
+
     return {
       sucesso: true,
       dados: interacao,
-      resumo: `Interação registrada: ${tipoLabel[tipo] ?? tipo} — "${titulo}".`,
+      resumo: `Interação registrada: ${tipoLabel[tipo] ?? tipo} — "${titulo}"${dataDisplay}.`,
     }
   },
 }

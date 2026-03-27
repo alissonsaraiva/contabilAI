@@ -24,43 +24,43 @@ function periodoParaData(periodo: string): Date | null {
   return d
 }
 
+type ColunaProsp = { step: number; label: string; dot: string; leads: any[]; total: number }
+
 type Props = { searchParams: Promise<{ periodo?: string }> }
 
 export default async function ProspeccaoPage({ searchParams }: Props) {
   const { periodo = '30d' } = await searchParams
   const desde = periodoParaData(periodo)
 
-  const leads = await prisma.lead.findMany({
-    where: {
-      funil: 'prospeccao',
-      status: { notIn: ['cancelado', 'expirado', 'assinado'] },
-      ...(desde && { criadoEm: { gte: desde } }),
-    },
-    orderBy: { criadoEm: 'desc' },
-    include: { responsavel: { select: { nome: true } } },
-  })
+  const filtroData = desde ? { criadoEm: { gte: desde } } : {}
+  const whereBase  = { funil: 'prospeccao' as const, status: { notIn: ['cancelado', 'expirado', 'assinado'] as ('cancelado' | 'expirado' | 'assinado')[] }, ...filtroData }
 
-  const totalConvertidos = await prisma.lead.count({
-    where: {
-      funil: 'prospeccao',
-      status: 'assinado',
-      ...(desde && { criadoEm: { gte: desde } }),
-    },
-  })
+  const [grouped, totalConvertidos, totalOnboarding] = await Promise.all([
+    Promise.all(
+      COLUNAS.map(async (col) => {
+        const [items, total] = await Promise.all([
+          prisma.lead.findMany({
+            where: { ...whereBase, stepAtual: col.step },
+            orderBy: { criadoEm: 'desc' },
+            take: CAP_POR_COLUNA,
+            include: { responsavel: { select: { nome: true } } },
+          }),
+          prisma.lead.count({ where: { ...whereBase, stepAtual: col.step } }),
+        ])
+        return { ...col, leads: items, total }
+      })
+    ),
+    prisma.lead.count({ where: { funil: 'prospeccao', status: 'assinado', ...filtroData } }),
+    prisma.lead.count({
+      where: {
+        funil: 'onboarding',
+        canal: { in: ['whatsapp', 'instagram', 'google', 'indicacao', 'outro'] },
+        ...filtroData,
+      },
+    }),
+  ])
 
-  // Leads que avançaram para onboarding (funil mudou)
-  const totalOnboarding = await prisma.lead.count({
-    where: {
-      funil: 'onboarding',
-      canal: { in: ['whatsapp', 'instagram', 'google', 'indicacao', 'outro'] },
-      ...(desde && { criadoEm: { gte: desde } }),
-    },
-  })
-
-  const grouped = COLUNAS.map((col) => {
-    const todos = leads.filter((l) => l.stepAtual === col.step)
-    return { ...col, leads: todos.slice(0, CAP_POR_COLUNA), total: todos.length }
-  })
+  const totalAbertos = grouped.reduce((s: number, c: { total: number }) => s + c.total, 0)
 
   return (
     <div className="space-y-6">
@@ -70,7 +70,7 @@ export default async function ProspeccaoPage({ searchParams }: Props) {
           <h1 className="text-2xl font-semibold tracking-tight text-on-surface flex items-center gap-3">
             Prospecção
             <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20">
-              {leads.length} em aberto
+              {totalAbertos} em aberto
             </span>
             {totalOnboarding > 0 && (
               <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary border border-primary/20">
@@ -100,7 +100,7 @@ export default async function ProspeccaoPage({ searchParams }: Props) {
         <Tabs defaultValue="1" className="w-full">
           <div className="mb-6 overflow-x-auto custom-scrollbar pb-2">
             <TabsList className="inline-flex h-12 w-max min-w-full items-center justify-start gap-1 rounded-full bg-surface-container/80 p-1 text-on-surface-variant ring-1 ring-inset ring-outline-variant/20">
-              {grouped.map((col) => (
+              {(grouped as ColunaProsp[]).map((col) => (
                 <TabsTrigger
                   key={col.step}
                   value={String(col.step)}
@@ -116,7 +116,7 @@ export default async function ProspeccaoPage({ searchParams }: Props) {
             </TabsList>
           </div>
 
-          {grouped.map((col) => (
+          {(grouped as ColunaProsp[]).map((col) => (
             <TabsContent key={col.step} value={String(col.step)} className="m-0 focus-visible:outline-none">
               <div className="flex flex-col gap-3">
                 {col.leads.length === 0 ? (
@@ -140,7 +140,7 @@ export default async function ProspeccaoPage({ searchParams }: Props) {
       {/* ── Desktop View: Kanban ── */}
       <div className="hidden md:block overflow-x-auto pb-4 custom-scrollbar">
         <div className="flex gap-5" style={{ minWidth: 'max-content' }}>
-          {grouped.map((col) => (
+          {(grouped as ColunaProsp[]).map((col) => (
             <div key={col.step} className="flex w-[280px] flex-col gap-3">
               <div className="flex items-center justify-between pb-1">
                 <div className="flex items-center gap-2">

@@ -24,10 +24,13 @@ const resumoDashboardTool: Tool = {
   async execute(_input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
 
-    const [totalClientes, leadsHoje, aguardandoAssinatura, tarefasVencendo, mrr, leadsAtivos] =
+    const [totalClientes, inadimplentes, cancelamentosNoMes, leadsHoje, aguardandoAssinatura, tarefasVencendo, mrr, leadsAtivos] =
       await Promise.all([
         prisma.cliente.count({ where: { status: 'ativo' } }),
+        prisma.cliente.count({ where: { status: 'inadimplente' } }),
+        prisma.cliente.count({ where: { status: 'cancelado', atualizadoEm: { gte: inicioMes } } }).catch(() => 0),
         prisma.lead.count({ where: { criadoEm: { gte: hoje } } }),
         prisma.contrato.count({ where: { status: 'aguardando_assinatura' } }),
         prisma.tarefa.count({
@@ -47,27 +50,31 @@ const resumoDashboardTool: Tool = {
 
     const mrrValor = Number(mrr._sum.valorMensal ?? 0)
 
-    const resumo = [
+    const linhasResumo = [
       'Resumo do escritório:',
       `• Clientes ativos: ${totalClientes}`,
       `• MRR: R$${mrrValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      ...(inadimplentes > 0 ? [`• ⚠️ Inadimplentes: ${inadimplentes}`] : []),
+      ...(cancelamentosNoMes > 0 ? [`• Cancelamentos no mês: ${cancelamentosNoMes}`] : []),
       `• Leads em andamento: ${leadsAtivos}`,
       `• Leads captados hoje: ${leadsHoje}`,
       `• Contratos aguardando assinatura: ${aguardandoAssinatura}`,
       `• Tarefas vencendo em 24h: ${tarefasVencendo}`,
-    ].join('\n')
+    ]
 
     return {
       sucesso: true,
       dados: {
         totalClientes,
+        inadimplentes,
+        cancelamentosNoMes,
         mrr:                  mrrValor,
         leadsAtivos,
         leadsHoje,
         aguardandoAssinatura,
         tarefasVencendo,
       },
-      resumo,
+      resumo: linhasResumo.join('\n'),
     }
   },
 }

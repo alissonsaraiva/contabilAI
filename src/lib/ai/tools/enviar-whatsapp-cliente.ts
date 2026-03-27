@@ -10,6 +10,19 @@ function buildRemoteJid(phone: string): string {
   return `${withCountry}@s.whatsapp.net`
 }
 
+// Deduplicação: evita reenvio acidental da mesma mensagem para o mesmo número em 90s
+const _enviados = new Map<string, number>()
+function jáEnviado(phone: string, mensagem: string): boolean {
+  const chave = `${phone.replace(/\D/g, '')}::${mensagem.slice(0, 40)}`
+  const ultimo = _enviados.get(chave)
+  if (ultimo && Date.now() - ultimo < 90_000) return true
+  _enviados.set(chave, Date.now())
+  for (const [k, ts] of _enviados) {
+    if (Date.now() - ts > 90_000) _enviados.delete(k)
+  }
+  return false
+}
+
 const enviarWhatsAppClienteTool: Tool = {
   definition: {
     name: 'enviarWhatsAppCliente',
@@ -65,6 +78,14 @@ const enviarWhatsAppClienteTool: Tool = {
         sucesso: false,
         erro:   'Cliente sem número de WhatsApp cadastrado.',
         resumo: `Cliente "${cliente.nome}" não tem número de WhatsApp cadastrado.`,
+      }
+    }
+
+    if (jáEnviado(phone, mensagem)) {
+      return {
+        sucesso: true,
+        dados:   { deduplicado: true },
+        resumo:  `Mensagem idêntica para "${cliente.nome}" já enviada nos últimos 90 segundos — ignorado para evitar duplicata.`,
       }
     }
 

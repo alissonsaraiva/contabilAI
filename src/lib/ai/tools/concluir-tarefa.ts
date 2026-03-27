@@ -19,6 +19,10 @@ const concluirTarefaTool: Tool = {
           enum: ['pendente', 'em_andamento', 'aguardando_cliente', 'concluida', 'cancelada'],
           description: 'Novo status da tarefa. Default: "concluida".',
         },
+        observacao: {
+          type: 'string',
+          description: 'Nota ou observação sobre o resultado da tarefa (opcional). Ex: "Cliente confirmou recebimento". Appended à descrição da tarefa.',
+        },
       },
       required: ['tarefaId'],
     },
@@ -32,12 +36,13 @@ const concluirTarefaTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {
-    const tarefaId = input.tarefaId as string
-    const status   = (input.status as string | undefined) ?? 'concluida'
+    const tarefaId   = input.tarefaId  as string
+    const status     = (input.status as string | undefined) ?? 'concluida'
+    const observacao = input.observacao as string | undefined
 
     const tarefa = await prisma.tarefa.findUnique({
       where:  { id: tarefaId },
-      select: { id: true, titulo: true, status: true },
+      select: { id: true, titulo: true, status: true, descricao: true },
     })
 
     if (!tarefa) {
@@ -48,11 +53,17 @@ const concluirTarefaTool: Tool = {
       }
     }
 
+    // Append da observação na descrição existente
+    const novaDescricao = observacao
+      ? [tarefa.descricao, `[${new Date().toLocaleDateString('pt-BR')}] ${observacao}`].filter(Boolean).join('\n\n')
+      : undefined
+
     const updated = await prisma.tarefa.update({
       where: { id: tarefaId },
       data: {
-        status:     status as never,
+        status:      status as never,
         concluidaEm: status === 'concluida' ? new Date() : null,
+        ...(novaDescricao !== undefined ? { descricao: novaDescricao } : {}),
       },
     })
 
@@ -69,7 +80,7 @@ const concluirTarefaTool: Tool = {
     return {
       sucesso: true,
       dados:   { tarefaId, status: updated.status },
-      resumo:  `Tarefa "${tarefa.titulo}" marcada como ${statusLabel[status] ?? status}.`,
+      resumo:  `Tarefa "${tarefa.titulo}" marcada como ${statusLabel[status] ?? status}.${observacao ? ` Observação registrada.` : ''}`,
     }
   },
 }

@@ -70,11 +70,14 @@ const listarLeadsInativosTool: Tool = {
     }
 
     const linhas = leads.map(l => {
-      const dados = l.dadosJson as Record<string, unknown> | null
-      const nome = (dados?.nome as string | undefined) ?? l.contatoEntrada
-      const diasParado = Math.floor((Date.now() - l.atualizadoEm.getTime()) / 86_400_000)
-      const responsavel = l.responsavel?.nome ? ` (${l.responsavel.nome})` : ''
-      return `• ${nome} — parado há ${diasParado} dias, etapa: ${l.status}${responsavel}`
+      const dados       = l.dadosJson as Record<string, unknown> | null
+      const nome        = (dados?.nome as string | undefined) ?? l.contatoEntrada
+      const email       = dados?.['E-mail'] as string | undefined
+      const telefone    = (dados?.['Telefone'] ?? dados?.['WhatsApp'] ?? dados?.['Celular']) as string | undefined
+      const contato     = email ?? telefone ?? l.contatoEntrada
+      const diasParado  = Math.floor((Date.now() - l.atualizadoEm.getTime()) / 86_400_000)
+      const responsavel = l.responsavel?.nome ? ` · responsável: ${l.responsavel.nome}` : ''
+      return `• ${nome} (${contato}) — ${diasParado} dias parado, etapa: ${l.status}${responsavel}`
     })
 
     const resumo = [

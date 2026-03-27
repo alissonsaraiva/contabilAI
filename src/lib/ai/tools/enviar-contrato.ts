@@ -50,13 +50,30 @@ const enviarContratoTool: Tool = {
       }
     }
 
-    const [lead, escritorio] = await Promise.all([
+    const [lead, escritorio, contratoExistente] = await Promise.all([
       prisma.lead.findUnique({ where: { id: leadId } }),
       prisma.escritorio.findFirst(),
+      prisma.contrato.findUnique({
+        where:  { leadId },
+        select: { status: true, zapsignSignUrl: true, clicksignSignUrl: true, enviadoEm: true },
+      }),
     ])
 
     if (!lead) {
       return { sucesso: false, erro: 'Lead não encontrado.', resumo: 'Lead não encontrado.' }
+    }
+
+    // Evita reenviar contrato que já está aguardando assinatura
+    if (contratoExistente?.status === 'aguardando_assinatura') {
+      const signUrl = contratoExistente.zapsignSignUrl ?? contratoExistente.clicksignSignUrl
+      const enviadoEm = contratoExistente.enviadoEm
+        ? contratoExistente.enviadoEm.toLocaleDateString('pt-BR')
+        : 'data desconhecida'
+      return {
+        sucesso: true,
+        dados:   { leadId, signUrl, jaEnviado: true },
+        resumo:  `Contrato já enviado em ${enviadoEm} e aguardando assinatura. Link atual: ${signUrl ?? '(sem link disponível)'}. Para reenviar, cancele o contrato atual primeiro.`,
+      }
     }
 
     const provedor    = escritorio?.provedorAssinatura ?? 'zapsign'
