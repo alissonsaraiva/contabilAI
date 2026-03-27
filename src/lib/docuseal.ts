@@ -1,10 +1,14 @@
 /**
  * Cliente DocuSeal — assinatura eletrônica self-hosted.
- * Requer DOCUSEAL_API_URL e DOCUSEAL_API_KEY no .env.
+ * Requer DOCUSEAL_API_URL, DOCUSEAL_API_KEY e DOCUSEAL_TEMPLATE_ID no .env.
  *
- * DOCUSEAL_TEMPLATE_ID é opcional (legado). A abordagem atual cria um
- * template dinâmico por contrato a partir do PDF gerado com os dados reais
- * do cliente — eliminando a necessidade de configurar um template fixo.
+ * DocuSeal Community Edition (CE) não suporta criação de templates via API
+ * (POST /submissions/pdf é Pro only). O template deve ser configurado uma vez
+ * via painel DocuSeal (Upload PDF + campo Assinatura) e o ID informado em
+ * DOCUSEAL_TEMPLATE_ID.
+ *
+ * Para PDF dinâmico por contrato (com dados do cliente), é necessário upgrade
+ * para DocuSeal Pro: https://www.docuseal.com/pricing
  */
 
 function baseUrl() {
@@ -15,27 +19,29 @@ function apiKey() {
   return process.env.DOCUSEAL_API_KEY ?? ''
 }
 
+function templateId(): number | null {
+  const id = process.env.DOCUSEAL_TEMPLATE_ID
+  return id ? Number(id) : null
+}
+
 export function docusealConfigurado(): boolean {
-  return !!(process.env.DOCUSEAL_API_URL && process.env.DOCUSEAL_API_KEY)
+  return !!(process.env.DOCUSEAL_API_URL && process.env.DOCUSEAL_API_KEY && process.env.DOCUSEAL_TEMPLATE_ID)
 }
 
 async function docusealFetch<T>(
   path: string,
-  options: { method?: string; json?: unknown; body?: FormData },
+  options: { method?: string; json?: unknown },
 ): Promise<T> {
   const url = `${baseUrl()}${path}`
   const key = apiKey()
   if (!url || !key) throw new Error('DocuSeal não configurado: defina DOCUSEAL_API_URL e DOCUSEAL_API_KEY')
 
   const headers: Record<string, string> = { 'X-Auth-Token': key }
-  let body: BodyInit | undefined
+  let body: string | undefined
 
   if (options.json !== undefined) {
     headers['Content-Type'] = 'application/json'
     body = JSON.stringify(options.json)
-  } else if (options.body) {
-    body = options.body
-    // FormData — não definir Content-Type (fetch define multipart/form-data automaticamente)
   }
 
   const controller = new AbortController()
@@ -57,8 +63,6 @@ async function docusealFetch<T>(
 
 // ─── Tipos da API DocuSeal ────────────────────────────────────────────────────
 
-type DocuSealTemplate = { id: number; name: string; slug?: string }
-
 type DocuSealSubmitter = {
   id: number
   submission_id: number
@@ -72,7 +76,7 @@ type DocuSealSubmitter = {
 // ─── Funções públicas ─────────────────────────────────────────────────────────
 
 /**
- * Cria uma submissão para um template existente pelo ID.
+ * Cria uma submissão para um template existente.
  * Retorna o ID da submissão e a URL de assinatura do signatário.
  */
 export async function criarSubmissao(
@@ -99,60 +103,26 @@ export async function criarSubmissao(
 }
 
 /**
- * Cria um template DocuSeal a partir de um PDF gerado dinamicamente e,
- * em seguida, cria uma submissão para assinatura eletrônica.
+ * Cria uma submissão usando o template fixo (DOCUSEAL_TEMPLATE_ID).
  *
- * O campo de assinatura é posicionado sobre a área de assinatura do
- * CONTRATANTE na última página do PDF (coordenadas relativas 0–1).
+ * LIMITAÇÃO CE: o PDF exibido ao signatário é o template configurado
+ * manualmente no painel DocuSeal — não o PDF dinâmico com dados do cliente.
+ * Para PDFs dinâmicos por contrato, é necessário DocuSeal Pro.
  *
- * Coordenadas calculadas para o template ContratoPDF (A4, fonte 9.5pt):
- *   - Coluna direita (CONTRATANTE) começa em x ≈ 0.54 da página
- *   - Linha de assinatura está a ~y ≈ 0.82 da página (no rodapé)
+ * Setup necessário (uma vez, via painel):
+ *   1. Abrir http://<DOCUSEAL_HOST>/
+ *   2. Abrir o template ID=DOCUSEAL_TEMPLATE_ID
+ *   3. Fazer upload de um PDF base do contrato
+ *   4. Arrastar o campo "Assinatura" para a área de assinatura
+ *   5. Salvar
  */
 export async function enviarContratoParaAssinatura(
-  pdfBuffer: Buffer,
-  nomeContrato: string,
+  _pdfBuffer: Buffer,
+  _nomeContrato: string,
   signatario: { nome: string; email: string },
 ): Promise<{ templateId: number; submissionId: number; signUrl: string }> {
-  const base64Pdf = pdfBuffer.toString('base64')
-
-  // Cria o template com o PDF personalizado e define o campo de assinatura
-  const template = await docusealFetch<DocuSealTemplate>('/api/templates', {
-    method: 'POST',
-    json: {
-      name: nomeContrato,
-      documents: [
-        {
-          name: 'contrato.pdf',
-          file: `data:application/pdf;base64,${base64Pdf}`,
-          fields: [
-            {
-              name: 'Assinatura',
-              type: 'signature',
-              role: 'First Party',
-              required: true,
-              areas: [
-                {
-                  // Coluna direita (CONTRATANTE), linha de assinatura
-                  // A4 paddingHorizontal: 60, largura útil: 475pt
-                  // Coluna direita começa em ~55% da largura útil → x ≈ 0.54
-                  // Linha de assinatura a ~82% da altura da página (última página)
-                  x: 0.54,
-                  y: 0.82,
-                  w: 0.36,
-                  h: 0.04,
-                  page: 0,
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  })
-
-  const tmplId = template.id
-  if (!tmplId) throw new Error('DocuSeal: template criado sem ID na resposta')
+  const tmplId = templateId()
+  if (!tmplId) throw new Error('DOCUSEAL_TEMPLATE_ID não configurado. Crie um template no painel DocuSeal e defina esta variável.')
 
   const { submissionId, signUrl } = await criarSubmissao(tmplId, signatario)
   return { templateId: tmplId, submissionId, signUrl }
