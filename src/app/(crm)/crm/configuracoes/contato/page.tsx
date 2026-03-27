@@ -47,7 +47,7 @@ export default function ContatoPage() {
       const data = await res.json()
       if (data.logradouro) setValue('logradouro', data.logradouro)
       if (data.bairro) setValue('bairro', data.bairro)
-      if (data.localidade) setValue('cidade', data.localidade)
+      if (data.cidade) setValue('cidade', data.cidade)
       if (data.uf) setValue('uf', data.uf)
     } catch {
       toast.error('CEP não encontrado')
