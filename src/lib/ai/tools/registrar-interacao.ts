@@ -35,6 +35,12 @@ const registrarInteracaoTool: Tool = {
     },
   },
 
+  meta: {
+    label: 'Registrar interação',
+    descricao: 'Loga ligação, e-mail, nota interna ou mensagem WhatsApp como interação do cliente ou lead.',
+    categoria: 'Histórico',
+    canais: ['crm'],
+  },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const tipo      = input.tipo      as string
     const titulo    = input.titulo    as string

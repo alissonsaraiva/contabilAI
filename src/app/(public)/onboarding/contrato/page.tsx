@@ -229,23 +229,33 @@ export default function ContratoPage({ searchParams }: Props) {
         </label>
       </div>
 
-      <button
-        onClick={handleEnviar}
-        disabled={loading || !aceito}
-        className="flex w-full h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
-      >
-        {loading ? (
-          <>
-            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            Enviando contrato…
-          </>
-        ) : (
-          <>
-            <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>draw</span>
-            Enviar para assinatura
-          </>
-        )}
-      </button>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => router.push(leadId ? `/onboarding/revisao?leadId=${leadId}&plano=${plano}` : '/onboarding/revisao')}
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-outline-variant/30 bg-white text-on-surface-variant hover:bg-surface-container transition-colors"
+          aria-label="Voltar"
+        >
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+        </button>
+        <button
+          onClick={handleEnviar}
+          disabled={loading || !aceito}
+          className="flex flex-1 h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              Enviando contrato…
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>draw</span>
+              Enviar para assinatura
+            </>
+          )}
+        </button>
+      </div>
 
       <p className="text-center text-[12px] text-on-surface-variant/60">
         <span className="material-symbols-outlined text-[13px] align-middle mr-1">mark_email_read</span>

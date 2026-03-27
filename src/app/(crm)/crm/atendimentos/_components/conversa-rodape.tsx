@@ -2,19 +2,33 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+
+type ArquivoAnexo = {
+  url: string
+  type: 'image' | 'document'
+  name: string
+  mimeType: string
+  previewUrl?: string
+}
 
 type Props = {
   conversaId: string
   canal: string
   pausada: boolean
+  entidadeTipo?: 'lead' | 'cliente'
+  entidadeId?: string
 }
 
-export function ConversaRodape({ conversaId, canal, pausada }: Props) {
+export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entidadeId }: Props) {
   const router = useRouter()
   const [assumido, setAssumido] = useState(pausada)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [arquivo, setArquivo] = useState<ArquivoAnexo | null>(null)
+  const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function assumir() {
     await fetch('/api/conversas/pausar', {
@@ -30,18 +44,64 @@ export function ConversaRodape({ conversaId, canal, pausada }: Props) {
     await fetch(`/api/conversas/${conversaId}/retomar`, { method: 'POST' })
     setAssumido(false)
     setTexto('')
+    removerArquivo()
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!entidadeTipo || !entidadeId) { toast.error('Entidade não identificada para upload'); return }
+
+    setUploading(true)
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'outro', entidadeId, entidadeTipo, contentType: file.type }),
+      })
+      if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
+      const { uploadUrl, publicUrl } = await res.json() as { uploadUrl: string; publicUrl: string }
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      const isImage = file.type.startsWith('image/')
+      setArquivo({
+        url: publicUrl,
+        type: isImage ? 'image' : 'document',
+        name: file.name,
+        mimeType: file.type,
+        previewUrl: isImage ? URL.createObjectURL(file) : undefined,
+      })
+    } catch {
+      toast.error('Erro ao fazer upload do arquivo')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function removerArquivo() {
+    if (arquivo?.previewUrl) URL.revokeObjectURL(arquivo.previewUrl)
+    setArquivo(null)
   }
 
   async function enviar() {
-    if (!texto.trim() || enviando) return
+    if ((!texto.trim() && !arquivo) || enviando) return
     setEnviando(true)
     try {
       await fetch(`/api/conversas/${conversaId}/mensagem`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto }),
+        body: JSON.stringify({
+          texto,
+          ...(arquivo && {
+            mediaUrl:      arquivo.url,
+            mediaType:     arquivo.type,
+            mediaFileName: arquivo.name,
+            mediaMimeType: arquivo.mimeType,
+          }),
+        }),
       })
       setTexto('')
+      removerArquivo()
       router.refresh()
     } finally {
       setEnviando(false)
@@ -78,13 +138,53 @@ export function ConversaRodape({ conversaId, canal, pausada }: Props) {
 
   return (
     <div className="sticky bottom-0 border-t border-outline-variant/15 bg-card/95 backdrop-blur-md px-4 py-3">
+      {/* Preview do arquivo anexado */}
+      {arquivo && (
+        <div className="mb-2 flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2">
+          {arquivo.type === 'image' && arquivo.previewUrl ? (
+            <img src={arquivo.previewUrl} alt="preview" className="h-10 w-10 rounded-lg object-cover shrink-0" />
+          ) : (
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant shrink-0">attach_file</span>
+          )}
+          <span className="flex-1 truncate text-[12px] text-on-surface">{arquivo.name}</span>
+          <button onClick={removerArquivo} className="shrink-0 text-on-surface-variant/50 hover:text-error transition-colors">
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
+
       <div className="flex items-end gap-2">
+        {/* Input file oculto */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.*,text/plain,text/csv"
+          onChange={handleFileChange}
+        />
+        {/* Botão de anexo — só exibe se tiver entidade identificada */}
+        {(entidadeTipo && entidadeId) && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 transition-all"
+            title="Anexar arquivo"
+          >
+            {uploading ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
+            ) : (
+              <span className="material-symbols-outlined text-[20px]">attach_file</span>
+            )}
+          </button>
+        )}
+
         <textarea
           ref={textareaRef}
           value={texto}
           onChange={e => setTexto(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={canal === 'whatsapp' ? 'Digite sua mensagem... (Enter para enviar)' : 'Digite sua resposta...'}
+          placeholder={arquivo ? 'Legenda (opcional)...' : canal === 'whatsapp' ? 'Digite sua mensagem...' : 'Digite sua resposta...'}
           rows={1}
           className="flex-1 resize-none rounded-[12px] border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-[13px] text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary/40 focus:outline-none focus:ring-[3px] focus:ring-primary/10 max-h-40 overflow-y-auto"
           style={{ minHeight: '44px' }}
@@ -96,7 +196,7 @@ export function ConversaRodape({ conversaId, canal, pausada }: Props) {
         />
         <button
           onClick={enviar}
-          disabled={!texto.trim() || enviando}
+          disabled={(!texto.trim() && !arquivo) || enviando || uploading}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-primary text-white shadow-sm hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
         >
           <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>

@@ -11,6 +11,18 @@ type Mensagem = {
   criadaEm: string | Date
   status?: 'pending' | 'sent' | 'failed'
   erroEnvio?: string | null
+  mediaUrl?: string | null
+  mediaType?: string | null
+  mediaFileName?: string | null
+  mediaMimeType?: string | null
+}
+
+type ArquivoAnexo = {
+  url: string
+  type: 'image' | 'document'
+  name: string
+  mimeType: string
+  previewUrl?: string // object URL para preview local de imagem
 }
 
 type Props = {
@@ -71,6 +83,9 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
   const [texto, setTexto] = useState('')
   const [sending, setSending] = useState(false)
   const [reativando, setReativando] = useState(false)
+  const [arquivo, setArquivo] = useState<ArquivoAnexo | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isNearBottomRef = useRef(true)
@@ -123,14 +138,68 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
     }
   }, [mensagens, open])
 
+  // Extrai entidadeTipo/Id do apiPath: /api/leads/:id/whatsapp ou /api/clientes/:id/whatsapp
+  function parseEntityFromPath(): { entidadeTipo: 'lead' | 'cliente'; entidadeId: string } | null {
+    const m = apiPath.match(/\/api\/(leads|clientes)\/([^/]+)\/whatsapp/)
+    if (!m) return null
+    return { entidadeTipo: m[1] === 'leads' ? 'lead' : 'cliente', entidadeId: m[2] }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const entity = parseEntityFromPath()
+    if (!entity) { toast.error('Não foi possível identificar o destinatário'); return }
+
+    setUploading(true)
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'outro', entidadeId: entity.entidadeId, entidadeTipo: entity.entidadeTipo, contentType: file.type }),
+      })
+      if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
+      const { uploadUrl, publicUrl } = await res.json() as { uploadUrl: string; publicUrl: string }
+
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+
+      const isImage = file.type.startsWith('image/')
+      setArquivo({
+        url: publicUrl,
+        type: isImage ? 'image' : 'document',
+        name: file.name,
+        mimeType: file.type,
+        previewUrl: isImage ? URL.createObjectURL(file) : undefined,
+      })
+    } catch {
+      toast.error('Erro ao fazer upload do arquivo')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function removerArquivo() {
+    if (arquivo?.previewUrl) URL.revokeObjectURL(arquivo.previewUrl)
+    setArquivo(null)
+  }
+
   async function enviar() {
-    if (!texto.trim() || sending) return
+    if ((!texto.trim() && !arquivo) || sending) return
     setSending(true)
     try {
       const res = await fetch(apiPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conteudo: texto.trim() }),
+        body: JSON.stringify({
+          conteudo: texto.trim(),
+          ...(arquivo && {
+            mediaUrl:      arquivo.url,
+            mediaType:     arquivo.type,
+            mediaFileName: arquivo.name,
+            mediaMimeType: arquivo.mimeType,
+          }),
+        }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -144,6 +213,7 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
         return
       }
       setTexto('')
+      removerArquivo()
       await carregar()
     } catch {
       toast.error('Erro ao enviar mensagem')
@@ -287,6 +357,20 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
                           <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-8 w-44 rounded-md" />
                           <p className="text-[10px] text-on-surface-variant/50">Áudio não transcrito</p>
                         </div>
+                      ) : m.mediaUrl && m.mediaType === 'image' ? (
+                        <div className="flex flex-col gap-1.5">
+                          <img src={m.mediaUrl} alt={m.mediaFileName ?? 'imagem'} className="max-w-[220px] rounded-xl object-cover" />
+                          {m.conteudo && <p className="whitespace-pre-wrap text-[12px]">{m.conteudo}</p>}
+                        </div>
+                      ) : m.mediaUrl ? (
+                        <div className="flex flex-col gap-1.5">
+                          <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 hover:bg-white/20 transition-colors">
+                            <span className="material-symbols-outlined text-[18px] shrink-0">attach_file</span>
+                            <span className="text-[12px] truncate max-w-[160px]">{m.mediaFileName ?? 'Arquivo'}</span>
+                            <span className="material-symbols-outlined text-[14px] shrink-0 opacity-60">download</span>
+                          </a>
+                          {m.conteudo && <p className="whitespace-pre-wrap text-[12px]">{m.conteudo}</p>}
+                        </div>
                       ) : (
                         <p className="whitespace-pre-wrap">{m.conteudo}</p>
                       )}
@@ -322,12 +406,49 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
 
           {/* Input */}
           {!semNumero && (
-            <div className="shrink-0 border-t border-outline-variant/15 px-4 py-4">
-              <div className="flex gap-2">
+            <div className="shrink-0 border-t border-outline-variant/15 px-4 py-3">
+              {/* Preview do arquivo anexado */}
+              {arquivo && (
+                <div className="mb-2 flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2">
+                  {arquivo.type === 'image' && arquivo.previewUrl ? (
+                    <img src={arquivo.previewUrl} alt="preview" className="h-10 w-10 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[20px] text-on-surface-variant shrink-0">attach_file</span>
+                  )}
+                  <span className="flex-1 truncate text-[12px] text-on-surface">{arquivo.name}</span>
+                  <button onClick={removerArquivo} className="shrink-0 text-on-surface-variant/50 hover:text-error transition-colors">
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-end gap-2">
+                {/* Botão de anexo */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.*,text/plain,text/csv"
+                  onChange={handleFileChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:opacity-40"
+                  title="Anexar arquivo"
+                >
+                  {uploading ? (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">attach_file</span>
+                  )}
+                </button>
+
                 <textarea
                   rows={1}
                   className="min-h-[40px] max-h-[120px] flex-1 resize-none rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-[13px] text-on-surface transition-colors focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
-                  placeholder="Digite uma mensagem..."
+                  placeholder={arquivo ? 'Legenda (opcional)...' : 'Digite uma mensagem...'}
                   value={texto}
                   onChange={e => setTexto(e.target.value)}
                   onKeyDown={e => {
@@ -336,8 +457,8 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
                 />
                 <button
                   onClick={enviar}
-                  disabled={!texto.trim() || sending}
-                  className="flex h-10 w-10 shrink-0 self-end items-center justify-center rounded-xl bg-[#25D366] text-white transition-colors hover:bg-[#1fb855] disabled:opacity-40"
+                  disabled={(!texto.trim() && !arquivo) || sending || uploading}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#25D366] text-white transition-colors hover:bg-[#1fb855] disabled:opacity-40"
                 >
                   {sending ? (
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -348,6 +469,7 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
                   )}
                 </button>
               </div>
+
               <p className="mt-2 text-center text-[11px] text-on-surface-variant/50">
                 {pausada
                   ? 'Você está no controle · IA pausada'

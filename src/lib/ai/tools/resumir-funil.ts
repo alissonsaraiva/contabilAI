@@ -23,6 +23,12 @@ const resumirFunilTool: Tool = {
     },
   },
 
+  meta: {
+    label: 'Resumir funil',
+    descricao: 'Visão geral do pipeline: total por etapa, quantos leads entraram hoje e na última semana.',
+    categoria: 'Funil',
+    canais: ['crm'],
+  },
   async execute(input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {
     const funil  = (input.funil  as string | undefined) ?? 'prospeccao'
     const diasAtras = input.diasAtras as number | undefined

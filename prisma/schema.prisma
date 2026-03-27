@@ -417,6 +417,9 @@ model Escritorio {
   systemPromptCrm        String? @db.Text
   systemPromptPortal     String? @db.Text
 
+  // Agente Operacional — tools desabilitadas pelo admin (array de nomes de tools)
+  toolsDesabilitadas     Json?   // string[] — ex: ["enviarEmail", "criarLead"]
+
   // Email — SMTP/IMAP configuráveis (senha armazenada encriptada)
   emailRemetente   String?  // ex: contato@escritorio.com.br
   emailNome        String?  // ex: Escritório Contábil
@@ -475,6 +478,11 @@ model MensagemIA {
   tentativas        Int            @default(0)
   erroEnvio         String?        @db.Text
   whatsappMsgData   Json?          // payload { key, message } para re-fetch de mídia na Evolution
+  // Mídia enviada pelo operador via chat CRM
+  mediaUrl          String?        // URL pública do arquivo (S3)
+  mediaType         String?        // 'image' | 'document' | 'audio'
+  mediaFileName     String?        // nome original do arquivo
+  mediaMimeType     String?        // ex: application/pdf, image/jpeg
   criadaEm          DateTime       @default(now())
 
   @@index([conversaId, criadaEm])
@@ -520,6 +528,9 @@ model AgenteAcao {
   clienteId     String?
   leadId        String?
   solicitanteAI String   // 'crm' | 'whatsapp' | 'portal' | 'onboarding'
+  usuarioId     String?  // ID do usuário CRM que acionou (null para ações automáticas)
+  usuarioNome   String?  // Nome legível para o log
+  usuarioTipo   String?  // 'admin' | 'contador' | 'atendente'
   tool          String   // nome da ferramenta executada
   input         Json     // parâmetros passados para a ferramenta
   resultado     Json     // { sucesso, resumo, erro, dados }
@@ -530,5 +541,23 @@ model AgenteAcao {
   @@index([clienteId, criadoEm])
   @@index([leadId, criadoEm])
   @@index([tool, criadoEm])
+  @@index([usuarioId, criadoEm])
   @@map("agente_acoes")
+}
+
+model AgendamentoAgente {
+  id              String    @id @default(uuid())
+  descricao       String    // "Relatório semanal de funil toda segunda"
+  cron            String    // expressão cron: "0 8 * * 1"
+  instrucao       String    // instrução em linguagem natural para executarAgente
+  ativo           Boolean   @default(true)
+  criadoPorId     String?   // usuarioId de quem criou
+  criadoPorNome   String?   // nome legível
+  ultimoDisparo   DateTime?
+  proximoDisparo  DateTime? // pré-calculado para facilitar query
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+
+  @@index([ativo, proximoDisparo])
+  @@map("agendamentos_agente")
 }

@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
-import { sendText, type EvolutionConfig } from '@/lib/evolution'
+import { sendText, sendMedia, type EvolutionConfig } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 
 type Params = { params: Promise<{ id: string }> }
@@ -78,8 +78,12 @@ export async function POST(req: Request, { params }: Params) {
 
   const { id } = await params
   const body = await req.json()
-  const conteudo = body?.conteudo?.trim()
-  if (!conteudo) return NextResponse.json({ error: 'Conteúdo obrigatório' }, { status: 400 })
+  const conteudo      = (body?.conteudo as string | undefined)?.trim() ?? ''
+  const mediaUrl      = (body?.mediaUrl      as string | undefined) ?? null
+  const mediaType     = (body?.mediaType     as string | undefined) ?? null
+  const mediaFileName = (body?.mediaFileName as string | undefined) ?? null
+  const mediaMimeType = (body?.mediaMimeType as string | undefined) ?? null
+  if (!conteudo && !mediaUrl) return NextResponse.json({ error: 'Conteúdo ou arquivo obrigatório' }, { status: 400 })
 
   const lead = await prisma.lead.findUnique({
     where: { id },
@@ -121,13 +125,21 @@ export async function POST(req: Request, { params }: Params) {
         usuarioId: session.user.id,
         tipo: 'whatsapp_enviado',
         titulo: 'WhatsApp enviado',
-        conteudo,
+        conteudo: conteudo || (mediaFileName ? `[Arquivo: ${mediaFileName}]` : '[Mídia enviada]'),
       },
     }),
   ])
 
   // Fase 2: tenta enviar via Evolution API (com retry automático)
-  const sendResult = await sendText(cfg, remoteJid, conteudo)
+  const sendResult = mediaUrl
+    ? await sendMedia(cfg, remoteJid, {
+        mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
+        mimetype:  mediaMimeType ?? 'application/octet-stream',
+        fileName:  mediaFileName ?? 'arquivo',
+        caption:   conteudo || undefined,
+        mediaUrl,
+      })
+    : await sendText(cfg, remoteJid, conteudo)
 
   // Fase 3: persiste a mensagem com o status correto
   await prisma.mensagemIA.create({
@@ -138,6 +150,10 @@ export async function POST(req: Request, { params }: Params) {
       status: sendResult.ok ? 'sent' : 'failed',
       tentativas: sendResult.ok ? 1 : ('attempts' in sendResult ? sendResult.attempts : 1),
       erroEnvio: sendResult.ok ? null : sendResult.error,
+      mediaUrl,
+      mediaType,
+      mediaFileName,
+      mediaMimeType,
     },
   })
 

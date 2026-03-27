@@ -127,6 +127,30 @@ export async function POST(req: Request) {
   // (Configurações → IA → Prompts → Onboarding) — editável sem deploy.
   // Aqui só injetamos dados dinâmicos buscados do banco por request.
   let systemExtra: string | undefined
+
+  // Busca planos ativos para que a IA possa informar valores sem inventar
+  let planosExtra = ''
+  try {
+    const planos = await prisma.plano.findMany({
+      where:   { ativo: true },
+      orderBy: { valorMinimo: 'asc' },
+      select:  { nome: true, valorMinimo: true, valorMaximo: true, servicos: true, destaque: true },
+    })
+    if (planos.length > 0) {
+      const linhas = planos.map(p => {
+        const faixa = p.valorMaximo && Number(p.valorMaximo) !== Number(p.valorMinimo)
+          ? `R$${Number(p.valorMinimo).toFixed(0)} a R$${Number(p.valorMaximo).toFixed(0)}/mês`
+          : `R$${Number(p.valorMinimo).toFixed(0)}/mês`
+        const servicos = Array.isArray(p.servicos) && (p.servicos as string[]).length > 0
+          ? ` — inclui: ${(p.servicos as string[]).join(', ')}`
+          : ''
+        const destaque = p.destaque ? ' (destaque)' : ''
+        return `• ${p.nome}${destaque}: ${faixa}${servicos}`
+      })
+      planosExtra = `\nPLANOS DISPONÍVEIS (use estes valores exatos ao ser perguntado sobre preços):\n${linhas.join('\n')}`
+    }
+  } catch { /* DB indisponível — continua sem planos */ }
+
   if (leadId) {
     try {
       const lead = await prisma.lead.findUnique({
@@ -144,9 +168,14 @@ export async function POST(req: Request) {
           dados['Cidade']            ? `• Cidade: ${dados['Cidade']}` : null,
           lead.status                ? `• Status no fluxo: ${lead.status}` : null,
         ].filter(Boolean)
-        if (partes.length > 1) systemExtra = partes.join('\n')
+        if (partes.length > 1) systemExtra = partes.join('\n') + planosExtra
+        else if (planosExtra) systemExtra = planosExtra.trim()
+      } else if (planosExtra) {
+        systemExtra = planosExtra.trim()
       }
     } catch { /* DB indisponível — continua sem contexto extra */ }
+  } else if (planosExtra) {
+    systemExtra = planosExtra.trim()
   }
 
   // ── Escopo RAG ────────────────────────────────────────────────────────────

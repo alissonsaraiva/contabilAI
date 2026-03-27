@@ -217,7 +217,7 @@ export default function WhatsAppPage() {
   const stateIcon  = connState === 'open' ? 'check_circle' : connState === 'connecting' ? 'sync' : 'cancel'
 
   return (
-    <div className="space-y-5">
+    <form onSubmit={handleSubmit(onSaveConfig)} className="space-y-5">
 
       {/* Config Evolution API */}
       <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
@@ -233,7 +233,7 @@ export default function WhatsAppPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit(onSaveConfig)} className="space-y-4">
+        <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={LABEL}>URL da API</label>
@@ -262,17 +262,7 @@ export default function WhatsAppPage() {
               autoComplete="off"
             />
           </div>
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={savingCfg}
-              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
-            >
-              {savingCfg ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
-              Salvar
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
 
       {/* Status + Ações */}
@@ -288,6 +278,7 @@ export default function WhatsAppPage() {
             </div>
           </div>
           <button
+            type="button"
             onClick={() => checkState()}
             disabled={loadingState}
             className="flex items-center gap-1.5 rounded-lg border border-outline-variant/20 px-3 py-1.5 text-[12px] font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-50"
@@ -321,6 +312,7 @@ export default function WhatsAppPage() {
           {connState === 'unknown' || connState === 'close' ? (
             <>
               <button
+                type="button"
                 onClick={handleCreate}
                 disabled={!!actionLoading}
                 className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-card px-4 py-2 text-[13px] font-semibold text-on-surface hover:bg-surface-container-low transition-colors disabled:opacity-50"
@@ -329,6 +321,7 @@ export default function WhatsAppPage() {
                 Criar instância
               </button>
               <button
+                type="button"
                 onClick={handleConnect}
                 disabled={loadingQr || !!actionLoading}
                 className="flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#25D366]/90 transition-colors disabled:opacity-50"
@@ -339,6 +332,7 @@ export default function WhatsAppPage() {
             </>
           ) : connState === 'open' ? (
             <button
+              type="button"
               onClick={() => setConfirmLogout(true)}
               disabled={!!actionLoading}
               className="flex items-center gap-2 rounded-xl border border-error/30 px-4 py-2 text-[13px] font-semibold text-error hover:bg-error/8 transition-colors disabled:opacity-50"
@@ -397,6 +391,7 @@ export default function WhatsAppPage() {
         <div className="flex items-center gap-2 rounded-xl border border-outline-variant/15 bg-surface-container-low/50 px-4 py-3 mb-4">
           <span className="flex-1 truncate font-mono text-[12px] text-on-surface-variant">{webhookUrl}</span>
           <button
+            type="button"
             onClick={() => { navigator.clipboard.writeText(webhookUrl); setWebhookCopied(true); setTimeout(() => setWebhookCopied(false), 1500) }}
             className="shrink-0 text-on-surface-variant/60 hover:text-primary transition-colors"
           >
@@ -405,6 +400,7 @@ export default function WhatsAppPage() {
         </div>
 
         <button
+          type="button"
           onClick={handleSetWebhook}
           disabled={!!actionLoading}
           className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-card px-4 py-2 text-[13px] font-semibold text-on-surface hover:bg-surface-container-low transition-colors disabled:opacity-50"
@@ -413,6 +409,18 @@ export default function WhatsAppPage() {
           Configurar webhook na instância
         </button>
         <p className="mt-2 text-[11px] text-on-surface-variant/50">Registra automaticamente este URL na instância Evolution API</p>
+      </div>
+
+      {/* Salvar tudo */}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={savingCfg}
+          className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
+        >
+          {savingCfg ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
+          Salvar configurações
+        </button>
       </div>
 
       <ConfirmDialog
@@ -424,6 +432,6 @@ export default function WhatsAppPage() {
         confirmLabel="Desconectar"
         loading={actionLoading === 'logout'}
       />
-    </div>
+    </form>
   )
 }

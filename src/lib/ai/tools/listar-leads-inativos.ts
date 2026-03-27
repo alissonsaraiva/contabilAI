@@ -27,6 +27,12 @@ const listarLeadsInativosTool: Tool = {
     },
   },
 
+  meta: {
+    label: 'Leads inativos',
+    descricao: 'Identifica leads parados há X dias sem atividade para retomada proativa.',
+    categoria: 'Funil',
+    canais: ['crm'],
+  },
   async execute(input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {
     const diasSemAtividade = (input.diasSemAtividade as number | undefined) ?? 7
     const funil  = (input.funil  as string | undefined) ?? 'prospeccao'

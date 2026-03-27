@@ -120,7 +120,7 @@ export async function enviarClickSign(
 
   const signerKey = signerResp.signer.key
 
-  // 3. Vincula signatário ao documento
+  // 3. Vincula signatário ao documento e solicita notificação por e-mail
   const listResp = await clicksignFetch<ClickSignList>(apiKey, '/api/v1/lists', {
     method: 'POST',
     json: {
@@ -129,12 +129,11 @@ export async function enviarClickSign(
         signer_key: signerKey,
         sign_as: 'contractee',
         refusable: false,
+        communicate_events: { sign_as: true, view_as: false },
+        message: 'Você recebeu um contrato para assinatura eletrônica.',
       },
     },
   })
-
-  // Nota: ClickSign envia o e-mail automaticamente quando delivery='email' está no signatário.
-  // Chamada a notify_signers removida pois o endpoint não existe na v1.
 
   const signerToken = listResp.list.token ?? listResp.list.widget_key ?? signerKey
   const signUrl = `https://app.clicksign.com/sign/${signerToken}`

@@ -183,17 +183,27 @@ export default function RevisaoPage({ searchParams }: Props) {
         </div>
       </div>
 
-      <button
-        onClick={handleConcluir}
-        disabled={loading}
-        className="flex w-full h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
-      >
-        {loading ? (
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-        ) : (
-          <>Enviar solicitação <span className="material-symbols-outlined text-[18px]">send</span></>
-        )}
-      </button>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => router.push(leadId ? `/onboarding/dados?leadId=${leadId}&plano=${plano}` : '/onboarding/dados')}
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-outline-variant/30 bg-white text-on-surface-variant hover:bg-surface-container transition-colors"
+          aria-label="Voltar"
+        >
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+        </button>
+        <button
+          onClick={handleConcluir}
+          disabled={loading}
+          className="flex flex-1 h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {loading ? (
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          ) : (
+            <>Enviar solicitação <span className="material-symbols-outlined text-[18px]">send</span></>
+          )}
+        </button>
+      </div>
 
       <p className="text-center text-[12px] text-on-surface-variant/60">
         Ao continuar, você concorda com nossos termos de serviço. Sem compromisso.

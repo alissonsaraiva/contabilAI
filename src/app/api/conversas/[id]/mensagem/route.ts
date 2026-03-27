@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { isEncrypted, decrypt } from '@/lib/crypto'
-import { sendHumanLike } from '@/lib/whatsapp/human-like'
-import type { EvolutionConfig } from '@/lib/evolution'
+import { sendHumanLike, } from '@/lib/whatsapp/human-like'
+import { sendMedia, type EvolutionConfig } from '@/lib/evolution'
 
 export async function POST(
   req: Request,
@@ -16,8 +16,13 @@ export async function POST(
   }
 
   const { id } = await params
-  const { texto } = await req.json() as { texto: string }
-  if (!texto?.trim()) return NextResponse.json({ error: 'texto obrigatório' }, { status: 400 })
+  const body        = await req.json() as { texto?: string; mediaUrl?: string; mediaType?: string; mediaFileName?: string; mediaMimeType?: string }
+  const texto       = body.texto?.trim() ?? ''
+  const mediaUrl      = body.mediaUrl      ?? null
+  const mediaType     = body.mediaType     ?? null
+  const mediaFileName = body.mediaFileName ?? null
+  const mediaMimeType = body.mediaMimeType ?? null
+  if (!texto && !mediaUrl) return NextResponse.json({ error: 'texto ou arquivo obrigatório' }, { status: 400 })
 
   const conversa = await prisma.conversaIA.findUnique({
     where: { id },
@@ -27,7 +32,16 @@ export async function POST(
 
   // Persiste a mensagem do humano como role 'assistant' (é uma resposta ao cliente)
   await prisma.mensagemIA.create({
-    data: { conversaId: id, role: 'assistant', conteudo: texto.trim(), status: 'pending' },
+    data: {
+      conversaId: id,
+      role: 'assistant',
+      conteudo: texto,
+      status: 'pending',
+      mediaUrl,
+      mediaType,
+      mediaFileName,
+      mediaMimeType,
+    },
   })
 
   // Entrega via Escalacao para onboarding (widget faz poll)
@@ -48,9 +62,12 @@ export async function POST(
         orderBy: { criadoEm: 'desc' },
       })
       if (escalacao) {
+        const respostaTexto = mediaUrl
+          ? [texto, `[Arquivo: ${mediaFileName ?? 'arquivo'}]\n${mediaUrl}`].filter(Boolean).join('\n')
+          : texto
         await prisma.escalacao.update({
           where: { id: escalacao.id },
-          data: { respostaEnviada: texto.trim(), status: 'resolvida' },
+          data: { respostaEnviada: respostaTexto, status: 'resolvida' },
         })
         await prisma.mensagemIA.updateMany({
           where: { conversaId: id, role: 'assistant', status: 'pending' },
@@ -75,16 +92,24 @@ export async function POST(
         apiKey: isEncrypted(row.evolutionApiKey) ? decrypt(row.evolutionApiKey) : row.evolutionApiKey,
         instance: row.evolutionInstance,
       }
-      const result = await sendHumanLike(cfg, conversa.remoteJid, texto.trim())
-      if (result.ok) {
-        // Atualiza status da última mensagem para 'sent'
-        const ultima = await prisma.mensagemIA.findFirst({
-          where: { conversaId: id, role: 'assistant' },
-          orderBy: { criadaEm: 'desc' },
+      const result = mediaUrl
+        ? await sendMedia(cfg, conversa.remoteJid, {
+            mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
+            mimetype:  mediaMimeType ?? 'application/octet-stream',
+            fileName:  mediaFileName ?? 'arquivo',
+            caption:   texto || undefined,
+            mediaUrl,
+          })
+        : await sendHumanLike(cfg, conversa.remoteJid, texto)
+      const ultima = await prisma.mensagemIA.findFirst({
+        where: { conversaId: id, role: 'assistant' },
+        orderBy: { criadaEm: 'desc' },
+      })
+      if (ultima) {
+        await prisma.mensagemIA.update({
+          where: { id: ultima.id },
+          data: { status: result.ok ? 'sent' : 'failed' },
         })
-        if (ultima) {
-          await prisma.mensagemIA.update({ where: { id: ultima.id }, data: { status: 'sent' } })
-        }
       }
     }
   }

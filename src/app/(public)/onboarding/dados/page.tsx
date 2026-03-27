@@ -373,17 +373,27 @@ export default function DadosPage({ searchParams }: Props) {
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="flex w-full h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
-        >
-          {loading ? (
-            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          ) : (
-            <>Continuar <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>
-          )}
-        </button>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => router.push(leadId ? `/onboarding/plano?leadId=${leadId}&plano=${plano}` : '/onboarding/plano')}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-outline-variant/30 bg-white text-on-surface-variant hover:bg-surface-container transition-colors"
+            aria-label="Voltar"
+          >
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex flex-1 h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {loading ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : (
+              <>Continuar <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>
+            )}
+          </button>
+        </div>
 
         {saveStatus !== 'idle' && (
           <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-on-surface-variant/50">

@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { registrarAgenteExecutou } from '@/lib/historico'
 import { getAiConfig } from './config'
-import { getToolDefinitions, getTool } from './tools/registry'
+import { getToolDefinitions, getTools, getTool } from './tools/registry'
 import type { ToolContext, ToolExecuteResult } from './tools/types'
 import type { AIMessageExtended, AnyContentPart } from './providers/types'
 import { completeWithToolsFallback } from './providers/fallback'
@@ -60,10 +60,38 @@ export type AgenteResultado = {
 const SOLICITANTES_VALIDOS: Set<string> = new Set(['crm', 'whatsapp', 'onboarding', 'portal'])
 
 const TOOLS_POR_FEATURE: Record<string, string[] | undefined> = {
-  onboarding: ['buscarDadosCliente'],
-  whatsapp:   ['buscarDadosCliente', 'listarTarefas', 'criarTarefa'],
-  portal:     ['buscarDadosCliente', 'listarTarefas'],
-  crm:        undefined, // acesso total
+  // Onboarding: lead em processo de contratação — somente consulta e informação
+  onboarding: [
+    'buscarDadosCliente',
+    'listarPlanos',
+  ],
+
+  // WhatsApp: cliente/lead via canal de mensagem — leitura + ações básicas de suporte
+  whatsapp: [
+    'buscarDadosCliente',
+    'buscarHistorico',
+    'buscarDocumentos',
+    'listarTarefas',
+    'listarPlanos',
+    'criarTarefa',
+    'concluirTarefa',
+    'criarLead',
+    'enviarEmail',
+    'registrarInteracao',
+    'enviarDocumentoWhatsApp',
+  ],
+
+  // Portal: cliente autenticado consultando seus próprios dados — somente leitura
+  portal: [
+    'buscarDadosCliente',
+    'buscarHistorico',
+    'buscarDocumentos',
+    'listarTarefas',
+    'listarPlanos',
+  ],
+
+  // CRM: operador interno autenticado — acesso total a todas as tools
+  crm: undefined,
 }
 
 // Timeout total do loop — deixa margem antes do limite de 60s das serverless functions
@@ -115,8 +143,13 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
   const model        = config.models.agente ?? config.models.crm
 
   // 3. Monta tools disponíveis — aplica escopo por feature se toolsPermitidas não foi fornecido
-  const escopoTools     = toolsPermitidas ?? TOOLS_POR_FEATURE[solicitanteSeguro]
-  const toolDefinitions = getToolDefinitions(escopoTools)
+  //    e exclui as tools desabilitadas pelo admin nas configurações de IA
+  const escopoTools = toolsPermitidas ?? TOOLS_POR_FEATURE[solicitanteSeguro]
+  const desabilitadas = new Set(config.toolsDesabilitadas)
+  const nomesAtivos = escopoTools
+    ? escopoTools.filter((n: string) => !desabilitadas.has(n))
+    : getTools().map((t) => t.definition.name).filter((n: string) => !desabilitadas.has(n))
+  const toolDefinitions = getToolDefinitions(nomesAtivos)
 
   if (toolDefinitions.length === 0) {
     return {
@@ -126,13 +159,21 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
     }
   }
 
-  // 4. Constrói system prompt com contexto do cliente/lead
+  // 4. Constrói system prompt com contexto do cliente/lead e do usuário
   const contextLines: string[] = []
-  if (contexto.clienteId) contextLines.push(`clienteId: ${contexto.clienteId}`)
-  if (contexto.leadId)    contextLines.push(`leadId: ${contexto.leadId}`)
+  if (contexto.usuarioId)   contextLines.push(`usuarioId: ${contexto.usuarioId}`)
+  if (contexto.usuarioNome) contextLines.push(`usuarioNome: ${contexto.usuarioNome}`)
+  if (contexto.usuarioTipo) contextLines.push(`usuarioTipo: ${contexto.usuarioTipo}`)
+  if (contexto.clienteId)   contextLines.push(`clienteId: ${contexto.clienteId}`)
+  if (contexto.leadId)      contextLines.push(`leadId: ${contexto.leadId}`)
   contextLines.push(`solicitante: ${solicitanteSeguro}`)
 
-  const systemPrompt = `${AGENT_SYSTEM_PROMPT}\n\n## Contexto atual\n${contextLines.join('\n')}`
+  // Linha de identificação do operador para personalizar a resposta
+  const operadorInfo = contexto.usuarioNome
+    ? `\n\nO operador que está solicitando esta ação é ${contexto.usuarioNome}${contexto.usuarioTipo ? ` (${contexto.usuarioTipo})` : ''}. Quando confirmar ações concluídas, você pode endereçar a resposta a ele pelo nome.`
+    : ''
+
+  const systemPrompt = `${AGENT_SYSTEM_PROMPT}${operadorInfo}\n\n## Contexto atual\n${contextLines.join('\n')}`
 
   // 5. Agentic loop
   const messages: AIMessageExtended[] = [{ role: 'user', content: instrucao }]
@@ -229,6 +270,9 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
         clienteId:     contexto.clienteId,
         leadId:        contexto.leadId,
         solicitanteAI: solicitanteSeguro,
+        usuarioId:     contexto.usuarioId,
+        usuarioNome:   contexto.usuarioNome,
+        usuarioTipo:   contexto.usuarioTipo,
         tool:          toolCall.name,
         input:         toolCall.input,
         resultado,
@@ -273,6 +317,9 @@ async function salvarAuditoria(params: {
   clienteId?: string
   leadId?: string
   solicitanteAI: string
+  usuarioId?: string
+  usuarioNome?: string
+  usuarioTipo?: string
   tool: string
   input: unknown
   resultado: ToolExecuteResult
@@ -280,19 +327,22 @@ async function salvarAuditoria(params: {
 }) {
   await prisma.agenteAcao.create({
     data: {
-      clienteId:    params.clienteId,
-      leadId:       params.leadId,
+      clienteId:     params.clienteId,
+      leadId:        params.leadId,
       solicitanteAI: params.solicitanteAI,
-      tool:         params.tool,
-      input:        params.input as object,
-      resultado:    {
-        sucesso:  params.resultado.sucesso,
-        resumo:   params.resultado.resumo,
-        erro:     params.resultado.erro ?? null,
-        dados:    params.resultado.dados ?? null,
+      usuarioId:     params.usuarioId,
+      usuarioNome:   params.usuarioNome,
+      usuarioTipo:   params.usuarioTipo,
+      tool:          params.tool,
+      input:         params.input as object,
+      resultado: {
+        sucesso: params.resultado.sucesso,
+        resumo:  params.resultado.resumo,
+        erro:    params.resultado.erro ?? null,
+        dados:   params.resultado.dados ?? null,
       } as object,
       sucesso:   params.resultado.sucesso,
       duracaoMs: params.duracaoMs,
-    },
+    } as never,
   })
 }

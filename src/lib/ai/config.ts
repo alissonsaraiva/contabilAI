@@ -51,6 +51,8 @@ export type AiConfig = {
     portal: string | null
     whatsapp: string | null
   }
+  /** Tools desabilitadas pelo admin — filtradas antes de enviar ao LLM */
+  toolsDesabilitadas: string[]
   whatsapp: {
     aiEnabled: boolean
     aiFeature: string
@@ -113,6 +115,7 @@ export async function getAiConfig(): Promise<AiConfig> {
         evolutionInstance: true,
         zapiInstanceId: true,
         zapiToken: true,
+        toolsDesabilitadas: true,
       },
     })
     if (fetched) row = fetched as Record<string, unknown>
@@ -195,6 +198,8 @@ export async function getAiConfig(): Promise<AiConfig> {
       instanceId: s('evolutionInstance') ?? process.env.EVOLUTION_INSTANCE ?? null,
       token:      safeDecrypt(s('evolutionApiKey')) ?? process.env.EVOLUTION_API_KEY ?? null,
     },
+
+    toolsDesabilitadas: Array.isArray(row['toolsDesabilitadas']) ? row['toolsDesabilitadas'] as string[] : [],
   }
 
   // Armazena no cache antes de retornar

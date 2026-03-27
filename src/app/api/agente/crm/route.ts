@@ -26,12 +26,17 @@ export async function POST(req: Request) {
   }
 
   try {
+    const usuario = session.user as { id: string; name?: string | null; nome?: string; tipo?: string }
+
     const resultado = await executarAgente({
       instrucao,
       contexto: {
         clienteId,
         leadId,
         solicitanteAI: 'crm',
+        usuarioId:   usuario.id,
+        usuarioNome: usuario.nome ?? usuario.name ?? undefined,
+        usuarioTipo: usuario.tipo ?? undefined,
       },
       toolsPermitidas,
     })

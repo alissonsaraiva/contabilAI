@@ -141,6 +141,70 @@ export async function sendText(
   return { ok: false, error: errorMessage, attempts: attempt }
 }
 
+// ─── sendMedia com retry (documentos, imagens, PDFs) ─────────────────────────
+
+export type MediaType = 'document' | 'image' | 'video' | 'audio'
+
+export async function sendMedia(
+  cfg: EvolutionConfig,
+  to: string,
+  opts: {
+    mediatype: MediaType
+    mimetype: string
+    /** Nome do arquivo exibido no WhatsApp */
+    fileName: string
+    /** Legenda opcional abaixo do arquivo */
+    caption?: string
+    /** URL pública do arquivo (preferida — Evolution baixa direto) */
+    mediaUrl?: string
+    /** Base64 do arquivo (fallback quando não há URL pública) */
+    mediaBase64?: string
+  },
+): Promise<SendResult> {
+  const number  = to.replace('@s.whatsapp.net', '').replace('@g.us', '')
+  let lastError: unknown
+  let attempt   = 0
+
+  for (const delay of [0, ...RETRY_DELAYS_MS]) {
+    if (delay > 0) await new Promise(r => setTimeout(r, delay))
+    attempt++
+
+    if (!circuitAllow()) {
+      return {
+        ok:       false,
+        error:    'circuit breaker aberto — Evolution API temporariamente indisponível',
+        attempts: attempt,
+      }
+    }
+
+    try {
+      await evo(cfg, 'POST', `/message/sendMedia/${cfg.instance}`, {
+        number,
+        mediatype: opts.mediatype,
+        mimetype:  opts.mimetype,
+        caption:   opts.caption ?? '',
+        fileName:  opts.fileName,
+        // Evolution aceita mediaUrl (direto) ou media (base64)
+        ...(opts.mediaUrl    && { mediaUrl: opts.mediaUrl }),
+        ...(opts.mediaBase64 && { media:    opts.mediaBase64 }),
+      })
+      circuitSuccess()
+      return { ok: true }
+    } catch (err) {
+      lastError = err
+      circuitFailure()
+      if (err instanceof EvolutionError && err.isClientError()) {
+        console.warn(`[evolution] sendMedia erro do cliente (${err.statusCode}), sem retry:`, err.message)
+        break
+      }
+      console.warn(`[evolution] sendMedia tentativa ${attempt} falhou:`, err instanceof Error ? err.message : err)
+    }
+  }
+
+  const errorMessage = lastError instanceof Error ? lastError.message : String(lastError)
+  return { ok: false, error: errorMessage, attempts: attempt }
+}
+
 // ─── Funções auxiliares (sem retry — erros não críticos ou administrativas) ───
 
 // Cria instância

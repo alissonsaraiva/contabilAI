@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
+import '@/lib/ai/tools' // registra todas as tools no registry
+import { getCapacidades } from '@/lib/ai/tools/registry'
 
 const FEATURE_LABELS: Record<string, string> = {
   crm:        'CRM',
@@ -18,73 +20,6 @@ const TOOL_LABELS: Record<string, string> = {
   registrarInteracao:    'Registrar interação',
   atualizarStatusLead:   'Atualizar lead',
 }
-
-// ── Capacidades do Agente Operacional ────────────────────────────────────────
-// Adicionar aqui quando novas ferramentas forem implementadas.
-type Canais = ('crm' | 'whatsapp' | 'portal' | 'onboarding')[]
-type Capacidade = {
-  tool: string
-  label: string
-  descricao: string
-  canais: Canais
-  categoria: string
-}
-
-const CAPACIDADES: Capacidade[] = [
-  // ── Tarefas ──
-  {
-    tool: 'listarTarefas',
-    label: 'Listar tarefas',
-    descricao: 'Lista tarefas com filtros por cliente, status, prioridade, vencidas ou urgentes.',
-    canais: ['crm', 'whatsapp', 'portal'],
-    categoria: 'Tarefas',
-  },
-  {
-    tool: 'criarTarefa',
-    label: 'Criar tarefa',
-    descricao: 'Cria uma tarefa com título, descrição, cliente, prioridade e prazo. Aceita linguagem natural: "amanhã", "semana que vem", "em 3 dias".',
-    canais: ['crm', 'whatsapp'],
-    categoria: 'Tarefas',
-  },
-  // ── Clientes ──
-  {
-    tool: 'buscarDadosCliente',
-    label: 'Buscar dados do cliente',
-    descricao: 'Retorna perfil completo por nome, CPF, CNPJ ou e-mail — plano, status, últimas tarefas e interações.',
-    canais: ['crm', 'whatsapp', 'portal', 'onboarding'],
-    categoria: 'Clientes',
-  },
-  // ── Funil / Leads ──
-  {
-    tool: 'resumirFunil',
-    label: 'Resumir funil',
-    descricao: 'Visão geral do pipeline: total por etapa, quantos leads entraram hoje e na última semana.',
-    canais: ['crm'],
-    categoria: 'Funil',
-  },
-  {
-    tool: 'listarLeadsInativos',
-    label: 'Leads inativos',
-    descricao: 'Identifica leads parados há X dias sem atividade para retomada proativa.',
-    canais: ['crm'],
-    categoria: 'Funil',
-  },
-  {
-    tool: 'atualizarStatusLead',
-    label: 'Atualizar status do lead',
-    descricao: 'Move um lead de etapa no funil com registro automático de auditoria.',
-    canais: ['crm'],
-    categoria: 'Funil',
-  },
-  // ── Histórico ──
-  {
-    tool: 'registrarInteracao',
-    label: 'Registrar interação',
-    descricao: 'Loga ligação, e-mail, nota interna ou mensagem WhatsApp como interação do cliente ou lead.',
-    canais: ['crm'],
-    categoria: 'Histórico',
-  },
-]
 
 const CANAL_STYLE: Record<string, string> = {
   crm:        'bg-primary/10 text-primary',
@@ -131,6 +66,8 @@ export default async function AgentePage({ searchParams }: Props) {
         sucesso:       true,
         duracaoMs:     true,
         solicitanteAI: true,
+        usuarioNome:   true,
+        usuarioTipo:   true,
         clienteId:     true,
         leadId:        true,
         criadoEm:      true,
@@ -162,8 +99,9 @@ export default async function AgentePage({ searchParams }: Props) {
     return [l.id, nome]
   }))
 
-  // Agrupa capacidades por categoria
-  const categorias = [...new Set(CAPACIDADES.map(c => c.categoria))]
+  // Lê capacidades direto do registry — sempre em sincronia com as tools reais
+  const capacidades = getCapacidades()
+  const categorias = [...new Set(capacidades.map(c => c.categoria))]
 
   return (
     <div className="space-y-6">
@@ -187,7 +125,7 @@ export default async function AgentePage({ searchParams }: Props) {
           <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
           <h2 className="text-[14px] font-semibold text-on-surface">Capacidades disponíveis</h2>
           <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-            {CAPACIDADES.length} ferramentas
+            {capacidades.length} ferramentas
           </span>
         </div>
 
@@ -201,7 +139,7 @@ export default async function AgentePage({ searchParams }: Props) {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">{cat}</span>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {CAPACIDADES.filter(c => c.categoria === cat).map(cap => (
+                {capacidades.filter(c => c.categoria === cat).map(cap => (
                   <div
                     key={cap.tool}
                     className="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 p-3 space-y-2"
@@ -292,6 +230,7 @@ export default async function AgentePage({ searchParams }: Props) {
                 <tr className="border-b border-outline-variant bg-surface-container-low">
                   <th className="px-4 py-3 text-left font-medium text-on-surface-variant">Tool</th>
                   <th className="px-4 py-3 text-left font-medium text-on-surface-variant">Origem</th>
+                  <th className="px-4 py-3 text-left font-medium text-on-surface-variant">Operador</th>
                   <th className="px-4 py-3 text-left font-medium text-on-surface-variant">Contexto</th>
                   <th className="px-4 py-3 text-left font-medium text-on-surface-variant">Resultado</th>
                   <th className="px-4 py-3 text-left font-medium text-on-surface-variant">Duração</th>
@@ -322,6 +261,20 @@ export default async function AgentePage({ searchParams }: Props) {
                         <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-medium text-on-surface-variant">
                           {FEATURE_LABELS[acao.solicitanteAI] ?? acao.solicitanteAI}
                         </span>
+                      </td>
+
+                      <td className="px-4 py-3 text-xs">
+                        {acao.usuarioNome ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[13px] text-on-surface-variant">person</span>
+                            <span className="text-on-surface">{acao.usuarioNome}</span>
+                            {acao.usuarioTipo && (
+                              <span className="rounded-full bg-surface-container px-1.5 py-0.5 text-[10px] text-on-surface-variant">{acao.usuarioTipo}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="italic opacity-40">automático</span>
+                        )}
                       </td>
 
                       <td className="px-4 py-3 text-on-surface-variant text-xs">

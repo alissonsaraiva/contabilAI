@@ -47,6 +47,12 @@ const atualizarStatusLeadTool: Tool = {
     },
   },
 
+  meta: {
+    label: 'Atualizar status do lead',
+    descricao: 'Move um lead de etapa no funil com registro automático de auditoria.',
+    categoria: 'Funil',
+    canais: ['crm'],
+  },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const leadId     = (input.leadId     as string | undefined) ?? ctx.leadId
     const novoStatus = input.novoStatus  as string

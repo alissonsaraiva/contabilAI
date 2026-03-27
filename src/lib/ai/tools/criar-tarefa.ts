@@ -35,6 +35,12 @@ const criarTarefaTool: Tool = {
     },
   },
 
+  meta: {
+    label: 'Criar tarefa',
+    descricao: 'Cria uma tarefa com título, descrição, cliente, prioridade e prazo. Aceita linguagem natural: "amanhã", "semana que vem", "em 3 dias".',
+    categoria: 'Tarefas',
+    canais: ['crm', 'whatsapp'],
+  },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const titulo     = input.titulo     as string
     const clienteId  = (input.clienteId as string | undefined) ?? ctx.clienteId

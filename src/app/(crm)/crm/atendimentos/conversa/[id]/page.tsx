@@ -90,12 +90,22 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
               >
                 {m.conteudo === '[áudio]' ? (
                   <div className="flex flex-col gap-1.5">
-                    <audio
-                      controls
-                      src={`/api/whatsapp/media/${m.id}`}
-                      className="h-9 w-48 rounded-lg"
-                    />
+                    <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-9 w-48 rounded-lg" />
                     <p className="text-[10px] text-on-surface-variant/50">Áudio não transcrito</p>
+                  </div>
+                ) : m.mediaUrl && m.mediaType === 'image' ? (
+                  <div className="flex flex-col gap-1.5">
+                    <img src={m.mediaUrl} alt={m.mediaFileName ?? 'imagem'} className="max-w-[260px] rounded-xl object-cover" />
+                    {m.conteudo && <p className="whitespace-pre-wrap text-[13px]">{m.conteudo}</p>}
+                  </div>
+                ) : m.mediaUrl ? (
+                  <div className="flex flex-col gap-1.5">
+                    <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 hover:bg-surface-container transition-colors">
+                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>
+                      <span className="text-[12px] truncate max-w-[200px]">{m.mediaFileName ?? 'Arquivo'}</span>
+                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 shrink-0">download</span>
+                    </a>
+                    {m.conteudo && <p className="whitespace-pre-wrap text-[13px]">{m.conteudo}</p>}
                   </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{m.conteudo}</p>
@@ -114,6 +124,8 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
         conversaId={conversa.id}
         canal={conversa.canal}
         pausada={!!conversa.pausadaEm}
+        entidadeTipo={conversa.clienteId ? 'cliente' : conversa.leadId ? 'lead' : undefined}
+        entidadeId={conversa.clienteId ?? conversa.leadId ?? undefined}
       />
     </div>
   )

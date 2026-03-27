@@ -1,5 +1,7 @@
-import type { Tool } from './types'
+import type { Tool, ToolMeta } from './types'
 import type { ToolDefinition } from '../providers/types'
+
+export type CapacidadeUI = ToolMeta & { tool: string }
 
 // ─── Registry global (singleton por processo Node) ───────────────────────────
 
@@ -35,4 +37,13 @@ export function getToolDefinitions(nomes?: string[]): ToolDefinition[] {
 /** Busca uma tool específica pelo nome (para executar após o LLM requisitar). */
 export function getTool(nome: string): Tool | undefined {
   return registry.get(nome)
+}
+
+/**
+ * Retorna os metadados de UI de todas as tools registradas.
+ * Usado pela página Configurações → IA → Agente Operacional.
+ * Fonte única de verdade — sempre em sincronia com as tools reais.
+ */
+export function getCapacidades(): CapacidadeUI[] {
+  return [...registry.values()].map(t => ({ tool: t.definition.name, ...t.meta }))
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
@@ -9,6 +9,16 @@ import { cn } from '@/lib/utils'
 const INPUT  = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
 const LABEL  = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 const SELECT = `${INPUT} cursor-pointer`
+
+// ─── Tipos de tools ───────────────────────────────────────────────────────────
+type ToolCapacidade = {
+  tool: string
+  label: string
+  descricao: string
+  categoria: string
+  canais: string[]
+  habilitada: boolean
+}
 
 type Model = { value: string; label: string }
 type ApiStatus = { configured: boolean; masked: string | null }
@@ -99,13 +109,18 @@ const SUB_IAS = [
 ]
 
 export default function ConfiguracoesIAPage() {
-  const [tab, setTab]           = useState<'chaves' | 'funcionalidades'>('chaves')
+  const [tab, setTab]           = useState<'chaves' | 'funcionalidades' | 'ferramentas'>('chaves')
   const [loading, setLoading]     = useState(false)
   const [testing, setTesting]     = useState(false)
   const [testResults, setTestResults] = useState<TestResults | null>(null)
   const [status, setStatus]       = useState<Record<string, ApiStatus>>({})
   const [allModels, setAllModels] = useState<AllModels>(FALLBACK_MODELS)
   const [modelsLoading, setModelsLoading] = useState(false)
+
+  // ── Estado de tools ──────────────────────────────────────────────────────
+  const [tools, setTools]             = useState<ToolCapacidade[]>([])
+  const [toolsLoading, setToolsLoading] = useState(false)
+  const [toolsSaving, setToolsSaving]   = useState(false)
 
   const { register, handleSubmit, watch, setValue, reset } = useForm<FormData>({
     defaultValues: {
@@ -181,6 +196,39 @@ export default function ConfiguracoesIAPage() {
   }
 
   useEffect(() => { loadModels() }, [])
+
+  const loadTools = useCallback(() => {
+    setToolsLoading(true)
+    fetch('/api/agente/tools')
+      .then(r => r.json())
+      .then((data: { capacidades: ToolCapacidade[] }) => setTools(data.capacidades ?? []))
+      .catch(() => {})
+      .finally(() => setToolsLoading(false))
+  }, [])
+
+  useEffect(() => { loadTools() }, [loadTools])
+
+  function toggleTool(toolName: string) {
+    setTools(prev => prev.map(t => t.tool === toolName ? { ...t, habilitada: !t.habilitada } : t))
+  }
+
+  async function saveTools() {
+    setToolsSaving(true)
+    try {
+      const desabilitadas = tools.filter(t => !t.habilitada).map(t => t.tool)
+      const res = await fetch('/api/agente/tools', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ desabilitadas }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Ferramentas do agente salvas!')
+    } catch {
+      toast.error('Erro ao salvar ferramentas')
+    } finally {
+      setToolsSaving(false)
+    }
+  }
 
   async function onSubmitKeys(data: FormData) {
     setLoading(true)
@@ -287,6 +335,7 @@ export default function ConfiguracoesIAPage() {
         {([
           { key: 'chaves',          label: 'Chaves de API',       icon: 'key' },
           { key: 'funcionalidades', label: 'Por Funcionalidade',  icon: 'tune' },
+          { key: 'ferramentas',     label: 'Ferramentas',         icon: 'build' },
         ] as const).map(t => (
           <button
             key={t.key}
@@ -419,6 +468,90 @@ export default function ConfiguracoesIAPage() {
                 })}
               </div>
             )}
+          </div>
+        </>
+      )}
+
+      {/* ── Tab: Ferramentas do Agente ── */}
+      {tab === 'ferramentas' && (
+        <>
+          <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+                  <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+                </div>
+                <div>
+                  <h3 className="text-[14px] font-semibold text-on-surface">Ferramentas do Agente Operacional</h3>
+                  <p className="text-[12px] text-on-surface-variant/80">Desabilite ferramentas que não deseja que o agente use. Afeta todos os canais.</p>
+                </div>
+              </div>
+              {toolsLoading && <Loader2 className="h-4 w-4 animate-spin text-on-surface-variant/40" />}
+            </div>
+
+            {tools.length === 0 && !toolsLoading && (
+              <p className="text-[13px] text-on-surface-variant/60 text-center py-8">Nenhuma ferramenta encontrada.</p>
+            )}
+
+            {tools.length > 0 && (() => {
+              // Agrupa por categoria
+              const categorias = [...new Set(tools.map(t => t.categoria))]
+              return (
+                <div className="space-y-5">
+                  {categorias.map(categoria => (
+                    <div key={categoria}>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-2 px-1">{categoria}</p>
+                      <div className="divide-y divide-outline-variant/10 rounded-xl border border-outline-variant/15 overflow-hidden">
+                        {tools.filter(t => t.categoria === categoria).map(tool => (
+                          <div key={tool.tool} className="flex items-center justify-between gap-4 px-4 py-3 bg-surface-container-low/30 hover:bg-surface-container-low/60 transition-colors">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px] font-semibold text-on-surface">{tool.label}</span>
+                                <div className="flex gap-1">
+                                  {tool.canais.map(canal => (
+                                    <span key={canal} className="rounded-full border border-outline-variant/20 bg-card px-1.5 py-0.5 text-[10px] font-medium text-on-surface-variant/60">{canal}</span>
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-on-surface-variant/60 mt-0.5 truncate">{tool.descricao}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleTool(tool.tool)}
+                              className={cn(
+                                'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                                tool.habilitada ? 'bg-primary' : 'bg-outline-variant/40',
+                              )}
+                              aria-label={tool.habilitada ? 'Desabilitar' : 'Habilitar'}
+                            >
+                              <span className={cn(
+                                'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                                tool.habilitada ? 'translate-x-4' : 'translate-x-0',
+                              )} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-[12px] text-on-surface-variant/60">
+              {tools.filter(t => !t.habilitada).length > 0
+                ? `${tools.filter(t => !t.habilitada).length} ferramenta(s) desabilitada(s)`
+                : 'Todas as ferramentas habilitadas'}
+            </p>
+            <button
+              type="button" onClick={saveTools} disabled={toolsSaving}
+              className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center"
+            >
+              {toolsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
+              Salvar
+            </button>
           </div>
         </>
       )}
