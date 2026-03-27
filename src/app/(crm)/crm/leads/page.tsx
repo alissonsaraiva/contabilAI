@@ -9,10 +9,11 @@ import { Suspense } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const COLUNAS: { status: StatusLead; label: string; dot: string }[] = [
-  { status: 'iniciado', label: 'Iniciado', dot: 'bg-on-surface-variant/40' },
-  { status: 'simulador', label: 'Simulador', dot: 'bg-primary' },
-  { status: 'plano_escolhido', label: 'Plano', dot: 'bg-tertiary' },
-  { status: 'dados_preenchidos', label: 'Dados', dot: 'bg-blue-500' },
+  { status: 'iniciado',           label: 'Iniciado',       dot: 'bg-on-surface-variant/40' },
+  { status: 'simulador',          label: 'Simulador',      dot: 'bg-primary' },
+  { status: 'plano_escolhido',    label: 'Plano',          dot: 'bg-tertiary' },
+  { status: 'dados_preenchidos',  label: 'Dados',          dot: 'bg-blue-500' },
+  { status: 'revisao',            label: 'Pagamento',      dot: 'bg-purple-500' },
   { status: 'aguardando_assinatura', label: 'Ag. Assinatura', dot: 'bg-orange-status' },
 ]
 

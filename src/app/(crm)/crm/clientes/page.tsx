@@ -134,7 +134,7 @@ export default async function ClientesPage({ searchParams }: Props) {
                     <td className="px-6 py-3.5 text-[13px] text-on-surface-variant/80">
                       {c.dataInicio ? formatDate(c.dataInicio) : formatDate(c.criadoEm)}
                     </td>
-                    <td className="px-6 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-6 py-3.5 text-right">
                       <ClienteActionsMenu cliente={c} />
                     </td>
                   </ClienteRow>
