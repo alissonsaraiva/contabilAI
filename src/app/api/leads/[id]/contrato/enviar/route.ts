@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { ContratoPDF } from '@/lib/pdf/contrato-template'
 import { enviarContratoParaAssinatura, docusealConfigurado } from '@/lib/docuseal'
@@ -17,8 +16,8 @@ const PLANO_PRECOS_FALLBACK: Record<string, number> = {
 }
 
 export async function POST(_req: Request, { params }: Params) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  // Rota acessível do onboarding público (sem auth) e do CRM (com auth)
+  // Segurança: leadId é UUID — difícil de adivinhar. Consistente com /contrato (POST).
 
   if (!docusealConfigurado()) {
     return NextResponse.json(

@@ -38,7 +38,6 @@ export default function ContratoPage({ searchParams }: Props) {
   const { leadId, plano = 'essencial' } = use(searchParams)
   const router = useRouter()
   const [lead, setLead] = useState<LeadData | null>(null)
-  const [assinatura, setAssinatura] = useState('')
   const [aceito, setAceito] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingLead, setLoadingLead] = useState(true)
@@ -61,31 +60,26 @@ export default function ContratoPage({ searchParams }: Props) {
     if (!leadId) return
     fetch(`/api/leads/${leadId}`)
       .then(r => r.json())
-      .then((data: LeadData) => {
-        setLead(data)
-        const nome = data.dadosJson?.['Nome completo']
-        if (nome) setAssinatura(nome)
-      })
+      .then((data: LeadData) => setLead(data))
       .catch(() => toast.error('Erro ao carregar dados.'))
       .finally(() => setLoadingLead(false))
   }, [leadId])
 
-  async function handleAssinar() {
+  async function handleEnviar() {
     if (!aceito) { toast.error('Confirme que leu e concorda com os termos.'); return }
-    if (!assinatura.trim()) { toast.error('Digite seu nome completo para assinar.'); return }
     if (!leadId) return
 
     setLoading(true)
     try {
-      const res = await fetch(`/api/leads/${leadId}/contrato`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assinatura: assinatura.trim() }),
-      })
-      if (!res.ok) throw new Error()
-      router.push(`/onboarding/confirmacao?leadId=${leadId}`)
+      const res = await fetch(`/api/leads/${leadId}/contrato/enviar`, { method: 'POST' })
+      const data = await res.json() as { ok?: boolean; error?: string }
+      if (!res.ok || !data.ok) {
+        toast.error(data.error ?? 'Erro ao enviar contrato. Tente novamente.')
+        return
+      }
+      router.push(`/onboarding/confirmacao?leadId=${leadId}&aguardando=true`)
     } catch {
-      toast.error('Erro ao assinar. Tente novamente.')
+      toast.error('Erro de conexão. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -102,11 +96,11 @@ export default function ContratoPage({ searchParams }: Props) {
   const cpf = dados?.['CPF'] ?? ''
 
   const nomeEscritorio = escritorio?.nome ?? 'Escritório Contábil'
-  const multa    = escritorio?.multaPercent             ?? 2.0
-  const juros    = escritorio?.jurosMesPercent          ?? 1.0
-  const diasMul  = escritorio?.diasAtrasoMulta          ?? 15
+  const multa    = escritorio?.multaPercent              ?? 2.0
+  const juros    = escritorio?.jurosMesPercent           ?? 1.0
+  const diasMul  = escritorio?.diasAtrasoMulta           ?? 15
   const diasInad = escritorio?.diasInadimplenciaRescisao ?? 60
-  const diasResc = escritorio?.diasAvisoRescisao        ?? 30
+  const diasResc = escritorio?.diasAvisoRescisao         ?? 30
 
   if (loadingLead) {
     return (
@@ -127,7 +121,7 @@ export default function ContratoPage({ searchParams }: Props) {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-on-surface">Seu contrato</h1>
         <p className="mt-1.5 text-[14px] text-on-surface-variant">
-          Leia com atenção e assine digitalmente para concluir
+          Leia com atenção e envie para assinatura eletrônica
         </p>
       </div>
 
@@ -208,7 +202,7 @@ export default function ContratoPage({ searchParams }: Props) {
 
           <p className="font-semibold text-[14px] pt-2">CLÁUSULA 8 – DA ASSINATURA ELETRÔNICA</p>
           <p>
-            Este contrato é celebrado eletronicamente nos termos da Lei nº 14.063/2020, tendo plena validade jurídica a assinatura digital realizada pelo CONTRATANTE na data de conclusão deste cadastro.
+            Este contrato é celebrado eletronicamente nos termos da Lei nº 14.063/2020, mediante assinatura eletrônica avançada realizada pelo CONTRATANTE através de plataforma certificada, com registro de identidade, IP e timestamp auditável.
           </p>
 
           <p className="font-semibold text-[14px] pt-2">CLÁUSULA 9 – DO FORO</p>
@@ -218,8 +212,8 @@ export default function ContratoPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Aceite e assinatura */}
-      <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-4">
+      {/* Aceite */}
+      <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm">
         <label className="flex items-start gap-3 cursor-pointer">
           <div
             onClick={() => setAceito(v => !v)}
@@ -233,45 +227,29 @@ export default function ContratoPage({ searchParams }: Props) {
             Li e concordo com todos os termos do contrato acima e autorizo a prestação dos serviços conforme o <span className="font-semibold">Plano {planoLabel}</span>.
           </p>
         </label>
-
-        <div>
-          <p className="text-[13px] font-semibold text-on-surface-variant mb-1.5">
-            Assine digitalmente digitando seu nome completo
-          </p>
-          <input
-            className="w-full h-12 rounded-2xl border border-outline-variant/30 bg-white px-4 text-[15px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
-            placeholder="Seu nome completo"
-            value={assinatura}
-            onChange={e => setAssinatura(e.target.value)}
-            autoComplete="name"
-          />
-          <p className="mt-1.5 text-[11px] text-on-surface-variant/60">
-            Assinatura com validade jurídica conforme Lei 14.063/2020
-          </p>
-        </div>
       </div>
 
       <button
-        onClick={handleAssinar}
-        disabled={loading || !aceito || !assinatura.trim()}
+        onClick={handleEnviar}
+        disabled={loading || !aceito}
         className="flex w-full h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
       >
         {loading ? (
           <>
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            Gerando contrato...
+            Enviando contrato…
           </>
         ) : (
           <>
             <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>draw</span>
-            Assinar e concluir
+            Enviar para assinatura
           </>
         )}
       </button>
 
       <p className="text-center text-[12px] text-on-surface-variant/60">
-        <span className="material-symbols-outlined text-[13px] align-middle mr-1">lock</span>
-        O contrato assinado será enviado para seu e-mail.
+        <span className="material-symbols-outlined text-[13px] align-middle mr-1">mark_email_read</span>
+        Você receberá um e-mail para assinar eletronicamente com validade jurídica
       </p>
     </div>
   )
