@@ -140,7 +140,7 @@ export async function POST(req: Request) {
   } catch (aiErr) {
     const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
     console.error('[onboarding/chat] IA indisponível:', aiErrMsg)
-    // Cria escalação silenciosa para o CRM tomar conhecimento
+    // Cria escalação para o CRM atender o lead manualmente
     let escalacaoId: string | undefined
     try {
       const esc = await prisma.escalacao.create({
@@ -158,6 +158,10 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error('[onboarding/chat] erro ao criar escalação de falha IA:', err)
     }
+    // Notifica equipe no sino do CRM
+    import('@/lib/notificacoes')
+      .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
+      .catch(() => {})
     // Retorna mensagem amigável e inicia poll para o lead aguardar humano
     return NextResponse.json({
       reply: 'Estou com uma instabilidade no momento. Um especialista da nossa equipe já foi notificado e irá responder em breve.',

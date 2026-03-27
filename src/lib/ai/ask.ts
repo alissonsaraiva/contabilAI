@@ -176,7 +176,18 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     }
   } catch (err) {
     // RAG indisponível — continua sem contexto (não bloqueia a resposta)
-    console.warn('[askAI] RAG indisponível:', (err as Error).message)
+    const errMsg = (err as Error).message
+    console.warn('[askAI] RAG indisponível:', errMsg)
+    // Atualiza health do Voyage em memória e notifica equipe na transição ok→falhou
+    try {
+      const { setProviderHealth, getAiHealth } = await import('@/lib/ai/health-cache')
+      const eraOk = getAiHealth().voyage.checkedAt === 0 || getAiHealth().voyage.ok
+      setProviderHealth('voyage', { ok: false, error: errMsg })
+      if (eraOk) {
+        const { notificarIaOffline } = await import('@/lib/notificacoes')
+        notificarIaOffline('voyage', errMsg).catch(() => {})
+      }
+    } catch { /* não bloqueia a resposta */ }
   }
 
   // 3. Monta system prompt — usa o do DB se configurado, senão o padrão

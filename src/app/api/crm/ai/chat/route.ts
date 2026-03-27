@@ -139,14 +139,29 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, convers
   }
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const { resposta, provider, model } = await askAI({
-    pergunta:   message,
-    context,
-    feature:    'crm',
-    historico,
-    systemExtra,
-    maxTokens:  1024,
-  })
+  let resposta: string
+  let provider: string
+  let model: string
+  try {
+    const result = await askAI({
+      pergunta:   message,
+      context,
+      feature:    'crm',
+      historico,
+      systemExtra,
+      maxTokens:  1024,
+    })
+    resposta = result.resposta
+    provider = result.provider
+    model    = result.model
+  } catch (aiErr) {
+    const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
+    console.error('[crm/ai/chat] IA indisponível:', aiErrMsg)
+    import('@/lib/notificacoes')
+      .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
+      .catch(() => {})
+    return NextResponse.json({ reply: 'IA temporariamente indisponível. Verifique a saúde dos providers em Configurações → IA → Saúde.' })
+  }
 
   addMensagens(conversaId, message, resposta)
 

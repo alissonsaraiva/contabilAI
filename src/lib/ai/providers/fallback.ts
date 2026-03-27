@@ -50,8 +50,15 @@ function markOk(provider: KnownProvider): void {
 }
 
 function markFailed(provider: KnownProvider, error: string): void {
+  const eraOk = getAiHealth()[provider].checkedAt === 0 || getAiHealth()[provider].ok
   setProviderHealth(provider, { ok: false, error })
   console.warn(`[ai/fallback] Provider "${provider}" falhou e será ignorado por ${CIRCUIT_BREAK_MS / 1000}s: ${error}`)
+  // Notifica equipe apenas na transição ok→falhou (evita spam)
+  if (eraOk) {
+    import('@/lib/notificacoes')
+      .then(({ notificarIaOffline }) => notificarIaOffline(provider, error))
+      .catch(() => {})
+  }
 }
 
 function logFallback(from: string, to: string, feature: string, error: string) {

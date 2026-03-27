@@ -61,14 +61,29 @@ REGRAS:
 - NUNCA acesse dados de outros clientes ou dados que não sejam os do ${cliente?.nome ?? 'cliente'}.
 - Se o cliente pedir para falar com um humano ou escalar o atendimento, informe que ele pode usar a opção "Solicitar atendimento humano" no chat.`
 
-  const { resposta, provider, model } = await askAI({
-    pergunta:   message,
-    context:    { escopo: 'cliente+global', clienteId },
-    feature:    'portal',
-    historico,
-    systemExtra,
-    maxTokens:  512,
-  })
+  let resposta: string
+  let provider: string
+  let model: string
+  try {
+    const result = await askAI({
+      pergunta:   message,
+      context:    { escopo: 'cliente+global', clienteId },
+      feature:    'portal',
+      historico,
+      systemExtra,
+      maxTokens:  512,
+    })
+    resposta = result.resposta
+    provider = result.provider
+    model    = result.model
+  } catch (aiErr) {
+    const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
+    console.error('[portal/chat] IA indisponível:', aiErrMsg)
+    import('@/lib/notificacoes')
+      .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
+      .catch(() => {})
+    return NextResponse.json({ reply: 'Estou com uma instabilidade no momento. Tente novamente em alguns minutos ou acesse a seção de atendimento do portal.' })
+  }
 
   addMensagens(conversaId, message, resposta)
 

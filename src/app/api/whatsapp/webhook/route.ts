@@ -479,6 +479,9 @@ export async function POST(req: Request) {
     } catch (aiErr) {
       const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
       console.error('[whatsapp/webhook] IA indisponível:', aiErrMsg)
+      import('@/lib/notificacoes')
+        .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
+        .catch(() => {})
       // Cria escalação silenciosa — sem mensagem pro contato
       prisma.escalacao.create({
         data: {
