@@ -9,7 +9,7 @@ type Msg = { role: 'user' | 'assistant'; text: string }
 function buildGreeting(nomeIa: string): Msg {
   return {
     role: 'assistant',
-    text: `Olá! Sou ${nomeIa}. Tire suas dúvidas sobre planos, impostos, regime tributário ou qualquer coisa relacionada à contabilidade. 😊`,
+    text: `Olá! Sou ${nomeIa}. Estou aqui para te ajudar durante o cadastro. Tem alguma dúvida sobre o plano escolhido, os documentos ou as próximas etapas? 😊`,
   }
 }
 
