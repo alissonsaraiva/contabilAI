@@ -30,7 +30,7 @@ function InfoAcesso({ acesso, onClose }: { acesso: AcessoCriado; onClose: () => 
 
   const mensagemWhatsApp =
     `Olá, *${acesso.nome}*! 👋\n\n` +
-    `Seu acesso ao ContabAI está pronto:\n\n` +
+    `Seu acesso ao ${process.env.NEXT_PUBLIC_APP_NAME ?? 'sistema'} está pronto:\n\n` +
     `🌐 *Link:* ${urlCrm}\n` +
     `📧 *E-mail:* ${acesso.email}\n` +
     `🔑 *Senha temporária:* \`${acesso.senha}\`\n\n` +

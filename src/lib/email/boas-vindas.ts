@@ -9,15 +9,21 @@ type ClienteBasico = {
 }
 
 export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
-  const escritorio = await prisma.escritorio.findFirst({
-    select: { nome: true, emailNome: true },
-  })
+  const [escritorio, clienteRow] = await Promise.all([
+    prisma.escritorio.findFirst({ select: { nome: true, emailNome: true } }),
+    prisma.cliente.findUnique({ where: { id: cliente.id }, select: { empresaId: true } }),
+  ])
 
   const nomeEscritorio = escritorio?.nome ?? 'ContabAI'
   const primeiroNome   = cliente.nome.split(' ')[0]
 
+  if (!clienteRow?.empresaId) {
+    console.error('[boas-vindas] cliente sem empresaId — não é possível criar token de portal')
+    return
+  }
+
   // Link válido por 24h — tempo suficiente para o cliente acessar com calma
-  const link = await criarTokenPortal(cliente.id, 24 * 60 * 60 * 1000)
+  const link = await criarTokenPortal(cliente.id, clienteRow.empresaId, 24 * 60 * 60 * 1000)
 
   await sendEmail({
     para:    cliente.email,

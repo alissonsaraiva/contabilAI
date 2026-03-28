@@ -56,9 +56,9 @@ export async function POST(req: Request) {
   if (clienteId) {
     const cliente = await prisma.cliente.findUnique({
       where: { id: clienteId },
-      select: { nome: true, razaoSocial: true },
+      select: { nome: true, empresa: { select: { razaoSocial: true } } },
     })
-    const nome = cliente?.razaoSocial ?? cliente?.nome
+    const nome = cliente?.empresa?.razaoSocial ?? cliente?.nome
     escopoLabel = nome ? `cliente: ${nome}` : 'cliente (dados não encontrados)'
   } else if (leadId) {
     const lead = await prisma.lead.findUnique({

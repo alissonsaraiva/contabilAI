@@ -24,6 +24,7 @@ import { HistoricoTimeline } from '@/components/crm/historico-timeline'
 import { ClienteStatusSelect } from '@/components/crm/cliente-status-select'
 import { ReprocessarPdfButton } from '@/components/crm/reprocessar-pdf-button'
 import { EditarClienteButton } from '@/components/crm/editar-cliente-button'
+import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -68,7 +69,7 @@ export default async function ClienteDetailPage({ params }: Props) {
     prisma.cliente.findUnique({
       where: { id },
       include: {
-        socios: true,
+        empresa: { include: { socios: true } },
         documentos: true,
         contratos: true,
         tarefas: { orderBy: { criadoEm: 'desc' }, take: 10 },
@@ -96,11 +97,15 @@ export default async function ClienteDetailPage({ params }: Props) {
     },
   })
 
+  const socios: NonNullable<typeof cliente.empresa>['socios'] = cliente.empresa?.socios ?? []
+  const documentos = cliente.documentos
+  const contratos  = cliente.contratos
+
   const tabs = [
     { value: 'dados', label: 'Dados', count: null },
-    { value: 'socios', label: 'Sócios', count: cliente.socios.length },
-    { value: 'documentos', label: 'Documentos', count: cliente.documentos.length },
-    { value: 'contratos', label: 'Contratos', count: cliente.contratos.length },
+    { value: 'socios', label: 'Sócios', count: socios.length },
+    { value: 'documentos', label: 'Documentos', count: documentos.length },
+    { value: 'contratos', label: 'Contratos', count: contratos.length },
     { value: 'historico', label: 'Interações', count: null },
     { value: 'conversas', label: 'Conversas IA', count: conversas.length },
   ]
@@ -130,10 +135,10 @@ export default async function ClienteDetailPage({ params }: Props) {
               <span className="material-symbols-outlined text-[14px]">payments</span>
               <span className="font-semibold text-on-surface">{formatBRL(Number(cliente.valorMensal))}</span>/mês
             </span>
-            {cliente.cnpj && (
+            {cliente.empresa?.cnpj && (
               <span className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px]">badge</span>
-                {formatCNPJ(cliente.cnpj)}
+                {formatCNPJ(cliente.empresa.cnpj)}
               </span>
             )}
             {cliente.cidade && (
@@ -167,9 +172,9 @@ export default async function ClienteDetailPage({ params }: Props) {
               valorMensal: Number(cliente.valorMensal),
               vencimentoDia: cliente.vencimentoDia,
               formaPagamento: cliente.formaPagamento,
-              cnpj: cliente.cnpj,
-              razaoSocial: cliente.razaoSocial,
-              regime: cliente.regime,
+              cnpj: cliente.empresa?.cnpj ?? null,
+              razaoSocial: cliente.empresa?.razaoSocial ?? null,
+              regime: cliente.empresa?.regime ?? null,
               cidade: cliente.cidade,
               uf: cliente.uf,
               status: cliente.status,
@@ -227,10 +232,10 @@ export default async function ClienteDetailPage({ params }: Props) {
               <InfoRow label="Valor mensal" value={formatBRL(Number(cliente.valorMensal))} />
               <InfoRow label="Vencimento" value={`Dia ${cliente.vencimentoDia}`} />
               <InfoRow label="Pagamento" value={FORMA_PAGAMENTO_LABELS[cliente.formaPagamento]} />
-              {cliente.regime && <InfoRow label="Regime" value={REGIME_LABELS[cliente.regime] ?? cliente.regime} />}
-              {cliente.cnpj && <InfoRow label="CNPJ" value={formatCNPJ(cliente.cnpj)} />}
-              {cliente.razaoSocial && <InfoRow label="Razão social" value={cliente.razaoSocial} />}
-              {cliente.nomeFantasia && <InfoRow label="Nome fantasia" value={cliente.nomeFantasia} />}
+              {cliente.empresa?.regime && <InfoRow label="Regime" value={REGIME_LABELS[cliente.empresa.regime] ?? cliente.empresa.regime} />}
+              {cliente.empresa?.cnpj && <InfoRow label="CNPJ" value={formatCNPJ(cliente.empresa.cnpj)} />}
+              {cliente.empresa?.razaoSocial && <InfoRow label="Razão social" value={cliente.empresa.razaoSocial} />}
+              {cliente.empresa?.nomeFantasia && <InfoRow label="Nome fantasia" value={cliente.empresa.nomeFantasia} />}
             </InfoCard>
 
             {(cliente.cep || cliente.cidade) && (
@@ -249,7 +254,7 @@ export default async function ClienteDetailPage({ params }: Props) {
 
             <InfoCard title="Gestão" icon="manage_accounts">
               <InfoRow label="Status" value={STATUS_CLIENTE_LABELS[cliente.status]} />
-              {cliente.responsavel && <InfoRow label="Responsável" value={cliente.responsavel.nome} />}
+              {cliente.responsavel && <InfoRow label="Responsável" value={cliente.responsavel.nome ?? ''} />}
               {cliente.dataInicio && <InfoRow label="Início" value={formatDate(cliente.dataInicio)} />}
               {(cliente as any).inativadoEm && (
                 <InfoRow label="Inativado em" value={formatDate((cliente as any).inativadoEm)} />
@@ -275,11 +280,11 @@ export default async function ClienteDetailPage({ params }: Props) {
 
         {/* ── Sócios ─────────────────────────────────────── */}
         <TabsContent value="socios" className="m-0 focus-visible:outline-none">
-          {cliente.socios.length === 0 ? (
+          {socios.length === 0 ? (
             <EmptyState icon="group" msg="Nenhum sócio cadastrado" />
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {cliente.socios.map((s) => (
+              {socios.map((s) => (
                 <div key={s.id} className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm transition-shadow hover:shadow-md">
                   <div className="flex items-center gap-3 px-5 py-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -309,6 +314,13 @@ export default async function ClienteDetailPage({ params }: Props) {
                     {s.participacao && <InfoRow label="Participação" value={`${Number(s.participacao)}%`} />}
                     {s.email && <InfoRow label="E-mail" value={s.email} />}
                     {s.telefone && <InfoRow label="Telefone" value={formatTelefone(s.telefone)} />}
+                  </div>
+                  <div className="border-t border-outline-variant/10 px-5 py-3">
+                    <SocioPortalControls
+                      socioId={s.id}
+                      temEmail={!!s.email}
+                      portalAccess={s.portalAccess}
+                    />
                   </div>
                 </div>
               ))}

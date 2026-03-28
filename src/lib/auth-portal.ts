@@ -1,10 +1,10 @@
 /**
- * Auth exclusivo do portal do cliente.
+ * Auth exclusivo do portal da empresa.
  * Cookie separado do CRM: portal.session-token
  * Endpoint: /api/portal/auth/[...nextauth]
  *
- * Assim CRM e Portal têm sessões completamente independentes — um login
- * não interfere no outro, mesmo no mesmo navegador.
+ * Session carrega: id (clienteId ou socioId), tipo ('cliente'|'socio'), empresaId.
+ * Titular e sócios têm acesso total ao portal da empresa.
  */
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
@@ -34,22 +34,25 @@ const portalAuth = NextAuth({
     Credentials({
       id: 'portal-token',
       credentials: {
-        clienteId: { type: 'text' },
+        id:        { type: 'text' },
         nome:      { type: 'text' },
         email:     { type: 'email' },
+        tipo:      { type: 'text' },   // 'cliente' | 'socio'
+        empresaId: { type: 'text' },
       },
       async authorize(credentials) {
-        if (!credentials?.clienteId || !credentials?.email) return null
+        if (!credentials?.id || !credentials?.email || !credentials?.empresaId) return null
         return {
-          id:    credentials.clienteId as string,
-          name:  credentials.nome      as string,
-          email: credentials.email     as string,
-          tipo:  'cliente',
+          id:        credentials.id        as string,
+          name:      credentials.nome      as string,
+          email:     credentials.email     as string,
+          tipo:      credentials.tipo      as string,
+          empresaId: credentials.empresaId as string,
         }
       },
     }),
 
-    // Google OAuth — redirect URI: /api/portal/auth/callback/google
+    // Google OAuth — apenas titulares (clientes) — redirect URI: /api/portal/auth/callback/google
     Google({
       clientId:     process.env.GOOGLE_CLIENT_ID     ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
@@ -62,34 +65,35 @@ const portalAuth = NextAuth({
         if (!user.email) return false
         const cliente = await prisma.cliente.findUnique({
           where:  { email: user.email },
-          select: { id: true, nome: true, status: true },
+          select: { id: true, nome: true, status: true, empresaId: true },
         })
         if (!cliente) return '/portal/login?erro=email_nao_cadastrado'
         if (cliente.status === 'suspenso')  return '/portal/login?erro=conta_suspensa'
         if (cliente.status === 'cancelado') return '/portal/login?erro=conta_cancelada'
-        ;(user as any).id   = cliente.id
-        ;(user as any).nome = cliente.nome
-        ;(user as any).tipo = 'cliente'
+        if (!cliente.empresaId)             return '/portal/login?erro=empresa_nao_vinculada'
+        ;(user as any).id        = cliente.id
+        ;(user as any).nome      = cliente.nome
+        ;(user as any).tipo      = 'cliente'
+        ;(user as any).empresaId = cliente.empresaId
         return true
       }
       return true
     },
 
-    jwt({ token, user, account }) {
+    jwt({ token, user }) {
       if (user) {
-        token.tipo = (user as any).tipo
-        token.id   = user.id
-      }
-      if (account?.provider === 'google' && (user as any)?.tipo === 'cliente') {
-        token.tipo = 'cliente'
+        token.id        = user.id
+        token.tipo      = (user as any).tipo
+        token.empresaId = (user as any).empresaId
       }
       return token
     },
 
     session({ session, token }) {
       if (session.user) {
-        ;(session.user as any).tipo = token.tipo
-        ;(session.user as any).id   = token.id
+        ;(session.user as any).id        = token.id
+        ;(session.user as any).tipo      = token.tipo
+        ;(session.user as any).empresaId = token.empresaId
       }
       return session
     },
@@ -99,10 +103,6 @@ const portalAuth = NextAuth({
   trustHost: true,
 })
 
-// Exports nomeados para uso nos diferentes contextos:
-// - portalHandlers → route handler em /api/portal/auth/[...nextauth]
-// - authPortal     → uso explícito para diferenciar do auth do CRM
-// - auth           → alias para páginas/rotas do portal que importam { auth }
 export const portalHandlers = portalAuth.handlers
 export const authPortal     = portalAuth.auth
 export const auth           = portalAuth.auth

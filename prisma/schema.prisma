@@ -173,10 +173,29 @@ model Lead {
   @@map("leads")
 }
 
+model Empresa {
+  id           String        @id @default(uuid())
+  cnpj         String?       @unique
+  razaoSocial  String?
+  nomeFantasia String?
+  regime       Regime?
+  status       StatusCliente @default(ativo)
+  criadoEm     DateTime      @default(now())
+  atualizadoEm DateTime      @updatedAt
+
+  cliente      Cliente?
+  socios       Socio[]
+  portalTokens PortalToken[]
+
+  @@map("empresas")
+}
+
 model Cliente {
   id                  String          @id @default(uuid())
   leadId              String?         @unique
   lead                Lead?           @relation(fields: [leadId], references: [id])
+  empresaId           String?         @unique
+  empresa             Empresa?        @relation(fields: [empresaId], references: [id])
   nome                String
   cpf                 String          @unique
   rg                  String?
@@ -194,10 +213,6 @@ model Cliente {
   bairro              String?
   cidade              String?
   uf                  String?
-  cnpj                String?         @unique
-  razaoSocial         String?
-  nomeFantasia        String?
-  regime              Regime?
   planoTipo           PlanoTipo
   valorMensal         Decimal         @db.Decimal(10, 2)
   vencimentoDia       Int
@@ -215,7 +230,6 @@ model Cliente {
   criadoEm            DateTime        @default(now())
   atualizadoEm        DateTime        @updatedAt
 
-  socios          Socio[]
   documentos      Documento[]
   contratos       Contrato[]
   tarefas         Tarefa[]
@@ -229,8 +243,8 @@ model Cliente {
 
 model Socio {
   id           String   @id @default(uuid())
-  clienteId    String
-  cliente      Cliente  @relation(fields: [clienteId], references: [id])
+  empresaId    String
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   nome         String
   cpf          String
   qualificacao String?
@@ -238,7 +252,10 @@ model Socio {
   email        String?
   telefone     String?
   principal    Boolean  @default(false)
-  criadoEm    DateTime @default(now())
+  portalAccess Boolean  @default(false)
+  criadoEm     DateTime @default(now())
+
+  portalTokens PortalToken[]
 
   @@map("socios")
 }
@@ -517,14 +534,20 @@ model Escalacao {
 
 model PortalToken {
   id         String    @id @default(uuid())
-  clienteId  String
-  cliente    Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  empresaId  String
+  empresa    Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  clienteId  String?
+  cliente    Cliente?  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  socioId    String?
+  socio      Socio?    @relation(fields: [socioId], references: [id], onDelete: Cascade)
   token      String    @unique  // hash SHA-256 do token enviado por e-mail
   expiresAt  DateTime
   usedAt     DateTime?
-  criadoEm  DateTime  @default(now())
+  criadoEm   DateTime  @default(now())
 
+  @@index([empresaId])
   @@index([clienteId])
+  @@index([socioId])
   @@map("portal_tokens")
 }
 

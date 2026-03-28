@@ -6,7 +6,8 @@
  */
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
-import type { PlanoTipo, FormaPagamento, StatusCliente } from '@prisma/client'
+import { criarClienteDeContrato } from '@/lib/clientes/criar-de-contrato'
+import type { PlanoTipo, FormaPagamento } from '@prisma/client'
 
 type ZapSignWebhookPayload = {
   event_type: string
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
     data: { status: 'assinado', stepAtual: 6 },
   })
 
-  // ── Converte lead em cliente automaticamente ──────────────────────────────
+  // ── Converte lead em cliente + empresa automaticamente ───────────────────
   const lead = contrato.lead
   const dados = lead.dadosJson as Record<string, string> | null
   const nome = dados?.['Nome completo'] ?? lead.contatoEntrada
@@ -88,37 +89,25 @@ export async function POST(req: Request) {
       let cliente = await prisma.cliente.findUnique({ where: { leadId: lead.id } })
       if (!cliente) {
         const plano = lead.planoTipo ?? 'essencial'
-        const valor = contrato.valorMensal
-        const vencimento = contrato.vencimentoDia
-        const formaPagamento = contrato.formaPagamento
-
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          cliente = await prisma.$transaction(async (tx: any) => {
-            const c = await tx.cliente.create({
-              data: {
-                leadId: lead.id,
-                nome,
-                cpf,
-                email,
-                telefone,
-                whatsapp: telefone,
-                planoTipo: plano as PlanoTipo,
-                valorMensal: valor,
-                vencimentoDia: vencimento,
-                formaPagamento: formaPagamento as FormaPagamento,
-                status: 'ativo' as StatusCliente,
-                dataInicio: agora,
-                ...(dados?.['CNPJ'] && { cnpj: dados['CNPJ'] }),
-                ...(dados?.['Razão Social'] && { razaoSocial: dados['Razão Social'] }),
-                ...(dados?.['Nome Fantasia'] && { nomeFantasia: dados['Nome Fantasia'] }),
-                ...(dados?.['Cidade'] && { cidade: dados['Cidade'] }),
-                ...(lead.responsavelId && { responsavelId: lead.responsavelId }),
-              },
+          const resultado = await prisma.$transaction(async (tx) => {
+            const r = await criarClienteDeContrato(tx, {
+              leadId: lead.id, nome, cpf, email, telefone,
+              planoTipo: plano as PlanoTipo,
+              valorMensal: contrato.valorMensal,
+              vencimentoDia: contrato.vencimentoDia,
+              formaPagamento: contrato.formaPagamento as FormaPagamento,
+              dataInicio: agora,
+              cnpj:         dados?.['CNPJ'],
+              razaoSocial:  dados?.['Razão Social'],
+              nomeFantasia: dados?.['Nome Fantasia'],
+              cidade:       dados?.['Cidade'],
+              responsavelId: lead.responsavelId,
             })
-            await tx.contrato.update({ where: { id: contrato.id }, data: { clienteId: c.id } })
-            return c
+            await tx.contrato.update({ where: { id: contrato.id }, data: { clienteId: r.clienteId } })
+            return r
           })
+          cliente = await prisma.cliente.findUnique({ where: { id: resultado.clienteId } })
         } catch (err: unknown) {
           if ((err as { code?: string })?.code === 'P2002') {
             cliente = await prisma.cliente.findUnique({ where: { leadId: lead.id } })
@@ -131,11 +120,9 @@ export async function POST(req: Request) {
       }
 
       if (cliente) {
-        // RAG + e-mail de boas-vindas em background (não bloqueia a resposta ao ZapSign)
         import('@/lib/rag/ingest')
           .then(({ indexarCliente }) => indexarCliente(cliente!))
           .catch(() => {})
-
         import('@/lib/email/boas-vindas')
           .then(({ enviarBoasVindas }) =>
             enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })

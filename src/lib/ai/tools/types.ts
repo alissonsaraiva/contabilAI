@@ -7,6 +7,12 @@ export type ToolContext = {
   clienteId?: string
   /** ID do lead sendo atendido (quando disponível) */
   leadId?: string
+  /**
+   * ID da empresa vinculada ao cliente ou sócio logado no portal.
+   * Obrigatório no canal portal — sócios não têm clienteId, apenas empresaId.
+   * Quando presente, use-o para scopar dados da empresa.
+   */
+  empresaId?: string
   /** Qual IA está solicitando a execução — usado para auditoria */
   solicitanteAI: string  // 'crm' | 'whatsapp' | 'portal' | 'onboarding'
   /** ID do usuário autenticado que acionou o agente (somente canal CRM) */

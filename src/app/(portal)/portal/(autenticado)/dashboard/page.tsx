@@ -44,16 +44,31 @@ const CONTRATO_STATUS: Record<string, { label: string; icon: string; color: stri
 }
 
 export default async function PortalDashboardPage() {
-  const session   = await auth()
-  const clienteId = (session?.user as any)?.id
-  if (!clienteId) redirect('/portal/login')
+  const session = await auth()
+  const user    = session?.user as any
+  if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) redirect('/portal/login')
+
+  // Resolve clienteId: sócios compartilham os dados da empresa do titular
+  let clienteId: string
+  if (user.tipo === 'socio') {
+    const titular = await prisma.cliente.findUnique({
+      where: { empresaId: user.empresaId },
+      select: { id: true },
+    })
+    if (!titular) redirect('/portal/login')
+    clienteId = titular.id
+  } else {
+    clienteId = user.id
+  }
 
   const { cliente, documentosPendentes, tarefasRecentes, contrato } = await getPortalData(clienteId)
   if (!cliente) redirect('/portal/login')
 
   const planoLabel     = PLANO_LABELS[cliente.planoTipo] ?? cliente.planoTipo
   const contratoStatus = contrato ? (CONTRATO_STATUS[contrato.status] ?? CONTRATO_STATUS.rascunho) : null
-  const primeiroNome   = cliente.nome.split(' ')[0]
+  // Sócios veem seu próprio nome na saudação, não o do titular
+  const nomeParaSaudacao = user.tipo === 'socio' ? (user.nome as string ?? cliente.nome) : cliente.nome
+  const primeiroNome     = nomeParaSaudacao.split(' ')[0]
 
   return (
     <div className="space-y-6">

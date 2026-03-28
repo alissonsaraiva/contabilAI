@@ -47,9 +47,10 @@ const buscarDadosClienteTool: Tool = {
       ? await prisma.cliente.findUnique({
           where: { id: clienteId },
           include: {
+            empresa: true,
             responsavel: { select: { nome: true } },
             tarefas: {
-              where: { status: { notIn: ['concluida', 'cancelada'] } },
+              where: { status: { notIn: ['concluida', 'cancelada'] as any } },
               select: { id: true, titulo: true, prazo: true, prioridade: true, status: true },
               orderBy: { prazo: 'asc' },
               take: 5,
@@ -64,22 +65,23 @@ const buscarDadosClienteTool: Tool = {
       : await prisma.cliente.findFirst({
           where: {
             OR: [
-              { nome:        { contains: busca!, mode: 'insensitive' } },
-              { email:       { contains: busca!, mode: 'insensitive' } },
-              { razaoSocial: { contains: busca!, mode: 'insensitive' } },
+              { nome:  { contains: busca!, mode: 'insensitive' } },
+              { email: { contains: busca!, mode: 'insensitive' } },
+              { empresa: { is: { razaoSocial: { contains: busca!, mode: 'insensitive' } } } },
               // Busca por CPF/CNPJ com ou sem formatação
               { cpf:  busca! },
-              { cnpj: busca! },
+              { empresa: { is: { cnpj: busca! } } },
               ...(buscaNorm && buscaNorm !== busca ? [
-                { cpf:  buscaNorm },
-                { cnpj: buscaNorm },
+                { cpf: buscaNorm },
+                { empresa: { is: { cnpj: buscaNorm } } },
               ] : []),
             ],
           },
           include: {
+            empresa: true,
             responsavel: { select: { nome: true } },
             tarefas: {
-              where: { status: { notIn: ['concluida', 'cancelada'] } },
+              where: { status: { notIn: ['concluida', 'cancelada'] as any } },
               select: { id: true, titulo: true, prazo: true, prioridade: true, status: true },
               orderBy: { prazo: 'asc' },
               take: 5,
@@ -104,27 +106,29 @@ const buscarDadosClienteTool: Tool = {
       `Cliente: ${cliente.nome}`,
       `Status: ${cliente.status}`,
       `Plano: ${cliente.planoTipo} — R$ ${cliente.valorMensal}/mês`,
-      `Regime: ${cliente.regime ?? 'não informado'}`,
+      `Regime: ${cliente.empresa?.regime ?? 'não informado'}`,
       `Email: ${cliente.email}`,
       `Telefone: ${cliente.telefone}`,
-      ...(cliente.cnpj ? [`CNPJ: ${cliente.cnpj}`] : []),
-      ...(cliente.razaoSocial ? [`Razão social: ${cliente.razaoSocial}`] : []),
-      `Responsável: ${cliente.responsavel?.nome ?? 'não atribuído'}`,
+      ...(cliente.empresa?.cnpj ? [`CNPJ: ${cliente.empresa.cnpj}`] : []),
+      ...(cliente.empresa?.razaoSocial ? [`Razão social: ${cliente.empresa.razaoSocial}`] : []),
+      `Responsável: ${(cliente as any).responsavel?.nome ?? 'não atribuído'}`,
       `Vencimento: dia ${cliente.vencimentoDia}`,
       `Pagamento: ${cliente.formaPagamento}`,
     ]
 
-    if (cliente.tarefas.length > 0) {
-      linhas.push('', `Tarefas em aberto (${cliente.tarefas.length}):`)
-      cliente.tarefas.forEach(t => {
+    const tarefas = (cliente as any).tarefas as Array<{ prioridade: string; titulo: string; prazo: Date | null }>
+    if (tarefas.length > 0) {
+      linhas.push('', `Tarefas em aberto (${tarefas.length}):`)
+      tarefas.forEach(t => {
         const prazo = t.prazo ? ` — prazo: ${t.prazo.toLocaleDateString('pt-BR')}` : ''
         linhas.push(`• [${t.prioridade}] ${t.titulo}${prazo}`)
       })
     }
 
-    if (cliente.interacoes.length > 0) {
+    const interacoes = (cliente as any).interacoes as Array<{ tipo: string; titulo: string | null; criadoEm: Date }>
+    if (interacoes.length > 0) {
       linhas.push('', 'Últimas interações:')
-      cliente.interacoes.forEach(i => {
+      interacoes.forEach(i => {
         const data = i.criadoEm.toLocaleDateString('pt-BR')
         linhas.push(`• ${data} — ${i.tipo}${i.titulo ? `: ${i.titulo}` : ''}`)
       })

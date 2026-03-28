@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: Params) {
   const { id } = await params
   const cliente = await prisma.cliente.findUnique({
     where: { id },
-    include: { socios: true, documentos: true, contratos: true, tarefas: true, interacoes: true },
+    include: { empresa: { include: { socios: true } }, documentos: true, contratos: true, tarefas: true, interacoes: true },
   })
   if (!cliente) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(cliente)
@@ -26,10 +26,17 @@ export async function PUT(req: Request, { params }: Params) {
   const cliente = await prisma.cliente.update({
     where: { id },
     data: body,
-    include: { socios: true },
+    include: { empresa: { include: { socios: true } } },
   })
 
-  import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente)).catch(() => {})
+  import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente({
+    ...cliente,
+    cnpj: cliente.empresa?.cnpj ?? null,
+    razaoSocial: cliente.empresa?.razaoSocial ?? null,
+    nomeFantasia: cliente.empresa?.nomeFantasia ?? null,
+    regime: cliente.empresa?.regime ?? null,
+    socios: cliente.empresa?.socios ?? [],
+  })).catch(() => {})
 
   return NextResponse.json(cliente)
 }

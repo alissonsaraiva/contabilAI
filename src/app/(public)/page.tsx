@@ -3,6 +3,7 @@ import { CheckCircle2, Bot, FileText, ShieldCheck, ArrowRight, Zap } from 'lucid
 import { formatBRL, cn } from '@/lib/utils'
 import { mockPlanos } from '@/lib/mock/planos'
 import { prisma } from '@/lib/prisma'
+import { getEscritorioConfig } from '@/lib/escritorio'
 
 const FEATURES = [
   { icon: Bot, title: 'IA que trabalha por você', desc: 'Relatórios, análises e dúvidas respondidas automaticamente 24h por dia.' },
@@ -12,7 +13,12 @@ const FEATURES = [
 ]
 
 export default async function LandingPage() {
-  const dbPlanos = await prisma.plano.findMany({ where: { ativo: true }, orderBy: { valorMinimo: 'asc' } }).catch(() => [] as Awaited<ReturnType<typeof prisma.plano.findMany>>)
+  const [dbPlanos, escritorio] = await Promise.all([
+    prisma.plano.findMany({ where: { ativo: true }, orderBy: { valorMinimo: 'asc' } }).catch(() => [] as Awaited<ReturnType<typeof prisma.plano.findMany>>),
+    getEscritorioConfig(),
+  ])
+  const nomeEscritorio = escritorio.nome
+  const anoAtual = new Date().getFullYear()
   const planos: typeof mockPlanos = dbPlanos.length > 0
     ? dbPlanos.map(p => ({
         tipo: p.tipo as (typeof mockPlanos)[0]['tipo'],
@@ -39,7 +45,7 @@ export default async function LandingPage() {
                 calculate
               </span>
             </div>
-            <span className="text-lg font-bold tracking-tight text-on-surface">ContabAI</span>
+            <span className="text-lg font-bold tracking-tight text-on-surface">{nomeEscritorio}</span>
           </div>
           <div className="flex items-center gap-3 md:gap-4">
             <Link href="/portal/dashboard" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors">
@@ -183,9 +189,9 @@ export default async function LandingPage() {
           <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             calculate
           </span>
-          <span className="font-headline font-bold">ContabAI</span>
+          <span className="font-headline font-bold">{nomeEscritorio}</span>
         </div>
-        <p className="font-medium text-on-surface-variant/80">© 2026 ContabAI. Todos os direitos reservados.</p>
+        <p className="font-medium text-on-surface-variant/80">© {anoAtual} {nomeEscritorio}. Todos os direitos reservados.</p>
         <p className="mt-1 text-on-surface-variant/60">Eusébio e Fortaleza, CE</p>
       </footer>
     </div>

@@ -53,11 +53,18 @@ export async function POST() {
   try {
     const clientes = await prisma.cliente.findMany({
       where: { status: { not: 'cancelado' } },
-      include: { socios: true },
+      include: { empresa: { include: { socios: true } } },
     })
     for (const c of clientes) {
       try {
-        await indexarCliente(c)
+        await indexarCliente({
+          ...c,
+          cnpj: c.empresa?.cnpj ?? null,
+          razaoSocial: c.empresa?.razaoSocial ?? null,
+          nomeFantasia: c.empresa?.nomeFantasia ?? null,
+          regime: c.empresa?.regime ?? null,
+          socios: c.empresa?.socios ?? [],
+        })
         resultado.clientes++
       } catch (e) {
         resultado.erros.push(`cliente:${c.id}: ${String(e)}`)

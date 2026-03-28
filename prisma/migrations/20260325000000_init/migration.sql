@@ -1,3 +1,0 @@
--- Baseline migration: schema já existe no banco (criado via prisma db push)
--- Esta migration foi marcada como aplicada sem executar SQL.
--- Ver: https://www.prisma.io/docs/guides/migrate/baselining

@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import { Toaster } from '@/components/ui/sonner'
 import { SuppressThemeScriptWarning } from '@/components/suppress-theme-script-warning'
+import { getEscritorioConfig } from '@/lib/escritorio'
 import './globals.css'
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -13,12 +14,18 @@ const plusJakarta = Plus_Jakarta_Sans({
   display: 'swap',
 })
 
-export const metadata: Metadata = {
-  title: {
-    default: 'ContabAI — Contabilidade Digital',
-    template: '%s | ContabAI',
-  },
-  description: 'Contabilidade digital com IA para MEI, EPP e autônomos.',
+export async function generateMetadata(): Promise<Metadata> {
+  const escritorio = await getEscritorioConfig()
+  const nome   = escritorio.nome
+  const titulo = escritorio.nomeFantasia ?? nome
+  const desc   = escritorio.metaDescricao ?? 'Contabilidade digital com IA.'
+  return {
+    title: {
+      default: titulo,
+      template: `%s | ${nome}`,
+    },
+    description: desc,
+  }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

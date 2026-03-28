@@ -5,9 +5,21 @@ import { Card } from '@/components/ui/card'
 import { formatBRL } from '@/lib/utils'
 
 export default async function PortalFinanceiroPage() {
-  const session   = await auth()
-  const clienteId = (session?.user as any)?.id
-  if (!clienteId) redirect('/portal/login')
+  const session = await auth()
+  const user    = session?.user as any
+  if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) redirect('/portal/login')
+
+  let clienteId: string
+  if (user.tipo === 'socio') {
+    const titular = await prisma.cliente.findUnique({
+      where: { empresaId: user.empresaId },
+      select: { id: true },
+    })
+    if (!titular) redirect('/portal/login')
+    clienteId = titular.id
+  } else {
+    clienteId = user.id
+  }
 
   const cliente = await prisma.cliente.findUnique({
     where:  { id: clienteId },

@@ -61,14 +61,14 @@ export default async function LogsPage({ searchParams }: Props) {
 
   const [clientes, leads] = await Promise.all([
     clienteIds.length > 0
-      ? prisma.cliente.findMany({ where: { id: { in: clienteIds } }, select: { id: true, nome: true, razaoSocial: true } })
+      ? prisma.cliente.findMany({ where: { id: { in: clienteIds } }, select: { id: true, nome: true, empresa: { select: { razaoSocial: true } } } })
       : [],
     leadIds.length > 0
       ? prisma.lead.findMany({ where: { id: { in: leadIds } }, select: { id: true, contatoEntrada: true, dadosJson: true } })
       : [],
   ])
 
-  const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.razaoSocial ?? c.nome ?? 'Cliente']))
+  const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.empresa?.razaoSocial ?? c.nome ?? 'Cliente']))
   const leadMap    = Object.fromEntries(leads.map(l => {
     const dados = (l.dadosJson ?? {}) as Record<string, string>
     const nome  = dados['Nome completo'] ?? dados['Razão Social'] ?? l.contatoEntrada ?? 'Lead'

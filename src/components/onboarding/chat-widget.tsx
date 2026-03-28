@@ -251,7 +251,7 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
               </button>
             </div>
             <p className="mt-1.5 text-center text-[10px] text-on-surface-variant/40">
-              Powered by ContabAI · Respostas podem conter erros
+              Powered by {process.env.NEXT_PUBLIC_APP_NAME ?? 'IA'} · Respostas podem conter erros
             </p>
           </div>
         </div>

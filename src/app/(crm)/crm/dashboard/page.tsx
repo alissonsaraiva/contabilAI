@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma'
 import { formatDateTime, startOfDayBrasilia } from '@/lib/utils'
 import { CANAL_LABELS, STATUS_LEAD_LABELS, PLANO_LABELS, CANAL_COLORS, STATUS_LEAD_COLORS, PLANO_COLORS } from '@/types'
 import Link from 'next/link'
-import { HistoricoTimeline } from '@/components/crm/historico-timeline'
 
 async function getDashboardData() {
   const [totalClientes, leadsHoje, aguardandoAssinatura, tarefasVencendo, leadsRecentes] =
@@ -190,18 +189,6 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Feed de atividades recentes do escritório */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
-        <div className="flex items-center justify-between border-b border-outline-variant/10 px-6 py-5">
-          <div>
-            <h2 className="font-headline text-lg font-semibold text-on-surface">Atividades recentes</h2>
-            <p className="mt-0.5 text-[13px] text-on-surface-variant/80">Últimas ações de usuários, IA e agente</p>
-          </div>
-        </div>
-        <div className="px-6 py-5">
-          <HistoricoTimeline global compact mostrarFiltros={false} limitInicial={8} />
-        </div>
-      </div>
     </div>
   )
 }

@@ -16,11 +16,13 @@ export async function POST(req: Request) {
   const session = await auth()
   const user    = session?.user as any
 
-  if (!user || user.tipo !== 'cliente') {
+  if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  const clienteId: string = user.id
+  const empresaId: string = user.empresaId
+  const isSocio = user.tipo === 'socio'
+  const sessionUserId: string = user.id
 
   const { message, sessionId } = await req.json() as { message: string; sessionId: string }
 
@@ -31,52 +33,61 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'sessionId obrigatório' }, { status: 400 })
   }
 
-  // Rate limit: 30 msgs por hora por cliente
-  const rl = rateLimit(`portal-chat:${clienteId}`, 30, 60 * 60_000)
+  // Rate limit: 30 msgs por hora por usuário (titular ou sócio)
+  const rl = rateLimit(`portal-chat:${sessionUserId}`, 30, 60 * 60_000)
   if (!rl.allowed) {
     return NextResponse.json({ error: 'Limite de mensagens atingido. Tente novamente em alguns minutos.' }, { status: 429 })
   }
 
-  const [conversaId, aiConfig, cliente] = await Promise.all([
-    getOrCreateConversaSession(sessionId, 'portal', { clienteId }),
+  // Busca dados do titular da empresa para contexto da IA
+  const clienteTitular = await prisma.cliente.findUnique({
+    where:  { empresaId },
+    select: { id: true, nome: true, planoTipo: true, valorMensal: true, vencimentoDia: true, cidade: true, uf: true, empresa: { select: { regime: true } } },
+  })
+
+  // Para sócios, vincula conversa ao clienteId do titular; titulares usam o próprio id
+  const clienteIdParaConversa = isSocio ? (clienteTitular?.id ?? undefined) : sessionUserId
+
+  const [conversaId, aiConfig, escritorio] = await Promise.all([
+    getOrCreateConversaSession(sessionId, 'portal', { clienteId: clienteIdParaConversa }),
     getAiConfig(),
-    prisma.cliente.findUnique({
-      where:  { id: clienteId },
-      select: { nome: true, planoTipo: true, valorMensal: true, vencimentoDia: true, regime: true, cidade: true, uf: true },
-    }),
+    prisma.escritorio.findFirst({ select: { nome: true } }),
   ])
 
   const historico = await getHistorico(conversaId)
-  const nomeCara  = aiConfig.nomeAssistentes.portal ?? 'Clara'
+  const nomeCara       = aiConfig.nomeAssistentes.portal ?? 'Clara'
+  const nomeEscritorio = escritorio?.nome ?? process.env.NEXT_PUBLIC_APP_NAME ?? 'ContabAI'
+  const nomeUsuario    = user.name ?? clienteTitular?.nome ?? 'cliente'
 
-  let systemExtra = `Você é ${nomeCara}, assistente virtual do Portal do Cliente ContabAI. Você atende exclusivamente o cliente ${cliente?.nome ?? user.name}.
+  let systemExtra = `Você é ${nomeCara}, assistente virtual do Portal ${nomeEscritorio}. Você atende o usuário ${nomeUsuario}${isSocio ? ' (sócio da empresa)' : ''}.
 
-DADOS DO CLIENTE:
-- Plano: ${cliente?.planoTipo ?? 'não informado'}
-- Valor mensalidade: R$ ${cliente?.valorMensal ?? '—'}
-- Vencimento dia: ${cliente?.vencimentoDia ?? '—'}
-- Regime tributário: ${cliente?.regime ?? 'não informado'}
-- Localidade: ${cliente?.cidade ?? ''}${cliente?.uf ? '/' + cliente.uf : ''}
+DADOS DA EMPRESA:
+- Plano: ${clienteTitular?.planoTipo ?? 'não informado'}
+- Valor mensalidade: R$ ${clienteTitular?.valorMensal ?? '—'}
+- Vencimento dia: ${clienteTitular?.vencimentoDia ?? '—'}
+- Regime tributário: ${clienteTitular?.empresa?.regime ?? 'não informado'}
+- Localidade: ${clienteTitular?.cidade ?? ''}${clienteTitular?.uf ? '/' + clienteTitular.uf : ''}
 
-ACESSO A DADOS: Você tem acesso em tempo real aos dados do cliente — documentos, histórico de interações, tarefas, planos disponíveis. Os dados já foram consultados automaticamente e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL". Use esses dados para responder diretamente, sem pedir ao cliente para acessar outra seção do portal.
+ACESSO A DADOS: Você tem acesso em tempo real aos dados da empresa — documentos, histórico de interações, tarefas, planos disponíveis. Os dados já foram consultados automaticamente e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL". Use esses dados para responder diretamente.
 
 REGRAS:
 - Responda perguntas sobre serviços contábeis, obrigações fiscais, abertura de empresa, simples nacional, MEI, etc.
-- Quando o cliente pedir documentos, histórico ou informações do plano, use os dados reais já consultados.
+- Quando perguntarem sobre documentos, histórico ou plano, use os dados reais já consultados.
 - Seja cordial, objetivo e use linguagem simples. Evite jargões técnicos desnecessários.
-- NUNCA acesse dados de outros clientes — você atende SOMENTE ${cliente?.nome ?? 'este cliente'}.
-- Se o cliente pedir para falar com um humano ou escalar o atendimento, informe que ele pode usar a opção "Solicitar atendimento humano" no chat.`
+- NUNCA acesse dados de outras empresas — você atende SOMENTE esta empresa.
+- Se o usuário pedir para falar com um humano, informe que pode usar a opção "Solicitar atendimento humano" no chat.`
 
   // ── Classificação de intenção + agente (escopo portal — somente leitura) ────
-  const intencao = await classificarIntencao(message, `cliente: ${cliente?.nome ?? user.name}`)
+  const intencao = await classificarIntencao(message, `usuário: ${nomeUsuario}`)
 
   if (intencao.tipo === 'acao' && intencao.instrucao) {
     try {
       const resultado = await executarAgente({
         instrucao: intencao.instrucao,
         contexto: {
-          clienteId,
-          solicitanteAI: 'portal', // restringe às tools do escopo portal (somente leitura)
+          clienteId:     clienteIdParaConversa,
+          empresaId,
+          solicitanteAI: 'portal',
         },
       })
 
@@ -85,7 +96,6 @@ ${resultado.resposta}
 --- FIM DOS DADOS REAIS ---
 Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigável. Não mencione "agente" ou "banco de dados".`
     } catch (err) {
-      // Falha silenciosa para o cliente — notifica admin
       import('@/lib/notificacoes')
         .then(({ notificarAgenteFalhou }) =>
           notificarAgenteFalhou(err instanceof Error ? err.message : String(err))
@@ -101,7 +111,7 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
   try {
     const result = await askAI({
       pergunta:   message,
-      context:    { escopo: 'cliente+global', clienteId },
+      context:    { escopo: 'cliente+global', clienteId: clienteIdParaConversa ?? '' },
       feature:    'portal',
       historico,
       systemExtra,

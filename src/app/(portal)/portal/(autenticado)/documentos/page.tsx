@@ -8,9 +8,21 @@ const PER_PAGE = 20
 type Props = { searchParams: Promise<{ page?: string }> }
 
 export default async function PortalDocumentosPage({ searchParams }: Props) {
-  const session   = await auth()
-  const clienteId = (session?.user as any)?.id
-  if (!clienteId) redirect('/portal/login')
+  const session = await auth()
+  const user    = session?.user as any
+  if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) redirect('/portal/login')
+
+  let clienteId: string
+  if (user.tipo === 'socio') {
+    const titular = await prisma.cliente.findUnique({
+      where: { empresaId: user.empresaId },
+      select: { id: true },
+    })
+    if (!titular) redirect('/portal/login')
+    clienteId = titular.id
+  } else {
+    clienteId = user.id
+  }
 
   const sp   = await searchParams
   const page = Math.max(1, parseInt(sp.page ?? '1'))

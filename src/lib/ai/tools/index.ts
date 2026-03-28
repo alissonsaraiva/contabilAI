@@ -28,6 +28,7 @@ import './atualizar-status-lead'
 import './avancar-lead'
 import './criar-lead'
 import './criar-cliente'
+import './convidar-socio-portal'
 
 // ─── Tools de comunicação ─────────────────────────────────────────────────────
 import './enviar-email'

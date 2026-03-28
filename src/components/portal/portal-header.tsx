@@ -20,9 +20,9 @@ const NAV_ITEMS = [
   { href: '/portal/suporte',   icon: 'support_agent',   label: 'Suporte' },
 ]
 
-type Props = { user: { name?: string | null; email?: string | null } }
+type Props = { user: { name?: string | null; email?: string | null }; nomeEscritorio: string }
 
-export function PortalHeader({ user }: Props) {
+export function PortalHeader({ user, nomeEscritorio }: Props) {
   const pathname = usePathname()
 
   return (
@@ -33,7 +33,7 @@ export function PortalHeader({ user }: Props) {
           <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>calculate</span>
         </div>
         <span className="hidden font-headline text-[15px] font-bold tracking-tight text-on-surface sm:block">
-          ContabAI
+          {nomeEscritorio}
         </span>
       </Link>
 

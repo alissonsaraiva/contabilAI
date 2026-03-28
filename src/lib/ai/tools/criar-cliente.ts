@@ -93,28 +93,46 @@ const criarClienteTool: Tool = {
     const leadId         = input.leadId         as string | undefined
 
     try {
-      const cliente = await prisma.cliente.create({
-        data: {
-          nome,
-          cpf,
-          email,
-          telefone,
-          whatsapp:    telefone,
-          planoTipo:   planoTipo   as never,
-          valorMensal,
-          vencimentoDia,
-          formaPagamento: formaPagamento as never,
-          status:      'ativo',
-          dataInicio:  new Date(),
-          ...(cnpj        && { cnpj }),
-          ...(razaoSocial && { razaoSocial }),
-          ...(regime      && { regime: regime as never }),
-          ...(cidade      && { cidade }),
-          ...(leadId      && { leadId }),
-        },
+      const temEmpresa = !!(cnpj || razaoSocial || regime)
+
+      const cliente = await prisma.$transaction(async (tx) => {
+        const novoCliente = await tx.cliente.create({
+          data: {
+            nome,
+            cpf,
+            email,
+            telefone,
+            whatsapp:       telefone,
+            planoTipo:      planoTipo      as never,
+            valorMensal,
+            vencimentoDia,
+            formaPagamento: formaPagamento as never,
+            status:         'ativo',
+            dataInicio:     new Date(),
+            ...(cidade && { cidade }),
+            ...(leadId && { leadId }),
+          },
+        })
+
+        if (temEmpresa) {
+          const empresa = await tx.empresa.create({
+            data: {
+              ...(cnpj        && { cnpj }),
+              ...(razaoSocial && { razaoSocial }),
+              ...(regime      && { regime: regime as never }),
+            },
+          })
+          await tx.cliente.update({
+            where: { id: novoCliente.id },
+            data:  { empresaId: empresa.id },
+          })
+          return { ...novoCliente, empresaId: empresa.id }
+        }
+
+        return novoCliente
       })
 
-      import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente)).catch(() => {})
+      import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente as never)).catch(() => {})
 
       return {
         sucesso: true,

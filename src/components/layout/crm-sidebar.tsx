@@ -20,18 +20,25 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    label: 'Comercial',
     items: [
-      { href: '/crm/dashboard', icon: 'dashboard', label: 'Dashboard' },
+      { href: '/crm/dashboard',  icon: 'dashboard',     label: 'Dashboard' },
+      { href: '/crm/prospeccao', icon: 'contact_phone', label: 'Prospecção' },
+      { href: '/crm/leads',      icon: 'rocket_launch', label: 'Onboarding' },
+      { href: '/crm/clientes',   icon: 'group',         label: 'Clientes' },
     ],
   },
   {
-    label: 'Comercial',
+    label: 'Atendimento',
     items: [
-      { href: '/crm/prospeccao',   icon: 'contact_phone', label: 'Prospecção' },
-      { href: '/crm/leads',        icon: 'rocket_launch',  label: 'Onboarding' },
-      { href: '/crm/clientes',     icon: 'group',          label: 'Clientes' },
-      { href: '/crm/atendimentos', icon: 'support_agent',  label: 'Atendimentos', badge: true },
-      { href: '/crm/tarefas',      icon: 'check_circle',   label: 'Tarefas' },
+      { href: '/crm/atendimentos', icon: 'support_agent', label: 'Atendimentos', badge: true },
+      { href: '/crm/tarefas',      icon: 'check_circle',  label: 'Tarefas' },
+    ],
+  },
+  {
+    label: 'Configurações',
+    items: [
+      { href: '/crm/configuracoes', icon: 'settings', label: 'Configurações' },
     ],
   },
 ]

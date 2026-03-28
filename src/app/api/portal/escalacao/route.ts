@@ -8,11 +8,21 @@ export async function POST(req: Request) {
   const session = await auth()
   const user    = session?.user as any
 
-  if (!user || user.tipo !== 'cliente') {
+  if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  const clienteId: string = user.id
+  let clienteId: string
+  if (user.tipo === 'socio') {
+    const titular = await prisma.cliente.findUnique({
+      where: { empresaId: user.empresaId },
+      select: { id: true },
+    })
+    if (!titular) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 })
+    clienteId = titular.id
+  } else {
+    clienteId = user.id
+  }
   const { sessionId, motivo } = await req.json() as { sessionId: string; motivo?: string }
 
   if (!sessionId?.trim()) {

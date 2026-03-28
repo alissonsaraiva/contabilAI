@@ -10,7 +10,7 @@ export async function POST(
 
   const cliente = await prisma.cliente.findUnique({
     where:  { id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, empresaId: true },
   })
 
   if (!cliente) {
@@ -22,8 +22,11 @@ export async function POST(
   if (cliente.status === 'cancelado') {
     return NextResponse.json({ error: 'conta_cancelada' }, { status: 403 })
   }
+  if (!cliente.empresaId) {
+    return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
+  }
 
-  const link = await criarTokenPortal(cliente.id, 30 * 60 * 1000) // 30 min
+  const link = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000) // 30 min
 
   return NextResponse.json({ link })
 }

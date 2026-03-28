@@ -118,6 +118,39 @@ async function main() {
   })
   console.log('✅ Leads e interações criados')
 
+  // ── Empresas ──────────────────────────────────────────────
+  const e1 = await prisma.empresa.upsert({
+    where: { cnpj: '12.345.678/0001-90' },
+    update: {},
+    create: {
+      cnpj: '12.345.678/0001-90',
+      razaoSocial: 'JP Almeida Consultoria LTDA',
+      nomeFantasia: 'JPA Consultoria',
+      regime: 'SimplesNacional',
+    },
+  })
+
+  const e2 = await prisma.empresa.upsert({
+    where: { cnpj: '98.765.432/0001-10' },
+    update: {},
+    create: {
+      cnpj: '98.765.432/0001-10',
+      razaoSocial: 'Belíssima Estética EIRELI',
+      nomeFantasia: 'Belíssima Estética',
+      regime: 'MEI',
+    },
+  })
+
+  const e3 = await prisma.empresa.upsert({
+    where: { cnpj: '45.678.901/0001-23' },
+    update: {},
+    create: {
+      cnpj: '45.678.901/0001-23',
+      razaoSocial: 'Construtora Arco LTDA',
+      regime: 'LucroPresumido',
+    },
+  })
+
   // ── Clientes ──────────────────────────────────────────────
   const c1 = await prisma.cliente.upsert({
     where: { cpf: '111.222.333-44' },
@@ -128,10 +161,7 @@ async function main() {
       email: 'joao.almeida@empresa.com.br',
       telefone: '(85) 98876-5432',
       whatsapp: '(85) 98876-5432',
-      cnpj: '12.345.678/0001-90',
-      razaoSocial: 'JP Almeida Consultoria LTDA',
-      nomeFantasia: 'JPA Consultoria',
-      regime: 'SimplesNacional',
+      empresaId: e1.id,
       cep: '60822-000',
       logradouro: 'Rua das Flores',
       numero: '245',
@@ -156,10 +186,7 @@ async function main() {
       cpf: '222.333.444-55',
       email: 'fernanda@belissimaestetica.com.br',
       telefone: '(11) 97765-4321',
-      cnpj: '98.765.432/0001-10',
-      razaoSocial: 'Belíssima Estética EIRELI',
-      nomeFantasia: 'Belíssima Estética',
-      regime: 'MEI',
+      empresaId: e2.id,
       cidade: 'São Paulo',
       uf: 'SP',
       planoTipo: 'essencial',
@@ -180,9 +207,7 @@ async function main() {
       cpf: '333.444.555-66',
       email: 'carlos@construtoraarco.com.br',
       telefone: '(62) 98800-1234',
-      cnpj: '45.678.901/0001-23',
-      razaoSocial: 'Construtora Arco LTDA',
-      regime: 'LucroPresumido',
+      empresaId: e3.id,
       cidade: 'Goiânia',
       uf: 'GO',
       planoTipo: 'empresarial',
@@ -203,10 +228,6 @@ async function main() {
       cpf: '444.555.666-77',
       email: 'patricia@menutaste.com.br',
       telefone: '(21) 97654-3210',
-      cnpj: '56.789.012/0001-34',
-      razaoSocial: 'Menu Taste Restaurante LTDA',
-      nomeFantasia: 'Menu Taste',
-      regime: 'SimplesNacional',
       cidade: 'Rio de Janeiro',
       uf: 'RJ',
       planoTipo: 'profissional',
@@ -227,10 +248,6 @@ async function main() {
       cpf: '555.666.777-88',
       email: 'thiago@nexttechbr.io',
       telefone: '(11) 99900-8877',
-      cnpj: '67.890.123/0001-45',
-      razaoSocial: 'NextTech Brasil S/A',
-      nomeFantasia: 'NextTech',
-      regime: 'LucroReal',
       cidade: 'São Paulo',
       uf: 'SP',
       planoTipo: 'startup',
@@ -251,7 +268,6 @@ async function main() {
       cpf: '666.777.888-99',
       email: 'sandra.oliveira@gmail.com',
       telefone: '(85) 98711-2233',
-      regime: 'Autonomo',
       cidade: 'Caucaia',
       uf: 'CE',
       planoTipo: 'essencial',
@@ -269,10 +285,10 @@ async function main() {
   await prisma.socio.createMany({
     skipDuplicates: true,
     data: [
-      { id: 'socio-001', clienteId: c1.id, nome: 'João Pedro Almeida', cpf: '111.222.333-44', qualificacao: 'Administrador', participacao: 70, email: 'joao@jpaconsultoria.com.br', telefone: '(85) 98876-5432', principal: true },
-      { id: 'socio-002', clienteId: c1.id, nome: 'Ana Luiza Almeida', cpf: '444.555.666-00', qualificacao: 'Sócia Investidora', participacao: 30, email: 'analuiza@jpaconsultoria.com.br', telefone: '(85) 99765-4321', principal: false },
-      { id: 'socio-003', clienteId: c3.id, nome: 'Carlos Rodrigues', cpf: '333.444.555-66', qualificacao: 'Sócio Administrador', participacao: 60, email: 'carlos@construtoraarco.com.br', telefone: '(62) 98800-1234', principal: true },
-      { id: 'socio-004', clienteId: c3.id, nome: 'Marcelo Arco Junior', cpf: '555.777.888-11', qualificacao: 'Sócio', participacao: 40, email: 'marcelo@construtoraarco.com.br', telefone: '(62) 99700-5678', principal: false },
+      { id: 'socio-001', empresaId: e1.id, nome: 'João Pedro Almeida', cpf: '111.222.333-44', qualificacao: 'Administrador', participacao: 70, email: 'joao@jpaconsultoria.com.br', telefone: '(85) 98876-5432', principal: true },
+      { id: 'socio-002', empresaId: e1.id, nome: 'Ana Luiza Almeida', cpf: '444.555.666-00', qualificacao: 'Sócia Investidora', participacao: 30, email: 'analuiza@jpaconsultoria.com.br', telefone: '(85) 99765-4321', principal: false },
+      { id: 'socio-003', empresaId: e3.id, nome: 'Carlos Rodrigues', cpf: '333.444.555-66', qualificacao: 'Sócio Administrador', participacao: 60, email: 'carlos@construtoraarco.com.br', telefone: '(62) 98800-1234', principal: true },
+      { id: 'socio-004', empresaId: e3.id, nome: 'Marcelo Arco Junior', cpf: '555.777.888-11', qualificacao: 'Sócio', participacao: 40, email: 'marcelo@construtoraarco.com.br', telefone: '(62) 99700-5678', principal: false },
     ],
   })
   console.log('✅ Sócios criados')

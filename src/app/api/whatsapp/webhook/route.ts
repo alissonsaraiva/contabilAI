@@ -405,9 +405,9 @@ export async function POST(req: Request) {
       try {
         const clienteRow = await prisma.cliente.findUnique({
           where: { id: cached.clienteId },
-          select: { nome: true, razaoSocial: true },
+          select: { nome: true, empresa: { select: { razaoSocial: true } } },
         })
-        nomeCliente = clienteRow?.razaoSocial ?? clienteRow?.nome ?? null
+        nomeCliente = clienteRow?.empresa?.razaoSocial ?? clienteRow?.nome ?? null
       } catch { /* ignora — RAG já tem os dados */ }
       const nomeLabel = nomeCliente ? ` — ${nomeCliente}` : ''
       systemExtra = `CONTEXTO DO CONTATO: CLIENTE ATIVO${nomeLabel}\n\n${whatsappChannelGuardrail}`

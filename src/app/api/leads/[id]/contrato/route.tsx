@@ -3,9 +3,10 @@ import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { uploadArquivo, storageKeys } from '@/lib/storage'
 import { ContratoPDF } from '@/lib/pdf/contrato-template'
+import { criarClienteDeContrato } from '@/lib/clientes/criar-de-contrato'
 // RAG: indexarContrato é chamado via dynamic import em background
 import React from 'react'
-import type { PlanoTipo, FormaPagamento, StatusCliente } from '@prisma/client'
+import type { PlanoTipo, FormaPagamento } from '@prisma/client'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -127,7 +128,7 @@ export async function POST(req: Request, { params }: Params) {
     data: { status: 'assinado', stepAtual: 6 },
   })
 
-  // Converte lead em cliente automaticamente (dentro de transação para evitar race condition)
+  // Converte lead em cliente + empresa automaticamente
   const nome = dados?.['Nome completo'] ?? lead.contatoEntrada
   const cpf = dados?.['CPF']
   const email = dados?.['E-mail'] ?? lead.contatoEntrada
@@ -135,38 +136,29 @@ export async function POST(req: Request, { params }: Params) {
 
   if (nome && cpf && email) {
     try {
-      // Verifica se já existe antes de entrar na transação (otimização de leitura)
       let cliente = await prisma.cliente.findUnique({ where: { leadId: id } })
       if (!cliente) {
         try {
-          cliente = await prisma.$transaction(async (tx: any) => {
-            const c = await tx.cliente.create({
-              data: {
-                leadId: id,
-                nome,
-                cpf,
-                email,
-                telefone,
-                whatsapp: telefone,
-                planoTipo: plano as PlanoTipo,
-                valorMensal: valor,
-                vencimentoDia: vencimento,
-                formaPagamento: formaPagamento as FormaPagamento,
-                status: 'ativo' as StatusCliente,
-                dataInicio: agora,
-                ...(dados?.['CNPJ'] && { cnpj: dados['CNPJ'] }),
-                ...(dados?.['Razão Social'] && { razaoSocial: dados['Razão Social'] }),
-                ...(dados?.['Nome Fantasia'] && { nomeFantasia: dados['Nome Fantasia'] }),
-                ...(dados?.['Cidade'] && { cidade: dados['Cidade'] }),
-                ...(lead.responsavelId && { responsavelId: lead.responsavelId }),
-              },
+          const resultado = await prisma.$transaction(async (tx) => {
+            const r = await criarClienteDeContrato(tx, {
+              leadId: id, nome, cpf, email, telefone,
+              planoTipo: plano as PlanoTipo,
+              valorMensal: valor,
+              vencimentoDia: vencimento,
+              formaPagamento: formaPagamento as FormaPagamento,
+              dataInicio: agora,
+              cnpj:         dados?.['CNPJ'],
+              razaoSocial:  dados?.['Razão Social'],
+              nomeFantasia: dados?.['Nome Fantasia'],
+              cidade:       dados?.['Cidade'],
+              responsavelId: lead.responsavelId,
             })
-            await tx.contrato.update({ where: { id: contrato.id }, data: { clienteId: c.id } })
-            return c
+            await tx.contrato.update({ where: { id: contrato.id }, data: { clienteId: r.clienteId } })
+            return r
           })
+          cliente = await prisma.cliente.findUnique({ where: { id: resultado.clienteId } })
         } catch (err: any) {
           if (err?.code === 'P2002') {
-            // Criado por request concorrente — busca o que foi criado
             cliente = await prisma.cliente.findUnique({ where: { leadId: id } })
           } else {
             throw err
@@ -176,12 +168,10 @@ export async function POST(req: Request, { params }: Params) {
         await prisma.contrato.update({ where: { id: contrato.id }, data: { clienteId: cliente.id } })
       }
 
-      // RAG + e-mail de boas-vindas em background
       if (cliente) {
         import('@/lib/rag/ingest')
           .then(({ indexarCliente }) => indexarCliente(cliente!))
           .catch(() => {})
-
         import('@/lib/email/boas-vindas')
           .then(({ enviarBoasVindas }) =>
             enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })

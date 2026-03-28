@@ -37,7 +37,7 @@ export default async function ClientesPage({ searchParams }: Props) {
       orderBy: { criadoEm: 'desc' },
       skip,
       take: PER_PAGE,
-      include: { responsavel: { select: { nome: true } } },
+      include: { responsavel: { select: { nome: true } }, empresa: { select: { cnpj: true, razaoSocial: true, regime: true } } },
     }),
     prisma.cliente.count({
       where: {
@@ -54,7 +54,13 @@ export default async function ClientesPage({ searchParams }: Props) {
     }),
   ])
 
-  const clientes = raw.map((c) => ({ ...c, valorMensal: Number(c.valorMensal) }))
+  const clientes = raw.map((c: typeof raw[number]) => ({
+    ...c,
+    valorMensal: Number(c.valorMensal),
+    cnpj: c.empresa?.cnpj ?? null,
+    razaoSocial: c.empresa?.razaoSocial ?? null,
+    regime: c.empresa?.regime ?? null,
+  }))
   const totalPages = Math.ceil(total / PER_PAGE)
 
   return (

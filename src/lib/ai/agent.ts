@@ -99,7 +99,7 @@ const AGENT_TIMEOUT_MS = 45_000
 
 // ─── System prompt do agente operacional ──────────────────────────────────────
 
-const AGENT_SYSTEM_PROMPT = `Você é o AgenteOperacional do CRM ContabAI.
+const AGENT_SYSTEM_PROMPT = `Você é o AgenteOperacional do CRM {nomeEscritorio}.
 
 Sua única responsabilidade é executar tarefas usando as ferramentas disponíveis.
 Você NUNCA conversa diretamente com clientes ou leads — apenas com operadores internos ou outras IAs.
@@ -138,7 +138,11 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
   const contexto: ToolContext = { ...task.contexto, solicitanteAI: solicitanteSeguro }
 
   // 2. Carrega config
-  const config       = await getAiConfig()
+  const [config, escritorioRow] = await Promise.all([
+    getAiConfig(),
+    prisma.escritorio.findFirst({ select: { nome: true } }),
+  ])
+  const nomeEscritorio = escritorioRow?.nome ?? process.env.NEXT_PUBLIC_APP_NAME ?? 'ContabAI'
   const providerName = config.providers.agente ?? config.provider
   const model        = config.models.agente ?? config.models.crm
 
@@ -188,7 +192,7 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
     ? `\n\nO operador que está solicitando esta ação é ${contexto.usuarioNome}${contexto.usuarioTipo ? ` (${contexto.usuarioTipo})` : ''}. Quando confirmar ações concluídas, você pode endereçar a resposta a ele pelo nome.`
     : ''
 
-  const systemPrompt = `${AGENT_SYSTEM_PROMPT}${operadorInfo}\n\n## Contexto atual\n${contextLines.join('\n')}`
+  const systemPrompt = `${AGENT_SYSTEM_PROMPT.replace('{nomeEscritorio}', nomeEscritorio)}${operadorInfo}\n\n## Contexto atual\n${contextLines.join('\n')}`
 
   // 5. Agentic loop
   const messages: AIMessageExtended[] = [{ role: 'user', content: instrucao }]
