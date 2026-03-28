@@ -1,7 +1,15 @@
+import * as Sentry from '@sentry/nextjs'
+
 export async function register() {
-  // Importa código Node.js-only apenas no runtime Node.js
-  // (o bundler do Edge não vai analisar este import por estar dentro do if)
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('../sentry.server.config')
     await import('./instrumentation-node')
   }
+
+  if (process.env.NEXT_RUNTIME === 'edge') {
+    await import('../sentry.edge.config')
+  }
 }
+
+// Captura erros de request no servidor automaticamente (Next.js 15+)
+export const onRequestError = Sentry.captureRequestError

@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs'
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options',   value: 'nosniff' },
@@ -63,4 +64,26 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  org:     process.env.SENTRY_ORG     ?? 'alisson-sb',
+  project: process.env.SENTRY_PROJECT ?? 'avos',
+
+  // Upload de source maps só quando SENTRY_AUTH_TOKEN estiver configurado (CI/CD)
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Sem telemetria para Sentry sobre o build
+  telemetry: false,
+
+  // Suprime warnings no console durante o build local
+  silent: !process.env.CI,
+
+  // Source maps: faz upload e remove do bundle público (produção apenas)
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+
+  // Não adiciona verificação automática de release (controlamos via CI)
+  autoInstrumentServerFunctions: true,
+  autoInstrumentMiddleware: false,
+  autoInstrumentAppDirectory: true,
+})
