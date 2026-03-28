@@ -1,9 +1,45 @@
+import type { Metadata, Viewport } from 'next'
 import { auth } from '@/lib/auth-portal'
 import { redirect } from 'next/navigation'
 import { getAiConfig } from '@/lib/ai/config'
 import { getEscritorioConfig } from '@/lib/escritorio'
 import { PortalHeader } from '@/components/portal/portal-header'
 import { PortalClara } from '@/components/portal/portal-clara'
+import { PortalPWA } from '@/components/portal/portal-pwa'
+
+export async function generateMetadata(): Promise<Metadata> {
+  const escritorio = await getEscritorioConfig()
+  const nome       = escritorio.nomeFantasia ?? escritorio.nome
+  return {
+    title: {
+      default: `Portal do Cliente — ${nome}`,
+      template: `%s | ${nome}`,
+    },
+    description: `Área exclusiva do cliente — ${nome}`,
+    appleWebApp: {
+      capable:    true,
+      title:      nome,
+      statusBarStyle: 'default',
+      startupImage: '/icons/icon-512.png',
+    },
+    formatDetection: { telephone: false },
+    icons: {
+      apple: '/icons/icon-192.png',
+    },
+    other: {
+      'mobile-web-app-capable': 'yes',
+    },
+  }
+}
+
+export const viewport: Viewport = {
+  themeColor:         '#6366f1',
+  width:              'device-width',
+  initialScale:       1,
+  maximumScale:       1,
+  userScalable:       false,
+  viewportFit:        'cover',
+}
 
 export default async function PortalAutenticadoLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -23,6 +59,7 @@ export default async function PortalAutenticadoLayout({ children }: { children: 
       <PortalHeader user={user} nomeEscritorio={escritorio.nome} />
       <main className="mx-auto max-w-5xl px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">{children}</main>
       <PortalClara nomeIa={aiConfig.nomeAssistentes.portal ?? 'Clara'} />
+      <PortalPWA />
     </div>
   )
 }

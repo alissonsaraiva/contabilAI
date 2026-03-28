@@ -14,10 +14,11 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 const NAV_ITEMS = [
-  { href: '/portal/dashboard', icon: 'home',            label: 'Início' },
-  { href: '/portal/documentos', icon: 'folder_open',    label: 'Documentos' },
-  { href: '/portal/financeiro', icon: 'payments',       label: 'Financeiro' },
-  { href: '/portal/suporte',   icon: 'support_agent',   label: 'Suporte' },
+  { href: '/portal/dashboard',     icon: 'home',         label: 'Início' },
+  { href: '/portal/empresa',       icon: 'domain',       label: 'Empresa' },
+  { href: '/portal/documentos',    icon: 'folder_open',  label: 'Documentos' },
+  { href: '/portal/suporte',       icon: 'support_agent',label: 'Suporte' },
+  { href: '/portal/configuracoes', icon: 'settings',     label: 'Config.' },
 ]
 
 type Props = { user: { name?: string | null; email?: string | null }; nomeEscritorio: string }

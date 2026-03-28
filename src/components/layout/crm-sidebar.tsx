@@ -32,8 +32,15 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Atendimento',
     items: [
-      { href: '/crm/atendimentos', icon: 'support_agent', label: 'Atendimentos', badge: true },
-      { href: '/crm/tarefas',      icon: 'check_circle',  label: 'Tarefas' },
+      { href: '/crm/atendimentos',    icon: 'support_agent', label: 'Atendimentos',  badge: true },
+      { href: '/crm/ordens-servico',  icon: 'inbox',         label: 'Chamados' },
+      { href: '/crm/tarefas',         icon: 'check_circle',  label: 'Tarefas' },
+    ],
+  },
+  {
+    label: 'Comunicação',
+    items: [
+      { href: '/crm/comunicados', icon: 'campaign', label: 'Comunicados' },
     ],
   },
   {

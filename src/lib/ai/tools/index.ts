@@ -50,6 +50,11 @@ import './cancelar-agendamento'
 // ─── Tools de consulta/relatórios ────────────────────────────────────────────
 import './consultar-dados'
 
+// ─── Tools do portal do cliente ───────────────────────────────────────────────
+import './listar-ordens-servico'
+import './responder-ordem-servico'
+import './publicar-comunicado'
+
 // ─── Tools externas (adicionar aqui quando implementadas) ─────────────────────
 // import './consultar-cnpj'
 // import './buscar-boleto'

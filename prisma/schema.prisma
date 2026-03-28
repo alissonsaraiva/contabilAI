@@ -183,9 +183,10 @@ model Empresa {
   criadoEm     DateTime      @default(now())
   atualizadoEm DateTime      @updatedAt
 
-  cliente      Cliente?
-  socios       Socio[]
-  portalTokens PortalToken[]
+  cliente       Cliente?
+  socios        Socio[]
+  portalTokens  PortalToken[]
+  ordensServico OrdemServico[]
 
   @@map("empresas")
 }
@@ -237,6 +238,7 @@ model Cliente {
   conversas       ConversaIA[]
   portalTokens    PortalToken[]
   statusHistorico ClienteStatusHistorico[]
+  ordensServico   OrdemServico[]
 
   @@map("clientes")
 }
@@ -260,22 +262,88 @@ model Socio {
   @@map("socios")
 }
 
+enum TipoOS {
+  duvida
+  solicitacao
+  reclamacao
+  documento
+  outros
+}
+
+enum StatusOS {
+  aberta
+  em_andamento
+  aguardando_cliente
+  resolvida
+  cancelada
+}
+
+enum TipoComunicado {
+  informativo
+  alerta
+  obrigacao
+  promocional
+}
+
 model Documento {
-  id         String   @id @default(uuid())
-  clienteId  String?
-  cliente    Cliente? @relation(fields: [clienteId], references: [id])
-  leadId     String?
-  lead       Lead?    @relation(fields: [leadId], references: [id])
-  tipo       String
-  nome       String
-  url        String
-  tamanho    Int?
-  mimeType   String?
-  status     String   @default("pendente")
-  observacao String?
-  criadoEm  DateTime @default(now())
+  id            String   @id @default(uuid())
+  clienteId     String?
+  cliente       Cliente? @relation(fields: [clienteId], references: [id])
+  leadId        String?
+  lead          Lead?    @relation(fields: [leadId], references: [id])
+  tipo          String
+  nome          String
+  url           String
+  tamanho       Int?
+  mimeType      String?
+  status        String   @default("pendente")
+  observacao    String?
+  origemPortal  Boolean  @default(false)
+  xmlMetadata   Json?
+  criadoEm      DateTime @default(now())
 
   @@map("documentos")
+}
+
+model OrdemServico {
+  id              String    @id @default(uuid())
+  clienteId       String
+  cliente         Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  empresaId       String?
+  empresa         Empresa?  @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  tipo            TipoOS    @default(duvida)
+  titulo          String
+  descricao       String    @db.Text
+  status          StatusOS  @default(aberta)
+  prioridade      Prioridade @default(media)
+  resposta        String?   @db.Text
+  respondidoEm    DateTime?
+  respondidoPorId String?
+  avaliacaoNota   Int?
+  avaliacaoComent String?
+  fechadoEm       DateTime?
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+
+  @@index([clienteId, criadoEm])
+  @@index([status, criadoEm])
+  @@map("ordens_servico")
+}
+
+model Comunicado {
+  id          String         @id @default(uuid())
+  titulo      String
+  conteudo    String         @db.Text
+  tipo        TipoComunicado @default(informativo)
+  publicado   Boolean        @default(false)
+  publicadoEm DateTime?
+  expiradoEm  DateTime?
+  criadoPorId String?
+  criadoEm    DateTime       @default(now())
+  atualizadoEm DateTime      @updatedAt
+
+  @@index([publicado, publicadoEm])
+  @@map("comunicados")
 }
 
 model Contrato {
