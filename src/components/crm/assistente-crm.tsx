@@ -53,6 +53,13 @@ export function AssistenteCRM({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const historyLoadedRef = useRef(false)
 
   // Reseta o chat quando o contexto muda (troca de cliente/lead)
+  // Permite abrir via CustomEvent('open-assistente') disparado por outros componentes
+  useEffect(() => {
+    const handler = () => setOpen(true)
+    window.addEventListener('open-assistente', handler)
+    return () => window.removeEventListener('open-assistente', handler)
+  }, [])
+
   const prevContextRef = useRef({ clienteId, leadId })
   useEffect(() => {
     const prev = prevContextRef.current

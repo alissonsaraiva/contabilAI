@@ -284,7 +284,7 @@ export function RelatoriosClient({
 
   const hasExtraFilters = !!(q || sucesso || agendamentoId || ano || mes)
   const grupos = grupoPorMesAno(relatorios)
-  const mostrarAgendamentos = tipo !== 'manual' && agendamentosAtivos.length > 0
+  const mostrarAgendamentos = agendamentosAtivos.length > 0
 
   const INPUT  = 'h-9 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
   const SELECT = INPUT + ' appearance-none cursor-pointer pr-8'
@@ -295,9 +295,8 @@ export function RelatoriosClient({
       {/* ── Tabs ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 rounded-2xl border border-outline-variant/15 bg-card p-1.5 shadow-sm">
         {[
-          { value: '',         label: 'Todos',      icon: 'list' },
-          { value: 'agendado', label: 'Agendados',  icon: 'calendar_month' },
-          { value: 'manual',   label: 'Manuais',    icon: 'smart_toy' },
+          { value: '',         label: 'Todos',     icon: 'list' },
+          { value: 'agendado', label: 'Agendados', icon: 'calendar_month' },
         ].map(tab => (
           <button
             key={tab.value}
@@ -479,10 +478,7 @@ export function RelatoriosClient({
           </div>
           {!hasExtraFilters && (
             <button
-              onClick={() => {
-                const btn = document.querySelector<HTMLButtonElement>('[data-agente-toggle]')
-                btn?.click()
-              }}
+              onClick={() => window.dispatchEvent(new CustomEvent('open-assistente'))}
               className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-primary/90 transition-colors"
             >
               <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
