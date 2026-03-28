@@ -17,7 +17,7 @@ CREATE TYPE "StatusLead_new" AS ENUM (
 );
 
 -- 2. Migrate column (no rows should have 'socios_preenchidos')
-ALTER TABLE "Lead"
+ALTER TABLE "leads"
   ALTER COLUMN "status" TYPE "StatusLead_new"
   USING ("status"::text::"StatusLead_new");
 
