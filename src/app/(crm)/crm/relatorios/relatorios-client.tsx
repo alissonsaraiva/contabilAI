@@ -24,6 +24,16 @@ type Relatorio = {
   criadoEm: string
 }
 
+type AgendamentoAtivo = {
+  id: string
+  descricao: string
+  cron: string
+  ativo: boolean
+  ultimoDisparo: string | null
+  proximoDisparo: string | null
+  totalRelatorios: number
+}
+
 type Props = {
   relatorios: Relatorio[]
   total: number
@@ -31,12 +41,18 @@ type Props = {
   totalPages: number
   anos: number[]
   agendamentos: { id: string; desc: string }[]
+  agendamentosAtivos: AgendamentoAtivo[]
   filters: { q: string; tipo: string; sucesso: string; agendamentoId: string; ano: string; mes: string }
 }
 
 function formatDataPtBR(iso: string) {
   const d = new Date(iso)
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatDataCurta(iso: string) {
+  const d = new Date(iso)
+  return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })
 }
 
 function grupoPorMesAno(relatorios: Relatorio[]) {
@@ -57,12 +73,76 @@ function grupoPorMesAno(relatorios: Relatorio[]) {
 
 function TipoBadge({ tipo }: { tipo: string }) {
   if (tipo === 'agendado') {
-    return <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Agendado</span>
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+        <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
+        Agendado
+      </span>
+    )
   }
-  return <span className="rounded-full bg-tertiary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-tertiary">Manual</span>
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-tertiary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-tertiary">
+      <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+      Manual
+    </span>
+  )
 }
 
-function RelatorioItem({ rel, onExpand, expanded }: { rel: Relatorio; onExpand: () => void; expanded: boolean }) {
+// ─── Card de Agendamento Ativo ────────────────────────────────────────────────
+function AgendamentoCard({ ag }: { ag: AgendamentoAtivo }) {
+  return (
+    <div className={`relative flex min-w-[220px] flex-col gap-3 rounded-2xl border p-4 transition-colors ${
+      ag.ativo
+        ? 'border-primary/20 bg-primary/5'
+        : 'border-outline-variant/15 bg-surface-container-low/60 opacity-60'
+    }`}>
+      {/* Status pill */}
+      <div className="flex items-start justify-between gap-2">
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+          ag.ativo ? 'bg-green-status/10 text-green-status' : 'bg-outline-variant/20 text-on-surface-variant/60'
+        }`}>
+          <span className={`inline-block h-1.5 w-1.5 rounded-full ${ag.ativo ? 'bg-green-status' : 'bg-outline-variant/60'}`} />
+          {ag.ativo ? 'Ativo' : 'Inativo'}
+        </span>
+        <span className="rounded-full bg-surface-container px-2 py-0.5 text-[10px] font-bold text-on-surface-variant/60">
+          {ag.totalRelatorios} relatório{ag.totalRelatorios !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Descrição */}
+      <div>
+        <span className="material-symbols-outlined text-[18px] text-primary/70 mb-1" style={{ fontVariationSettings: "'FILL' 1" }}>
+          calendar_month
+        </span>
+        <p className="text-[13px] font-semibold leading-snug text-on-surface line-clamp-2">{ag.descricao}</p>
+      </div>
+
+      {/* Próximo / Último disparo */}
+      <div className="space-y-1 text-[11px] text-on-surface-variant/70">
+        {ag.proximoDisparo && (
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[12px] text-primary/60">arrow_forward</span>
+            <span>Próximo: <span className="font-semibold text-on-surface">{formatDataCurta(ag.proximoDisparo)}</span></span>
+          </div>
+        )}
+        {ag.ultimoDisparo ? (
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[12px] text-on-surface-variant/40">history</span>
+            <span>Último: <span className="font-medium">{formatDataCurta(ag.ultimoDisparo)}</span></span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[12px] text-on-surface-variant/40">hourglass_empty</span>
+            <span className="italic text-on-surface-variant/50">Nunca executado</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Card de Relatório ────────────────────────────────────────────────────────
+function RelatorioCard({ rel, expanded, onExpand }: { rel: Relatorio; expanded: boolean; onExpand: () => void }) {
   const [deleting, startDelete] = useTransition()
   const router = useRouter()
 
@@ -75,32 +155,42 @@ function RelatorioItem({ rel, onExpand, expanded }: { rel: Relatorio; onExpand: 
     })
   }
 
+  const borderColor = rel.tipo === 'agendado' ? 'border-l-primary' : 'border-l-tertiary'
+  const iconName    = rel.tipo === 'agendado' ? 'calendar_month' : 'smart_toy'
+  const iconBg      = rel.tipo === 'agendado' ? 'bg-primary/10 text-primary' : 'bg-tertiary/10 text-tertiary'
+
   return (
-    <div className={`border-b border-outline-variant/10 last:border-0 transition-colors ${expanded ? 'bg-surface-container-low/40' : 'hover:bg-surface-container-low/20'}`}>
-      {/* Row principal */}
-      <div
-        className="flex items-start gap-3 px-5 py-4 cursor-pointer"
-        onClick={onExpand}
-      >
-        {/* Ícone status */}
-        <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${rel.sucesso ? 'bg-green-status/10' : 'bg-error/10'}`}>
-          <span
-            className={`material-symbols-outlined text-[16px] ${rel.sucesso ? 'text-green-status' : 'text-error'}`}
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            {rel.sucesso ? 'check_circle' : 'error'}
+    <div className={`border-b border-outline-variant/10 last:border-0 border-l-[3px] ${borderColor} transition-colors ${expanded ? 'bg-surface-container-low/30' : 'hover:bg-surface-container-low/15'}`}>
+      <div className="flex items-start gap-3 px-5 py-4 cursor-pointer" onClick={onExpand}>
+        {/* Ícone tipo */}
+        <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
+          <span className="material-symbols-outlined text-[17px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            {iconName}
           </span>
         </div>
 
         <div className="min-w-0 flex-1">
+          {/* Título + badges */}
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[14px] font-semibold text-on-surface">{rel.titulo}</p>
             <TipoBadge tipo={rel.tipo} />
             {!rel.sucesso && (
-              <span className="rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-error">Erro</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-error">
+                <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+                Erro
+              </span>
             )}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-on-surface-variant/70">
+
+          {/* Preview do conteúdo */}
+          {!expanded && (
+            <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-on-surface-variant/60">
+              {rel.conteudo.replace(/[#*`>\-_\[\]]/g, '').substring(0, 220)}
+            </p>
+          )}
+
+          {/* Meta */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-on-surface-variant/55">
             <span>{formatDataPtBR(rel.criadoEm)}</span>
             {rel.criadoPorNome && <span>· {rel.criadoPorNome}</span>}
             {rel.agendamentoDesc && rel.tipo === 'agendado' && (
@@ -111,13 +201,9 @@ function RelatorioItem({ rel, onExpand, expanded }: { rel: Relatorio; onExpand: 
               </span>
             )}
           </div>
-          {!expanded && (
-            <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-on-surface-variant/60">
-              {rel.conteudo.replace(/[#*`>\-]/g, '').substring(0, 200)}
-            </p>
-          )}
         </div>
 
+        {/* Ações */}
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
           {rel.arquivoUrl && (
             <a
@@ -133,7 +219,7 @@ function RelatorioItem({ rel, onExpand, expanded }: { rel: Relatorio; onExpand: 
           <button
             onClick={onExpand}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container transition-colors"
-            title={expanded ? 'Recolher' : 'Expandir'}
+            title={expanded ? 'Recolher' : 'Ver conteúdo completo'}
           >
             <span className="material-symbols-outlined text-[16px]">{expanded ? 'expand_less' : 'expand_more'}</span>
           </button>
@@ -150,7 +236,7 @@ function RelatorioItem({ rel, onExpand, expanded }: { rel: Relatorio; onExpand: 
 
       {/* Conteúdo expandido */}
       {expanded && (
-        <div className="mx-5 mb-4 rounded-xl border border-outline-variant/15 bg-card p-5">
+        <div className="mx-5 mb-5 rounded-xl border border-outline-variant/15 bg-card p-5">
           <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-on-surface">
             {rel.conteudo}
           </pre>
@@ -160,12 +246,14 @@ function RelatorioItem({ rel, onExpand, expanded }: { rel: Relatorio; onExpand: 
   )
 }
 
-export function RelatoriosClient({ relatorios, total, page, totalPages, anos, agendamentos, filters }: Props) {
+// ─── Componente principal ─────────────────────────────────────────────────────
+export function RelatoriosClient({
+  relatorios, total, page, totalPages, anos, agendamentos, agendamentosAtivos, filters,
+}: Props) {
   const router   = useRouter()
   const pathname = usePathname()
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  // Estado local dos filtros (controlado pelo form)
   const [q,             setQ]             = useState(filters.q)
   const [tipo,          setTipo]          = useState(filters.tipo)
   const [sucesso,       setSucesso]       = useState(filters.sucesso)
@@ -180,42 +268,87 @@ export function RelatoriosClient({ relatorios, total, page, totalPages, anos, ag
     return `${pathname}?${params.toString()}`
   }
 
-  function applyFilters() {
-    router.push(buildUrl())
+  function applyFilters(overrides: Record<string, string> = {}) {
+    router.push(buildUrl(overrides))
+  }
+
+  function setTab(t: string) {
+    setTipo(t)
+    router.push(buildUrl({ tipo: t, page: '1' }))
   }
 
   function clearFilters() {
-    setQ(''); setTipo(''); setSucesso(''); setAgendamentoId(''); setAno(''); setMes('')
-    router.push(pathname)
+    setQ(''); setSucesso(''); setAgendamentoId(''); setAno(''); setMes('')
+    router.push(buildUrl({ q: '', sucesso: '', agendamentoId: '', ano: '', mes: '', page: '1' }))
   }
 
-  const hasFilters = !!(q || tipo || sucesso || agendamentoId || ano || mes)
+  const hasExtraFilters = !!(q || sucesso || agendamentoId || ano || mes)
   const grupos = grupoPorMesAno(relatorios)
+  const mostrarAgendamentos = tipo !== 'manual' && agendamentosAtivos.length > 0
 
-  const INPUT  = 'h-9 w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
+  const INPUT  = 'h-9 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
   const SELECT = INPUT + ' appearance-none cursor-pointer pr-8'
 
   return (
     <div className="space-y-5">
-      {/* Painel de filtros */}
-      <div className="rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
-        <div className="border-b border-outline-variant/10 px-5 py-3.5 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[16px] text-on-surface-variant/60" style={{ fontVariationSettings: "'FILL' 1" }}>filter_alt</span>
-          <span className="text-[13px] font-semibold text-on-surface-variant">Filtros</span>
-          {hasFilters && (
-            <button onClick={clearFilters} className="ml-auto text-[12px] font-semibold text-primary hover:opacity-80">
-              Limpar filtros
-            </button>
-          )}
+
+      {/* ── Tabs ──────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 rounded-2xl border border-outline-variant/15 bg-card p-1.5 shadow-sm">
+        {[
+          { value: '',         label: 'Todos',      icon: 'list' },
+          { value: 'agendado', label: 'Agendados',  icon: 'calendar_month' },
+          { value: 'manual',   label: 'Manuais',    icon: 'smart_toy' },
+        ].map(tab => (
+          <button
+            key={tab.value}
+            onClick={() => setTab(tab.value)}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold transition-all ${
+              tipo === tab.value
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-on-surface-variant/70 hover:bg-surface-container hover:text-on-surface'
+            }`}
+          >
+            <span
+              className="material-symbols-outlined text-[15px]"
+              style={{ fontVariationSettings: tipo === tab.value ? "'FILL' 1" : "'FILL' 0" }}
+            >
+              {tab.icon}
+            </span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Agendamentos Ativos ────────────────────────────────────── */}
+      {mostrarAgendamentos && (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+              Agendamentos configurados
+            </span>
+            <div className="h-px flex-1 bg-outline-variant/15" />
+            <span className="rounded-full bg-surface-container px-2 py-0.5 text-[10px] font-bold text-on-surface-variant/60">
+              {agendamentosAtivos.length}
+            </span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {agendamentosAtivos.map(ag => (
+              <AgendamentoCard key={ag.id} ag={ag} />
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 lg:grid-cols-6">
+      )}
+
+      {/* ── Filtros inline ─────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
+        <div className="flex flex-wrap items-end gap-3 p-4">
           {/* Busca */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Buscar</label>
+          <div className="min-w-[200px] flex-1">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/55 mb-1.5">Buscar</label>
             <div className="relative">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant/40">search</span>
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[15px] text-on-surface-variant/40">search</span>
               <input
-                className={INPUT + ' pl-8'}
+                className={INPUT + ' w-full pl-8'}
                 placeholder="Título, conteúdo, responsável..."
                 value={q}
                 onChange={e => setQ(e.target.value)}
@@ -224,37 +357,11 @@ export function RelatoriosClient({ relatorios, total, page, totalPages, anos, ag
             </div>
           </div>
 
-          {/* Tipo */}
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Tipo</label>
-            <div className="relative">
-              <select className={SELECT} value={tipo} onChange={e => setTipo(e.target.value)}>
-                <option value="">Todos</option>
-                <option value="agendado">Agendados</option>
-                <option value="manual">Manuais</option>
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[14px] text-on-surface-variant/40">expand_more</span>
-            </div>
-          </div>
-
-          {/* Status */}
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Status</label>
-            <div className="relative">
-              <select className={SELECT} value={sucesso} onChange={e => setSucesso(e.target.value)}>
-                <option value="">Todos</option>
-                <option value="true">Sucesso</option>
-                <option value="false">Com erro</option>
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[14px] text-on-surface-variant/40">expand_more</span>
-            </div>
-          </div>
-
           {/* Ano */}
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Ano</label>
+          <div className="w-28">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/55 mb-1.5">Ano</label>
             <div className="relative">
-              <select className={SELECT} value={ano} onChange={e => { setAno(e.target.value); setMes('') }}>
+              <select className={SELECT + ' w-full'} value={ano} onChange={e => { setAno(e.target.value); setMes('') }}>
                 <option value="">Todos</option>
                 {anos.map(a => <option key={a} value={String(a)}>{a}</option>)}
               </select>
@@ -264,10 +371,10 @@ export function RelatoriosClient({ relatorios, total, page, totalPages, anos, ag
 
           {/* Mês */}
           {ano && (
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Mês</label>
+            <div className="w-32">
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/55 mb-1.5">Mês</label>
               <div className="relative">
-                <select className={SELECT} value={mes} onChange={e => setMes(e.target.value)}>
+                <select className={SELECT + ' w-full'} value={mes} onChange={e => setMes(e.target.value)}>
                   <option value="">Todos</option>
                   {MESES.map((m, i) => <option key={i} value={String(i + 1)}>{m}</option>)}
                 </select>
@@ -275,15 +382,60 @@ export function RelatoriosClient({ relatorios, total, page, totalPages, anos, ag
               </div>
             </div>
           )}
+
+          {/* Status pills */}
+          <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/55 mb-1.5">Status</label>
+            <div className="flex h-9 items-center gap-1 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-1.5">
+              {[
+                { value: '',      label: 'Todos'  },
+                { value: 'true',  label: 'Sucesso' },
+                { value: 'false', label: 'Erro'   },
+              ].map(s => (
+                <button
+                  key={s.value}
+                  onClick={() => { setSucesso(s.value); applyFilters({ sucesso: s.value }) }}
+                  className={`rounded-[8px] px-2.5 py-1 text-[12px] font-semibold transition-colors ${
+                    sucesso === s.value
+                      ? s.value === 'false'
+                        ? 'bg-error text-white'
+                        : 'bg-primary text-white'
+                      : 'text-on-surface-variant/70 hover:bg-surface-container'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Botão aplicar */}
+          <button
+            onClick={() => applyFilters()}
+            className="flex h-9 items-center gap-2 rounded-[10px] bg-primary px-4 text-[13px] font-semibold text-white hover:bg-primary/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[15px]">search</span>
+            Buscar
+          </button>
+
+          {hasExtraFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex h-9 items-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold text-on-surface-variant/70 hover:bg-surface-container transition-colors"
+            >
+              <span className="material-symbols-outlined text-[15px]">close</span>
+              Limpar
+            </button>
+          )}
         </div>
 
-        {/* Agendamentos */}
+        {/* Chips de agendamentos */}
         {agendamentos.length > 0 && (
-          <div className="border-t border-outline-variant/10 px-5 pb-4 pt-3">
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-2">Filtrar por agendamento</label>
-            <div className="flex flex-wrap gap-2">
+          <div className="border-t border-outline-variant/10 px-4 pb-3 pt-2.5">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50">Filtrar por agendamento</p>
+            <div className="flex flex-wrap gap-1.5">
               <button
-                onClick={() => { setAgendamentoId(''); applyFilters() }}
+                onClick={() => { setAgendamentoId(''); applyFilters({ agendamentoId: '' }) }}
                 className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-colors ${!agendamentoId ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
               >
                 Todos
@@ -291,7 +443,7 @@ export function RelatoriosClient({ relatorios, total, page, totalPages, anos, ag
               {agendamentos.map(ag => (
                 <button
                   key={ag.id}
-                  onClick={() => { setAgendamentoId(ag.id); applyFilters() }}
+                  onClick={() => { setAgendamentoId(ag.id); applyFilters({ agendamentoId: ag.id }) }}
                   className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-colors ${agendamentoId === ag.id ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
                 >
                   {ag.desc}
@@ -301,37 +453,47 @@ export function RelatoriosClient({ relatorios, total, page, totalPages, anos, ag
           </div>
         )}
 
-        {/* Botão aplicar */}
-        <div className="flex items-center justify-between border-t border-outline-variant/10 px-5 py-3">
+        {/* Contador de resultados */}
+        <div className="border-t border-outline-variant/10 px-4 py-2.5">
           <span className="text-[12px] text-on-surface-variant/60">
             {total} resultado{total !== 1 ? 's' : ''} encontrado{total !== 1 ? 's' : ''}
           </span>
-          <button
-            onClick={applyFilters}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-[13px] font-semibold text-white hover:bg-primary/90 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[15px]">search</span>
-            Buscar
-          </button>
         </div>
       </div>
 
-      {/* Lista */}
+      {/* ── Lista de relatórios ────────────────────────────────────── */}
       {relatorios.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-outline-variant/15 bg-card py-16 text-center shadow-sm">
-          <span className="material-symbols-outlined text-[44px] text-on-surface-variant/20">bar_chart</span>
-          <p className="text-[14px] font-medium text-on-surface-variant/60">
-            {hasFilters ? 'Nenhum relatório encontrado com esses filtros.' : 'Nenhum relatório gerado ainda.'}
-          </p>
-          <p className="text-[12px] text-on-surface-variant/40">
-            Peça à IA para "gerar um relatório e publicar no painel" ou aguarde o próximo agendamento.
-          </p>
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-outline-variant/15 bg-card py-16 text-center shadow-sm">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+            <span className="material-symbols-outlined text-[32px] text-primary/50" style={{ fontVariationSettings: "'FILL' 1" }}>
+              insights
+            </span>
+          </div>
+          <div>
+            <p className="text-[15px] font-semibold text-on-surface-variant/70">
+              {hasExtraFilters ? 'Nenhum relatório com esses filtros.' : 'Nenhum relatório gerado ainda.'}
+            </p>
+            <p className="mt-1 text-[12px] text-on-surface-variant/40">
+              Peça à IA: "gerar um relatório e publicar no painel"
+            </p>
+          </div>
+          {!hasExtraFilters && (
+            <button
+              onClick={() => {
+                const btn = document.querySelector<HTMLButtonElement>('[data-agente-toggle]')
+                btn?.click()
+              }}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-primary/90 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+              Gerar relatório agora
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
           {grupos.map(grupo => (
             <div key={grupo.key}>
-              {/* Cabeçalho do grupo mês/ano */}
               <div className="mb-3 flex items-center gap-3">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">{grupo.label}</span>
                 <div className="h-px flex-1 bg-outline-variant/15" />
@@ -339,10 +501,9 @@ export function RelatoriosClient({ relatorios, total, page, totalPages, anos, ag
                   {grupo.items.length}
                 </span>
               </div>
-
               <div className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
                 {grupo.items.map(rel => (
-                  <RelatorioItem
+                  <RelatorioCard
                     key={rel.id}
                     rel={rel}
                     expanded={expandedId === rel.id}
@@ -355,7 +516,7 @@ export function RelatoriosClient({ relatorios, total, page, totalPages, anos, ag
         </div>
       )}
 
-      {/* Paginação */}
+      {/* ── Paginação ─────────────────────────────────────────────── */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
           <span className="text-on-surface-variant">Página {page} de {totalPages}</span>

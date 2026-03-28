@@ -59,7 +59,7 @@ export default async function RelatoriosPage({ searchParams }: Props) {
     ],
   }
 
-  const [relatorios, total, totalGeral, agendamentos] = await Promise.all([
+  const [relatorios, total, totalGeral, agendamentos, agendamentosAtivos, contagensAgendamentos] = await Promise.all([
     prisma.relatorioAgente.findMany({
       where,
       orderBy: { criadoEm: 'desc' },
@@ -68,12 +68,22 @@ export default async function RelatoriosPage({ searchParams }: Props) {
     }),
     prisma.relatorioAgente.count({ where }),
     prisma.relatorioAgente.count(),
-    // Agendamentos únicos para o filtro
+    // Agendamentos únicos para filtro por chips
     prisma.relatorioAgente.findMany({
       where: { agendamentoId: { not: null } },
       select: { agendamentoId: true, agendamentoDesc: true },
       distinct: ['agendamentoId'],
       orderBy: { criadoEm: 'desc' },
+    }),
+    // Agendamentos configurados (tabela própria)
+    prisma.agendamentoAgente.findMany({
+      orderBy: [{ ativo: 'desc' }, { proximoDisparo: 'asc' }],
+    }),
+    // Contagem de relatórios por agendamento
+    prisma.relatorioAgente.groupBy({
+      by: ['agendamentoId'],
+      where: { agendamentoId: { not: null } },
+      _count: { id: true },
     }),
   ])
 
@@ -85,6 +95,8 @@ export default async function RelatoriosPage({ searchParams }: Props) {
   const anos = [...new Set(todosAnos.map(r => new Date(r.criadoEm).getFullYear()))].sort((a, b) => b - a)
 
   const totalPages = Math.ceil(total / PER_PAGE)
+
+  const contagemMap = new Map(contagensAgendamentos.map(c => [c.agendamentoId, c._count.id]))
 
   // Stats rápidas
   const [totalAgendados, totalManuais, totalErros] = await Promise.all([
@@ -139,6 +151,15 @@ export default async function RelatoriosPage({ searchParams }: Props) {
         totalPages={totalPages}
         anos={anos}
         agendamentos={agendamentos.map(a => ({ id: a.agendamentoId!, desc: a.agendamentoDesc ?? '' }))}
+        agendamentosAtivos={agendamentosAtivos.map(a => ({
+          id: a.id,
+          descricao: a.descricao,
+          cron: a.cron,
+          ativo: a.ativo,
+          ultimoDisparo: a.ultimoDisparo?.toISOString() ?? null,
+          proximoDisparo: a.proximoDisparo?.toISOString() ?? null,
+          totalRelatorios: contagemMap.get(a.id) ?? 0,
+        }))}
         filters={{ q, tipo, sucesso: sucessoParam, agendamentoId, ano: sp.ano ?? '', mes: sp.mes ?? '' }}
       />
     </div>
