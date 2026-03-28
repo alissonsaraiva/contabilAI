@@ -3,6 +3,7 @@
 -- Strategy: create new enum, migrate column, drop old enum.
 
 -- 1. Create new enum without 'socios_preenchidos'
+DROP TYPE IF EXISTS "StatusLead_new";
 CREATE TYPE "StatusLead_new" AS ENUM (
   'iniciado',
   'simulador',
