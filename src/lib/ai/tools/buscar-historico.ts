@@ -2,6 +2,9 @@ import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
+// Tipos de interação visíveis ao cliente via portal — notas internas e chamadas são CRM-only
+const TIPOS_PORTAL = ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou']
+
 const buscarHistoricoTool: Tool = {
   definition: {
     name: 'buscarHistorico',
@@ -43,7 +46,16 @@ const buscarHistoricoTool: Tool = {
     const leadId    = (input.leadId    as string | undefined) ?? ctx.leadId
     const limite    = (input.limite    as number | undefined) ?? 10
     const tipoRaw   = input.tipo as string | undefined
-    const tipos     = tipoRaw ? tipoRaw.split(',').map(t => t.trim()).filter(Boolean) : []
+
+    // No portal, restringe aos tipos que o cliente pode ver
+    const tiposPermitidos = ctx.solicitanteAI === 'portal' ? TIPOS_PORTAL : null
+
+    const tiposSolicitados = tipoRaw ? tipoRaw.split(',').map(t => t.trim()).filter(Boolean) : []
+
+    // Intersecta tipos solicitados com os permitidos (no portal filtra sempre)
+    const tipos = tiposPermitidos
+      ? (tiposSolicitados.length > 0 ? tiposSolicitados.filter(t => tiposPermitidos.includes(t)) : tiposPermitidos)
+      : tiposSolicitados
 
     if (!clienteId && !leadId) {
       return {

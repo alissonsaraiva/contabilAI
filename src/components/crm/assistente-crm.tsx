@@ -10,6 +10,19 @@ function newSessionId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+function getOrCreateSessionId(contextKey: string): string {
+  const storageKey = `crm_session_${contextKey}`
+  try {
+    const stored = localStorage.getItem(storageKey)
+    if (stored) return stored
+    const fresh = newSessionId()
+    localStorage.setItem(storageKey, fresh)
+    return fresh
+  } catch {
+    return newSessionId()
+  }
+}
+
 export function AssistenteCRM({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const { clienteId, leadId, nomeCliente } = useAssistente()
 
@@ -17,10 +30,17 @@ export function AssistenteCRM({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [sessionId] = useState(newSessionId)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // sessionId estável por contexto — persiste no localStorage entre navegações
+  const contextKey = clienteId ?? leadId ?? 'global'
+  const sessionIdRef = useRef<string>('')
+  if (!sessionIdRef.current || sessionIdRef.current === '') {
+    sessionIdRef.current = typeof window !== 'undefined'
+      ? getOrCreateSessionId(contextKey)
+      : newSessionId()
+  }
   // Greeting dinâmico baseado no contexto atual
   const greeting: Msg = {
     role: 'assistant',
@@ -29,15 +49,37 @@ export function AssistenteCRM({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       : `Olá! Sou ${nomeIa}, sua assistente de CRM. Posso ajudar com informações gerais do escritório, comparar clientes, ou navegar até um cliente/lead para ter contexto específico.`,
   }
 
+  // Carrega histórico da sessão na primeira abertura
+  const historyLoadedRef = useRef(false)
+
   // Reseta o chat quando o contexto muda (troca de cliente/lead)
   const prevContextRef = useRef({ clienteId, leadId })
   useEffect(() => {
     const prev = prevContextRef.current
     if (prev.clienteId !== clienteId || prev.leadId !== leadId) {
       setMsgs([])
+      historyLoadedRef.current = false
+      sessionIdRef.current = typeof window !== 'undefined'
+        ? getOrCreateSessionId(clienteId ?? leadId ?? 'global')
+        : newSessionId()
       prevContextRef.current = { clienteId, leadId }
     }
   }, [clienteId, leadId])
+  useEffect(() => {
+    if (!open || historyLoadedRef.current) return
+    historyLoadedRef.current = true
+    fetch(`/api/crm/ai/chat?sessionId=${sessionIdRef.current}`)
+      .then(r => r.json())
+      .then(({ mensagens }) => {
+        if (Array.isArray(mensagens) && mensagens.length > 0) {
+          setMsgs(mensagens.map((m: { role: string; conteudo: string }) => ({
+            role: m.role as 'user' | 'assistant',
+            text: m.conteudo,
+          })))
+        }
+      })
+      .catch(() => {})
+  }, [open])
 
   useEffect(() => {
     if (open) {
@@ -60,7 +102,7 @@ export function AssistenteCRM({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       const res = await fetch('/api/crm/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, sessionId, clienteId, leadId }),
+        body: JSON.stringify({ message: text, sessionId: sessionIdRef.current, clienteId, leadId }),
       })
       const data = await res.json()
       setMsgs(m => [...m, { role: 'assistant', text: data.reply ?? 'Sem resposta.' }])
@@ -69,7 +111,7 @@ export function AssistenteCRM({ nomeIa = 'Clara' }: { nomeIa?: string }) {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, sessionId, clienteId, leadId])
+  }, [input, loading, clienteId, leadId])
 
   const allMsgs = msgs.length === 0 ? [greeting] : msgs
 

@@ -268,6 +268,20 @@ export async function deleteBySourceId(sourceId: string): Promise<void> {
   )
 }
 
+/**
+ * Retorna o MD5 hash do conteúdo armazenado para um documentoId.
+ * Usado para dirty check antes de re-indexar — evita chamadas de embedding desnecessárias.
+ * Retorna null se o documento não está indexado ou não tem hash (entradas legadas).
+ */
+export async function getContentHash(documentoId: string): Promise<string | null> {
+  const db = getPool()
+  const { rows } = await db.query<{ hash: string | null }>(
+    `SELECT metadata->>'contentHash' AS hash FROM vectors.embeddings WHERE documento_id = $1 LIMIT 1`,
+    [documentoId],
+  )
+  return rows[0]?.hash ?? null
+}
+
 export async function deleteEmbeddings(opts: {
   clienteId?: string
   leadId?: string

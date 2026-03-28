@@ -28,11 +28,21 @@ export default async function CrmOSDetailPage({ params }: Props) {
     where:   { id },
     include: {
       cliente: { select: { id: true, nome: true, email: true, telefone: true, whatsapp: true } },
-      empresa: { select: { razaoSocial: true, nomeFantasia: true } },
+      empresa: {
+        select: {
+          razaoSocial: true, nomeFantasia: true,
+          socios: { select: { id: true, nome: true, whatsapp: true, telefone: true } },
+        },
+      },
     },
   })
 
   if (!ordem) notFound()
+
+  // Sócios com algum contato WhatsApp
+  const sociosContato = (ordem.empresa?.socios ?? [])
+    .filter(s => s.whatsapp || s.telefone)
+    .map(s => ({ id: s.id, nome: s.nome, telefone: (s.whatsapp || s.telefone)! }))
 
   const s         = STATUS_OS[ordem.status] ?? STATUS_OS.aberta
   const nomeEmpresa = ordem.empresa?.razaoSocial ?? ordem.empresa?.nomeFantasia
@@ -109,8 +119,10 @@ export default async function CrmOSDetailPage({ params }: Props) {
               ordemId={id}
               statusAtual={ordem.status}
               temResposta={!!ordem.resposta}
+              clienteNome={ordem.cliente.nome}
               clienteEmail={ordem.cliente.email}
               clienteWpp={ordem.cliente.whatsapp ?? ordem.cliente.telefone}
+              socios={sociosContato}
             />
           )}
         </div>

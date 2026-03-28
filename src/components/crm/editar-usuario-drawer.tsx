@@ -22,6 +22,7 @@ type Usuario = {
   email: string
   tipo: TipoUsuario
   ativo: boolean
+  whatsapp?: string | null
 }
 
 type Props = {
@@ -33,12 +34,12 @@ type Props = {
 export function EditarUsuarioDrawer({ usuario, open, onClose }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ nome: '', email: '', tipo: 'assistente' })
+  const [form, setForm] = useState({ nome: '', email: '', tipo: 'assistente', whatsapp: '' })
   const [erros, setErros] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (usuario) {
-      setForm({ nome: usuario.nome, email: usuario.email, tipo: usuario.tipo })
+      setForm({ nome: usuario.nome, email: usuario.email, tipo: usuario.tipo, whatsapp: usuario.whatsapp ?? '' })
       setErros({})
     }
   }, [usuario])
@@ -62,7 +63,7 @@ export function EditarUsuarioDrawer({ usuario, open, onClose }: Props) {
       const res = await fetch(`/api/usuarios/${usuario.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: form.nome, email: form.email, tipo: form.tipo }),
+        body: JSON.stringify({ nome: form.nome, email: form.email, tipo: form.tipo, whatsapp: form.whatsapp || null }),
       })
       if (res.status === 403) { toast.error('Sem permissão'); return }
       if (res.status === 409) { toast.error('E-mail já cadastrado'); return }
@@ -79,7 +80,7 @@ export function EditarUsuarioDrawer({ usuario, open, onClose }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0 bg-card">
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0 bg-card" showCloseButton={false}>
         <div className="flex items-center gap-3 border-b border-outline-variant/15 px-6 py-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>manage_accounts</span>
@@ -115,6 +116,18 @@ export function EditarUsuarioDrawer({ usuario, open, onClose }: Props) {
                 onChange={e => set('email', e.target.value)}
               />
               {erros.email && <p className="mt-1.5 text-xs font-medium text-error">{erros.email}</p>}
+            </div>
+
+            <div>
+              <label className={LABEL}>WhatsApp</label>
+              <input
+                type="tel"
+                className={INPUT}
+                placeholder="(11) 99999-9999"
+                value={form.whatsapp}
+                onChange={e => set('whatsapp', e.target.value)}
+              />
+              <p className="mt-1.5 text-[12px] text-on-surface-variant/60">Usado pela IA para enviar relatórios e avisos diretamente ao usuário.</p>
             </div>
 
             <div>

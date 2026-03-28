@@ -42,16 +42,23 @@ export async function GET(_req: Request, { params }: Params) {
 
   const remoteJid = buildRemoteJid(phone)
 
-  const conversa = await prisma.conversaIA.findFirst({
+  // Busca todas as conversas deste número (pode haver múltiplas sessões históricas)
+  const conversas = await prisma.conversaIA.findMany({
     where: { canal: 'whatsapp', remoteJid },
-    orderBy: { atualizadaEm: 'desc' },
+    orderBy: { criadaEm: 'asc' },
     include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
   })
 
+  // Conversa mais recente determina o estado de pausa
+  const conversaAtual = conversas.at(-1) ?? null
+
+  // Consolida todas as mensagens de todas as sessões em ordem cronológica
+  const mensagens = conversas.flatMap(c => c.mensagens)
+
   return NextResponse.json({
-    conversa: conversa ? { id: conversa.id, pausadaEm: conversa.pausadaEm } : null,
-    mensagens: conversa?.mensagens ?? [],
-    pausada: !!conversa?.pausadaEm,
+    conversa: conversaAtual ? { id: conversaAtual.id, pausadaEm: conversaAtual.pausadaEm } : null,
+    mensagens,
+    pausada: !!conversaAtual?.pausadaEm,
     remoteJid,
     telefone: phone,
   })
@@ -68,6 +75,8 @@ export async function POST(req: Request, { params }: Params) {
   const mediaType     = (body?.mediaType     as string | undefined) ?? null
   const mediaFileName = (body?.mediaFileName as string | undefined) ?? null
   const mediaMimeType = (body?.mediaMimeType as string | undefined) ?? null
+  // pausarIA=false → envia como comunicado sem assumir controle (IA continua ativa)
+  const pausarIA = body?.pausarIA !== false
   if (!conteudo && !mediaUrl) return NextResponse.json({ error: 'Conteúdo ou arquivo obrigatório' }, { status: 400 })
 
   const cliente = await prisma.cliente.findUnique({
@@ -98,11 +107,13 @@ export async function POST(req: Request, { params }: Params) {
     })
   }
 
-  // Fase 1: pausa a IA e registra a interação (independente do resultado do envio)
+  // Fase 1: registra interação e pausa a IA se necessário
   await prisma.$transaction([
     prisma.conversaIA.update({
       where: { id: conversa.id },
-      data: { pausadaEm: new Date(), pausadoPorId: session.user.id, atualizadaEm: new Date() },
+      data: pausarIA
+        ? { pausadaEm: new Date(), pausadoPorId: session.user.id, atualizadaEm: new Date() }
+        : { atualizadaEm: new Date() },
     }),
     prisma.interacao.create({
       data: {

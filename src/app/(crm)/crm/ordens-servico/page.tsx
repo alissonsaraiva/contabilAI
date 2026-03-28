@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
+import { NovaOSDrawer } from '@/components/crm/nova-os-drawer'
 
 const PER_PAGE = 30
 
@@ -36,7 +37,7 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
   const where: any = {}
   if (status) where.status = status
 
-  const [ordens, total, counts] = await Promise.all([
+  const [ordens, total, counts, clientes] = await Promise.all([
     prisma.ordemServico.findMany({
       where,
       orderBy: [{ prioridade: 'desc' }, { criadoEm: 'desc' }],
@@ -52,6 +53,11 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
       by:    ['status'],
       _count: { status: true },
     }),
+    prisma.cliente.findMany({
+      where:   { status: 'ativo' },
+      select:  { id: true, nome: true },
+      orderBy: { nome: 'asc' },
+    }),
   ])
 
   const totalPages   = Math.ceil(total / PER_PAGE)
@@ -66,7 +72,10 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
             Solicitações abertas pelos clientes via portal.
           </p>
         </div>
-        <span className="text-sm text-on-surface-variant">{total} chamado{total !== 1 ? 's' : ''}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-on-surface-variant">{total} chamado{total !== 1 ? 's' : ''}</span>
+          <NovaOSDrawer clientes={clientes} />
+        </div>
       </div>
 
       {/* Status counts */}

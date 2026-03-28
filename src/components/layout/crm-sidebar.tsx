@@ -39,7 +39,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Comunicação',
     items: [
-      { href: '/crm/comunicados', icon: 'campaign', label: 'Comunicados' },
+      { href: '/crm/comunicados', icon: 'campaign',   label: 'Comunicados' },
+      { href: '/crm/relatorios',  icon: 'bar_chart',  label: 'Relatórios' },
     ],
   },
   {

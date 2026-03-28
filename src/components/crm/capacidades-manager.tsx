@@ -50,8 +50,14 @@ export function CapacidadesManager({ capacidades, desabilitadasIniciais, canaisO
   const [canaisOverride, setCanaisOverride] = useState<Record<string, string[]>>(canaisOverrideIniciais)
   const [editingTool, setEditingTool]       = useState<string | null>(null)
   const [saving, setSaving]                 = useState(false)
+  const [filtroCanal, setFiltroCanal]       = useState<Canal | 'todas'>('todas')
 
-  const categorias = [...new Set(capacidades.map(t => t.categoria))]
+  // Filtra tools pelo canal selecionado (considera override)
+  const capacidadesFiltradas = filtroCanal === 'todas'
+    ? capacidades
+    : capacidades.filter(c => (canaisOverride[c.tool] ?? c.canais).includes(filtroCanal))
+
+  const categorias = [...new Set(capacidadesFiltradas.map(t => t.categoria))]
 
   // Grupos abertos/fechados — todos abertos por padrão
   const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set())
@@ -164,6 +170,39 @@ export function CapacidadesManager({ capacidades, desabilitadasIniciais, canaisO
         </div>
       )}
 
+      {/* Filtro por canal */}
+      <div className="flex flex-wrap items-center gap-1.5 pb-1">
+        {(['todas', ...TODOS_CANAIS] as const).map(c => {
+          const ativo = filtroCanal === c
+          const count = c === 'todas'
+            ? capacidades.length
+            : capacidades.filter(t => (canaisOverride[t.tool] ?? t.canais).includes(c)).length
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setFiltroCanal(c)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors',
+                ativo
+                  ? c === 'todas'
+                    ? 'border-on-surface/20 bg-on-surface text-surface'
+                    : CANAL_COLORS[c]
+                  : 'border-outline-variant/20 bg-surface-container-low/50 text-on-surface-variant/60 hover:bg-surface-container-low',
+              )}
+            >
+              {c === 'todas' ? 'Todas' : CANAL_LABEL[c]}
+              <span className={cn(
+                'rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums',
+                ativo ? 'bg-white/20' : 'bg-surface-container text-on-surface-variant/50',
+              )}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Grid de capacidades */}
       <div className="space-y-1">
 
@@ -182,7 +221,7 @@ export function CapacidadesManager({ capacidades, desabilitadasIniciais, canaisO
 
         {categorias.map(cat => {
           const aberto      = gruposAbertos.has(cat)
-          const toolsCat    = capacidades.filter(c => c.categoria === cat)
+          const toolsCat    = capacidadesFiltradas.filter(c => c.categoria === cat)
           const totalCat    = toolsCat.length
           const desabCat    = toolsCat.filter(c => desabilitadas.has(c.tool)).length
 
@@ -271,7 +310,7 @@ export function CapacidadesManager({ capacidades, desabilitadasIniciais, canaisO
       {/* Rodapé salvar */}
       <div className="flex items-center justify-between pt-1">
         <p className="text-[12px] text-on-surface-variant/60">
-          {desabilitadas.size > 0 ? `${desabilitadas.size} ferramenta(s) desabilitada(s)` : 'Todas as ferramentas habilitadas'}
+          {desabilitadas.size > 0 ? `${desabilitadas.size} ferramenta(s) desabilitada(s) no total` : 'Todas as ferramentas habilitadas'}
         </p>
         <button type="button" onClick={salvar} disabled={saving}
           className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-60 min-w-[120px] justify-center">

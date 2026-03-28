@@ -98,7 +98,7 @@ export function EnviarEmailDrawer({ clienteId, leadId, clienteEmail, clienteNome
         Enviar e-mail
       </button>
 
-      <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col gap-0 p-0 bg-card">
+      <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col gap-0 p-0 bg-card" showCloseButton={false}>
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-outline-variant/15 px-6 py-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">

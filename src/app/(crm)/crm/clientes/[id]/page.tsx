@@ -25,6 +25,7 @@ import { ClienteStatusSelect } from '@/components/crm/cliente-status-select'
 import { ReprocessarPdfButton } from '@/components/crm/reprocessar-pdf-button'
 import { EditarClienteButton } from '@/components/crm/editar-cliente-button'
 import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
+import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -340,65 +341,20 @@ export default async function ClienteDetailPage({ params }: Props) {
 
         {/* ── Documentos ─────────────────────────────────── */}
         <TabsContent value="documentos" className="m-0 focus-visible:outline-none">
-          <div className="space-y-3">
-            {isPJ && cliente.empresa && (
-              <div className="flex items-center justify-between rounded-xl bg-surface-container-low/60 px-4 py-2.5">
+          <DocumentosTabContent
+            documentos={documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), xmlMetadata: (d as any).xmlMetadata as unknown }))}
+            empresaLink={isPJ && cliente.empresa ? (
+              <div className="flex items-center rounded-xl bg-surface-container-low/60 px-4 py-2.5">
                 <span className="text-[12px] text-on-surface-variant/70">
                   <span className="material-symbols-outlined text-[14px] align-middle mr-1">info</span>
-                  Inclui documentos vinculados à empresa. Veja todos na aba{' '}
+                  Inclui documentos da empresa.{' '}
                   <Link href={`/crm/empresas/${cliente.empresa.id}`} className="text-primary font-semibold hover:underline">
-                    {cliente.empresa.razaoSocial ?? cliente.empresa.nomeFantasia}
+                    Ver na aba Empresa →
                   </Link>
                 </span>
               </div>
-            )}
-
-            {documentos.length === 0 ? (
-              <EmptyState icon="folder_open" msg="Nenhum documento enviado" />
-            ) : (
-              <div className="divide-y divide-outline-variant/10 overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
-                {documentos.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-surface-container-low/30">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                        <span className="material-symbols-outlined text-[18px] text-primary">description</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-on-surface">{d.nome}</p>
-                        <p className="text-xs text-on-surface-variant">
-                          {d.tipo}
-                          {d.tamanho ? ` · ${(d.tamanho / 1024).toFixed(0)} KB` : ''}
-                          {` · ${formatDate(d.criadoEm)}`}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {(d as any).origem && (
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                          (d as any).origem === 'portal' ? 'bg-primary/10 text-primary' : 'bg-green-status/10 text-green-status'
-                        }`}>
-                          {(d as any).origem === 'portal' ? 'cliente' : (d as any).origem}
-                        </span>
-                      )}
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${DOC_STATUS_COLORS[d.status] ?? 'bg-surface-container text-on-surface-variant'}`}
-                      >
-                        {d.status}
-                      </span>
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">download</span>
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            ) : undefined}
+          />
         </TabsContent>
 
         {/* ── Contratos ──────────────────────────────────── */}

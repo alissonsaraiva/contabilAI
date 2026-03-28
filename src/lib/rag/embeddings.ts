@@ -93,7 +93,29 @@ export async function embedTexts(texts: string[], keys?: EmbedKeys): Promise<num
   throw new Error('Nenhuma chave de embedding configurada (OPENAI_API_KEY ou VOYAGE_API_KEY)')
 }
 
+// ─── Cache in-process para queries de busca (não afeta ingest) ───────────────
+// Contexto: `embedText` é chamado a cada mensagem de chat para buscar no RAG.
+// Perguntas frequentes e idênticas (ex: "qual meu plano?") geram chamadas duplicadas.
+// Cache por processo — efetivo em deployments de servidor único (VPS com Docker).
+
+type CacheEntry = { embedding: number[]; expiresAt: number }
+const queryCache = new Map<string, CacheEntry>()
+const QUERY_CACHE_TTL = 5 * 60_000  // 5 minutos
+const QUERY_CACHE_MAX = 100
+
 export async function embedText(text: string, keys?: EmbedKeys): Promise<number[]> {
+  const now = Date.now()
+  const cached = queryCache.get(text)
+  if (cached && cached.expiresAt > now) return cached.embedding
+
   const [embedding] = await embedTexts([text], keys)
+
+  // Evict entrada mais antiga se chegou no limite
+  if (queryCache.size >= QUERY_CACHE_MAX) {
+    const firstKey = queryCache.keys().next().value
+    if (firstKey !== undefined) queryCache.delete(firstKey)
+  }
+  queryCache.set(text, { embedding, expiresAt: now + QUERY_CACHE_TTL })
+
   return embedding
 }

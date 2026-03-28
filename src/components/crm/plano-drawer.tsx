@@ -78,7 +78,6 @@ export function PlanoDrawer({ plano, tiposDisponiveis }: Props) {
           body: JSON.stringify(body),
         }
       )
-      if (res.status === 409) { toast.error('Já existe um plano com este tipo'); return }
       if (!res.ok) throw new Error()
       toast.success(isEdit ? 'Plano atualizado!' : 'Plano criado!')
       setOpen(false)
@@ -103,7 +102,7 @@ export function PlanoDrawer({ plano, tiposDisponiveis }: Props) {
         {isEdit ? 'Editar plano' : 'Novo Plano'}
       </button>
 
-      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0 bg-card">
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0 bg-card" showCloseButton={false}>
         <div className="flex items-center gap-3 border-b border-outline-variant/15 px-6 py-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>payments</span>

@@ -58,8 +58,8 @@ export async function POST(_req: Request, { params }: Params) {
   if (lead.valorNegociado) {
     valor = Number(lead.valorNegociado)
   } else {
-    const planoDB = await prisma.plano.findUnique({
-      where: { tipo: plano as PlanoTipo },
+    const planoDB = await prisma.plano.findFirst({
+      where: { tipo: plano as PlanoTipo, ativo: true },
       select: { valorMinimo: true },
     })
     valor = planoDB ? Number(planoDB.valorMinimo) : (PLANO_PRECOS_FALLBACK[plano] ?? 199)

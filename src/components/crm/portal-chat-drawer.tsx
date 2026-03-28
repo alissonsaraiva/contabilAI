@@ -49,7 +49,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, open, onClose }: Prop
 
   return (
     <Sheet open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <SheetContent side="right" className="flex w-[420px] flex-col p-0 sm:max-w-[420px]">
+      <SheetContent side="right" className="flex w-[420px] flex-col p-0 sm:max-w-[420px]" showCloseButton={false}>
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-outline-variant/15 px-5 py-4">

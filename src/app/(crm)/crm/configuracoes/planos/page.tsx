@@ -4,13 +4,12 @@ import { PLANO_LABELS, PLANO_COLORS } from '@/types'
 import type { PlanoTipo } from '@prisma/client'
 import { PlanoDrawer } from '@/components/crm/plano-drawer'
 import { PlanoActionsMenu } from '@/components/crm/plano-actions-menu'
+import { PlanoDeleteButton } from '@/components/crm/plano-delete-button'
 
 const TODOS_TIPOS: PlanoTipo[] = ['essencial', 'profissional', 'empresarial', 'startup']
 
 export default async function PlanosPage() {
   const planos = await prisma.plano.findMany({ orderBy: { valorMinimo: 'asc' } })
-  const tiposExistentes = planos.map(p => p.tipo as PlanoTipo)
-  const tiposDisponiveis = TODOS_TIPOS.filter(t => !tiposExistentes.includes(t))
 
   return (
     <div className="space-y-5">
@@ -22,9 +21,7 @@ export default async function PlanosPage() {
               Planos exibidos no onboarding e na landing page.
             </p>
           </div>
-          {tiposDisponiveis.length > 0 && (
-            <PlanoDrawer tiposDisponiveis={tiposDisponiveis} />
-          )}
+          <PlanoDrawer tiposDisponiveis={TODOS_TIPOS} />
         </div>
 
         {planos.length === 0 ? (
@@ -92,8 +89,8 @@ export default async function PlanosPage() {
                     </div>
                   )}
 
-                  {/* Edit button */}
-                  <div className="mt-4 pt-3 border-t border-outline-variant/10">
+                  {/* Edit / Delete */}
+                  <div className="mt-4 pt-3 border-t border-outline-variant/10 flex items-center justify-between">
                     <PlanoDrawer
                       plano={{
                         id: p.id,
@@ -108,6 +105,7 @@ export default async function PlanosPage() {
                       }}
                       tiposDisponiveis={[]}
                     />
+                    <PlanoDeleteButton id={p.id} />
                   </div>
                 </div>
               )

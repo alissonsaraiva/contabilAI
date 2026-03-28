@@ -32,7 +32,7 @@ const buscarDadosOperadorTool: Tool = {
 
     const usuario = await prisma.usuario.findUnique({
       where:  { id: ctx.usuarioId },
-      select: { id: true, nome: true, email: true, tipo: true },
+      select: { id: true, nome: true, email: true, tipo: true, whatsapp: true },
     })
 
     if (!usuario) {
@@ -45,8 +45,8 @@ const buscarDadosOperadorTool: Tool = {
 
     return {
       sucesso: true,
-      dados:   { usuarioId: usuario.id, nome: usuario.nome, email: usuario.email, tipo: usuario.tipo },
-      resumo:  `Operador: ${usuario.nome} | E-mail: ${usuario.email} | Tipo: ${usuario.tipo}. Use o e-mail para enviar relatórios ou mensagens diretamente a ele.`,
+      dados:   { usuarioId: usuario.id, nome: usuario.nome, email: usuario.email, whatsapp: usuario.whatsapp ?? null, tipo: usuario.tipo },
+      resumo:  `Operador: ${usuario.nome} | E-mail: ${usuario.email} | WhatsApp: ${usuario.whatsapp ?? 'não cadastrado'} | Tipo: ${usuario.tipo}. Use o e-mail ou WhatsApp para enviar relatórios diretamente a ele.`,
     }
   },
 }

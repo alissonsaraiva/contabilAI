@@ -265,6 +265,22 @@ export async function POST(req: Request) {
     if (conversaRow?.pausadaEm) {
       // Salva mensagem do cliente mas não aciona IA
       addMensagemUsuario(conversaId, textSanitizado)
+      // Atualiza timestamps para o card aparecer no topo de Atendimentos
+      prisma.conversaIA.update({
+        where: { id: conversaId },
+        data:  { ultimaMensagemEm: new Date(), atualizadaEm: new Date() },
+      }).catch(() => {})
+      // Notifica a equipe que o cliente respondeu enquanto IA está pausada
+      import('@/lib/notificacoes')
+        .then(({ notificarRespostaClientePausado }) =>
+          notificarRespostaClientePausado({
+            conversaId,
+            clienteId: cached.clienteId,
+            leadId:    cached.leadId,
+            remoteJid,
+          })
+        )
+        .catch(() => {})
       return new Response('paused', { status: 200 })
     }
 

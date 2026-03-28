@@ -12,6 +12,29 @@ import '@/lib/ai/tools'
 
 const MSG_MAX_LENGTH = 4000
 
+// GET — carrega histórico de uma sessão existente para restaurar o chat na UI
+export async function GET(req: Request) {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+  const { searchParams } = new URL(req.url)
+  const sessionId = searchParams.get('sessionId')
+  if (!sessionId) return NextResponse.json({ mensagens: [] })
+
+  const conversa = await prisma.conversaIA.findFirst({
+    where:   { sessionId, canal: 'crm' },
+    orderBy: { atualizadaEm: 'desc' },
+    select:  {
+      mensagens: {
+        orderBy: { criadaEm: 'asc' },
+        select:  { role: true, conteudo: true },
+      },
+    },
+  })
+
+  return NextResponse.json({ mensagens: conversa?.mensagens ?? [] })
+}
+
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user) {

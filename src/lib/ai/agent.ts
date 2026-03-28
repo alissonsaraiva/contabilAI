@@ -173,7 +173,7 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
         system:      systemPrompt,
         messages,
         tools:       toolDefinitions,
-        maxTokens:   4096,
+        maxTokens:   2048,  // tool calls precisam ~300t; resposta final ~1000t — 4096 era desperdício
         temperature: 0.1,  // baixo — agente precisa ser determinístico
         model,
       },

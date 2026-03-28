@@ -39,6 +39,16 @@ const listarOrdensServicoTool: Tool = {
     const status    = input.status  as string | undefined
     const limite    = Math.min(Number(input.limite ?? 10), 50)
 
+    // Segurança: no canal portal, o clienteId é obrigatório — o cliente nunca
+    // pode ver chamados de outras empresas por ausência de contexto.
+    if (!clienteId && ctx.solicitanteAI === 'portal') {
+      return {
+        sucesso: false,
+        erro: 'Contexto de cliente não identificado.',
+        resumo: 'Não foi possível listar chamados: cliente não identificado na sessão.',
+      }
+    }
+
     const where: any = {}
     if (clienteId)  where.clienteId = clienteId
     if (status) {

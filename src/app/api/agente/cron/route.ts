@@ -15,9 +15,12 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { executarAgente } from '@/lib/ai/agent'
 import { proximoDisparo } from '@/lib/ai/cron-helper'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import '@/lib/ai/tools' // registra todas as tools
 
-export const maxDuration = 60
+// 5 minutos — necessário porque cada executarAgente pode levar até 45s.
+// Com maxDuration=60 mesmo 2 agendamentos consecutivos já estouravam o limite.
+export const maxDuration = 300
 
 export async function POST(req: Request) {
   // Valida o secret para evitar execuções não autorizadas
@@ -31,12 +34,17 @@ export async function POST(req: Request) {
 
   const agora = new Date()
 
-  // Busca todos os agendamentos ativos com proximoDisparo vencido
+  // Busca no máximo 3 agendamentos por tick — cada executarAgente leva até 45s,
+  // então 3 × 45s = 135s cabe dentro dos 300s de maxDuration com margem.
+  // Agendamentos que não foram processados neste tick continuam com proximoDisparo
+  // vencido e serão capturados no próximo minuto.
   const vencidos = await prisma.agendamentoAgente.findMany({
     where: {
       ativo:          true,
       proximoDisparo: { lte: agora },
     },
+    orderBy: { proximoDisparo: 'asc' },  // processa os mais atrasados primeiro
+    take:    3,
   })
 
   if (vencidos.length === 0) {
@@ -54,8 +62,35 @@ export async function POST(req: Request) {
           usuarioId:     ag.criadoPorId   ?? undefined,
           usuarioNome:   ag.criadoPorNome ?? undefined,
         },
-        maxIteracoes: 5,
+        maxIteracoes: 3,  // reduzido de 5 — jobs agendados raramente precisam de mais de 3 iterações
       })
+
+      // Salva resultado como relatório no painel + indexa no RAG
+      const relatorio = await prisma.relatorioAgente.create({
+        data: {
+          titulo:          ag.descricao,
+          conteudo:        resultado.resposta,
+          tipo:            'agendado',
+          sucesso:         resultado.sucesso,
+          agendamentoId:   ag.id,
+          agendamentoDesc: ag.descricao,
+          criadoPorId:     ag.criadoPorId   ?? null,
+          criadoPorNome:   ag.criadoPorNome ?? null,
+        },
+      }).catch((err: unknown) => { console.error('[cron] falha ao salvar relatório:', err); return null })
+
+      if (relatorio) {
+        indexarAsync('relatorio', {
+          id:              relatorio.id,
+          titulo:          ag.descricao,
+          conteudo:        resultado.resposta,
+          tipo:            'agendado',
+          sucesso:         resultado.sucesso,
+          agendamentoDesc: ag.descricao,
+          criadoPorNome:   ag.criadoPorNome ?? null,
+          criadoEm:        relatorio.criadoEm,
+        })
+      }
 
       // Calcula próximo disparo
       const proximo = proximoDisparo(ag.cron, agora)

@@ -12,6 +12,7 @@ const patchSchema = z.object({
   nome: z.string().min(2).optional(),
   email: z.string().email().optional(),
   senha: z.string().min(6).optional(),
+  whatsapp: z.string().optional().nullable(),
 })
 
 export async function PATCH(req: Request, { params }: Params) {
@@ -33,7 +34,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const usuario = await prisma.usuario.update({
     where: { id },
     data,
-    select: { id: true, nome: true, email: true, tipo: true, ativo: true, criadoEm: true },
+    select: { id: true, nome: true, email: true, tipo: true, ativo: true, whatsapp: true, criadoEm: true },
   })
 
   return NextResponse.json(usuario)

@@ -31,14 +31,7 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
-  try {
-    const plano = await prisma.plano.create({ data: parsed.data })
-    indexarAsync('planos', null)
-    return NextResponse.json(plano, { status: 201 })
-  } catch (e: any) {
-    if (e.code === 'P2002') {
-      return NextResponse.json({ error: 'Já existe um plano com este tipo' }, { status: 409 })
-    }
-    throw e
-  }
+  const plano = await prisma.plano.create({ data: parsed.data })
+  indexarAsync('planos', null)
+  return NextResponse.json(plano, { status: 201 })
 }

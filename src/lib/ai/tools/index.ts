@@ -36,6 +36,7 @@ import './convidar-socio-portal'
 import './enviar-email'
 import './enviar-whatsapp-cliente'
 import './enviar-whatsapp-lead'
+import './enviar-whatsapp-socio'
 import './responder-escalacao'
 import './buscar-documentos'
 import './enviar-documento-whatsapp'
@@ -51,6 +52,7 @@ import './cancelar-agendamento'
 
 // ─── Tools de consulta/relatórios ────────────────────────────────────────────
 import './consultar-dados'
+import './publicar-relatorio'
 
 // ─── Tools do portal do cliente ───────────────────────────────────────────────
 import './listar-ordens-servico'

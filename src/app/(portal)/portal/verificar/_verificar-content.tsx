@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
@@ -16,7 +16,6 @@ const ERRO_MSG: Record<string, string> = {
 
 function VerificarContentInner() {
   const searchParams = useSearchParams()
-  const router       = useRouter()
   const [estado, setEstado]   = useState<Estado>('verificando')
   const [erroMsg, setErroMsg] = useState('')
 
@@ -56,7 +55,7 @@ function VerificarContentInner() {
         }
 
         setEstado('ok')
-        router.replace('/portal/dashboard')
+        window.location.replace('/portal/dashboard')
       } catch {
         setErroMsg('Ocorreu um erro inesperado. Tente novamente.')
         setEstado('erro')
@@ -64,7 +63,7 @@ function VerificarContentInner() {
     }
 
     verificar()
-  }, [searchParams, router])
+  }, [searchParams])
 
   return (
     <div className="w-full max-w-[420px] rounded-[20px] border border-outline-variant/15 bg-card/60 p-8 text-center shadow-sm backdrop-blur-xl">

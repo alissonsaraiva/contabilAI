@@ -9,6 +9,9 @@ import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { EditarEmpresaButton } from '@/components/crm/editar-empresa-button'
 import { PortalLinkButton } from '@/components/crm/portal-link-button'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
+import { EmpresaDocumentoUpload } from '@/components/crm/empresa-documento-upload'
+import { SocioWhatsAppButton } from '@/components/crm/socio-whatsapp-button'
+import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -275,8 +278,14 @@ export default async function EmpresaDetailPage({ params }: Props) {
                     {s.email && <InfoRow label="E-mail" value={s.email} />}
                     {s.telefone && <InfoRow label="Telefone" value={formatTelefone(s.telefone)} />}
                   </div>
-                  <div className="border-t border-outline-variant/10 px-5 py-3">
+                  <div className="flex items-center justify-between gap-2 border-t border-outline-variant/10 px-5 py-3">
                     <SocioPortalControls socioId={s.id} temEmail={!!s.email} portalAccess={s.portalAccess} />
+                    <SocioWhatsAppButton
+                      socioId={s.id}
+                      socioNome={s.nome}
+                      telefone={s.telefone}
+                      whatsapp={s.whatsapp}
+                    />
                   </div>
                 </div>
               ))}
@@ -286,45 +295,10 @@ export default async function EmpresaDetailPage({ params }: Props) {
 
         {/* ── Documentos ──────────────────────────────────── */}
         <TabsContent value="documentos" className="m-0 focus-visible:outline-none">
-          {documentos.length === 0 ? (
-            <EmptyState icon="folder_open" msg="Nenhum documento vinculado a esta empresa" />
-          ) : (
-            <div className="divide-y divide-outline-variant/10 overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
-              {documentos.map(d => (
-                <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-surface-container-low/30">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                      <span className="material-symbols-outlined text-[18px] text-primary">description</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-on-surface">{d.nome}</p>
-                      <p className="text-xs text-on-surface-variant/60">
-                        {d.tipo}
-                        {d.categoria ? ` · ${d.categoria}` : ''}
-                        {d.tamanho ? ` · ${(d.tamanho / 1024).toFixed(0)} KB` : ''}
-                        {` · ${formatDate(d.criadoEm)}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                      d.origem === 'portal' ? 'bg-primary/10 text-primary' : 'bg-green-status/10 text-green-status'
-                    }`}>
-                      {d.origem === 'portal' ? 'cliente' : d.origem}
-                    </span>
-                    <a
-                      href={d.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">download</span>
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <DocumentosTabContent
+            documentos={documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), xmlMetadata: d.xmlMetadata as unknown }))}
+            uploadSlot={cliente ? <EmpresaDocumentoUpload clienteId={cliente.id} empresaId={empresa.id} /> : undefined}
+          />
         </TabsContent>
 
         {/* ── Portal ──────────────────────────────────────── */}
@@ -361,7 +335,15 @@ export default async function EmpresaDetailPage({ params }: Props) {
                       <p className="text-xs text-on-surface-variant">{s.email ?? 'sem e-mail'} · Sócio</p>
                     </div>
                   </div>
-                  <SocioPortalControls socioId={s.id} temEmail={!!s.email} portalAccess={s.portalAccess} />
+                  <div className="flex items-center gap-2">
+                    <SocioWhatsAppButton
+                      socioId={s.id}
+                      socioNome={s.nome}
+                      telefone={s.telefone}
+                      whatsapp={s.whatsapp}
+                    />
+                    <SocioPortalControls socioId={s.id} temEmail={!!s.email} portalAccess={s.portalAccess} />
+                  </div>
                 </div>
               </div>
             ))}

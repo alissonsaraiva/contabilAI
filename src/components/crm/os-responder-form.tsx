@@ -21,15 +21,23 @@ const CATEGORIAS = [
   { value: 'outros',         label: 'Outros' },
 ]
 
+type SocioContato = {
+  id:       string
+  nome:     string
+  telefone: string  // número a usar (whatsapp || telefone)
+}
+
 type Props = {
   ordemId:      string
   statusAtual:  string
   temResposta:  boolean
+  clienteNome:  string
   clienteEmail?: string | null
   clienteWpp?:  string | null
+  socios?:      SocioContato[]
 }
 
-export function OSResponderForm({ ordemId, statusAtual, temResposta, clienteEmail, clienteWpp }: Props) {
+export function OSResponderForm({ ordemId, statusAtual, temResposta, clienteNome, clienteEmail, clienteWpp, socios = [] }: Props) {
   const router = useRouter()
 
   const [resposta,    setResposta]    = useState('')
@@ -47,6 +55,18 @@ export function OSResponderForm({ ordemId, statusAtual, temResposta, clienteEmai
   const [emailCorpo,   setEmailCorpo]   = useState('')
   const [wppAtivo,     setWppAtivo]     = useState(false)
   const [wppMensagem,  setWppMensagem]  = useState('')
+  // Destinatários WhatsApp selecionados: titular + sócios
+  const [wppDests, setWppDests] = useState<Set<string>>(
+    clienteWpp ? new Set(['__titular__']) : new Set()
+  )
+
+  function toggleDest(id: string) {
+    setWppDests(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   const isResolucao = novoStatus === 'resolvida'
   const hasChanges  = resposta.trim() || arquivo || novoStatus !== statusAtual
@@ -68,9 +88,16 @@ export function OSResponderForm({ ordemId, statusAtual, temResposta, clienteEmai
           form.append('email_assunto', emailAssunto)
           form.append('email_corpo',   emailCorpo)
         }
-        if (wppAtivo) {
+        if (wppAtivo && wppDests.size > 0) {
           form.append('canal_whatsapp', '1')
           form.append('wpp_mensagem',   wppMensagem)
+          // Destinatários adicionais (sócios) — exclui o titular que já vai pelo resolverOS normal
+          const adicionais = socios
+            .filter(s => wppDests.has(s.id))
+            .map(s => ({ nome: s.nome, telefone: s.telefone }))
+          if (adicionais.length) {
+            form.append('wpp_destinatarios', JSON.stringify(adicionais))
+          }
         }
 
         const res = await fetch(`/api/crm/ordens-servico/${ordemId}`, {
@@ -252,18 +279,51 @@ export function OSResponderForm({ ordemId, statusAtual, temResposta, clienteEmai
                   type="checkbox"
                   checked={wppAtivo}
                   onChange={e => setWppAtivo(e.target.checked)}
-                  disabled={!clienteWpp}
+                  disabled={!clienteWpp && socios.length === 0}
                   className="accent-primary h-3.5 w-3.5"
                 />
-                <span className={`text-[12px] font-semibold ${!clienteWpp ? 'text-on-surface-variant/30' : 'text-on-surface-variant'}`}>
+                <span className={`text-[12px] font-semibold ${!clienteWpp && socios.length === 0 ? 'text-on-surface-variant/30' : 'text-on-surface-variant'}`}>
                   Enviar por WhatsApp
-                  {clienteWpp && <span className="ml-1 font-normal text-on-surface-variant/50">({clienteWpp})</span>}
-                  {!clienteWpp && <span className="ml-1 text-[10px] font-normal text-on-surface-variant/30">— WhatsApp não cadastrado</span>}
+                  {!clienteWpp && socios.length === 0 && (
+                    <span className="ml-1 text-[10px] font-normal text-on-surface-variant/30">— nenhum número cadastrado</span>
+                  )}
                 </span>
               </label>
 
               {wppAtivo && (
-                <div className="mt-2 pl-5">
+                <div className="mt-2 space-y-2 pl-5">
+                  {/* Seletor de destinatários */}
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold text-on-surface-variant/60">Destinatários</p>
+                    {clienteWpp && (
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={wppDests.has('__titular__')}
+                          onChange={() => toggleDest('__titular__')}
+                          className="accent-primary h-3.5 w-3.5"
+                        />
+                        <span className="text-[12px] text-on-surface">
+                          {clienteNome}
+                          <span className="ml-1 text-on-surface-variant/50 font-normal">({clienteWpp}) · Titular</span>
+                        </span>
+                      </label>
+                    )}
+                    {socios.map(s => (
+                      <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={wppDests.has(s.id)}
+                          onChange={() => toggleDest(s.id)}
+                          className="accent-primary h-3.5 w-3.5"
+                        />
+                        <span className="text-[12px] text-on-surface">
+                          {s.nome}
+                          <span className="ml-1 text-on-surface-variant/50 font-normal">({s.telefone}) · Sócio</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                   <textarea
                     placeholder="Mensagem de acompanhamento (o arquivo será enviado junto)..."
                     value={wppMensagem}

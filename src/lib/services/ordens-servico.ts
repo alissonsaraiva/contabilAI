@@ -52,6 +52,9 @@ export type ResolverOSInput = {
       mensagem: string
     }
   }
+
+  // Destinatários adicionais WhatsApp (sócios, além do titular)
+  wppDestinatariosAdicionais?: Array<{ nome: string; telefone: string }>
 }
 
 export type ResolverOSResult = {
@@ -175,6 +178,44 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
         result.whatsappOk = false
       }
     }
+  }
+
+  // 5b. Envia WhatsApp para destinatários adicionais (sócios)
+  if (input.canais?.whatsapp?.ativo && input.wppDestinatariosAdicionais?.length) {
+    try {
+      const cfgRow = await prisma.escritorio.findFirst({
+        select: { evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
+      })
+      if (cfgRow?.evolutionApiUrl && cfgRow.evolutionApiKey && cfgRow.evolutionInstance) {
+        const cfg: EvolutionConfig = {
+          baseUrl:  cfgRow.evolutionApiUrl,
+          apiKey:   isEncrypted(cfgRow.evolutionApiKey) ? decrypt(cfgRow.evolutionApiKey) : cfgRow.evolutionApiKey,
+          instance: cfgRow.evolutionInstance,
+        }
+        for (const dest of input.wppDestinatariosAdicionais) {
+          const digits    = dest.telefone.replace(/\D/g, '')
+          const jid       = `${digits.startsWith('55') ? digits : `55${digits}`}@s.whatsapp.net`
+          if (input.canais.whatsapp.mensagem) {
+            await sendText(cfg, jid, input.canais.whatsapp.mensagem).catch(() => {})
+          }
+          if (documentoUrl && documentoNome) {
+            const entregaAd = await prepararEntregaWhatsApp(
+              { id: result.documentoId ?? '', nome: documentoNome, url: documentoUrl, mimeType: documentoMime ?? null, tipo: os.titulo },
+              { mensagem: undefined },
+            )
+            await sendMedia(cfg, jid, entregaAd.sendMediaParams).catch(() => {})
+          }
+          await registrarInteracao({
+            tipo:      'whatsapp_enviado',
+            titulo:    `Documento enviado via WhatsApp (sócio ${dest.nome})`,
+            clienteId: os.clienteId,
+            origem:    'usuario',
+            usuarioId: input.usuarioId,
+            metadados: { osId: input.osId, documentoId: result.documentoId, phone: dest.telefone },
+          })
+        }
+      }
+    } catch { /* ignora erros nos adicionais */ }
   }
 
   // 6. Registra interação de resolução no histórico

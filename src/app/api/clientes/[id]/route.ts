@@ -49,11 +49,15 @@ export async function PUT(req: Request, { params }: Params) {
 
     return tx.cliente.findUnique({
       where: { id },
-      include: { empresa: { include: { socios: true } } },
+      include: {
+        empresa: { include: { socios: true } },
+        contratos: { orderBy: { criadoEm: 'desc' }, take: 1 },
+      },
     })
   })
 
   if (cliente) {
+    const contratoAtual = cliente.contratos?.[0] ?? null
     indexarAsync('cliente', {
       ...cliente,
       cnpj: cliente.empresa?.cnpj ?? null,
@@ -61,6 +65,13 @@ export async function PUT(req: Request, { params }: Params) {
       nomeFantasia: cliente.empresa?.nomeFantasia ?? null,
       regime: cliente.empresa?.regime ?? null,
       socios: cliente.empresa?.socios ?? [],
+      contrato: contratoAtual ? {
+        planoTipo:     contratoAtual.planoTipo,
+        valorMensal:   contratoAtual.valorMensal,
+        vencimentoDia: contratoAtual.vencimentoDia,
+        formaPagamento: contratoAtual.formaPagamento,
+        assinadoEm:    contratoAtual.assinadoEm,
+      } : null,
     })
   }
 

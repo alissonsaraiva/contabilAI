@@ -9,6 +9,19 @@ function newSessionId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+function getOrCreatePortalSessionId(): string {
+  const storageKey = 'portal_clara_session'
+  try {
+    const stored = localStorage.getItem(storageKey)
+    if (stored) return stored
+    const fresh = newSessionId()
+    localStorage.setItem(storageKey, fresh)
+    return fresh
+  } catch {
+    return newSessionId()
+  }
+}
+
 export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const [open, setOpen]       = useState(false)
   const [msgs, setMsgs]       = useState<Msg[]>([])
@@ -16,14 +29,40 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const [loading, setLoading] = useState(false)
   const [escalando, setEscalando] = useState(false)
   const [escalada, setEscalada]   = useState(false)
-  const [sessionId]           = useState(newSessionId)
+  const sessionIdRef          = useRef<string>('')
+  const historyLoadedRef      = useRef(false)
   const bottomRef             = useRef<HTMLDivElement>(null)
   const inputRef              = useRef<HTMLInputElement>(null)
 
+  // sessionId estável — persiste entre navegações via localStorage
+  if (!sessionIdRef.current) {
+    sessionIdRef.current = typeof window !== 'undefined'
+      ? getOrCreatePortalSessionId()
+      : newSessionId()
+  }
+  const sessionId = sessionIdRef.current
+
   const greeting: Msg = {
     role: 'assistant',
-    text: `Olá! Sou ${nomeIa}, sua assistente virtual. Posso tirar dúvidas sobre contabilidade, obrigações fiscais, seu plano e muito mais. Como posso ajudar?`,
+    text: `Olá! Sou ${nomeIa}, da equipe do escritório. Posso ajudar com dúvidas sobre contabilidade, obrigações fiscais, seu plano e muito mais. Como posso te ajudar?`,
   }
+
+  // Carrega histórico da sessão na primeira abertura
+  useEffect(() => {
+    if (!open || historyLoadedRef.current) return
+    historyLoadedRef.current = true
+    fetch(`/api/portal/chat?sessionId=${sessionId}`)
+      .then(r => r.json())
+      .then(({ mensagens }) => {
+        if (Array.isArray(mensagens) && mensagens.length > 0) {
+          setMsgs(mensagens.map((m: { role: string; conteudo: string }) => ({
+            role: m.role as 'user' | 'assistant',
+            text: m.conteudo,
+          })))
+        }
+      })
+      .catch(() => {})
+  }, [open, sessionId])
 
   useEffect(() => {
     if (open) {
@@ -74,7 +113,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         setEscalada(true)
         setMsgs(m => [...m, {
           role: 'assistant',
-          text: '✅ **Atendimento humano solicitado!** Nossa equipe foi notificada e entrará em contato em breve pelo WhatsApp ou e-mail cadastrado.',
+          text: '✅ **Solicitação enviada!** Um especialista da nossa equipe entrará em contato em breve pelo WhatsApp ou e-mail cadastrado.',
         }])
       }
     } catch {
@@ -114,17 +153,17 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
             </div>
             <div className="flex-1">
               <p className="text-[13px] font-semibold text-on-surface">{nomeIa}</p>
-              <p className="text-[11px] text-on-surface-variant/60">Assistente virtual • online</p>
+              <p className="text-[11px] text-on-surface-variant/60">Atendimento online</p>
             </div>
             {!escalada && (
               <button
                 onClick={handleEscalar}
                 disabled={escalando}
-                title="Solicitar atendimento humano"
+                title="Falar com um especialista"
                 className="flex items-center gap-1 rounded-lg bg-surface-container px-2.5 py-1.5 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-60"
               >
                 <span className="material-symbols-outlined text-[14px]">person_raised_hand</span>
-                <span className="hidden sm:block">Humano</span>
+                <span className="hidden sm:block">Especialista</span>
               </button>
             )}
             <button

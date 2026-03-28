@@ -120,6 +120,7 @@ model Usuario {
   ativo              Boolean     @default(true)
   precisaTrocarSenha Boolean     @default(false)
   avatar             String?
+  whatsapp           String?
   criadoEm           DateTime    @default(now())
   atualizadoEm       DateTime    @updatedAt
 
@@ -260,11 +261,13 @@ model Socio {
   participacao Decimal? @db.Decimal(5, 2)
   email        String?
   telefone     String?
+  whatsapp     String?  // número WhatsApp dedicado (se diferente do telefone)
   principal    Boolean  @default(false)
   portalAccess Boolean  @default(false)
   criadoEm     DateTime @default(now())
 
   portalTokens PortalToken[]
+  conversas    ConversaIA[]
 
   @@map("socios")
 }
@@ -588,6 +591,8 @@ model ConversaIA {
   cliente      Cliente?     @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   leadId       String?
   lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  socioId      String?      // sócio que iniciou/recebeu a conversa (opcional)
+  socio        Socio?       @relation(fields: [socioId], references: [id], onDelete: SetNull)
   remoteJid    String?      // identificador WhatsApp
   sessionId    String?      // identificador de sessão web
   pausadaEm        DateTime?    // quando preenchido, IA não responde automaticamente
@@ -602,6 +607,7 @@ model ConversaIA {
   @@index([sessionId, canal])
   @@index([leadId, canal])
   @@index([clienteId, canal])
+  @@index([socioId, canal])
   @@index([atualizadaEm])
   @@map("conversas_ia")
 }
@@ -720,4 +726,23 @@ model AgendamentoAgente {
 
   @@index([ativo, proximoDisparo])
   @@map("agendamentos_agente")
+}
+
+model RelatorioAgente {
+  id              String    @id @default(uuid())
+  titulo          String
+  conteudo        String    // conteúdo markdown completo
+  tipo            String    // 'agendado' | 'manual'
+  sucesso         Boolean   @default(true)
+  agendamentoId   String?   // FK lógica (sem constraint — agendamento pode ser deletado)
+  agendamentoDesc String?   // cópia da descrição do agendamento no momento da execução
+  criadoPorId     String?
+  criadoPorNome   String?
+  arquivoUrl      String?   // URL S3 se arquivo foi gerado
+  arquivoNome     String?
+  criadoEm        DateTime  @default(now())
+
+  @@index([tipo, criadoEm])
+  @@index([criadoPorId, criadoEm])
+  @@map("relatorios_agente")
 }

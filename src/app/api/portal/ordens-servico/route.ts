@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -63,6 +64,19 @@ export async function POST(req: Request) {
       descricao:  descricao.trim(),
       prioridade: prioridade ?? 'media',
     },
+  })
+
+  indexarAsync('os', {
+    id:            ordem.id,
+    clienteId:     ordem.clienteId,
+    tipo:          ordem.tipo,
+    titulo:        ordem.titulo,
+    descricao:     ordem.descricao,
+    status:        ordem.status,
+    origem:        ordem.origem,
+    prioridade:    ordem.prioridade,
+    visivelPortal: ordem.visivelPortal,
+    criadoEm:      ordem.criadoEm,
   })
 
   return NextResponse.json(ordem, { status: 201 })

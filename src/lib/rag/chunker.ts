@@ -1,5 +1,5 @@
 const CHUNK_SIZE = 400    // tokens aproximados
-const CHUNK_OVERLAP = 60  // tokens de sobreposição entre chunks adjacentes
+const CHUNK_OVERLAP = 20  // tokens de sobreposição — reduzido de 60 para cortar ~10% do volume armazenado
 // Fator de conversão: ~4 chars por token (estimativa para português)
 const CHARS_PER_TOKEN = 4
 

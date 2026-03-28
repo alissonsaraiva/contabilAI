@@ -48,6 +48,17 @@ const listarTarefasTool: Tool = {
   },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const clienteId   = (input.clienteId  as string  | undefined) ?? ctx.clienteId
+
+    // Segurança: tool deprecated, mas ainda registrada. Garante que canais não-CRM
+    // nunca recebam tarefas de todos os clientes por ausência de clienteId.
+    if (!clienteId && ctx.solicitanteAI !== 'crm') {
+      return {
+        sucesso: false,
+        erro: 'Listagem de tarefas sem filtro de cliente não é permitida neste canal.',
+        resumo: 'Não foi possível listar tarefas: contexto de cliente não identificado.',
+      }
+    }
+
     const status      = input.status      as string  | undefined
     const prioridade  = input.prioridade  as string  | undefined
     const atrasadas   = input.atrasadas   as boolean | undefined

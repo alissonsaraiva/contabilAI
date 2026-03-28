@@ -1,8 +1,9 @@
 // Ingestão automática de entidades relacionais no RAG
 // Chamado em background após creates/updates — não bloqueia respostas
 
-import { chunkText, embedTexts, storeEmbeddings, deleteEmbeddings } from '@/lib/rag'
-import type { EmbeddingRow } from '@/lib/rag'
+import { createHash } from 'crypto'
+import { chunkText, embedTexts, storeEmbeddings, deleteEmbeddings, getContentHash } from '@/lib/rag'
+import type { EmbeddingRow, CanalRAG } from '@/lib/rag'
 import { getAiConfig } from '@/lib/ai/config'
 
 // Planos do escritório — definição canônica usada tanto no onboarding quanto no RAG
@@ -83,8 +84,13 @@ async function indexar(
   const chunks = chunkText(texto)
   if (!chunks.length) return
 
-  // Deleta embeddings antigos para o mesmo documento antes de re-indexar
+  // Dirty check — se documentoId conhecido, evita re-indexar conteúdo idêntico
+  // (economiza chamadas de embedding quando um update não muda os campos indexados)
+  const contentHash = createHash('md5').update(texto).digest('hex')
   if (row.documentoId) {
+    const storedHash = await getContentHash(row.documentoId)
+    if (storedHash === contentHash) return  // conteúdo não mudou — pula
+
     await deleteEmbeddings({ documentoId: row.documentoId })
   } else if (row.leadId && row.tipo) {
     await deleteEmbeddings({ leadId: row.leadId, tipo: row.tipo })
@@ -96,7 +102,7 @@ async function indexar(
   const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
     ...row,
     conteudo,
-    metadata: { chunkIndex: i, totalChunks: chunks.length },
+    metadata: { chunkIndex: i, totalChunks: chunks.length, contentHash },
   }))
 
   await storeEmbeddings(rows, embeddings)
@@ -159,6 +165,14 @@ type SocioData = {
   principal?: boolean
 }
 
+type ContratoClienteData = {
+  planoTipo: string
+  valorMensal: unknown
+  vencimentoDia: number
+  formaPagamento: string
+  assinadoEm?: Date | null
+}
+
 type ClienteData = {
   id: string
   nome: string
@@ -177,6 +191,7 @@ type ClienteData = {
   cidade?: string | null
   uf?: string | null
   socios?: SocioData[]
+  contrato?: ContratoClienteData | null
 }
 
 export async function indexarCliente(cliente: ClienteData): Promise<void> {
@@ -190,6 +205,17 @@ export async function indexarCliente(cliente: ClienteData): Promise<void> {
     s.email          ? `    E-mail: ${s.email}` : '',
     s.telefone       ? `    Telefone: ${s.telefone}` : '',
   ].filter(Boolean).join('\n'))
+
+  const contratoLinhas = cliente.contrato ? [
+    `Contrato vigente:`,
+    `  Plano: ${cliente.contrato.planoTipo}`,
+    `  Valor mensal: R$ ${cliente.contrato.valorMensal}`,
+    `  Vencimento: dia ${cliente.contrato.vencimentoDia}`,
+    `  Forma de pagamento: ${cliente.contrato.formaPagamento}`,
+    cliente.contrato.assinadoEm
+      ? `  Assinado em: ${cliente.contrato.assinadoEm.toLocaleDateString('pt-BR')}`
+      : '',
+  ].filter(Boolean) : []
 
   const linhas = [
     `Dados do cliente`,
@@ -208,35 +234,23 @@ export async function indexarCliente(cliente: ClienteData): Promise<void> {
     cliente.formaPagamento ? `Forma de pagamento: ${cliente.formaPagamento}` : '',
     (cliente.cidade || cliente.uf) ? `Cidade: ${[cliente.cidade, cliente.uf].filter(Boolean).join(' / ')}` : '',
     ...(sociosLinhas.length ? [`Sócios (${sociosLinhas.length}):`, ...sociosLinhas] : []),
+    ...(contratoLinhas.length ? [contratoLinhas.join('\n')] : []),
   ].filter(Boolean).join('\n')
 
-  // Indexa no canal CRM (contador) e Portal (cliente)
-  await Promise.all([
-    indexar(linhas, {
-      escopo: 'cliente',
-      canal: 'crm',
-      tipo: 'dados_empresa',
-      clienteId: cliente.id,
-      titulo: cliente.razaoSocial ?? cliente.nome,
-      documentoId: `dados_empresa_crm:${cliente.id}`,
-    }, keys),
-    indexar(linhas, {
-      escopo: 'cliente',
-      canal: 'portal',
-      tipo: 'dados_empresa',
-      clienteId: cliente.id,
-      titulo: cliente.razaoSocial ?? cliente.nome,
-      documentoId: `dados_empresa_portal:${cliente.id}`,
-    }, keys),
-    indexar(linhas, {
-      escopo: 'cliente',
-      canal: 'whatsapp',
-      tipo: 'dados_empresa',
-      clienteId: cliente.id,
-      titulo: cliente.razaoSocial ?? cliente.nome,
-      documentoId: `dados_empresa_whatsapp:${cliente.id}`,
-    }, keys),
-  ])
+  // Uma única entrada 'geral' substitui as 3 entradas separadas (crm/portal/whatsapp).
+  // canal 'geral' é incluído automaticamente em buscas de qualquer canal.
+  // Reduz 3× chamadas de embedding por atualização de cliente.
+  // Nota: entradas legadas (dados_empresa_crm/portal/whatsapp:{id}) ficam inativas no banco
+  // — sem impacto funcional, pois o dirty check não as toca. Limpeza opcional:
+  //   DELETE FROM vectors.embeddings WHERE documento_id ~ '^dados_empresa_(crm|portal|whatsapp):'
+  await indexar(linhas, {
+    escopo:      'cliente',
+    canal:       'geral',
+    tipo:        'dados_empresa',
+    clienteId:   cliente.id,
+    titulo:      cliente.razaoSocial ?? cliente.nome,
+    documentoId: `dados_empresa:${cliente.id}`,
+  }, keys)
 }
 
 // ─── Interação CRM ─────────────────────────────────────────────────────────
@@ -281,15 +295,15 @@ export async function indexarInteracao(interacao: InteracaoData): Promise<void> 
     titulo: interacao.titulo ?? interacao.tipo,
   } as const
 
-  const canais: Array<'crm' | 'portal'> = isPortal ? ['crm', 'portal'] : ['crm']
+  // isPortal → canal 'geral' (visível a crm + portal com uma única entrada)
+  // isCrm   → canal 'crm' (somente interno)
+  const canal = isPortal ? 'geral' : 'crm'
 
-  await Promise.all(canais.map(canal =>
-    indexar(linhas, {
-      ...base,
-      canal,
-      documentoId: `interacao_${canal}:${interacao.id}`,
-    }, keys)
-  ))
+  await indexar(linhas, {
+    ...base,
+    canal,
+    documentoId: `interacao:${interacao.id}`,
+  }, keys)
 }
 
 // ─── Escritório ─────────────────────────────────────────────────────────────
@@ -451,7 +465,8 @@ type EscalacaoData = {
   criadoEm?: Date
 }
 
-// Indexa escalações resolvidas no canal CRM — aprende com atendimentos humanos passados.
+// Indexa escalações resolvidas no CRM sempre; também indexa no canal de origem
+// (portal ou whatsapp) para que a IA daquele canal conheça o histórico de atendimento.
 export async function indexarEscalacao(escalacao: EscalacaoData): Promise<void> {
   if (!escalacao.clienteId && !escalacao.leadId) return
   if (!escalacao.motivoIA && !escalacao.orientacaoHumana) return
@@ -469,15 +484,20 @@ export async function indexarEscalacao(escalacao: EscalacaoData): Promise<void> 
     escalacao.respostaEnviada   ? `Resposta enviada ao cliente: ${escalacao.respostaEnviada}` : '',
   ].filter(Boolean).join('\n')
 
-  await indexar(linhas, {
-    escopo: escalacao.clienteId ? 'cliente' : 'lead',
-    canal: 'crm',
-    tipo: 'historico_crm',
+  const base = {
+    escopo:    (escalacao.clienteId ? 'cliente' : 'lead') as 'cliente' | 'lead',
+    tipo:      'historico_crm' as const,
     clienteId: escalacao.clienteId ?? undefined,
     leadId:    escalacao.leadId    ?? undefined,
-    titulo: `Escalação — ${escalacao.canal}`,
-    documentoId: `escalacao:${escalacao.id}`,
-  }, keys)
+    titulo:    `Escalação — ${escalacao.canal}`,
+  }
+
+  // Escalações de portal/whatsapp: canal 'geral' cobre o CRM e o canal de origem com 1 entrada.
+  // Escalações de outros canais (crm direto): canal 'crm' apenas.
+  const canalEscalacao = (escalacao.canal === 'portal' || escalacao.canal === 'whatsapp')
+    ? 'geral'
+    : 'crm'
+  await indexar(linhas, { ...base, canal: canalEscalacao, documentoId: `escalacao:${escalacao.id}` }, keys)
 }
 
 // ─── Planos ──────────────────────────────────────────────────────────────────
@@ -533,5 +553,341 @@ export async function indexarPlanos(): Promise<void> {
     tipo: 'base_conhecimento',
     documentoId: 'planos:v1',
     titulo: 'Planos e preços do escritório',
+  }, keys)
+}
+
+// ─── Documento ───────────────────────────────────────────────────────────────
+
+type DocumentoData = {
+  id: string
+  clienteId?: string | null
+  empresaId?: string | null
+  leadId?: string | null
+  tipo: string
+  nome: string
+  categoria?: string | null
+  origem: string
+  criadoEm?: Date
+}
+
+// Indexa metadados de documento no canal CRM (e portal quando origem='portal').
+// Cobre clienteId, leadId e empresaId — documentos com apenas empresaId são
+// indexados usando o escopo 'cliente' com clienteId nulo (escopo global da empresa).
+export async function indexarDocumento(doc: DocumentoData): Promise<void> {
+  // Precisa de ao menos um vínculo para indexar
+  if (!doc.clienteId && !doc.leadId && !doc.empresaId) return
+
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const data = doc.criadoEm ? doc.criadoEm.toLocaleDateString('pt-BR') : ''
+
+  const linhas = [
+    `Documento: ${doc.nome}`,
+    `Tipo: ${doc.tipo}`,
+    doc.categoria ? `Categoria: ${doc.categoria}` : '',
+    `Origem: ${doc.origem}`,
+    data ? `Enviado em: ${data}` : '',
+  ].filter(Boolean).join('\n')
+
+  // canal 'geral' para documentos crm/portal (Clara e CRM vêem com 1 entrada)
+  // canal 'crm' para origens internas (cliente nunca veria de qualquer forma)
+  const canalDoc = (doc.origem === 'portal' || doc.origem === 'crm') ? 'geral' : 'crm'
+
+  await indexar(linhas, {
+    escopo:      (doc.clienteId || doc.empresaId) ? 'cliente' as const : 'lead' as const,
+    tipo:        'historico_crm' as const,
+    clienteId:   doc.clienteId ?? undefined,
+    leadId:      doc.leadId    ?? undefined,
+    titulo:      `Documento — ${doc.nome}`,
+    documentoId: `documento:${doc.id}`,
+    canal:       canalDoc,
+  }, keys)
+}
+
+// ─── Ordem de Serviço ─────────────────────────────────────────────────────────
+
+type OrdemServicoData = {
+  id: string
+  clienteId: string
+  tipo: string
+  titulo: string
+  descricao: string
+  status: string
+  origem: string
+  prioridade?: string | null
+  visivelPortal?: boolean
+  criadoEm?: Date
+}
+
+// Indexa OS no canal CRM para que o assistente conheça os chamados abertos.
+// Se visivelPortal=true, indexa também no canal portal (cliente pode perguntar).
+export async function indexarOrdemServico(os: OrdemServicoData): Promise<void> {
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const data = os.criadoEm ? os.criadoEm.toLocaleDateString('pt-BR') : ''
+
+  const linhas = [
+    `Chamado: ${os.titulo}`,
+    `Tipo: ${os.tipo}`,
+    `Status: ${os.status}`,
+    `Prioridade: ${os.prioridade ?? 'media'}`,
+    `Origem: ${os.origem}`,
+    data ? `Aberto em: ${data}` : '',
+    `Descrição: ${os.descricao}`,
+  ].filter(Boolean).join('\n')
+
+  const base = {
+    escopo:      'cliente' as const,
+    tipo:        'historico_crm' as const,
+    clienteId:   os.clienteId,
+    titulo:      `Chamado — ${os.titulo}`,
+    documentoId: `os:${os.id}`,
+  }
+
+  // OS visível no portal → canal 'geral' (1 entrada cobre CRM + portal)
+  // OS interna         → canal 'crm' apenas
+  const canalOs = os.visivelPortal ? 'geral' : 'crm'
+  await indexar(linhas, { ...base, canal: canalOs }, keys)
+}
+
+// ─── Comunicado ───────────────────────────────────────────────────────────────
+
+type ComunicadoData = {
+  id: string
+  titulo: string
+  conteudo: string
+  tipo: string
+  publicado: boolean
+  publicadoEm?: Date | null
+  expiradoEm?: Date | null
+}
+
+// Indexa comunicados publicados no canal 'geral' — visível para todas as IAs.
+// Comunicados não publicados são removidos do índice.
+export async function indexarComunicado(comunicado: ComunicadoData): Promise<void> {
+  const documentoId = `comunicado:${comunicado.id}`
+
+  if (!comunicado.publicado) {
+    // Remove do índice se despublicado ou deletado
+    import('@/lib/rag').then(({ deleteEmbeddings }) =>
+      deleteEmbeddings({ documentoId })
+    ).catch(err => console.error('[rag/ingest] erro ao remover comunicado:', err))
+    return
+  }
+
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const publicadoStr   = comunicado.publicadoEm ? comunicado.publicadoEm.toLocaleDateString('pt-BR') : ''
+  const expiracao      = comunicado.expiradoEm  ? comunicado.expiradoEm.toLocaleDateString('pt-BR')  : ''
+
+  const linhas = [
+    `Comunicado: ${comunicado.titulo}`,
+    `Tipo: ${comunicado.tipo}`,
+    publicadoStr ? `Publicado em: ${publicadoStr}` : '',
+    expiracao    ? `Válido até: ${expiracao}` : '',
+    ``,
+    comunicado.conteudo,
+  ].filter(v => v !== undefined && v !== null).join('\n')
+
+  await indexar(linhas, {
+    escopo:      'global',
+    canal:       'geral',
+    tipo:        'base_conhecimento',
+    documentoId,
+    titulo:      `Comunicado — ${comunicado.titulo}`,
+  }, keys)
+}
+
+// ─── Relatório do Agente ──────────────────────────────────────────────────────
+
+type RelatorioAgenteData = {
+  id: string
+  titulo: string
+  conteudo: string
+  tipo: string          // 'agendado' | 'manual'
+  sucesso: boolean
+  agendamentoDesc?: string | null
+  criadoPorNome?: string | null
+  criadoEm?: Date
+}
+
+// Indexa relatórios gerados pela IA no canal CRM.
+// Permite que o assistente responda "o que o relatório da semana passada dizia?" via RAG.
+// Relatórios com sucesso=false (erros) não são indexados — conteúdo pode ser incompleto.
+export async function indexarRelatorio(rel: RelatorioAgenteData): Promise<void> {
+  if (!rel.sucesso) return   // não indexa execuções com erro
+
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const data = rel.criadoEm ? rel.criadoEm.toLocaleDateString('pt-BR') : ''
+
+  const linhas = [
+    `Relatório gerado pela IA: ${rel.titulo}`,
+    `Tipo: ${rel.tipo === 'agendado' ? 'Agendamento automático' : 'Manual'}`,
+    rel.agendamentoDesc ? `Agendamento: ${rel.agendamentoDesc}` : '',
+    rel.criadoPorNome   ? `Solicitado por: ${rel.criadoPorNome}` : '',
+    data                ? `Gerado em: ${data}` : '',
+    ``,
+    rel.conteudo,
+  ].filter(v => v !== null && v !== undefined).join('\n')
+
+  await indexar(linhas, {
+    escopo:      'global',
+    canal:       'crm',
+    tipo:        'historico_crm',
+    documentoId: `relatorio:${rel.id}`,
+    titulo:      `Relatório — ${rel.titulo}`,
+  }, keys)
+}
+
+// ─── Histórico de Status do Cliente ──────────────────────────────────────────
+
+type StatusHistoricoData = {
+  id: string
+  clienteId: string
+  statusAntes: string
+  statusDepois: string
+  motivo?: string | null
+  operadorNome?: string | null
+  criadoEm?: Date
+}
+
+// Indexa transições de status no CRM e no portal — contexto essencial para
+// que a IA saiba por que um cliente está suspenso, cancelado ou reativado.
+export async function indexarStatusHistorico(historico: StatusHistoricoData): Promise<void> {
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const data = historico.criadoEm ? historico.criadoEm.toLocaleDateString('pt-BR') : ''
+
+  const linhas = [
+    `Alteração de status do cliente`,
+    `De: ${historico.statusAntes} → Para: ${historico.statusDepois}`,
+    data                    ? `Data: ${data}` : '',
+    historico.motivo        ? `Motivo: ${historico.motivo}` : '',
+    historico.operadorNome  ? `Operador: ${historico.operadorNome}` : '',
+  ].filter(Boolean).join('\n')
+
+  const base = {
+    escopo:    'cliente' as const,
+    tipo:      'historico_crm' as const,
+    clienteId: historico.clienteId,
+    titulo:    `Status ${historico.statusAntes} → ${historico.statusDepois}`,
+    documentoId: `status_historico:${historico.id}`,
+  }
+
+  // canal 'geral' — visível ao CRM e ao portal com uma única entrada de embedding
+  await indexar(linhas, { ...base, canal: 'geral' }, keys)
+}
+
+// ─── Empresa ──────────────────────────────────────────────────────────────────
+
+type EmpresaData = {
+  id: string
+  cnpj?: string | null
+  razaoSocial?: string | null
+  nomeFantasia?: string | null
+  regime?: string | null
+  status?: string | null
+  socios?: SocioData[]
+}
+
+// Indexa dados da empresa independentemente do cliente — útil para buscas por
+// CNPJ, razão social ou regime diretamente no CRM e portal.
+export async function indexarEmpresa(empresa: EmpresaData): Promise<void> {
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const sociosLinhas = (empresa.socios ?? []).map(s => [
+    `  - ${s.nome} (CPF: ${s.cpf})${s.principal ? ' — sócio principal' : ''}`,
+    s.qualificacao   ? `    Qualificação: ${s.qualificacao}` : '',
+    s.participacao != null ? `    Participação: ${s.participacao}%` : '',
+    s.email          ? `    E-mail: ${s.email}` : '',
+    s.telefone       ? `    Telefone: ${s.telefone}` : '',
+  ].filter(Boolean).join('\n'))
+
+  const linhas = [
+    `Empresa`,
+    empresa.razaoSocial  ? `Razão Social: ${empresa.razaoSocial}` : '',
+    empresa.nomeFantasia ? `Nome Fantasia: ${empresa.nomeFantasia}` : '',
+    empresa.cnpj         ? `CNPJ: ${empresa.cnpj}` : '',
+    empresa.regime       ? `Regime tributário: ${empresa.regime}` : '',
+    empresa.status       ? `Status: ${empresa.status}` : '',
+    ...(sociosLinhas.length ? [`Sócios (${sociosLinhas.length}):`, ...sociosLinhas] : []),
+  ].filter(Boolean).join('\n')
+
+  const base = {
+    escopo:      'global' as const,
+    tipo:        'base_conhecimento' as const,
+    titulo:      empresa.razaoSocial ?? empresa.nomeFantasia ?? `Empresa ${empresa.id}`,
+    documentoId: `empresa:${empresa.id}`,
+  }
+
+  // canal 'geral' — visível ao CRM e ao portal com uma única entrada
+  await indexar(linhas, { ...base, canal: 'geral' }, keys)
+}
+
+// ─── Conversa IA ──────────────────────────────────────────────────────────────
+
+type MensagemConversaData = {
+  role:      string
+  conteudo:  string
+  criadaEm?: Date
+}
+
+type ConversaData = {
+  id:        string
+  canal:     string
+  clienteId?: string | null
+  leadId?:    string | null
+  mensagens:  MensagemConversaData[]
+  pausadaEm?: Date | null
+}
+
+// Indexa o histórico de respostas da IA ao pausar uma conversa (humano assume).
+// Indexa apenas mensagens do assistente com conteúdo substantivo (>80 chars) —
+// filtra "ok", "tá bom" e confirmações vazias que não agregam contexto semântico.
+// Permite que futuras perguntas como "o que o cliente X perguntou semana passada?"
+// sejam respondidas via RAG sem recorrer ao DB.
+export async function indexarConversa(conversa: ConversaData): Promise<void> {
+  const substantivas = conversa.mensagens
+    .filter(m => m.role === 'assistant' && m.conteudo.trim().length > 80)
+    .slice(-8)  // últimas 8 respostas substantivas — contexto suficiente sem excesso
+
+  if (substantivas.length === 0) return
+
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const data = conversa.pausadaEm
+    ? conversa.pausadaEm.toLocaleDateString('pt-BR')
+    : new Date().toLocaleDateString('pt-BR')
+
+  const linhas = [
+    `Histórico de conversa — canal: ${conversa.canal}`,
+    `Data: ${data}`,
+    '',
+    ...substantivas.map((m, i) =>
+      `[Resposta ${i + 1}]\n${m.conteudo.slice(0, 600)}`
+    ),
+  ].join('\n\n')
+
+  const escopo = conversa.clienteId ? 'cliente' : conversa.leadId ? 'lead' : 'global'
+  const canal  = (['crm', 'portal', 'whatsapp', 'onboarding'].includes(conversa.canal)
+    ? conversa.canal
+    : 'geral') as CanalRAG
+
+  await indexar(linhas, {
+    escopo,
+    canal,
+    tipo:        'historico_crm',
+    clienteId:   conversa.clienteId ?? undefined,
+    leadId:      conversa.leadId    ?? undefined,
+    titulo:      `Conversa ${conversa.canal} — ${data}`,
+    documentoId: `conversa:${conversa.id}`,
   }, keys)
 }

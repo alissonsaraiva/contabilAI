@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -45,6 +46,10 @@ export async function POST(req: Request) {
       criadoPorId: (session.user as any)?.id ?? null,
     },
   })
+
+  if (comunicado.publicado) {
+    indexarAsync('comunicado', comunicado)
+  }
 
   return NextResponse.json(comunicado, { status: 201 })
 }

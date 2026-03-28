@@ -85,6 +85,8 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
   const [reativando, setReativando] = useState(false)
   const [arquivo, setArquivo] = useState<ArquivoAnexo | null>(null)
   const [uploading, setUploading] = useState(false)
+  // Quando ativo, envia sem pausar a IA (modo comunicado rápido)
+  const [naoModoIA, setNaoModoIA] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -193,6 +195,7 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conteudo: texto.trim(),
+          pausarIA: !naoModoIA,
           ...(arquivo && {
             mediaUrl:      arquivo.url,
             mediaType:     arquivo.type,
@@ -255,7 +258,7 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
-      <SheetContent side="right" className="flex w-full max-w-md flex-col gap-0 p-0">
+      <SheetContent side="right" className="flex w-full max-w-md flex-col gap-0 p-0" showCloseButton={false}>
         <WhatsAppDrawerBoundary onClose={onClose}>
 
           {/* Header */}
@@ -274,40 +277,51 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
             </div>
 
             {pausada ? (
-              <button
-                onClick={reativarIA}
-                disabled={reativando}
-                className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  smart_toy
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 rounded-full bg-orange-status/10 px-2.5 py-1 text-[11px] font-semibold text-orange-status">
+                  <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    support_agent
+                  </span>
+                  Você no controle
                 </span>
-                {reativando ? 'Devolvendo...' : 'Devolver para IA'}
-              </button>
-            ) : conversaId ? (
-              <button
-                onClick={assumirControle}
-                disabled={assumindo}
-                className="flex items-center gap-1.5 rounded-full bg-surface-container px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-[13px]">support_agent</span>
-                {assumindo ? 'Assumindo...' : 'Assumir controle'}
-              </button>
-            ) : mensagens.length > 0 ? (
-              <span className="flex items-center gap-1 rounded-full bg-[#25D366]/10 px-2.5 py-1 text-[11px] font-semibold text-[#25D366]">
-                <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  smart_toy
+                <button
+                  onClick={reativarIA}
+                  disabled={reativando}
+                  className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    smart_toy
+                  </span>
+                  {reativando ? 'Devolvendo...' : 'Devolver para IA'}
+                </button>
+              </div>
+            ) : (conversaId || mensagens.length > 0) ? (
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 rounded-full bg-[#25D366]/10 px-2.5 py-1 text-[11px] font-semibold text-[#25D366]">
+                  <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    smart_toy
+                  </span>
+                  IA ativa
                 </span>
-                IA ativa
-              </span>
+                {conversaId && (
+                  <button
+                    onClick={assumirControle}
+                    disabled={assumindo}
+                    className="flex items-center gap-1.5 rounded-full bg-surface-container px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">support_agent</span>
+                    {assumindo ? 'Assumindo...' : 'Assumir'}
+                  </button>
+                )}
+              </div>
             ) : null}
           </div>
 
           {/* Banner de pausa */}
           {pausada && (
-            <div className="shrink-0 border-b border-orange-status/10 bg-orange-status/5 px-5 py-2.5">
-              <p className="text-[12px] text-orange-status">
-                <span className="font-semibold">Você está no controle.</span> A IA está pausada — o contato não receberá respostas automáticas até você devolver para a IA.
+            <div className="shrink-0 border-b border-orange-status/10 bg-orange-status/5 px-5 py-2">
+              <p className="text-[11px] text-orange-status">
+                IA pausada — o contato não receberá respostas automáticas. Retoma automaticamente após 1h de inatividade.
               </p>
             </div>
           )}
@@ -455,6 +469,28 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() }
                   }}
                 />
+
+                {/* Toggle modo comunicado — não pausa a IA */}
+                {!pausada && (
+                  <button
+                    type="button"
+                    onClick={() => setNaoModoIA(v => !v)}
+                    title={naoModoIA ? 'Modo comunicado: IA continua ativa' : 'Clique para enviar sem pausar a IA'}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${
+                      naoModoIA
+                        ? 'border-[#25D366]/40 bg-[#25D366]/10 text-[#25D366]'
+                        : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant/40 hover:text-on-surface-variant'
+                    }`}
+                  >
+                    <span
+                      className="material-symbols-outlined text-[18px]"
+                      style={{ fontVariationSettings: naoModoIA ? "'FILL' 1" : "'FILL' 0" }}
+                    >
+                      smart_toy
+                    </span>
+                  </button>
+                )}
+
                 <button
                   onClick={enviar}
                   disabled={(!texto.trim() && !arquivo) || sending || uploading}
@@ -473,7 +509,9 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
               <p className="mt-2 text-center text-[11px] text-on-surface-variant/50">
                 {pausada
                   ? 'Você está no controle · IA pausada'
-                  : 'Ao enviar, a IA será pausada automaticamente'}
+                  : naoModoIA
+                    ? 'Modo comunicado · IA continuará ativa após o envio'
+                    : 'Ao enviar, a IA será pausada automaticamente'}
               </p>
             </div>
           )}

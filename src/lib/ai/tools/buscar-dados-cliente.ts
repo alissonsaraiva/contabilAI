@@ -40,6 +40,20 @@ const buscarDadosClienteTool: Tool = {
       }
     }
 
+    // Segurança: canais não-CRM (portal, whatsapp, onboarding) só podem consultar
+    // o cliente já vinculado ao contexto da sessão — nunca fazer busca textual global.
+    if (ctx.solicitanteAI !== 'crm') {
+      if (!clienteId) {
+        return {
+          sucesso: false,
+          erro: 'Identificação do cliente não disponível neste canal.',
+          resumo: 'Não foi possível buscar o cliente: contexto de cliente não identificado.',
+        }
+      }
+      // Força uso do clienteId do contexto — ignora qualquer busca textual
+      // que poderia retornar dados de outro cliente.
+    }
+
     // Normaliza CPF/CNPJ removendo formatação antes de buscar
     const buscaNorm = busca ? busca.replace(/[.\-\/\s]/g, '') : undefined
 
@@ -56,6 +70,9 @@ const buscarDadosClienteTool: Tool = {
               take: 5,
             },
             interacoes: {
+              where: ctx.solicitanteAI === 'portal'
+                ? { tipo: { in: ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou'] } }
+                : undefined,
               select: { tipo: true, titulo: true, criadoEm: true },
               orderBy: { criadoEm: 'desc' },
               take: 5,
@@ -87,6 +104,9 @@ const buscarDadosClienteTool: Tool = {
               take: 5,
             },
             interacoes: {
+              where: ctx.solicitanteAI === 'portal'
+                ? { tipo: { in: ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou'] } }
+                : undefined,
               select: { tipo: true, titulo: true, criadoEm: true },
               orderBy: { criadoEm: 'desc' },
               take: 5,

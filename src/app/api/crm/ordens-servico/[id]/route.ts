@@ -59,11 +59,17 @@ export async function PATCH(req: Request, { params }: Params) {
     const categoria = form.get('categoria')    as CategoriaDocumento | null
     const arquivoRaw = form.get('arquivo')     as File | null
 
-    const canalEmail     = form.get('canal_email')     === '1'
-    const emailAssunto   = form.get('email_assunto')   as string | null
-    const emailCorpo     = form.get('email_corpo')     as string | null
-    const canalWhatsapp  = form.get('canal_whatsapp')  === '1'
-    const wppMensagem    = form.get('wpp_mensagem')    as string | null
+    const canalEmail     = form.get('canal_email')         === '1'
+    const emailAssunto   = form.get('email_assunto')       as string | null
+    const emailCorpo     = form.get('email_corpo')         as string | null
+    const canalWhatsapp  = form.get('canal_whatsapp')      === '1'
+    const wppMensagem    = form.get('wpp_mensagem')        as string | null
+    const wppDestRaw     = form.get('wpp_destinatarios')   as string | null
+
+    let wppDestinatariosAdicionais: Array<{ nome: string; telefone: string }> | undefined
+    if (wppDestRaw) {
+      try { wppDestinatariosAdicionais = JSON.parse(wppDestRaw) } catch { /* ignora parse error */ }
+    }
 
     let arquivo: { buffer: Buffer; nome: string; mimeType: string } | undefined
     if (arquivoRaw && arquivoRaw.size > 0) {
@@ -90,6 +96,7 @@ export async function PATCH(req: Request, { params }: Params) {
             ? { ativo: true, mensagem: wppMensagem ?? '' }
             : undefined,
         },
+        wppDestinatariosAdicionais,
       })
       return NextResponse.json(result)
     } catch (err: any) {

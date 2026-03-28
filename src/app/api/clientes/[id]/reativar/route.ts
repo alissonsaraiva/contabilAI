@@ -24,7 +24,7 @@ export async function POST(_req: Request, { params }: Params) {
   const operador = (session.user as any)
   const now = new Date()
 
-  const [atualizado] = await prisma.$transaction([
+  const [atualizado, historico] = await prisma.$transaction([
     prisma.cliente.update({
       where: { id },
       data: {
@@ -48,6 +48,7 @@ export async function POST(_req: Request, { params }: Params) {
   ])
 
   indexarAsync('cliente', atualizado)
+  indexarAsync('statusHistorico', { ...historico, criadoEm: now })
 
   return NextResponse.json({ ok: true, status: 'ativo' })
 }

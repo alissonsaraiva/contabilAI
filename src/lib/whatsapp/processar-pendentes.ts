@@ -37,6 +37,16 @@ export async function processarMensagensPendentes(): Promise<{
 }> {
   const cutoff = new Date(Date.now() - DEBOUNCE_MS)
 
+  // Auto-resume: despausar conversas pausadas há mais de 1h sem nova atividade humana
+  const umaHoraAtras = new Date(Date.now() - 60 * 60_000)
+  await prisma.conversaIA.updateMany({
+    where: {
+      canal:     'whatsapp',
+      pausadaEm: { not: null, lt: umaHoraAtras },
+    },
+    data: { pausadaEm: null, pausadoPorId: null },
+  }).catch(() => {})
+
   // Busca conversas WhatsApp com mensagens não processadas cuja última msg chegou há >5s
   const conversas = await prisma.conversaIA.findMany({
     where: {

@@ -20,20 +20,32 @@ type TipoIndexacao =
   | 'documento'
   | 'escritorio'
   | 'planos'
+  | 'os'
+  | 'comunicado'
+  | 'statusHistorico'
+  | 'empresa'
+  | 'relatorio'
+  | 'conversa'
 
 export function indexarAsync(tipo: TipoIndexacao, dados: unknown): void {
   import('@/lib/rag/ingest')
     .then((mod) => {
       switch (tipo) {
-        case 'interacao': return (mod as any).indexarInteracao(dados)
-        case 'cliente':   return (mod as any).indexarCliente(dados)
-        case 'lead':      return (mod as any).indexarLead(dados)
-        case 'escalacao': return (mod as any).indexarEscalacao?.(dados)
-        case 'tarefa':    return (mod as any).indexarTarefa?.(dados)
-        case 'contrato':  return (mod as any).indexarContrato?.(dados)
-        case 'documento': return (mod as any).indexarDocumento?.(dados)
-        case 'escritorio': return (mod as any).indexarEscritorio?.(dados)
-        case 'planos':    return (mod as any).indexarPlanos?.(dados)
+        case 'interacao':       return (mod as any).indexarInteracao(dados)
+        case 'cliente':         return (mod as any).indexarCliente(dados)
+        case 'lead':            return (mod as any).indexarLead(dados)
+        case 'escalacao':       return (mod as any).indexarEscalacao?.(dados)
+        case 'tarefa':          return (mod as any).indexarTarefa?.(dados)
+        case 'contrato':        return (mod as any).indexarContrato?.(dados)
+        case 'documento':       return (mod as any).indexarDocumento?.(dados)
+        case 'escritorio':      return (mod as any).indexarEscritorio?.(dados)
+        case 'planos':          return (mod as any).indexarPlanos?.(dados)
+        case 'os':              return (mod as any).indexarOrdemServico?.(dados)
+        case 'comunicado':      return (mod as any).indexarComunicado?.(dados)
+        case 'statusHistorico': return (mod as any).indexarStatusHistorico?.(dados)
+        case 'empresa':         return (mod as any).indexarEmpresa?.(dados)
+        case 'relatorio':       return (mod as any).indexarRelatorio?.(dados)
+        case 'conversa':        return (mod as any).indexarConversa?.(dados)
       }
     })
     .catch(() => {

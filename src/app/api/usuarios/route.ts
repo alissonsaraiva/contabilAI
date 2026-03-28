@@ -8,6 +8,7 @@ const createSchema = z.object({
   nome: z.string().min(2, 'Nome obrigatório'),
   email: z.string().email('E-mail inválido'),
   tipo: z.enum(['admin', 'contador', 'assistente']).default('assistente'),
+  whatsapp: z.string().optional(),
 })
 
 function gerarSenhaAleatoria(): string {
@@ -26,7 +27,7 @@ export async function GET() {
 
   const usuarios = await prisma.usuario.findMany({
     orderBy: { criadoEm: 'desc' },
-    select: { id: true, nome: true, email: true, tipo: true, ativo: true, avatar: true, criadoEm: true },
+    select: { id: true, nome: true, email: true, tipo: true, ativo: true, avatar: true, whatsapp: true, criadoEm: true },
   })
 
   return NextResponse.json(usuarios)
@@ -54,8 +55,9 @@ export async function POST(req: Request) {
         senhaHash,
         tipo: parsed.data.tipo,
         precisaTrocarSenha: true,
+        whatsapp: parsed.data.whatsapp ?? null,
       },
-      select: { id: true, nome: true, email: true, tipo: true, ativo: true, criadoEm: true },
+      select: { id: true, nome: true, email: true, tipo: true, ativo: true, whatsapp: true, criadoEm: true },
     })
     return NextResponse.json({ ...usuario, senhaGerada }, { status: 201 })
   } catch (e: any) {

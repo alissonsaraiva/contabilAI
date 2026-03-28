@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -34,6 +35,9 @@ export async function PATCH(req: Request, { params }: Params) {
     data:  updateData,
   })
 
+  // Re-indexa (publicado) ou remove do índice (despublicado)
+  indexarAsync('comunicado', comunicado)
+
   return NextResponse.json(comunicado)
 }
 
@@ -43,5 +47,7 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const { id } = await params
   await prisma.comunicado.delete({ where: { id } })
+  // Remove embeddings — passa publicado=false para disparar a remoção no indexarComunicado
+  indexarAsync('comunicado', { id, publicado: false })
   return NextResponse.json({ ok: true })
 }
