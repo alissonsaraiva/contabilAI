@@ -163,6 +163,59 @@ export async function notificarRespostaClientePausado(opts: {
 }
 
 /**
+ * Notifica a equipe quando uma OS é resolvida — o cliente não é notificado por push,
+ * mas a equipe precisa confirmar que a resposta chegou ao cliente pelo canal correto.
+ */
+export async function notificarOSResolvida(opts: {
+  osId: string
+  clienteId?: string | null
+  titulo: string
+}): Promise<void> {
+  try {
+    const nome = opts.clienteId
+      ? (await prisma.cliente.findUnique({ where: { id: opts.clienteId }, select: { nome: true } }))?.nome ?? 'Cliente'
+      : 'Cliente'
+    const ids = await buscarEquipeAtendimento()
+    await criarParaTodos(ids, {
+      tipo:    'os_resolvida',
+      titulo:  `OS resolvida: ${opts.titulo.slice(0, 60)}`,
+      mensagem: `${nome} pode verificar a resposta no portal.`,
+      url:     `/crm/ordens-servico/${opts.osId}`,
+    })
+  } catch (err) {
+    console.error('[notificacoes] falha ao notificar os_resolvida:', err)
+  }
+}
+
+/**
+ * Notifica a equipe quando um cliente envia um documento pelo portal.
+ */
+export async function notificarDocumentoEnviado(opts: {
+  clienteId: string
+  nomeArquivo: string
+}): Promise<void> {
+  const chave = `doc_enviado:${opts.clienteId}`
+  if (dentroDoCooldow(chave)) return
+  registrarCooldown(chave)
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where:  { id: opts.clienteId },
+      select: { nome: true },
+    })
+    const ids = await buscarEquipeAtendimento()
+    await criarParaTodos(ids, {
+      tipo:    'documento_enviado',
+      titulo:  `Documento recebido de ${cliente?.nome ?? 'Cliente'}`,
+      mensagem: opts.nomeArquivo.slice(0, 100),
+      url:     `/crm/clientes/${opts.clienteId}`,
+    })
+  } catch (err) {
+    console.error('[notificacoes] falha ao notificar documento_enviado:', err)
+  }
+}
+
+/**
  * Notifica quando um cliente solicita atendimento humano pelo portal.
  */
 export async function notificarEscalacaoPortal(clienteId: string, escalacaoId: string): Promise<void> {

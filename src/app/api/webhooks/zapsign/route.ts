@@ -32,7 +32,19 @@ type ZapSignWebhookPayload = {
   }>
 }
 
+async function verificarSecret(req: Request): Promise<boolean> {
+  const escritorio = await prisma.escritorio.findFirst({ select: { zapsignWebhookSecret: true } })
+  const secret = escritorio?.zapsignWebhookSecret
+  if (!secret) return true // sem secret configurado → aceita (evita bloquear antes de configurar)
+  const { searchParams } = new URL(req.url)
+  const tokenRecebido = searchParams.get('secret')
+  return tokenRecebido === secret
+}
+
 export async function POST(req: Request) {
+  const autorizado = await verificarSecret(req)
+  if (!autorizado) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
   let payload: ZapSignWebhookPayload
   try {
     payload = await req.json() as ZapSignWebhookPayload

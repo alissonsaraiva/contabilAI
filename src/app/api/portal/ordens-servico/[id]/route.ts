@@ -45,7 +45,10 @@ export async function PATCH(req: Request, { params }: Params) {
 
   // Client actions: avaliar (nota + comentário) or cancelar
   const updateData: Record<string, unknown> = {}
-  if (body.avaliacaoNota !== undefined) updateData.avaliacaoNota   = body.avaliacaoNota
+  if (body.avaliacaoNota !== undefined) {
+    updateData.avaliacaoNota   = body.avaliacaoNota
+    updateData.avaliadoEm      = new Date()
+  }
   if (body.avaliacaoComent !== undefined) updateData.avaliacaoComent = body.avaliacaoComent
   if (body.status === 'cancelada' && existing.status === 'aberta') {
     updateData.status     = 'cancelada'

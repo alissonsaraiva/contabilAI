@@ -363,6 +363,7 @@ model OrdemServico {
   respondidoPorId String?
   avaliacaoNota   Int?
   avaliacaoComent String?
+  avaliadoEm      DateTime?
   fechadoEm       DateTime?
   criadoEm        DateTime  @default(now())
   atualizadoEm    DateTime  @updatedAt
@@ -500,6 +501,7 @@ model Escritorio {
   zapsignToken         String?  @db.Text              // encriptado
   clicksignKey         String?                        // encriptado
   clicksignHmacSecret  String?                        // HMAC SHA256 secret (plain — não é chave de acesso)
+  zapsignWebhookSecret String?                        // secret token para validar webhook ZapSign (?secret=xxx na URL)
 
   zapiInstanceId   String?
   zapiToken        String?

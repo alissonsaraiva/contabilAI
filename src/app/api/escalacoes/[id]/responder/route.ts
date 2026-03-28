@@ -142,10 +142,17 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
     },
   })
 
-  // Ao resolver a escalação, reativa a IA para o número (se conversa estiver pausada)
+  // Ao resolver a escalação, reativa a IA (despausa conversa)
   if (esc.canal === 'whatsapp' && esc.remoteJid) {
     prisma.conversaIA.updateMany({
       where: { canal: 'whatsapp', remoteJid: esc.remoteJid, NOT: { pausadaEm: null } },
+      data: { pausadaEm: null, pausadoPorId: null },
+    }).catch(() => {})
+  }
+  // Onboarding/portal: despausa via conversaIAId (se vinculada)
+  if (esc.canal !== 'whatsapp' && escAtualizada.conversaIAId) {
+    prisma.conversaIA.update({
+      where: { id: escAtualizada.conversaIAId },
       data: { pausadaEm: null, pausadoPorId: null },
     }).catch(() => {})
   }

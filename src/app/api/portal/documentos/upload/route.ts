@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { criarDocumento } from '@/lib/services/documentos'
 import { resolveClienteId } from '@/lib/portal-session'
+import { notificarDocumentoEnviado } from '@/lib/notificacoes'
 import type { CategoriaDocumento } from '@prisma/client'
 
 export async function POST(req: Request) {
@@ -40,6 +41,8 @@ export async function POST(req: Request) {
     status:     'pendente',
     origem:     'portal',
   })
+
+  notificarDocumentoEnviado({ clienteId, nomeArquivo: file.name }).catch(() => {})
 
   return NextResponse.json(documento)
 }

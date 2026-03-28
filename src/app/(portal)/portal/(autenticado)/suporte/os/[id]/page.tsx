@@ -5,6 +5,7 @@ import { resolveClienteId } from '@/lib/portal-session'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
 import { OSAvaliacaoForm } from '@/components/portal/os-avaliacao-form'
+import { OSCancelarBtn } from '@/components/portal/os-cancelar-btn'
 
 const STATUS_OS: Record<string, { label: string; color: string; icon: string }> = {
   aberta:              { label: 'Aberta',            color: 'text-blue-600 bg-blue-500/10',    icon: 'radio_button_unchecked' },
@@ -141,12 +142,7 @@ export default async function OSDetailPage({ params }: Props) {
       {/* Cancelar */}
       {podeCancelar && (
         <div className="flex justify-end">
-          <Link
-            href={`/portal/suporte/os/${id}/cancelar`}
-            className="text-[12px] font-semibold text-error hover:underline"
-          >
-            Cancelar chamado
-          </Link>
+          <OSCancelarBtn osId={id} />
         </div>
       )}
     </div>

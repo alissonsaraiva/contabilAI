@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolverOS } from '@/lib/services/ordens-servico'
+import { notificarOSResolvida } from '@/lib/notificacoes'
 import type { CategoriaDocumento } from '@prisma/client'
 
 type Params = { params: Promise<{ id: string }> }
@@ -128,6 +129,15 @@ export async function PATCH(req: Request, { params }: Params) {
     where: { id },
     data:  updateData,
   })
+
+  // Notifica equipe quando OS é resolvida (fire-and-forget)
+  if (body.status === 'resolvida' && existing.status !== 'resolvida') {
+    notificarOSResolvida({
+      osId:      id,
+      clienteId: existing.clienteId,
+      titulo:    existing.titulo,
+    }).catch(() => {})
+  }
 
   return NextResponse.json(ordem)
 }

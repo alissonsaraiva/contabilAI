@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { executarAgente } from '@/lib/ai/agent'
 import { proximoDisparo } from '@/lib/ai/cron-helper'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { notificarAgenteFalhou } from '@/lib/notificacoes'
 import '@/lib/ai/tools' // registra todas as tools
 
 // 5 minutos — necessário porque cada executarAgente pode levar até 45s.
@@ -33,6 +34,27 @@ export async function POST(req: Request) {
   }
 
   const agora = new Date()
+
+  // ── Manutenção: expirar leads antigos (roda a cada tick, é idempotente) ────
+  const limite30d = new Date(agora.getTime() - 30 * 24 * 60 * 60_000)
+  const limite15d = new Date(agora.getTime() - 15 * 24 * 60 * 60_000)
+  await prisma.lead.updateMany({
+    where: {
+      status: { in: ['iniciado', 'simulador', 'plano_escolhido', 'dados_preenchidos'] },
+      atualizadoEm: { lt: limite30d },
+      expiradoEm: null,
+    },
+    data: { status: 'expirado', expiradoEm: agora },
+  }).catch(() => {})
+  await prisma.lead.updateMany({
+    where: {
+      status: { in: ['contrato_gerado', 'aguardando_assinatura'] },
+      atualizadoEm: { lt: limite15d },
+      expiradoEm: null,
+    },
+    data: { status: 'expirado', expiradoEm: agora },
+  }).catch(() => {})
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Busca no máximo 3 agendamentos por tick — cada executarAgente leva até 45s,
   // então 3 × 45s = 135s cabe dentro dos 300s de maxDuration com margem.
@@ -110,6 +132,7 @@ export async function POST(req: Request) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[cron] erro ao disparar agendamento "${ag.descricao}":`, msg)
       resultados.push({ id: ag.id, descricao: ag.descricao, sucesso: false, erro: msg })
+      notificarAgenteFalhou(`Agendamento "${ag.descricao}" falhou: ${msg}`).catch(() => {})
 
       // Recalcula próximo mesmo em caso de erro para não ficar preso em loop
       const proximo = proximoDisparo(ag.cron, agora)
