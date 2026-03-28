@@ -18,9 +18,11 @@ CREATE TYPE "StatusLead_new" AS ENUM (
 );
 
 -- 2. Migrate column (no rows should have 'socios_preenchidos')
+ALTER TABLE "leads" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "leads"
   ALTER COLUMN "status" TYPE "StatusLead_new"
   USING ("status"::text::"StatusLead_new");
+ALTER TABLE "leads" ALTER COLUMN "status" SET DEFAULT 'iniciado'::"StatusLead_new";
 
 -- 3. Drop old enum and rename new one
 DROP TYPE "StatusLead";
