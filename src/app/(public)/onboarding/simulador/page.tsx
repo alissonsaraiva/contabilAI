@@ -3,85 +3,156 @@
 import { useState, use, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { formatCNPJ } from '@/lib/utils'
+import { useCnpj } from '@/hooks/use-cnpj'
+import type { DadosCNPJ } from '@/hooks/use-cnpj'
 
 type Props = { searchParams: Promise<{ leadId?: string }> }
 
-const TIPO_EMPRESA = [
-  { value: 'mei', label: 'MEI', desc: 'Microempreendedor individual', icon: 'person' },
-  { value: 'me_epp', label: 'ME / EPP', desc: 'Micro ou pequena empresa', icon: 'storefront' },
-  { value: 'ltda_sa', label: 'Ltda / S/A', desc: 'Médias e grandes empresas', icon: 'domain' },
-  { value: 'liberal', label: 'Prof. liberal', desc: 'Médico, advogado, dentista...', icon: 'badge' },
-  { value: 'nao_abri', label: 'Ainda não abri', desc: 'Quero abrir minha empresa', icon: 'rocket_launch' },
-]
+const INPUT = 'w-full h-12 rounded-2xl border border-outline-variant/30 bg-white px-4 text-[15px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 
 const FATURAMENTO = [
-  { value: 'ate10k', label: 'Até R$ 10 mil', desc: 'por mês' },
-  { value: '10k_50k', label: 'R$ 10k – 50k', desc: 'por mês' },
-  { value: '50k_200k', label: 'R$ 50k – 200k', desc: 'por mês' },
-  { value: 'acima200k', label: 'Acima de R$ 200k', desc: 'por mês' },
+  { value: 'ate10k',    label: 'Até R$ 10 mil',       desc: 'por mês' },
+  { value: '10k_50k',   label: 'R$ 10k – 50k',         desc: 'por mês' },
+  { value: '50k_200k',  label: 'R$ 50k – 200k',        desc: 'por mês' },
+  { value: 'acima200k', label: 'Acima de R$ 200k',     desc: 'por mês' },
 ]
 
 const FUNCIONARIOS = [
-  { value: 'nao', label: 'Não tenho', icon: 'person_off' },
-  { value: '1_3', label: '1 a 3', icon: 'group' },
-  { value: '4_10', label: '4 a 10', icon: 'groups' },
-  { value: 'mais10', label: 'Mais de 10', icon: 'corporate_fare' },
+  { value: 'nao',    label: 'Não tenho',    icon: 'person_off' },
+  { value: '1_3',    label: '1 a 3',        icon: 'group' },
+  { value: '4_10',   label: '4 a 10',       icon: 'groups' },
+  { value: 'mais10', label: 'Mais de 10',   icon: 'corporate_fare' },
 ]
 
-function OptionCard({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-2xl border p-4 text-left transition-all ${
-        selected
-          ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
-          : 'border-outline-variant/20 bg-white hover:border-outline-variant/40 hover:bg-slate-50'
-      }`}
-    >
-      {children}
-    </button>
-  )
+const TIPO_PF = [
+  { value: 'liberal',  label: 'Profissional liberal',       desc: 'Médico, advogado, dentista, engenheiro...', icon: 'badge' },
+  { value: 'nao_abri', label: 'Ainda não abri empresa',     desc: 'Quero abrir e preciso de orientação',       icon: 'rocket_launch' },
+]
+
+const REGIME_LABEL: Record<string, string> = {
+  MEI:            'MEI — Microempreendedor Individual',
+  SimplesNacional: 'Simples Nacional',
+  outro:          'Lucro Presumido / Real',
+}
+
+function regimeParaTipo(regime: DadosCNPJ['regime']): string {
+  if (regime === 'MEI') return 'mei'
+  if (regime === 'SimplesNacional') return 'me_epp'
+  return 'ltda_sa'
 }
 
 export default function SimuladorPage({ searchParams }: Props) {
   const { leadId } = use(searchParams)
   const router = useRouter()
+  const [tipoConta, setTipoConta] = useState<'pj' | 'pf' | ''>('')
+  const [cnpj, setCnpj] = useState('')
+  const [cnpjDados, setCnpjDados] = useState<DadosCNPJ | null>(null)
+  const [tipoPF, setTipoPF] = useState('')
+  const [faturamento, setFaturamento] = useState('')
+  const [funcionarios, setFuncionarios] = useState('nao')
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ tipo: '', faturamento: '', funcionarios: '' })
+  const { buscarCnpj, loading: cnpjLoading } = useCnpj()
 
+  // Restaura dados do lead ao retornar para este passo
   useEffect(() => {
     if (!leadId) return
     fetch(`/api/leads/${leadId}`)
       .then(r => r.json())
-      .then((lead: { dadosJson?: Record<string, { tipo?: string; faturamento?: string; funcionarios?: string }> }) => {
-        const sim = lead.dadosJson?.simulador
-        if (sim?.tipo) setForm({ tipo: sim.tipo ?? '', faturamento: sim.faturamento ?? '', funcionarios: sim.funcionarios ?? '' })
+      .then((lead: { dadosJson?: Record<string, unknown> }) => {
+        const d = lead.dadosJson
+        if (!d) return
+        const sim = d.simulador as { tipo?: string; faturamento?: string; funcionarios?: string } | undefined
+        const cnpjSalvo = d['CNPJ'] as string | undefined
+
+        if (cnpjSalvo) {
+          setTipoConta('pj')
+          setCnpj(cnpjSalvo)
+        } else if (sim?.tipo === 'liberal' || sim?.tipo === 'nao_abri') {
+          setTipoConta('pf')
+          setTipoPF(sim.tipo)
+        }
+        if (sim?.faturamento) setFaturamento(sim.faturamento)
+        if (sim?.funcionarios) setFuncionarios(sim.funcionarios)
       })
       .catch(() => {})
   }, [leadId])
 
-  const canContinue = form.tipo && form.faturamento && form.funcionarios
+  // Auto-lookup quando CNPJ é restaurado do banco (14 dígitos, sem dados ainda)
+  useEffect(() => {
+    const digits = cnpj.replace(/\D/g, '')
+    if (digits.length === 14 && !cnpjDados) {
+      buscarCnpj(digits).then(d => { if (d) setCnpjDados(d) })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cnpj])
+
+  async function handleCnpjChange(value: string) {
+    setCnpj(value)
+    const digits = value.replace(/\D/g, '')
+    if (digits.length === 14) {
+      const dados = await buscarCnpj(digits)
+      if (dados) {
+        setCnpjDados(dados)
+        if (dados.situacao !== 'ATIVA') {
+          toast.warning(`CNPJ com situação "${dados.situacao}". Verifique com a Receita Federal antes de prosseguir.`)
+        }
+      } else {
+        setCnpjDados(null)
+      }
+    } else {
+      setCnpjDados(null)
+    }
+  }
+
+  const tipoDerived = cnpjDados ? regimeParaTipo(cnpjDados.regime) : 'me_epp'
+
+  const canContinue = tipoConta === 'pj'
+    ? cnpj.replace(/\D/g, '').length === 14 && !!faturamento && !!funcionarios
+    : tipoConta === 'pf'
+      ? !!tipoPF && !!faturamento && !!funcionarios
+      : false
 
   async function handleSubmit() {
     if (!leadId || !canContinue) return
     setLoading(true)
     try {
+      const tipo = tipoConta === 'pj' ? tipoDerived : tipoPF
+      const dadosJson: Record<string, unknown> = {
+        simulador: { tipo, faturamento, funcionarios },
+      }
+
+      if (tipoConta === 'pj') {
+        dadosJson['CNPJ'] = cnpj
+        if (cnpjDados) {
+          dadosJson['Razão Social'] = cnpjDados.razaoSocial
+          if (cnpjDados.nomeFantasia) dadosJson['Nome Fantasia'] = cnpjDados.nomeFantasia
+          if (cnpjDados.regime !== 'outro') dadosJson['Regime'] = cnpjDados.regime
+          if (cnpjDados.logradouro) dadosJson['Endereço Empresa'] = cnpjDados.logradouro
+          if (cnpjDados.numero)     dadosJson['Número Empresa']   = cnpjDados.numero
+          if (cnpjDados.complemento) dadosJson['Complemento Empresa'] = cnpjDados.complemento
+          if (cnpjDados.bairro)     dadosJson['Bairro Empresa']   = cnpjDados.bairro
+          if (cnpjDados.municipio)  dadosJson['Cidade Empresa']   = cnpjDados.municipio
+          if (cnpjDados.uf)         dadosJson['Estado Empresa']   = cnpjDados.uf
+          if (cnpjDados.cep) {
+            const c = cnpjDados.cep
+            dadosJson['CEP Empresa'] = c.length === 8 ? `${c.slice(0, 5)}-${c.slice(5)}` : c
+          }
+        }
+      }
+
       await fetch('/api/onboarding/salvar-progresso', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId,
-          status: 'simulador',
-          stepAtual: 2,
-          dadosJson: { simulador: form },
-        }),
+        body: JSON.stringify({ leadId, status: 'simulador', stepAtual: 2, dadosJson }),
       })
+
       const params = new URLSearchParams({
         leadId,
-        tipo: form.tipo,
-        faturamento: form.faturamento,
-        funcionarios: form.funcionarios,
+        tipo,
+        faturamento,
+        funcionarios,
+        ...(cnpjDados?.regime && { regime: cnpjDados.regime }),
       })
       router.push(`/onboarding/plano?${params}`)
     } catch {
@@ -105,78 +176,198 @@ export default function SimuladorPage({ searchParams }: Props) {
         </p>
       </div>
 
-      {/* Tipo de empresa */}
+      {/* Toggle PJ / PF */}
       <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
         <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
-          1. Como é sua empresa?
+          1. Como você trabalha?
         </p>
         <div className="space-y-2">
-          {TIPO_EMPRESA.map(op => (
-            <OptionCard key={op.value} selected={form.tipo === op.value} onClick={() => setForm(f => ({ ...f, tipo: op.value }))}>
+          {([
+            { value: 'pj', icon: 'domain', label: 'Tenho empresa com CNPJ', desc: 'MEI, ME, EPP, Ltda, S/A...' },
+            { value: 'pf', icon: 'badge',  label: 'Sou autônomo / Prof. liberal', desc: 'Trabalho com CPF ou ainda não abri empresa' },
+          ] as const).map(op => (
+            <button
+              key={op.value}
+              type="button"
+              onClick={() => { setTipoConta(op.value); setCnpjDados(null) }}
+              className={`w-full rounded-2xl border p-4 text-left transition-all ${
+                tipoConta === op.value
+                  ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
+                  : 'border-outline-variant/20 bg-white hover:border-outline-variant/40 hover:bg-slate-50'
+              }`}
+            >
               <div className="flex items-center gap-3">
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${form.tipo === op.value ? 'bg-primary/15' : 'bg-slate-100'}`}>
-                  <span className={`material-symbols-outlined text-[18px] ${form.tipo === op.value ? 'text-primary' : 'text-on-surface-variant'}`}>{op.icon}</span>
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${tipoConta === op.value ? 'bg-primary/15' : 'bg-slate-100'}`}>
+                  <span className={`material-symbols-outlined text-[18px] ${tipoConta === op.value ? 'text-primary' : 'text-on-surface-variant'}`}>{op.icon}</span>
                 </div>
                 <div>
-                  <p className={`text-[14px] font-semibold ${form.tipo === op.value ? 'text-primary' : 'text-on-surface'}`}>{op.label}</p>
+                  <p className={`text-[14px] font-semibold ${tipoConta === op.value ? 'text-primary' : 'text-on-surface'}`}>{op.label}</p>
                   <p className="text-[12px] text-on-surface-variant">{op.desc}</p>
                 </div>
-                {form.tipo === op.value && (
+                {tipoConta === op.value && (
                   <span className="material-symbols-outlined ml-auto text-[20px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                 )}
               </div>
-            </OptionCard>
-          ))}
-        </div>
-      </div>
-
-      {/* Faturamento */}
-      <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
-        <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
-          2. Faturamento mensal estimado
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {FATURAMENTO.map(op => (
-            <button
-              key={op.value}
-              type="button"
-              onClick={() => setForm(f => ({ ...f, faturamento: op.value }))}
-              className={`rounded-2xl border p-3.5 text-left transition-all ${
-                form.faturamento === op.value
-                  ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
-                  : 'border-outline-variant/20 bg-white hover:border-outline-variant/40'
-              }`}
-            >
-              <p className={`text-[14px] font-semibold ${form.faturamento === op.value ? 'text-primary' : 'text-on-surface'}`}>{op.label}</p>
-              <p className="text-[11px] text-on-surface-variant">{op.desc}</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Funcionários */}
-      <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
-        <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
-          3. Funcionários registrados
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {FUNCIONARIOS.map(op => (
-            <button
-              key={op.value}
-              type="button"
-              onClick={() => setForm(f => ({ ...f, funcionarios: op.value }))}
-              className={`flex items-center gap-2.5 rounded-2xl border p-3.5 transition-all ${
-                form.funcionarios === op.value
-                  ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
-                  : 'border-outline-variant/20 bg-white hover:border-outline-variant/40'
-              }`}
-            >
-              <span className={`material-symbols-outlined text-[20px] ${form.funcionarios === op.value ? 'text-primary' : 'text-on-surface-variant'}`}>{op.icon}</span>
-              <span className={`text-[14px] font-semibold ${form.funcionarios === op.value ? 'text-primary' : 'text-on-surface'}`}>{op.label}</span>
-            </button>
-          ))}
+      {/* ─── Fluxo PJ ─────────────────────────────────────────────────────────── */}
+      {tipoConta === 'pj' && (
+        <>
+          {/* CNPJ */}
+          <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
+            <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
+              2. CNPJ da empresa
+            </p>
+            <div className="relative">
+              <input
+                className={INPUT}
+                placeholder="00.000.000/0001-00"
+                value={cnpj}
+                onChange={e => handleCnpjChange(formatCNPJ(e.target.value))}
+                inputMode="numeric"
+                maxLength={18}
+              />
+              {cnpjLoading && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+              )}
+            </div>
+
+            {/* Card da empresa após lookup */}
+            {cnpjDados && (
+              <div className={`rounded-2xl border p-4 space-y-2 ${
+                cnpjDados.situacao === 'ATIVA'
+                  ? 'border-green-status/20 bg-green-status/5'
+                  : 'border-yellow-500/30 bg-yellow-50'
+              }`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[14px] font-semibold text-on-surface">{cnpjDados.razaoSocial}</p>
+                    {cnpjDados.nomeFantasia && cnpjDados.nomeFantasia !== cnpjDados.razaoSocial && (
+                      <p className="text-[12px] text-on-surface-variant">{cnpjDados.nomeFantasia}</p>
+                    )}
+                  </div>
+                  <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                    cnpjDados.situacao === 'ATIVA'
+                      ? 'bg-green-status/15 text-green-status'
+                      : 'bg-yellow-500/15 text-yellow-700'
+                  }`}>
+                    <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      {cnpjDados.situacao === 'ATIVA' ? 'check_circle' : 'warning'}
+                    </span>
+                    {cnpjDados.situacao}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                    <span className="material-symbols-outlined text-[12px]">receipt_long</span>
+                    {REGIME_LABEL[cnpjDados.regime] ?? cnpjDados.regime}
+                  </span>
+                  {cnpjDados.municipio && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-surface-container px-2.5 py-1 text-[11px] text-on-surface-variant">
+                      <span className="material-symbols-outlined text-[12px]">location_on</span>
+                      {cnpjDados.municipio}/{cnpjDados.uf}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-on-surface-variant/70">
+                  Dados preenchidos automaticamente via Receita Federal — você pode revisar no próximo passo.
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ─── Fluxo PF ─────────────────────────────────────────────────────────── */}
+      {tipoConta === 'pf' && (
+        <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
+          <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
+            2. Qual é sua situação?
+          </p>
+          <div className="space-y-2">
+            {TIPO_PF.map(op => (
+              <button
+                key={op.value}
+                type="button"
+                onClick={() => setTipoPF(op.value)}
+                className={`w-full rounded-2xl border p-4 text-left transition-all ${
+                  tipoPF === op.value
+                    ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
+                    : 'border-outline-variant/20 bg-white hover:border-outline-variant/40 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${tipoPF === op.value ? 'bg-primary/15' : 'bg-slate-100'}`}>
+                    <span className={`material-symbols-outlined text-[18px] ${tipoPF === op.value ? 'text-primary' : 'text-on-surface-variant'}`}>{op.icon}</span>
+                  </div>
+                  <div>
+                    <p className={`text-[14px] font-semibold ${tipoPF === op.value ? 'text-primary' : 'text-on-surface'}`}>{op.label}</p>
+                    <p className="text-[12px] text-on-surface-variant">{op.desc}</p>
+                  </div>
+                  {tipoPF === op.value && (
+                    <span className="material-symbols-outlined ml-auto text-[20px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ─── Faturamento (ambos os fluxos) ────────────────────────────────────── */}
+      {tipoConta && (
+        <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
+          <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
+            {tipoConta === 'pj' ? '3' : '3'}. Faturamento mensal estimado
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {FATURAMENTO.map(op => (
+              <button
+                key={op.value}
+                type="button"
+                onClick={() => setFaturamento(op.value)}
+                className={`rounded-2xl border p-3.5 text-left transition-all ${
+                  faturamento === op.value
+                    ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
+                    : 'border-outline-variant/20 bg-white hover:border-outline-variant/40'
+                }`}
+              >
+                <p className={`text-[14px] font-semibold ${faturamento === op.value ? 'text-primary' : 'text-on-surface'}`}>{op.label}</p>
+                <p className="text-[11px] text-on-surface-variant">{op.desc}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Funcionários (ambos os fluxos) ───────────────────────────────────── */}
+      {tipoConta && (
+        <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
+          <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
+            4. Funcionários registrados
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {FUNCIONARIOS.map(op => (
+              <button
+                key={op.value}
+                type="button"
+                onClick={() => setFuncionarios(op.value)}
+                className={`flex items-center gap-2.5 rounded-2xl border p-3.5 transition-all ${
+                  funcionarios === op.value
+                    ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
+                    : 'border-outline-variant/20 bg-white hover:border-outline-variant/40'
+                }`}
+              >
+                <span className={`material-symbols-outlined text-[20px] ${funcionarios === op.value ? 'text-primary' : 'text-on-surface-variant'}`}>{op.icon}</span>
+                <span className={`text-[14px] font-semibold ${funcionarios === op.value ? 'text-primary' : 'text-on-surface'}`}>{op.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button

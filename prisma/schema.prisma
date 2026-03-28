@@ -450,6 +450,9 @@ model Interacao {
   titulo           String?
   conteudo         String?  @db.Text
   metadados        Json?
+  // E-mail: rastreia se o email_recebido foi respondido ou dispensado
+  respondidoEm     DateTime?
+  respondidoPorId  String?
   criadoEm         DateTime @default(now())
 
   @@index([clienteId, criadoEm])

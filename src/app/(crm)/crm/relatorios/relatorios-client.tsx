@@ -3,6 +3,9 @@
 import { useState, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { RelatorioRenderer } from '@/components/relatorio-renderer'
+import { parseRelatorioJSON, relatorioJSONPreview } from '@/lib/relatorio-schema'
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -143,11 +146,30 @@ function AgendamentoCard({ ag }: { ag: AgendamentoAtivo }) {
 
 // ─── Card de Relatório ────────────────────────────────────────────────────────
 function RelatorioCard({ rel, expanded, onExpand }: { rel: Relatorio; expanded: boolean; onExpand: () => void }) {
-  const [deleting, startDelete] = useTransition()
+  const [deleting, startDelete]     = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const router = useRouter()
 
-  async function handleDelete() {
-    if (!confirm(`Excluir o relatório "${rel.titulo}"?`)) return
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportingXls, setExportingXls] = useState(false)
+
+  async function handleExport(formato: 'pdf' | 'xls') {
+    const setLoading = formato === 'pdf' ? setExportingPdf : setExportingXls
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/relatorios/${rel.id}/exportar?formato=${formato}`)
+      if (!res.ok) { toast.error('Erro ao gerar exportação'); return }
+      const blob = await res.blob()
+      const ext  = formato === 'pdf' ? 'pdf' : 'xlsx'
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url; a.download = `${rel.titulo}.${ext}`; a.click()
+      URL.revokeObjectURL(url)
+    } catch { toast.error('Erro ao exportar') }
+    finally { setLoading(false) }
+  }
+
+  function handleDelete() {
     startDelete(async () => {
       const res = await fetch(`/api/relatorios/${rel.id}`, { method: 'DELETE' })
       if (res.ok) { toast.success('Relatório excluído'); router.refresh() }
@@ -160,6 +182,16 @@ function RelatorioCard({ rel, expanded, onExpand }: { rel: Relatorio; expanded: 
   const iconBg      = rel.tipo === 'agendado' ? 'bg-primary/10 text-primary' : 'bg-tertiary/10 text-tertiary'
 
   return (
+    <>
+    <ConfirmDialog
+      open={confirmOpen}
+      onClose={() => setConfirmOpen(false)}
+      onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+      title="Excluir relatório?"
+      description={`"${rel.titulo}" será excluído permanentemente.`}
+      confirmLabel="Excluir"
+      loading={deleting}
+    />
     <div className={`border-b border-outline-variant/10 last:border-0 border-l-[3px] ${borderColor} transition-colors ${expanded ? 'bg-surface-container-low/30' : 'hover:bg-surface-container-low/15'}`}>
       <div className="flex items-start gap-3 px-5 py-4 cursor-pointer" onClick={onExpand}>
         {/* Ícone tipo */}
@@ -185,7 +217,10 @@ function RelatorioCard({ rel, expanded, onExpand }: { rel: Relatorio; expanded: 
           {/* Preview do conteúdo */}
           {!expanded && (
             <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-on-surface-variant/60">
-              {rel.conteudo.replace(/[#*`>\-_\[\]]/g, '').substring(0, 220)}
+              {(() => {
+                const parsed = parseRelatorioJSON(rel.conteudo)
+                return parsed ? relatorioJSONPreview(parsed) : rel.conteudo.replace(/[#*`>\-_\[\]]/g, '').substring(0, 220)
+              })()}
             </p>
           )}
 
@@ -224,7 +259,7 @@ function RelatorioCard({ rel, expanded, onExpand }: { rel: Relatorio; expanded: 
             <span className="material-symbols-outlined text-[16px]">{expanded ? 'expand_less' : 'expand_more'}</span>
           </button>
           <button
-            onClick={handleDelete}
+            onClick={() => setConfirmOpen(true)}
             disabled={deleting}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant/40 hover:bg-error/10 hover:text-error transition-colors"
             title="Excluir relatório"
@@ -236,13 +271,49 @@ function RelatorioCard({ rel, expanded, onExpand }: { rel: Relatorio; expanded: 
 
       {/* Conteúdo expandido */}
       {expanded && (
-        <div className="mx-5 mb-5 rounded-xl border border-outline-variant/15 bg-card p-5">
-          <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-on-surface">
-            {rel.conteudo}
-          </pre>
+        <div className="mx-5 mb-5 space-y-4">
+          {/* Botões de export */}
+          {(() => {
+            const parsed = parseRelatorioJSON(rel.conteudo)
+            if (!parsed) return null
+            return (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleExport('pdf')}
+                  disabled={exportingPdf}
+                  className="flex items-center gap-1.5 rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[14px]">picture_as_pdf</span>
+                  {exportingPdf ? 'Gerando...' : 'Exportar PDF'}
+                </button>
+                <button
+                  onClick={() => handleExport('xls')}
+                  disabled={exportingXls}
+                  className="flex items-center gap-1.5 rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[14px]">table_chart</span>
+                  {exportingXls ? 'Gerando...' : 'Exportar XLS'}
+                </button>
+              </div>
+            )
+          })()}
+
+          {/* Conteúdo renderizado */}
+          <div className="rounded-xl border border-outline-variant/15 bg-card p-5">
+            {(() => {
+              const parsed = parseRelatorioJSON(rel.conteudo)
+              if (parsed) return <RelatorioRenderer rel={parsed} />
+              return (
+                <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-on-surface">
+                  {rel.conteudo}
+                </pre>
+              )
+            })()}
+          </div>
         </div>
       )}
     </div>
+    </>
   )
 }
 

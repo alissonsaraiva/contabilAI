@@ -123,33 +123,65 @@ export async function indexarLead(lead: LeadData): Promise<void> {
   const keys = await getEmbeddingKeys()
   if (!keys.openai && !keys.voyage) return
 
-  const dados = (lead.dadosJson ?? {}) as Record<string, string>
+  const dados = (lead.dadosJson ?? {}) as Record<string, unknown>
+
+  // Campos conhecidos extraídos com labels legíveis
+  const camposConhecidos = new Set([
+    'Nome completo', 'CPF', 'E-mail', 'Telefone', 'CNPJ', 'Razão Social',
+    'Nome Fantasia', 'Regime', 'Cidade', 'Endereço de Faturamento',
+    'Atividade Principal', 'email', 'nome', 'cpf', 'cnpj', 'telefone',
+    // Objetos aninhados — excluir do camposDinamicos para evitar [object Object]
+    'simulador',
+  ])
+
+  // Extrai TODOS os campos dinâmicos do dadosJson (não só os conhecidos)
+  // Isso garante que campos customizados do formulário (dúvidas, observações,
+  // informações extras) também sejam indexados e acessíveis à IA.
+  const camposDinamicos = Object.entries(dados)
+    .filter(([chave, valor]) =>
+      !camposConhecidos.has(chave) &&
+      valor != null &&
+      typeof valor !== 'object' &&          // exclui objetos/arrays aninhados
+      String(valor).trim().length > 0 &&
+      String(valor).trim() !== 'null' &&
+      String(valor).trim() !== 'undefined'
+    )
+    .map(([chave, valor]) => `${chave}: ${String(valor).trim()}`)
 
   const linhas = [
     `Lead de onboarding`,
     `Contato: ${lead.contatoEntrada}`,
-    lead.canal       ? `Canal de entrada: ${lead.canal}` : '',
-    lead.status      ? `Status: ${lead.status}` : '',
-    lead.planoTipo   ? `Plano de interesse: ${lead.planoTipo}` : '',
+    lead.canal     ? `Canal de entrada: ${lead.canal}` : '',
+    lead.status    ? `Status: ${lead.status}` : '',
+    lead.planoTipo ? `Plano de interesse: ${lead.planoTipo}` : '',
     dados['Nome completo']  ? `Nome: ${dados['Nome completo']}` : '',
+    dados['nome']           ? `Nome: ${dados['nome']}` : '',
     dados['CPF']            ? `CPF: ${dados['CPF']}` : '',
+    dados['cpf']            ? `CPF: ${dados['cpf']}` : '',
     dados['E-mail']         ? `E-mail: ${dados['E-mail']}` : '',
+    dados['email']          ? `E-mail: ${dados['email']}` : '',
     dados['Telefone']       ? `Telefone: ${dados['Telefone']}` : '',
+    dados['telefone']       ? `Telefone: ${dados['telefone']}` : '',
     dados['CNPJ']           ? `CNPJ: ${dados['CNPJ']}` : '',
+    dados['cnpj']           ? `CNPJ: ${dados['cnpj']}` : '',
     dados['Razão Social']   ? `Razão Social: ${dados['Razão Social']}` : '',
     dados['Nome Fantasia']  ? `Nome Fantasia: ${dados['Nome Fantasia']}` : '',
     dados['Cidade']         ? `Cidade: ${dados['Cidade']}` : '',
     dados['Endereço de Faturamento'] ? `Endereço: ${dados['Endereço de Faturamento']}` : '',
-    dados['Regime Tributário']       ? `Regime: ${dados['Regime Tributário']}` : '',
+    dados['Regime']                  ? `Regime: ${dados['Regime']}` : '',
     dados['Atividade Principal']     ? `Atividade: ${dados['Atividade Principal']}` : '',
+    // Campos dinâmicos adicionais (customizações do formulário de onboarding)
+    ...camposDinamicos,
   ].filter(Boolean).join('\n')
+
+  const nomeDisplay = String(dados['Nome completo'] ?? dados['nome'] ?? lead.contatoEntrada)
 
   await indexar(linhas, {
     escopo: 'lead',
     canal: 'onboarding',
     tipo: 'dados_lead',
     leadId: lead.id,
-    titulo: dados['Nome completo'] ?? lead.contatoEntrada,
+    titulo: nomeDisplay,
   }, keys)
 }
 
@@ -268,7 +300,8 @@ type InteracaoData = {
 // Tipos visíveis apenas no CRM (notas internas, registros de atendimento)
 const TIPOS_SOMENTE_CRM = ['nota_interna', 'ligacao', 'whatsapp_enviado']
 // Tipos client-facing: indexados no CRM e também no portal (entregáveis visíveis ao cliente)
-const TIPOS_CRM_E_PORTAL = ['email_enviado', 'documento_enviado']
+// email_recebido: cliente enviou → CRM precisa saber "o que o João nos enviou?", portal AI precisa de contexto
+const TIPOS_CRM_E_PORTAL = ['email_enviado', 'email_recebido', 'documento_enviado']
 
 export async function indexarInteracao(interacao: InteracaoData): Promise<void> {
   if (!interacao.conteudo?.trim()) return
@@ -617,16 +650,22 @@ type OrdemServicoData = {
   origem: string
   prioridade?: string | null
   visivelPortal?: boolean
+  resposta?: string | null        // resolução do chamado pelo escritório
+  respondidoEm?: Date | null
+  avaliacaoNota?: number | null
+  avaliacaoComent?: string | null
   criadoEm?: Date
 }
 
 // Indexa OS no canal CRM para que o assistente conheça os chamados abertos.
 // Se visivelPortal=true, indexa também no canal portal (cliente pode perguntar).
+// Inclui campo `resposta` para que o histórico de resolução fique acessível via RAG.
 export async function indexarOrdemServico(os: OrdemServicoData): Promise<void> {
   const keys = await getEmbeddingKeys()
   if (!keys.openai && !keys.voyage) return
 
   const data = os.criadoEm ? os.criadoEm.toLocaleDateString('pt-BR') : ''
+  const respondidoStr = os.respondidoEm ? os.respondidoEm.toLocaleDateString('pt-BR') : ''
 
   const linhas = [
     `Chamado: ${os.titulo}`,
@@ -634,8 +673,14 @@ export async function indexarOrdemServico(os: OrdemServicoData): Promise<void> {
     `Status: ${os.status}`,
     `Prioridade: ${os.prioridade ?? 'media'}`,
     `Origem: ${os.origem}`,
-    data ? `Aberto em: ${data}` : '',
+    data            ? `Aberto em: ${data}` : '',
     `Descrição: ${os.descricao}`,
+    // Resolução — indexada para que a IA conheça como o chamado foi resolvido
+    os.resposta     ? `\nResposta do escritório: ${os.resposta}` : '',
+    respondidoStr   ? `Respondido em: ${respondidoStr}` : '',
+    // Avaliação do cliente — contexto de satisfação
+    os.avaliacaoNota    ? `Avaliação do cliente: ${os.avaliacaoNota}/5` : '',
+    os.avaliacaoComent  ? `Comentário do cliente: ${os.avaliacaoComent}` : '',
   ].filter(Boolean).join('\n')
 
   const base = {
@@ -725,6 +770,16 @@ export async function indexarRelatorio(rel: RelatorioAgenteData): Promise<void> 
 
   const data = rel.criadoEm ? rel.criadoEm.toLocaleDateString('pt-BR') : ''
 
+  // Extrai texto plano do conteúdo (JSON estruturado ou texto livre)
+  let conteudoTexto = rel.conteudo
+  try {
+    const { relatorioJSONParaTexto, parseRelatorioJSON } = await import('@/lib/relatorio-schema')
+    const parsed = parseRelatorioJSON(rel.conteudo)
+    if (parsed) conteudoTexto = relatorioJSONParaTexto(parsed)
+  } catch {
+    // fallback para texto bruto
+  }
+
   const linhas = [
     `Relatório gerado pela IA: ${rel.titulo}`,
     `Tipo: ${rel.tipo === 'agendado' ? 'Agendamento automático' : 'Manual'}`,
@@ -732,7 +787,7 @@ export async function indexarRelatorio(rel: RelatorioAgenteData): Promise<void> 
     rel.criadoPorNome   ? `Solicitado por: ${rel.criadoPorNome}` : '',
     data                ? `Gerado em: ${data}` : '',
     ``,
-    rel.conteudo,
+    conteudoTexto,
   ].filter(v => v !== null && v !== undefined).join('\n')
 
   await indexar(linhas, {
@@ -889,5 +944,124 @@ export async function indexarConversa(conversa: ConversaData): Promise<void> {
     leadId:      conversa.leadId    ?? undefined,
     titulo:      `Conversa ${conversa.canal} — ${data}`,
     documentoId: `conversa:${conversa.id}`,
+  }, keys)
+}
+
+// ─── Ação do Agente (AgenteAcao) ──────────────────────────────────────────────
+
+type AgenteAcaoData = {
+  id: string
+  clienteId?: string | null
+  leadId?: string | null
+  tool: string
+  solicitanteAI: string
+  usuarioNome?: string | null
+  input: unknown
+  resultado: { sucesso?: boolean; resumo?: string; erro?: string; dados?: unknown }
+  sucesso: boolean
+  duracaoMs: number
+  criadoEm?: Date
+}
+
+// Indexa ações executadas pelo agente operacional no tipo 'historico_agente'.
+// Permite que a IA responda "o que foi feito para o cliente X?" via RAG sem
+// recorrer ao banco, e aprenda padrões de sucesso/falha por tool ao longo do tempo.
+// Indexa apenas ações bem-sucedidas com resumo substantivo (evita poluir com erros).
+export async function indexarAgenteAcao(acao: AgenteAcaoData): Promise<void> {
+  // Não indexa falhas — conteúdo de erro não agrega contexto semântico útil
+  if (!acao.sucesso) return
+  const resumo = acao.resultado?.resumo?.trim()
+  if (!resumo || resumo.length < 20) return  // sem resumo útil
+
+  if (!acao.clienteId && !acao.leadId) return  // sem contexto de entidade
+
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const data = acao.criadoEm ? acao.criadoEm.toLocaleDateString('pt-BR') : ''
+  const hora = acao.criadoEm
+    ? acao.criadoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : ''
+
+  // Serializa o input de forma legível (omite campos sensíveis longos)
+  let inputResumido = ''
+  try {
+    const inp = acao.input as Record<string, unknown>
+    inputResumido = Object.entries(inp)
+      .filter(([, v]) => v != null && String(v).length < 200)
+      .map(([k, v]) => `${k}: ${String(v)}`)
+      .join(', ')
+  } catch { /* ignora */ }
+
+  const linhas = [
+    `Ação do agente: ${acao.tool}`,
+    `Canal: ${acao.solicitanteAI}`,
+    data ? `Data: ${data}${hora ? ' às ' + hora : ''}` : '',
+    acao.usuarioNome ? `Solicitado por: ${acao.usuarioNome}` : '',
+    inputResumido    ? `Parâmetros: ${inputResumido}` : '',
+    `Resultado: ${resumo}`,
+    `Duração: ${acao.duracaoMs}ms`,
+  ].filter(Boolean).join('\n')
+
+  await indexar(linhas, {
+    escopo:      acao.clienteId ? 'cliente' : 'lead',
+    canal:       'crm',
+    tipo:        'historico_agente',
+    clienteId:   acao.clienteId ?? undefined,
+    leadId:      acao.leadId    ?? undefined,
+    titulo:      `Ação ${acao.tool} — ${data}`,
+    documentoId: `agente_acao:${acao.id}`,
+  }, keys)
+}
+
+// ─── Agendamento do Agente ─────────────────────────────────────────────────────
+
+type AgendamentoData = {
+  id: string
+  descricao: string
+  cron: string
+  instrucao: string
+  ativo: boolean
+  criadoPorNome?: string | null
+  ultimoDisparo?: Date | null
+  proximoDisparo?: Date | null
+}
+
+// Indexa agendamentos ativos no canal CRM (escopo global do escritório).
+// Permite que a IA responda "o que está agendado?" sem precisar chamar a tool
+// listarAgendamentos em consultas simples — economiza tokens e latência.
+// Agendamentos inativos são removidos do índice.
+export async function indexarAgendamento(ag: AgendamentoData): Promise<void> {
+  const documentoId = `agendamento:${ag.id}`
+
+  if (!ag.ativo) {
+    import('@/lib/rag').then(({ deleteEmbeddings }) =>
+      deleteEmbeddings({ documentoId })
+    ).catch(() => {})
+    return
+  }
+
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const ultimoStr   = ag.ultimoDisparo   ? ag.ultimoDisparo.toLocaleDateString('pt-BR')   : 'nunca'
+  const proximoStr  = ag.proximoDisparo  ? ag.proximoDisparo.toLocaleDateString('pt-BR')  : 'não calculado'
+
+  const linhas = [
+    `Agendamento ativo do agente`,
+    `Descrição: ${ag.descricao}`,
+    `Instrução: ${ag.instrucao}`,
+    `Cron: ${ag.cron}`,
+    `Criado por: ${ag.criadoPorNome ?? 'sistema'}`,
+    `Último disparo: ${ultimoStr}`,
+    `Próximo disparo: ${proximoStr}`,
+  ].filter(Boolean).join('\n')
+
+  await indexar(linhas, {
+    escopo:      'global',
+    canal:       'crm',
+    tipo:        'base_conhecimento',
+    documentoId,
+    titulo:      `Agendamento — ${ag.descricao}`,
   }, keys)
 }

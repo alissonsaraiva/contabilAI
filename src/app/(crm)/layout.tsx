@@ -13,8 +13,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const session = await auth()
   if (!session) redirect('/login')
 
-  const [pendingEscalacoes, escritorio, aiConfig] = await Promise.all([
+  const [pendingEscalacoes, pendingEmails, escritorio, aiConfig] = await Promise.all([
     prisma.escalacao.count({ where: { status: 'pendente' } }).catch(() => 0),
+    prisma.interacao.count({ where: { tipo: 'email_recebido', respondidoEm: null } }).catch(() => 0),
     getEscritorioConfig(),
     getAiConfig(),
   ])
@@ -22,7 +23,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   return (
     <AssistenteProvider>
       <div className="flex h-screen overflow-hidden bg-surface-container-low">
-        <CrmSidebar user={session.user as any} pendingEscalacoes={pendingEscalacoes} nomeEscritorio={escritorio.nome} />
+        <CrmSidebar user={session.user as any} pendingEscalacoes={pendingEscalacoes} pendingEmails={pendingEmails} nomeEscritorio={escritorio.nome} />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <CrmHeader user={session.user as any} />
           <main className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">{children}</main>

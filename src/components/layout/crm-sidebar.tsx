@@ -10,7 +10,8 @@ type NavItem = {
   href: string
   icon: string
   label: string
-  badge?: boolean
+  badge?: boolean       // usa pendingEscalacoes (item Atendimentos)
+  badgeCount?: number   // contagem explícita para o item (ex: emails)
 }
 
 type NavGroup = {
@@ -32,8 +33,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Atendimento',
     items: [
-      { href: '/crm/atendimentos',    icon: 'support_agent', label: 'Atendimentos',  badge: true },
-      { href: '/crm/ordens-servico',  icon: 'inbox',         label: 'Chamados' },
+      { href: '/crm/atendimentos',   icon: 'support_agent', label: 'Atendimentos', badge: true },
+      { href: '/crm/ordens-servico', icon: 'inbox',         label: 'Chamados' },
+      { href: '/crm/emails',         icon: 'mail',          label: 'E-mails' },
     ],
   },
   {
@@ -56,10 +58,23 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-type Props = { user: SessionUser; pendingEscalacoes?: number; nomeEscritorio?: string }
+type Props = {
+  user: SessionUser
+  pendingEscalacoes?: number
+  pendingEmails?: number
+  nomeEscritorio?: string
+}
 
-export function CrmSidebar({ user, pendingEscalacoes = 0, nomeEscritorio = 'ContabAI' }: Props) {
+export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, nomeEscritorio = 'ContabAI' }: Props) {
   const pathname = usePathname()
+
+  function getBadgeCount(item: NavItem): number {
+    if (item.badge)       return pendingEscalacoes
+    if (item.badgeCount !== undefined) return item.badgeCount
+    // E-mails: detecta pelo href
+    if (item.href === '/crm/emails') return pendingEmails
+    return 0
+  }
 
   return (
     <aside className="hidden md:flex w-64 shrink-0 flex-col bg-[#0A0A0B] border-r border-white/5">
@@ -89,9 +104,11 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, nomeEscritorio = 'Cont
               </div>
             )}
             <div className="space-y-0.5">
-              {group.items.map(({ href, icon, label, badge }: NavItem) => {
-                const active = pathname === href || pathname.startsWith(href + '/')
-                const showBadge = badge && pendingEscalacoes > 0
+              {group.items.map((item: NavItem) => {
+                const { href, icon, label } = item
+                const active     = pathname === href || pathname.startsWith(href + '/')
+                const count      = getBadgeCount(item)
+                const showBadge  = count > 0
                 return (
                   <Link
                     key={href}
@@ -112,7 +129,7 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, nomeEscritorio = 'Cont
                     <span>{label}</span>
                     {showBadge && !active && (
                       <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
-                        {pendingEscalacoes > 9 ? '9+' : pendingEscalacoes}
+                        {count > 9 ? '9+' : count}
                       </span>
                     )}
                     {active && (

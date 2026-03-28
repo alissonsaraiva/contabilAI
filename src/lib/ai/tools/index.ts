@@ -34,6 +34,7 @@ import './convidar-socio-portal'
 
 // ─── Tools de comunicação ─────────────────────────────────────────────────────
 import './enviar-email'
+import './listar-emails-pendentes'
 import './enviar-whatsapp-cliente'
 import './enviar-whatsapp-lead'
 import './enviar-whatsapp-socio'
@@ -58,6 +59,15 @@ import './publicar-relatorio'
 import './listar-ordens-servico'
 import './responder-ordem-servico'
 import './publicar-comunicado'
+
+// ─── Tools de documentos ──────────────────────────────────────────────────────
+import './listar-documentos-pendentes'
+
+// ─── Tools de email ───────────────────────────────────────────────────────────
+import './classificar-email'
+
+// ─── Tools de comunicação segmentada ─────────────────────────────────────────
+import './enviar-comunicado-segmentado'
 
 // ─── Tools externas (adicionar aqui quando implementadas) ─────────────────────
 // import './consultar-cnpj'

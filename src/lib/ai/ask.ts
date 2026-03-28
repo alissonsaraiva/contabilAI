@@ -1,4 +1,4 @@
-import { embedText, searchSimilar } from '@/lib/rag'
+import { embedText, searchSimilar, searchHybrid } from '@/lib/rag'
 import type { SearchOpts, SearchResult } from '@/lib/rag'
 import type { TipoConhecimento, CanalRAG } from '@/lib/rag/types'
 import type { AIMessage } from './providers'
@@ -13,9 +13,9 @@ import './tools'
 
 export type AskContext =
   | { escopo: 'global' }
-  | { escopo: 'cliente';       clienteId: string }
-  | { escopo: 'lead';          leadId: string }
-  | { escopo: 'cliente+global'; clienteId: string }
+  | { escopo: 'cliente';        clienteId: string; socioNome?: string; socioId?: string }
+  | { escopo: 'lead';           leadId: string }
+  | { escopo: 'cliente+global'; clienteId: string; socioNome?: string; socioId?: string }
   | { escopo: 'lead+global';    leadId: string }
 
 export type AskFeature = 'onboarding' | 'crm' | 'portal'
@@ -179,14 +179,20 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
   // 1. Carrega configuração — usa cache em memória (TTL 60s)
   const config = await getAiConfig()
 
-  // 2. Busca RAG — passa o canal da feature para filtrar a base de conhecimento
+  // 2. Busca RAG — usa hybrid search (semântica + BM25) para melhor recall
+  // em queries com termos técnicos (CNPJs, NFs, CPFs, nomes exatos)
   const canal = featureToCanal(feature)
   const searchOpts = buildSearchOpts(context, tipos, maxChunks, canal)
   let fontes: SearchResult[] = []
   try {
     if (config.openaiApiKey || config.voyageApiKey) {
       const embedding = await embedText(pergunta, { openai: config.openaiApiKey, voyage: config.voyageApiKey })
-      fontes = await searchSimilar(embedding, searchOpts)
+      // Hybrid search: semântica + BM25 com RRF — melhor recall para termos específicos
+      fontes = await searchHybrid(embedding, pergunta, searchOpts)
+      // Fallback para busca semântica pura se hybrid retornar vazio
+      if (fontes.length === 0) {
+        fontes = await searchSimilar(embedding, searchOpts)
+      }
     }
   } catch (err) {
     // RAG indisponível — continua sem contexto (não bloqueia a resposta)
@@ -222,6 +228,13 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
   if (toolCanal) {
     const capacidades = getCapacidadesPorCanal(toolCanal, config.toolsDesabilitadas)
     if (capacidades) systemParts.push(capacidades)
+  }
+
+  // Personalização por sócio — injeta nome e papel quando disponível
+  // Permite que a IA adapte o tom e o nível técnico por interlocutor
+  const socioNome = (context as { socioNome?: string }).socioNome
+  if (socioNome) {
+    systemParts.push(`## Interlocutor atual\nVocê está conversando com ${socioNome}, sócio da empresa. Use o nome dele ao iniciar respostas quando natural.`)
   }
 
   // Sanitiza dados externos antes de injetar — previne prompt injection via banco/agente
@@ -315,7 +328,7 @@ function buildSearchOpts(
   limit: number,
   canal: CanalRAG,
 ): SearchOpts {
-  const base: SearchOpts = { limit, minSimilarity: 0.45, tipos, canal }
+  const base: SearchOpts = { limit, minSimilarity: 0.72, tipos, canal }
   switch (context.escopo) {
     case 'global':          return { ...base, escopo: 'global' }
     case 'cliente':         return { ...base, clienteId: context.clienteId }

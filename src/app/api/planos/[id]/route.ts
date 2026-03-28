@@ -42,5 +42,9 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const { id } = await params
   await prisma.plano.delete({ where: { id } })
+
+  // Re-indexa base de planos sem o plano deletado
+  indexarAsync('planos', null)
+
   return NextResponse.json({ ok: true })
 }

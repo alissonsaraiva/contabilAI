@@ -106,7 +106,7 @@ export async function searchSimilar(
   const db = getPool()
   const vec = `[${embedding.join(',')}]`
   const limit = opts.limit ?? 5
-  const minSim = opts.minSimilarity ?? 0.5
+  const minSim = opts.minSimilarity ?? 0.72
 
   const conditions: string[] = []
   const values: unknown[] = [vec, limit]
@@ -280,6 +280,118 @@ export async function getContentHash(documentoId: string): Promise<string | null
     [documentoId],
   )
   return rows[0]?.hash ?? null
+}
+
+// ─── Hybrid Search (RRF — Reciprocal Rank Fusion) ────────────────────────────
+//
+// Combina busca semântica (dense) com busca por palavra-chave (BM25 via tsvector).
+// Use para queries com termos técnicos específicos: CNPJs, números de NF, CPFs,
+// códigos de protocolo, nomes exatos — onde o embedding perde para exact match.
+//
+// Algoritmo: busca top-20 em cada método → RRF score = Σ 1/(k + rank) com k=60
+// → retorna top-{limit} do score combinado.
+//
+// Nota: a busca tsvector opera sobre a coluna `conteudo` sem índice GIN.
+// Em volumes < 500k chunks o overhead é aceitável (~5–15ms). Acima disso,
+// adicionar: CREATE INDEX CONCURRENTLY ON vectors.embeddings
+//             USING gin(to_tsvector('portuguese', conteudo));
+
+export async function searchHybrid(
+  embedding: number[],
+  queryText: string,
+  opts: SearchOpts = {},
+): Promise<SearchResult[]> {
+  const db = getPool()
+  const vec = `[${embedding.join(',')}]`
+  const limit = opts.limit ?? 5
+  const minSim = opts.minSimilarity ?? 0.55  // threshold mais relaxado — RRF já filtra relevância
+
+  // ─── Monta condições de filtro (igual ao searchSimilar) ───────────────────
+  const conditions: string[] = []
+  const values: unknown[] = [vec, 20]  // top-20 para cada fonte
+  let idx = 3
+
+  if (opts.incluirGlobal && (opts.clienteId || opts.leadId)) {
+    const orParts: string[] = [`escopo = 'global'`]
+    if (opts.clienteId) { orParts.push(`(escopo = 'cliente' AND cliente_id = $${idx++})`); values.push(opts.clienteId) }
+    if (opts.leadId)    { orParts.push(`(escopo = 'lead' AND lead_id = $${idx++})`);     values.push(opts.leadId) }
+    conditions.push(`(${orParts.join(' OR ')})`)
+  } else {
+    if (opts.clienteId) { conditions.push(`cliente_id = $${idx++}`); values.push(opts.clienteId) }
+    if (opts.leadId)    { conditions.push(`lead_id = $${idx++}`);     values.push(opts.leadId) }
+    if (opts.escopo) {
+      const escopos = Array.isArray(opts.escopo) ? opts.escopo : [opts.escopo]
+      conditions.push(`escopo = ANY($${idx++}::text[])`); values.push(escopos)
+    }
+  }
+  if (opts.canal && opts.canal !== 'geral') {
+    conditions.push(`canal = ANY($${idx++}::text[])`); values.push([opts.canal, 'geral'])
+  }
+  if (opts.tipos?.length) {
+    conditions.push(`tipo = ANY($${idx++}::text[])`); values.push(opts.tipos)
+  }
+
+  const where = conditions.length ? `AND ${conditions.join(' AND ')}` : ''
+
+  // ─── Busca semântica (dense) ───────────────────────────────────────────────
+  const semanticQ = `
+    SELECT id, escopo, canal, tipo, titulo, conteudo, cliente_id, lead_id, metadata,
+           1 - (embedding <=> $1::vector) AS score
+    FROM vectors.embeddings
+    WHERE 1 - (embedding <=> $1::vector) >= ${minSim}
+      ${where}
+    ORDER BY embedding <=> $1::vector
+    LIMIT $2`
+
+  // ─── Busca por keyword (BM25 via tsvector) ────────────────────────────────
+  const kwIdx = idx
+  values.push(queryText)  // $kwIdx
+  const keywordQ = `
+    SELECT id, escopo, canal, tipo, titulo, conteudo, cliente_id, lead_id, metadata,
+           ts_rank(to_tsvector('portuguese', conteudo), plainto_tsquery('portuguese', $${kwIdx})) AS score
+    FROM vectors.embeddings
+    WHERE to_tsvector('portuguese', conteudo) @@ plainto_tsquery('portuguese', $${kwIdx})
+      ${where}
+    ORDER BY score DESC
+    LIMIT $2`
+
+  // ─── Executa em paralelo ──────────────────────────────────────────────────
+  const [semanticRes, keywordRes] = await Promise.all([
+    db.query<{ id: string; escopo: EscopoRAG; canal: CanalRAG; tipo: TipoConhecimento; titulo: string | null; conteudo: string; score: number; cliente_id: string | null; lead_id: string | null; metadata: Record<string, unknown> | null }>(semanticQ, values.slice(0, kwIdx - 1)),
+    db.query<{ id: string; escopo: EscopoRAG; canal: CanalRAG; tipo: TipoConhecimento; titulo: string | null; conteudo: string; score: number; cliente_id: string | null; lead_id: string | null; metadata: Record<string, unknown> | null }>(keywordQ, values),
+  ])
+
+  // ─── RRF: Reciprocal Rank Fusion ──────────────────────────────────────────
+  const K = 60
+  const rrfScores = new Map<string, { score: number; row: typeof semanticRes.rows[0] }>()
+
+  semanticRes.rows.forEach((row, rank) => {
+    rrfScores.set(row.id, { score: 1 / (K + rank + 1), row })
+  })
+  keywordRes.rows.forEach((row, rank) => {
+    const existing = rrfScores.get(row.id)
+    if (existing) {
+      existing.score += 1 / (K + rank + 1)
+    } else {
+      rrfScores.set(row.id, { score: 1 / (K + rank + 1), row })
+    }
+  })
+
+  return Array.from(rrfScores.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ score, row: r }) => ({
+      id:         r.id,
+      escopo:     r.escopo,
+      canal:      r.canal ?? 'geral',
+      tipo:       r.tipo,
+      titulo:     r.titulo,
+      conteudo:   r.conteudo,
+      similarity: score,
+      clienteId:  r.cliente_id,
+      leadId:     r.lead_id,
+      metadata:   r.metadata,
+    }))
 }
 
 export async function deleteEmbeddings(opts: {

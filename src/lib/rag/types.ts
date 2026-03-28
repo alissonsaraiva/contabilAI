@@ -18,6 +18,7 @@ export type TipoConhecimento =
   | 'obrigacao_fiscal'     // Guias DAS, DCTF, certidões, SPED
   | 'dados_empresa'        // CNPJ, regime tributário, sócios, atividade
   | 'historico_crm'        // Interações e anotações internas do CRM
+  | 'historico_agente'     // Ações executadas pelo agente operacional (tools + resultados)
 
   // POR LEAD — isolado por leadId
   | 'dados_lead'           // Formulário de onboarding preenchido
@@ -34,4 +35,5 @@ export const TIPOS_CLIENTE: TipoConhecimento[] = [
   'obrigacao_fiscal',
   'dados_empresa',
   'historico_crm',
+  'historico_agente',
 ]

@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth'
 
 export type Notificacao = {
   id: string
-  tipo: 'escalacao' | 'ia_offline' | 'agente_falhou' | 'entrega_falhou'
+  tipo: 'escalacao' | 'ia_offline' | 'agente_falhou' | 'entrega_falhou' | 'email_recebido'
   titulo: string
   descricao?: string
   href: string
@@ -14,12 +14,12 @@ export type Notificacao = {
 
 // Tipos de notificação visíveis por papel
 // admin      → tudo
-// contador   → escalações apenas
-// assistente → escalações apenas
+// contador   → escalações + emails
+// assistente → escalações + emails
 const TIPOS_POR_PAPEL: Record<string, string[] | undefined> = {
   admin:      undefined,                // sem filtro — vê tudo
-  contador:   ['escalacao'],
-  assistente: ['escalacao'],
+  contador:   ['escalacao', 'email_recebido'],
+  assistente: ['escalacao', 'email_recebido'],
 }
 
 export async function GET() {

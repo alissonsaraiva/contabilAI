@@ -4,7 +4,7 @@ import { useState, use, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
-type Props = { searchParams: Promise<{ leadId?: string; tipo?: string; faturamento?: string; funcionarios?: string }> }
+type Props = { searchParams: Promise<{ leadId?: string; tipo?: string; faturamento?: string; funcionarios?: string; regime?: string }> }
 
 type PlanoTipo = 'essencial' | 'profissional' | 'empresarial' | 'startup'
 
@@ -24,12 +24,25 @@ const PLANOS_FALLBACK: PlanoDisplay[] = [
   { tipo: 'startup',      nome: 'Startup',      desc: 'Para empresas digitais em crescimento',   min: 1200, max: 2500, icon: 'bolt',          servicos: ['Tudo do Empresarial', 'Relatórios para investidores', 'Benchmark setorial com IA', 'Suporte prioritário', 'Planejamento tributário estratégico'] },
 ]
 
-function recomendar(tipo: string, faturamento: string, funcionarios: string): PlanoTipo {
-  const scoreTipo:        Record<string, number> = { nao_abri: 0, mei: 0, liberal: 1, me_epp: 1, ltda_sa: 2 }
+function recomendar(tipo: string, faturamento: string, funcionarios: string, regime?: string): PlanoTipo {
   const scoreFaturamento: Record<string, number> = { ate10k: 0, '10k_50k': 1, '50k_200k': 2, acima200k: 3 }
+
+  // MEI: recomendação direta baseada em faturamento
+  if (regime === 'MEI' || tipo === 'mei') {
+    return (scoreFaturamento[faturamento] ?? 0) <= 1 ? 'essencial' : 'profissional'
+  }
+
+  const scoreTipo:        Record<string, number> = { nao_abri: 0, liberal: 1, me_epp: 1, ltda_sa: 2 }
   const scoreFuncionarios:Record<string, number> = { nao: 0, '1_3': 1, '4_10': 2, mais10: 3 }
 
-  const score = (scoreTipo[tipo] ?? 0) + (scoreFaturamento[faturamento] ?? 0) + (scoreFuncionarios[funcionarios] ?? 0)
+  // Boost por regime confirmado via CNPJ
+  const regimeBoost: Record<string, number> = { SimplesNacional: 1, outro: 2 }
+
+  const score =
+    (scoreTipo[tipo] ?? 0) +
+    (scoreFaturamento[faturamento] ?? 0) +
+    (scoreFuncionarios[funcionarios] ?? 0) +
+    (regimeBoost[regime ?? ''] ?? 0)
 
   if (score <= 1) return 'essencial'
   if (score <= 3) return 'profissional'
@@ -38,9 +51,9 @@ function recomendar(tipo: string, faturamento: string, funcionarios: string): Pl
 }
 
 export default function PlanoPage({ searchParams }: Props) {
-  const { leadId, tipo = '', faturamento = '', funcionarios = '' } = use(searchParams)
+  const { leadId, tipo = '', faturamento = '', funcionarios = '', regime = '' } = use(searchParams)
   const router = useRouter()
-  const recomendado = recomendar(tipo, faturamento, funcionarios)
+  const recomendado = recomendar(tipo, faturamento, funcionarios, regime || undefined)
   const [selecionado, setSelecionado] = useState<PlanoTipo>(recomendado)
   const [loading, setLoading] = useState(false)
   const [planos, setPlanos] = useState<PlanoDisplay[]>(PLANOS_FALLBACK)

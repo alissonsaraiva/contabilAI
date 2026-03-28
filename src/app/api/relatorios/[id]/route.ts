@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { deleteEmbeddings } from '@/lib/rag/store'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -24,5 +25,9 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const { id } = await params
   await prisma.relatorioAgente.delete({ where: { id } })
+
+  // Limpa o índice RAG — fire-and-forget (não bloqueia nem propaga erro)
+  deleteEmbeddings({ documentoId: `relatorio:${id}` }).catch(() => {})
+
   return NextResponse.json({ ok: true })
 }

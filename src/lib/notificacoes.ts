@@ -235,3 +235,33 @@ export async function notificarEscalacaoPortal(clienteId: string, escalacaoId: s
     console.error('[notificacoes] falha ao criar notificação escalacao_portal:', err)
   }
 }
+
+/**
+ * Notifica quando um email é recebido na caixa do escritório.
+ * Anti-spam: no máximo uma notificação a cada 5 minutos (emails chegam em batch).
+ */
+export async function notificarEmailRecebido({
+  de,
+  assunto,
+  interacaoId,
+}: {
+  de: string
+  assunto: string
+  interacaoId: string
+}): Promise<void> {
+  const chave = `email_recebido:${de.toLowerCase()}`
+  if (dentroDoCooldow(chave)) return
+  registrarCooldown(chave)
+
+  try {
+    const ids = await buscarEquipeAtendimento()
+    await criarParaTodos(ids, {
+      tipo:    'email_recebido',
+      titulo:  `E-mail recebido: ${assunto.slice(0, 60)}`,
+      mensagem: `De: ${de}`,
+      url:     `/crm/emails`,
+    })
+  } catch (err) {
+    console.error('[notificacoes] falha ao criar notificação email_recebido:', err)
+  }
+}

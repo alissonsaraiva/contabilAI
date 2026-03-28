@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import type { PlanoTipo, FormaPagamento, Regime, StatusCliente } from '@prisma/client'
 import { formatCNPJ, formatTelefone } from '@/lib/utils'
+import { useCnpj } from '@/hooks/use-cnpj'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
@@ -55,6 +56,7 @@ type Props = { cliente: ClienteEditData; open: boolean; onClose: () => void }
 export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const { buscarCnpj, loading: cnpjLoading } = useCnpj()
   const [form, setForm] = useState({
     nome: cliente.nome,
     email: cliente.email,
@@ -72,6 +74,18 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
+  }
+
+  async function preencherCNPJ(cnpj: string) {
+    const dados = await buscarCnpj(cnpj)
+    if (!dados) return
+    setForm(f => ({
+      ...f,
+      razaoSocial: dados.razaoSocial || f.razaoSocial,
+      cidade:      dados.municipio   || f.cidade,
+      uf:          dados.uf          || f.uf,
+      regime: dados.regime !== 'outro' ? dados.regime : f.regime,
+    }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -154,7 +168,23 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={LABEL}>CNPJ</label>
-                <input className={INPUT} placeholder="00.000.000/0001-00" value={form.cnpj} onChange={e => set('cnpj', formatCNPJ(e.target.value))} inputMode="numeric" maxLength={18} />
+                <div className="relative">
+                  <input
+                    className={INPUT}
+                    placeholder="00.000.000/0001-00"
+                    value={form.cnpj}
+                    onChange={e => {
+                      const v = formatCNPJ(e.target.value)
+                      set('cnpj', v)
+                      if (v.replace(/\D/g, '').length === 14) preencherCNPJ(v)
+                    }}
+                    inputMode="numeric"
+                    maxLength={18}
+                  />
+                  {cnpjLoading && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                  )}
+                </div>
               </div>
               <div>
                 <label className={LABEL}>Regime</label>

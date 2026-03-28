@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { formatCPF, formatCNPJ, formatTelefone } from '@/lib/utils'
 import { useAutoSave } from '@/hooks/use-auto-save'
+import { useCnpj } from '@/hooks/use-cnpj'
 
 type Props = { searchParams: Promise<{ leadId?: string; plano?: string }> }
 
@@ -29,12 +30,13 @@ export default function DadosPage({ searchParams }: Props) {
   const [loading, setLoading] = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
   const [cepEmpresaLoading, setCepEmpresaLoading] = useState(false)
+  const { buscarCnpj, loading: cnpjLoading } = useCnpj()
   const [form, setForm] = useState({
     nome: '', cpf: '', email: '', telefone: '',
     // endereço pessoal
     cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '',
     // empresa
-    cnpj: '', razaoSocial: '',
+    cnpj: '', razaoSocial: '', regime: '', nomeFantasia: '',
     cepEmpresa: '', enderecoEmpresa: '', numeroEmpresa: '', complementoEmpresa: '', bairroEmpresa: '', cidadeEmpresa: '', estadoEmpresa: '',
   })
   const [erros, setErros] = useState<Record<string, string>>({})
@@ -52,8 +54,10 @@ export default function DadosPage({ searchParams }: Props) {
       ...(form.bairro      && { 'Bairro':        form.bairro }),
       ...(form.cidade      && { 'Cidade':        form.cidade }),
       ...(form.estado      && { 'Estado':        form.estado }),
-      ...(form.cnpj        && { 'CNPJ':          form.cnpj }),
-      ...(form.razaoSocial && { 'Razão Social':  form.razaoSocial }),
+      ...(form.cnpj          && { 'CNPJ':          form.cnpj }),
+      ...(form.razaoSocial   && { 'Razão Social':  form.razaoSocial }),
+      ...(form.regime        && { 'Regime':         form.regime }),
+      ...(form.nomeFantasia  && { 'Nome Fantasia':  form.nomeFantasia }),
       ...(form.cepEmpresa          && { 'CEP Empresa':          form.cepEmpresa }),
       ...(form.enderecoEmpresa     && { 'Endereço Empresa':     form.enderecoEmpresa }),
       ...(form.numeroEmpresa       && { 'Número Empresa':       form.numeroEmpresa }),
@@ -88,6 +92,8 @@ export default function DadosPage({ searchParams }: Props) {
             estado:             d['Estado']                 ?? f.estado,
             cnpj:               d['CNPJ']                   ?? f.cnpj,
             razaoSocial:        d['Razão Social']           ?? f.razaoSocial,
+            regime:             d['Regime']                 ?? f.regime,
+            nomeFantasia:       d['Nome Fantasia']          ?? f.nomeFantasia,
             cepEmpresa:         d['CEP Empresa']            ?? f.cepEmpresa,
             enderecoEmpresa:    d['Endereço Empresa']       ?? f.enderecoEmpresa,
             numeroEmpresa:      d['Número Empresa']         ?? f.numeroEmpresa,
@@ -142,6 +148,29 @@ export default function DadosPage({ searchParams }: Props) {
     }
   }
 
+  async function preencherCNPJ(cnpj: string) {
+    const digits = cnpj.replace(/\D/g, '')
+    if (digits.length !== 14) return
+    const dados = await buscarCnpj(digits)
+    if (!dados) return
+    setForm(f => ({
+      ...f,
+      razaoSocial:        dados.razaoSocial                    || f.razaoSocial,
+      nomeFantasia:       dados.nomeFantasia                   ?? f.nomeFantasia,
+      regime:             dados.regime !== 'outro' ? dados.regime : f.regime,
+      enderecoEmpresa:    dados.logradouro                     || f.enderecoEmpresa,
+      numeroEmpresa:      dados.numero                         || f.numeroEmpresa,
+      complementoEmpresa: dados.complemento                    ?? f.complementoEmpresa,
+      bairroEmpresa:      dados.bairro                         || f.bairroEmpresa,
+      cidadeEmpresa:      dados.municipio                      || f.cidadeEmpresa,
+      estadoEmpresa:      dados.uf                             || f.estadoEmpresa,
+      cepEmpresa:         dados.cep.length === 8
+        ? `${dados.cep.slice(0, 5)}-${dados.cep.slice(5)}`
+        : f.cepEmpresa,
+    }))
+    toast.success('Dados da empresa preenchidos automaticamente')
+  }
+
   function validate() {
     const e: Record<string, string> = {}
     if (!form.nome.trim() || form.nome.trim().split(' ').length < 2) e.nome = 'Informe nome e sobrenome'
@@ -178,8 +207,10 @@ export default function DadosPage({ searchParams }: Props) {
             ...(form.bairro      && { 'Bairro':        form.bairro }),
             ...(form.cidade      && { 'Cidade':        form.cidade }),
             ...(form.estado      && { 'Estado':        form.estado }),
-            ...(form.cnpj        && { 'CNPJ':          form.cnpj }),
-            ...(form.razaoSocial && { 'Razão Social':  form.razaoSocial }),
+            ...(form.cnpj          && { 'CNPJ':          form.cnpj }),
+            ...(form.razaoSocial   && { 'Razão Social':  form.razaoSocial }),
+            ...(form.regime        && { 'Regime':         form.regime }),
+            ...(form.nomeFantasia  && { 'Nome Fantasia':  form.nomeFantasia }),
             ...(form.cepEmpresa          && { 'CEP Empresa':          form.cepEmpresa }),
             ...(form.enderecoEmpresa     && { 'Endereço Empresa':     form.enderecoEmpresa }),
             ...(form.numeroEmpresa       && { 'Número Empresa':       form.numeroEmpresa }),
@@ -310,13 +341,48 @@ export default function DadosPage({ searchParams }: Props) {
 
           <div>
             <label className={LABEL}>CNPJ {precisaCnpj && <span className="text-error">*</span>}</label>
-            <input className={INPUT} placeholder="00.000.000/0001-00" value={form.cnpj} onChange={e => set('cnpj', formatCNPJ(e.target.value))} inputMode="numeric" maxLength={18} />
+            <div className="relative">
+              <input
+                className={INPUT}
+                placeholder="00.000.000/0001-00"
+                value={form.cnpj}
+                onChange={e => {
+                  const v = formatCNPJ(e.target.value)
+                  set('cnpj', v)
+                  if (v.replace(/\D/g, '').length === 14) preencherCNPJ(v)
+                }}
+                inputMode="numeric"
+                maxLength={18}
+              />
+              {cnpjLoading && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+              )}
+            </div>
             {erros.cnpj && <p className="mt-1.5 text-[12px] font-medium text-error">{erros.cnpj}</p>}
           </div>
 
           <div>
             <label className={LABEL}>Razão Social</label>
             <input className={INPUT} placeholder="Nome da empresa conforme CNPJ" value={form.razaoSocial} onChange={e => set('razaoSocial', e.target.value)} />
+          </div>
+
+          <div>
+            <label className={LABEL}>Regime tributário</label>
+            <div className="relative">
+              <select
+                className={INPUT + ' appearance-none cursor-pointer pr-10'}
+                value={form.regime}
+                onChange={e => set('regime', e.target.value)}
+              >
+                <option value="">— Selecione (opcional) —</option>
+                <option value="MEI">MEI</option>
+                <option value="SimplesNacional">Simples Nacional</option>
+                <option value="LucroPresumido">Lucro Presumido</option>
+                <option value="LucroReal">Lucro Real</option>
+                <option value="Autonomo">Autônomo / PF</option>
+              </select>
+              <span className="material-symbols-outlined pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/50">expand_more</span>
+            </div>
           </div>
 
           <div>

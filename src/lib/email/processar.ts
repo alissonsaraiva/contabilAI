@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { criarDocumento } from '@/lib/services/documentos'
 import { registrarInteracao } from '@/lib/services/interacoes'
 import { askAI } from '@/lib/ai/ask'
+import { notificarEmailRecebido } from '@/lib/notificacoes'
 import type { EmailRecebido } from './imap'
 
 export type ResultadoProcessamento = {
@@ -92,6 +93,9 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
     },
   })
 
+  // Notifica a equipe (fire-and-forget, com cooldown de 5 min por remetente)
+  notificarEmailRecebido({ de: email.de, assunto: email.assunto, interacaoId }).catch(() => {})
+
   return { interacaoId, clienteId, leadId, associado, sugestao, documentosId }
 }
 
@@ -132,21 +136,64 @@ async function gerarSugestao(
         ? { escopo: 'lead+global' as const, leadId }
         : { escopo: 'global' as const }
 
-    const systemExtra = [
+    // Enriquece o contexto com dados atuais do cliente para uma sugestão mais precisa
+    // — evita respostas genéricas que ignoram o estado real do relacionamento
+    const contextLines: (string | null)[] = [
       'EMAIL RECEBIDO — gere uma sugestão de resposta profissional e objetiva para o contador enviar.',
       `De: ${email.nomeRemetente} <${email.de}>`,
       `Assunto: ${email.assunto}`,
       email.anexos.length > 0
         ? `Anexos recebidos: ${email.anexos.map(a => a.nome).join(', ')}`
         : null,
-    ].filter(Boolean).join('\n')
+    ]
+
+    // Busca dados adicionais do cliente para contextualizar a sugestão
+    if (clienteId) {
+      try {
+        const [cliente, osAberta, ultimasInteracoes] = await Promise.all([
+          prisma.cliente.findUnique({
+            where: { id: clienteId },
+            select: { nome: true, status: true, planoTipo: true },
+          }),
+          prisma.ordemServico.findFirst({
+            where: { clienteId, status: { in: ['aberta', 'em_andamento'] } },
+            select: { titulo: true, status: true },
+            orderBy: { criadoEm: 'desc' },
+          }),
+          prisma.interacao.findMany({
+            where: { clienteId, tipo: { not: 'email_recebido' } },
+            select: { tipo: true, titulo: true, criadoEm: true },
+            orderBy: { criadoEm: 'desc' },
+            take: 3,
+          }),
+        ])
+
+        if (cliente) {
+          contextLines.push(`\n## Contexto do cliente`)
+          contextLines.push(`Nome: ${cliente.nome}`)
+          contextLines.push(`Plano: ${cliente.planoTipo ?? 'não definido'} | Status: ${cliente.status}`)
+        }
+        if (osAberta) {
+          contextLines.push(`Chamado em aberto: "${osAberta.titulo}" (${osAberta.status})`)
+        }
+        if (ultimasInteracoes.length > 0) {
+          const ultimo = ultimasInteracoes[0]
+          const dataUltimo = ultimo.criadoEm.toLocaleDateString('pt-BR')
+          contextLines.push(`Último contato: ${ultimo.titulo ?? ultimo.tipo} em ${dataUltimo}`)
+        }
+      } catch {
+        // Falha ao buscar contexto extra — continua com sugestão genérica
+      }
+    }
+
+    const systemExtra = contextLines.filter(Boolean).join('\n')
 
     const { resposta } = await askAI({
       pergunta:   `Conteúdo do email:\n\n${email.corpo}`,
       context,
       feature:    'crm',
       systemExtra,
-      maxTokens:  512,
+      maxTokens:  768,  // aumentado de 512 para acomodar respostas mais contextualizadas
     })
 
     return resposta

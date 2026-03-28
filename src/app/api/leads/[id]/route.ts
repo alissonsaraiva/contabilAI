@@ -55,5 +55,11 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const { id } = await params
   await prisma.lead.update({ where: { id }, data: { status: 'cancelado' } })
+
+  // Lead cancelado não deve permanecer indexado no RAG
+  import('@/lib/rag/store').then(({ deleteEmbeddings }) =>
+    deleteEmbeddings({ leadId: id })
+  ).catch(() => {})
+
   return NextResponse.json({ ok: true })
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export function AgendamentoToggle({ id, ativo }: { id: string; ativo: boolean }) {
   const [loading, setLoading]   = useState(false)
@@ -47,11 +48,11 @@ export function AgendamentoToggle({ id, ativo }: { id: string; ativo: boolean })
 }
 
 export function AgendamentoDelete({ id, descricao }: { id: string; descricao: string }) {
-  const [loading, setLoading] = useState(false)
-  const router                = useRouter()
+  const [loading, setLoading]       = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const router                      = useRouter()
 
   async function remove() {
-    if (!confirm(`Remover agendamento "${descricao}" permanentemente?`)) return
     setLoading(true)
     try {
       const res = await fetch('/api/agente/agendamentos', {
@@ -70,13 +71,24 @@ export function AgendamentoDelete({ id, descricao }: { id: string; descricao: st
   }
 
   return (
-    <button
-      onClick={remove}
-      disabled={loading}
-      title="Remover agendamento"
-      className="flex items-center justify-center rounded-lg p-1.5 text-on-surface-variant/40 hover:bg-error/10 hover:text-error transition-colors disabled:opacity-50"
-    >
-      <span className="material-symbols-outlined text-[16px]">delete</span>
-    </button>
+    <>
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { setConfirmOpen(false); remove() }}
+        title="Remover agendamento?"
+        description={`"${descricao}" será removido permanentemente.`}
+        confirmLabel="Remover"
+        loading={loading}
+      />
+      <button
+        onClick={() => setConfirmOpen(true)}
+        disabled={loading}
+        title="Remover agendamento"
+        className="flex items-center justify-center rounded-lg p-1.5 text-on-surface-variant/40 hover:bg-error/10 hover:text-error transition-colors disabled:opacity-50"
+      >
+        <span className="material-symbols-outlined text-[16px]">delete</span>
+      </button>
+    </>
   )
 }

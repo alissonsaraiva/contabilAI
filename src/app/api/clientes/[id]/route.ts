@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { deleteEmbeddings } from '@/lib/rag/store'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -84,5 +85,9 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const { id } = await params
   await prisma.cliente.delete({ where: { id } })
+
+  // Limpa todos os embeddings do cliente (tarefas, interações, documentos, dados_empresa, etc.)
+  deleteEmbeddings({ clienteId: id }).catch(() => {})
+
   return NextResponse.json({ ok: true })
 }

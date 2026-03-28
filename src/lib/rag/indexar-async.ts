@@ -26,6 +26,8 @@ type TipoIndexacao =
   | 'empresa'
   | 'relatorio'
   | 'conversa'
+  | 'agenteAcao'    // ação executada pelo agente operacional — indexada em historico_agente
+  | 'agendamento'   // agendamento do agente — indexado em base_conhecimento global
 
 export function indexarAsync(tipo: TipoIndexacao, dados: unknown): void {
   import('@/lib/rag/ingest')
@@ -46,6 +48,8 @@ export function indexarAsync(tipo: TipoIndexacao, dados: unknown): void {
         case 'empresa':         return (mod as any).indexarEmpresa?.(dados)
         case 'relatorio':       return (mod as any).indexarRelatorio?.(dados)
         case 'conversa':        return (mod as any).indexarConversa?.(dados)
+        case 'agenteAcao':      return (mod as any).indexarAgenteAcao?.(dados)
+        case 'agendamento':     return (mod as any).indexarAgendamento?.(dados)
       }
     })
     .catch(() => {

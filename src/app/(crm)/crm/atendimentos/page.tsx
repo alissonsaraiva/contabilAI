@@ -24,7 +24,7 @@ const CANAL_COLOR: Record<string, string> = {
 export default async function AtendimentosPage() {
   const limite24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-  const [todasConversas, pendentes, emAtendimento, recentes] = await Promise.all([
+  const [todasConversas, pendentes, emAtendimento, recentes, emailsPendentes] = await Promise.all([
     prisma.conversaIA.findMany({
       where: {
         canal:        { not: 'crm' },
@@ -53,6 +53,7 @@ export default async function AtendimentosPage() {
       orderBy: { atualizadoEm: 'desc' },
       take: 10,
     }),
+    prisma.interacao.count({ where: { tipo: 'email_recebido', respondidoEm: null } }).catch(() => 0),
   ])
 
   // Separa em 3 grupos com base no estado real
@@ -106,6 +107,28 @@ export default async function AtendimentosPage() {
           )}
         </div>
       </div>
+
+      {/* Card de emails pendentes */}
+      {emailsPendentes > 0 && (
+        <Link
+          href="/crm/emails"
+          className="flex items-center gap-4 rounded-[14px] border border-primary/20 bg-primary/5 px-5 py-4 transition-colors hover:bg-primary/10"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+            <span className="material-symbols-outlined text-[20px] text-primary"
+              style={{ fontVariationSettings: "'FILL' 1" }}>mail</span>
+          </div>
+          <div className="flex-1">
+            <p className="text-[14px] font-semibold text-on-surface">
+              {emailsPendentes} e-mail{emailsPendentes > 1 ? 's' : ''} aguardando resposta
+            </p>
+            <p className="text-[12px] text-on-surface-variant/60">
+              A IA já preparou sugestões de resposta para cada um
+            </p>
+          </div>
+          <span className="material-symbols-outlined text-[20px] text-primary/60">arrow_forward</span>
+        </Link>
+      )}
 
       {/* Grid de conversas (client component — drawers inline) */}
       <AtendimentosGrid
