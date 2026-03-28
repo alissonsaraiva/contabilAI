@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+import { registrarInteracao } from '@/lib/services/interacoes'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -43,7 +43,7 @@ const registrarInteracaoTool: Tool = {
     label: 'Registrar interação',
     descricao: 'Loga ligação, e-mail, nota interna ou mensagem WhatsApp como interação do cliente ou lead.',
     categoria: 'Histórico',
-    canais: ['crm'],
+    canais: ['crm', 'whatsapp'],
   },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const tipo           = input.tipo           as string
@@ -63,19 +63,18 @@ const registrarInteracaoTool: Tool = {
 
     const criadoEm = dataOcorrencia ? new Date(dataOcorrencia) : undefined
 
-    const interacao = await prisma.interacao.create({
-      data: {
-        clienteId,
-        leadId,
-        tipo:     tipo as never,
-        titulo,
-        conteudo,
-        ...(criadoEm && !isNaN(criadoEm.getTime()) ? { criadoEm } : {}),
-        metadados: {
-          registradoPorAI: true,
-          solicitante: ctx.solicitanteAI,
-          ...(dataOcorrencia ? { dataOcorrenciaOriginal: dataOcorrencia } : {}),
-        },
+    const interacaoId = await registrarInteracao({
+      clienteId,
+      leadId,
+      tipo:     tipo as never,
+      titulo,
+      conteudo,
+      origem:   'usuario',
+      ...(criadoEm && !isNaN(criadoEm.getTime()) ? { criadoEm } : {}),
+      metadados: {
+        registradoPorAI: true,
+        solicitante: ctx.solicitanteAI,
+        ...(dataOcorrencia ? { dataOcorrenciaOriginal: dataOcorrencia } : {}),
       },
     })
 
@@ -93,7 +92,7 @@ const registrarInteracaoTool: Tool = {
 
     return {
       sucesso: true,
-      dados: interacao,
+      dados: { id: interacaoId },
       resumo: `Interação registrada: ${tipoLabel[tipo] ?? tipo} — "${titulo}"${dataDisplay}.`,
     }
   },

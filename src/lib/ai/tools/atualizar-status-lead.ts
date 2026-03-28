@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { registrarInteracao } from '@/lib/services/interacoes'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -90,18 +91,17 @@ const atualizarStatusLeadTool: Tool = {
     })
 
     // Registra a mudança como interação
-    await prisma.interacao.create({
-      data: {
-        leadId,
-        tipo: 'status_mudou',
-        titulo: `Status alterado: ${statusAnterior} → ${statusEnum}`,
-        conteudo: observacao,
-        metadados: {
-          statusAnterior,
-          statusNovo: statusEnum,
-          alteradoPorAI: true,
-          solicitante: ctx.solicitanteAI,
-        },
+    await registrarInteracao({
+      leadId,
+      tipo:    'status_mudou',
+      titulo:  `Status alterado: ${statusAnterior} → ${statusEnum}`,
+      conteudo: observacao,
+      origem:  'ia',
+      metadados: {
+        statusAnterior,
+        statusNovo: statusEnum,
+        alteradoPorAI: true,
+        solicitante: ctx.solicitanteAI,
       },
     })
 

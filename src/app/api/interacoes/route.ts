@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { registrarInteracao } from '@/lib/services/interacoes'
 import { z } from 'zod'
-import type { Prisma } from '@prisma/client'
 
 const createSchema = z.object({
   clienteId:  z.string().uuid().optional(),
@@ -25,21 +24,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'clienteId ou leadId obrigatório' }, { status: 400 })
   }
 
-  const { clienteId, leadId, ...rest } = parsed.data
-  const interacao = await prisma.interacao.create({
-    data: {
-      ...rest,
-      origem:    'usuario',
-      usuarioId: (session.user as any).id,
-      ...(clienteId ? { clienteId } : {}),
-      ...(leadId    ? { leadId }    : {}),
-    } as Prisma.InteracaoUncheckedCreateInput,
+  const { clienteId, leadId, tipo, titulo, conteudo, metadados } = parsed.data
+  const usuarioId = (session.user as any).id as string | undefined
+
+  const id = await registrarInteracao({
+    clienteId,
+    leadId,
+    tipo:      tipo as never,
+    titulo,
+    conteudo,
+    origem:    'usuario',
+    usuarioId,
+    metadados,
   })
 
-  // Indexa a interação no RAG em background
-  import('@/lib/rag/ingest')
-    .then(({ indexarInteracao }) => indexarInteracao({ ...interacao, criadoEm: interacao.criadoEm }))
-    .catch(() => {})
-
-  return NextResponse.json(interacao, { status: 201 })
+  return NextResponse.json({ id }, { status: 201 })
 }

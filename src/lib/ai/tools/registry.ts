@@ -1,4 +1,4 @@
-import type { Tool, ToolMeta } from './types'
+import type { Tool, ToolMeta, ToolCanal } from './types'
 import type { ToolDefinition } from '../providers/types'
 
 export type CapacidadeUI = ToolMeta & { tool: string }
@@ -46,4 +46,40 @@ export function getTool(nome: string): Tool | undefined {
  */
 export function getCapacidades(): CapacidadeUI[] {
   return [...registry.values()].map(t => ({ tool: t.definition.name, ...t.meta }))
+}
+
+/**
+ * Retorna as capacidades disponíveis para um canal específico, já formatadas
+ * como texto para injetar no system prompt da IA.
+ *
+ * Exclui tools desabilitadas pelo escritório (`toolsDesabilitadas`).
+ * Retorna string vazia se nenhuma tool estiver disponível para o canal.
+ */
+export function getCapacidadesPorCanal(
+  canal: ToolCanal,
+  desabilitadas: string[] = [],
+): string {
+  const tools = [...registry.values()].filter(
+    t => t.meta.canais.includes(canal) && !desabilitadas.includes(t.definition.name),
+  )
+
+  if (tools.length === 0) return ''
+
+  // Agrupa por categoria para leitura mais clara
+  const porCategoria = new Map<string, string[]>()
+  for (const t of tools) {
+    const cat = t.meta.categoria
+    if (!porCategoria.has(cat)) porCategoria.set(cat, [])
+    porCategoria.get(cat)!.push(`• ${t.meta.label}: ${t.meta.descricao}`)
+  }
+
+  const linhas: string[] = [
+    'CAPACIDADES DISPONÍVEIS (dados que você pode consultar ou ações que pode executar quando solicitado):',
+  ]
+  for (const [cat, items] of porCategoria) {
+    linhas.push(`\n${cat}:`)
+    linhas.push(...items)
+  }
+
+  return linhas.join('\n')
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
@@ -11,30 +11,98 @@ const STATUS_OPCOES = [
   { value: 'resolvida',          label: 'Marcar como resolvida' },
 ]
 
-type Props = { ordemId: string; statusAtual: string; temResposta: boolean }
+const CATEGORIAS = [
+  { value: '',               label: 'Detectar automaticamente' },
+  { value: 'geral',          label: 'Geral' },
+  { value: 'nota_fiscal',    label: 'Nota Fiscal' },
+  { value: 'guias_tributos', label: 'Guias / Tributos' },
+  { value: 'imposto_renda',  label: 'Imposto de Renda' },
+  { value: 'relatorios',     label: 'Relatórios' },
+  { value: 'outros',         label: 'Outros' },
+]
 
-export function OSResponderForm({ ordemId, statusAtual, temResposta }: Props) {
+type Props = {
+  ordemId:      string
+  statusAtual:  string
+  temResposta:  boolean
+  clienteEmail?: string | null
+  clienteWpp?:  string | null
+}
+
+export function OSResponderForm({ ordemId, statusAtual, temResposta, clienteEmail, clienteWpp }: Props) {
   const router = useRouter()
-  const [resposta, setResposta]   = useState('')
-  const [novoStatus, setNovoStatus] = useState(statusAtual)
-  const [loading, setLoading]     = useState(false)
+
+  const [resposta,    setResposta]    = useState('')
+  const [novoStatus,  setNovoStatus]  = useState(statusAtual)
+  const [loading,     setLoading]     = useState(false)
+
+  // Arquivo
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [arquivo,    setArquivo]    = useState<File | null>(null)
+  const [categoria,  setCategoria]  = useState('')
+
+  // Canais
+  const [emailAtivo,   setEmailAtivo]   = useState(false)
+  const [emailAssunto, setEmailAssunto] = useState('')
+  const [emailCorpo,   setEmailCorpo]   = useState('')
+  const [wppAtivo,     setWppAtivo]     = useState(false)
+  const [wppMensagem,  setWppMensagem]  = useState('')
+
+  const isResolucao = novoStatus === 'resolvida'
+  const hasChanges  = resposta.trim() || arquivo || novoStatus !== statusAtual
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!resposta.trim() && novoStatus === statusAtual) return
+    if (!hasChanges) return
     setLoading(true)
+
     try {
-      const body: any = { status: novoStatus }
-      if (resposta.trim()) body.resposta = resposta.trim()
-      const res = await fetch(`/api/crm/ordens-servico/${ordemId}`, {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Chamado atualizado!')
+      // Resolução com arquivo ou canais: usa multipart
+      if (arquivo || (isResolucao && (emailAtivo || wppAtivo))) {
+        const form = new FormData()
+        form.append('resposta',       resposta.trim())
+        if (arquivo)    form.append('arquivo',   arquivo)
+        if (categoria)  form.append('categoria', categoria)
+        if (emailAtivo && emailAssunto && emailCorpo) {
+          form.append('canal_email',   '1')
+          form.append('email_assunto', emailAssunto)
+          form.append('email_corpo',   emailCorpo)
+        }
+        if (wppAtivo) {
+          form.append('canal_whatsapp', '1')
+          form.append('wpp_mensagem',   wppMensagem)
+        }
+
+        const res = await fetch(`/api/crm/ordens-servico/${ordemId}`, {
+          method: 'PATCH',
+          body:   form,
+        })
+        if (!res.ok) throw new Error()
+        const data = await res.json()
+        const msgs: string[] = ['Chamado resolvido!']
+        if (data.documentoId)  msgs.push('Documento salvo.')
+        if (data.emailOk)      msgs.push('E-mail enviado.')
+        if (data.whatsappOk)   msgs.push('WhatsApp enviado.')
+        toast.success(msgs.join(' '))
+      } else {
+        // Atualização simples JSON
+        const body: Record<string, unknown> = { status: novoStatus }
+        if (resposta.trim()) body.resposta = resposta.trim()
+        const res = await fetch(`/api/crm/ordens-servico/${ordemId}`, {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(body),
+        })
+        if (!res.ok) throw new Error()
+        toast.success('Chamado atualizado!')
+      }
+
       router.refresh()
       setResposta('')
+      setArquivo(null)
+      setEmailAtivo(false)
+      setWppAtivo(false)
+      if (fileRef.current) fileRef.current.value = ''
     } catch {
       toast.error('Erro ao atualizar chamado')
     } finally {
@@ -47,7 +115,9 @@ export function OSResponderForm({ ordemId, statusAtual, temResposta }: Props) {
       <h3 className="text-[14px] font-semibold text-on-surface mb-4">
         {temResposta ? 'Atualizar resposta' : 'Responder chamado'}
       </h3>
+
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Status */}
         <div>
           <label className="block text-[12px] font-semibold text-on-surface-variant mb-1.5">Status</label>
           <div className="flex flex-wrap gap-2">
@@ -68,30 +138,157 @@ export function OSResponderForm({ ordemId, statusAtual, temResposta }: Props) {
           </div>
         </div>
 
+        {/* Resposta */}
         <div>
           <label className="block text-[12px] font-semibold text-on-surface-variant mb-1.5">
-            Resposta {!temResposta && <span className="text-on-surface-variant/50">(opcional)</span>}
+            Resposta <span className="text-on-surface-variant/50">(opcional)</span>
           </label>
           <textarea
-            className="w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[13px] placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 min-h-[100px] resize-y"
+            className="w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[13px] placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 min-h-[80px] resize-y"
             placeholder="Digite a resposta para o cliente..."
             value={resposta}
             onChange={e => setResposta(e.target.value)}
-            rows={4}
+            rows={3}
           />
         </div>
 
+        {/* Arquivo */}
+        <div>
+          <label className="block text-[12px] font-semibold text-on-surface-variant mb-1.5">
+            Anexar documento <span className="text-on-surface-variant/50">(opcional)</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-2 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">attach_file</span>
+              {arquivo ? arquivo.name : 'Selecionar arquivo'}
+            </button>
+            {arquivo && (
+              <button
+                type="button"
+                onClick={() => { setArquivo(null); if (fileRef.current) fileRef.current.value = '' }}
+                className="text-[11px] text-error/70 hover:text-error transition-colors"
+              >
+                remover
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            onChange={e => setArquivo(e.target.files?.[0] ?? null)}
+          />
+
+          {/* Categoria — só aparece se tiver arquivo */}
+          {arquivo && (
+            <div className="mt-2">
+              <label className="block text-[11px] font-semibold text-on-surface-variant/70 mb-1">Categoria do documento</label>
+              <select
+                value={categoria}
+                onChange={e => setCategoria(e.target.value)}
+                className="rounded-[8px] border border-outline-variant/30 bg-surface-container-low px-3 py-1.5 text-[12px] text-on-surface focus:outline-none focus:border-primary/50"
+              >
+                {CATEGORIAS.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Canais de entrega — só quando resolvendo */}
+        {isResolucao && (
+          <div className="rounded-[12px] border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-4">
+            <p className="text-[12px] font-semibold text-on-surface-variant/70 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[14px]">send</span>
+              Canais de entrega ao cliente
+            </p>
+
+            {/* E-mail */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={emailAtivo}
+                  onChange={e => setEmailAtivo(e.target.checked)}
+                  disabled={!clienteEmail}
+                  className="accent-primary h-3.5 w-3.5"
+                />
+                <span className={`text-[12px] font-semibold ${!clienteEmail ? 'text-on-surface-variant/30' : 'text-on-surface-variant'}`}>
+                  Enviar por e-mail
+                  {clienteEmail && <span className="ml-1 font-normal text-on-surface-variant/50">({clienteEmail})</span>}
+                  {!clienteEmail && <span className="ml-1 text-[10px] font-normal text-on-surface-variant/30">— e-mail não cadastrado</span>}
+                </span>
+              </label>
+
+              {emailAtivo && (
+                <div className="mt-2 space-y-2 pl-5">
+                  <input
+                    type="text"
+                    placeholder="Assunto do e-mail"
+                    value={emailAssunto}
+                    onChange={e => setEmailAssunto(e.target.value)}
+                    className="w-full rounded-[8px] border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50"
+                  />
+                  <textarea
+                    placeholder="Corpo do e-mail..."
+                    value={emailCorpo}
+                    onChange={e => setEmailCorpo(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-[8px] border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 resize-y min-h-[70px]"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* WhatsApp */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={wppAtivo}
+                  onChange={e => setWppAtivo(e.target.checked)}
+                  disabled={!clienteWpp}
+                  className="accent-primary h-3.5 w-3.5"
+                />
+                <span className={`text-[12px] font-semibold ${!clienteWpp ? 'text-on-surface-variant/30' : 'text-on-surface-variant'}`}>
+                  Enviar por WhatsApp
+                  {clienteWpp && <span className="ml-1 font-normal text-on-surface-variant/50">({clienteWpp})</span>}
+                  {!clienteWpp && <span className="ml-1 text-[10px] font-normal text-on-surface-variant/30">— WhatsApp não cadastrado</span>}
+                </span>
+              </label>
+
+              {wppAtivo && (
+                <div className="mt-2 pl-5">
+                  <textarea
+                    placeholder="Mensagem de acompanhamento (o arquivo será enviado junto)..."
+                    value={wppMensagem}
+                    onChange={e => setWppMensagem(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-[8px] border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 resize-y min-h-[60px]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Submit */}
         <div className="flex justify-end gap-3">
           <button
             type="submit"
-            disabled={loading || (!resposta.trim() && novoStatus === statusAtual)}
+            disabled={loading || !hasChanges}
             className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 transition-colors"
           >
             {loading
               ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
               : <span className="material-symbols-outlined text-[16px]">send</span>
             }
-            {novoStatus === 'resolvida' ? 'Resolver chamado' : 'Enviar resposta'}
+            {isResolucao ? 'Resolver chamado' : 'Enviar resposta'}
           </button>
         </div>
       </form>

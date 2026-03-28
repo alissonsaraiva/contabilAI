@@ -12,15 +12,20 @@ const buscarDocumentosTool: Tool = {
       properties: {
         clienteId: {
           type: 'string',
-          description: 'ID do cliente.',
+          description: 'ID do cliente (PF ou responsável PJ).',
+        },
+        empresaId: {
+          type: 'string',
+          description: 'ID da empresa (para clientes PJ — busca documentos vinculados à empresa).',
         },
         leadId: {
           type: 'string',
           description: 'ID do lead.',
         },
-        tipo: {
+        categoria: {
           type: 'string',
-          description: 'Filtrar por tipo de documento (ex: nota_fiscal, boleto, contrato, comprovante). Opcional.',
+          enum: ['geral', 'nota_fiscal', 'imposto_renda', 'guias_tributos', 'relatorios', 'outros'],
+          description: 'Filtrar por categoria de documento. Opcional.',
         },
       },
       required: [],
@@ -36,22 +41,24 @@ const buscarDocumentosTool: Tool = {
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const clienteId = (input.clienteId as string | undefined) ?? ctx.clienteId
+    const empresaId = input.empresaId  as string | undefined
     const leadId    = (input.leadId    as string | undefined) ?? ctx.leadId
-    const tipo      = input.tipo       as string | undefined
+    const categoria = input.categoria  as string | undefined
 
-    if (!clienteId && !leadId) {
+    if (!clienteId && !empresaId && !leadId) {
       return {
         sucesso: false,
-        erro:   'clienteId ou leadId não fornecido.',
-        resumo: 'Não foi possível buscar documentos: cliente ou lead não identificado.',
+        erro:   'clienteId, empresaId ou leadId não fornecido.',
+        resumo: 'Não foi possível buscar documentos: cliente, empresa ou lead não identificado.',
       }
     }
 
     const documentos = await prisma.documento.findMany({
       where: {
-        ...(clienteId && { clienteId }),
-        ...(leadId    && { leadId }),
-        ...(tipo      && { tipo: { contains: tipo, mode: 'insensitive' } }),
+        ...(clienteId  && { clienteId }),
+        ...(empresaId  && { empresaId }),
+        ...(leadId     && { leadId }),
+        ...(categoria  && { categoria: categoria as never }),
       },
       orderBy: { criadoEm: 'desc' },
       take:    20,
@@ -59,6 +66,8 @@ const buscarDocumentosTool: Tool = {
         id:        true,
         nome:      true,
         tipo:      true,
+        categoria: true,
+        origem:    true,
         url:       true,
         mimeType:  true,
         status:    true,
@@ -67,7 +76,7 @@ const buscarDocumentosTool: Tool = {
     })
 
     if (documentos.length === 0) {
-      const filtroMsg = tipo ? ` do tipo "${tipo}"` : ''
+      const filtroMsg = categoria ? ` da categoria "${categoria}"` : ''
       return {
         sucesso: true,
         dados:   [],
@@ -75,9 +84,16 @@ const buscarDocumentosTool: Tool = {
       }
     }
 
+    const origemLabel: Record<string, string> = {
+      crm:        'escritório',
+      portal:     'cliente',
+      integracao: 'integração',
+    }
+
     const linhas = documentos.map(d => {
-      const data = new Date(d.criadoEm).toLocaleDateString('pt-BR')
-      return `• [${data}] ${d.tipo} — ${d.nome} | URL: ${d.url} | id: ${d.id}`
+      const data   = new Date(d.criadoEm).toLocaleDateString('pt-BR')
+      const origem = origemLabel[d.origem] ?? d.origem
+      return `• [${data}] ${d.categoria ?? d.tipo} — ${d.nome} (enviado por: ${origem}) | id: ${d.id}`
     })
 
     return {

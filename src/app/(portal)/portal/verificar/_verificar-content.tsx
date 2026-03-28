@@ -38,12 +38,14 @@ function VerificarContentInner() {
           return
         }
 
-        const { clienteId, nome, email } = await res.json()
+        const { id, nome, email, tipo, empresaId } = await res.json()
 
         const result = await signIn('portal-token', {
-          clienteId,
+          id,
           nome,
           email,
+          tipo,
+          empresaId,
           redirect: false,
         })
 

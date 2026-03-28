@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { sendText } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { registrarInteracao } from '@/lib/services/interacoes'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -127,14 +128,13 @@ const enviarWhatsAppClienteTool: Tool = {
 
     // Registra interação e mensagem
     await Promise.all([
-      prisma.interacao.create({
-        data: {
-          clienteId,
-          tipo:    'whatsapp_enviado',
-          titulo:  'WhatsApp enviado pelo Agente',
-          conteudo: mensagem,
-          metadados: { registradoPorAI: true, solicitante: ctx.solicitanteAI },
-        } as never,
+      registrarInteracao({
+        clienteId,
+        tipo:     'whatsapp_enviado',
+        titulo:   'WhatsApp enviado pelo Agente',
+        conteudo: mensagem,
+        origem:   'usuario',
+        metadados: { registradoPorAI: true, solicitante: ctx.solicitanteAI },
       }),
       prisma.mensagemIA.create({
         data: {

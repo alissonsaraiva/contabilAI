@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import { uploadArquivo } from '@/lib/storage'
+import { criarDocumento } from '@/lib/services/documentos'
+import { registrarInteracao } from '@/lib/services/interacoes'
 import { askAI } from '@/lib/ai/ask'
 import type { EmailRecebido } from './imap'
 
@@ -15,10 +16,9 @@ export type ResultadoProcessamento = {
 /**
  * Processa um email recebido:
  * 1. Tenta identificar remetente (cliente ou lead pelo campo email)
- * 2. Faz upload dos anexos no S3 e cria registros Documento
- * 3. Salva como Interacao email_recebido (com ou sem vínculo)
+ * 2. Faz upload dos anexos no S3 e cria registros Documento via criarDocumento()
+ * 3. Salva como Interacao email_recebido via registrarInteracao()
  * 4. Gera sugestão de resposta via Clara
- * 5. Indexa no RAG (fire-and-forget)
  *
  * Emails de remetentes não identificados:
  * - São salvos normalmente (sem clienteId/leadId)
@@ -29,54 +29,37 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
   const { clienteId, leadId } = await identificarRemetente(email.de)
   const associado = !!(clienteId || leadId)
 
-  // Upload dos anexos no S3 e criação de Documento
+  // Upload dos anexos e criação de Documento via service unificado
   const documentosId: string[] = []
   const anexosMeta: Array<{ nome: string; url: string; mimeType: string }> = []
 
   for (const anexo of email.anexos) {
     try {
-      const timestamp = Date.now()
-      const key = clienteId
-        ? `clientes/${clienteId}/emails/${timestamp}_${anexo.nome}`
-        : leadId
-          ? `leads/${leadId}/emails/${timestamp}_${anexo.nome}`
-          : `emails/desconhecidos/${timestamp}_${anexo.nome}`
-
-      const url = await uploadArquivo(key, anexo.buffer, anexo.mimeType || 'application/octet-stream')
-
-      // Cria registro Documento (somente se associado a cliente/lead)
       if (associado) {
-        const doc = await prisma.documento.create({
-          data: {
-            nome:      anexo.nome,
-            url,
-            mimeType:  anexo.mimeType,
-            tipo:      'email_anexo',
-            status:    'recebido',
-            clienteId: clienteId ?? undefined,
-            leadId:    leadId    ?? undefined,
-          } as any,
+        // Usa criarDocumento() — S3 + banco + RAG automático
+        const doc = await criarDocumento({
+          clienteId: clienteId ?? undefined,
+          leadId:    leadId    ?? undefined,
+          arquivo: {
+            buffer:   anexo.buffer,
+            nome:     anexo.nome,
+            mimeType: anexo.mimeType || 'application/octet-stream',
+          },
+          tipo:   'Email — Anexo',
+          status: 'recebido',
+          origem: 'portal',  // documento veio do cliente
+          metadados: { fonte: 'email', de: email.de, assunto: email.assunto },
         })
         documentosId.push(doc.id)
-
-        // Indexa o documento no RAG (crm + portal) fire-and-forget
-        import('@/lib/rag/ingest')
-          .then(({ indexarInteracao }) => {
-            const interacaoFake = {
-              id: `doc_email_${doc.id}`,
-              tipo: 'documento_enviado' as const,
-              titulo: anexo.nome,
-              conteudo: `Anexo recebido por email: ${anexo.nome}`,
-              clienteId: clienteId ?? null,
-              leadId:    leadId    ?? null,
-              criadoEm: new Date(),
-            }
-            return indexarInteracao(interacaoFake as any)
-          })
-          .catch(err => console.error('[processar] erro ao indexar anexo RAG:', err))
+        anexosMeta.push({ nome: anexo.nome, url: doc.url, mimeType: anexo.mimeType })
+      } else {
+        // Remetente desconhecido — apenas upload S3, sem registro Documento
+        const { uploadArquivo } = await import('@/lib/storage')
+        const timestamp = Date.now()
+        const key = `emails/desconhecidos/${timestamp}_${anexo.nome}`
+        const url = await uploadArquivo(key, anexo.buffer, anexo.mimeType || 'application/octet-stream')
+        anexosMeta.push({ nome: anexo.nome, url, mimeType: anexo.mimeType })
       }
-
-      anexosMeta.push({ nome: anexo.nome, url, mimeType: anexo.mimeType })
     } catch {
       // Falha no upload de um anexo — continua com os demais
     }
@@ -88,35 +71,28 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
     sugestao = await gerarSugestao(email, clienteId, leadId)
   }
 
-  // Salva interação
-  const interacao = await prisma.interacao.create({
-    data: {
-      tipo:      'email_recebido',
-      titulo:    email.assunto,
-      conteudo:  email.corpo,
-      clienteId: clienteId ?? undefined,
-      leadId:    leadId    ?? undefined,
-      metadados: {
-        de:            email.de,
-        nomeRemetente: email.nomeRemetente,
-        assunto:       email.assunto,
-        messageId:     email.messageId,
-        dataEnvio:     email.dataEnvio.toISOString(),
-        anexos:        anexosMeta,
-        documentosId,
-        sugestao,
-      },
-    } as any,
+  // Registra interação via service (inclui RAG automático)
+  const interacaoId = await registrarInteracao({
+    tipo:      'email_recebido',
+    titulo:    email.assunto,
+    conteudo:  email.corpo,
+    clienteId: clienteId ?? undefined,
+    leadId:    leadId    ?? undefined,
+    origem:    'sistema',
+    escritorioEvento: !associado, // remetente desconhecido vai para log do escritório
+    metadados: {
+      de:            email.de,
+      nomeRemetente: email.nomeRemetente,
+      assunto:       email.assunto,
+      messageId:     email.messageId,
+      dataEnvio:     email.dataEnvio.toISOString(),
+      anexos:        anexosMeta,
+      documentosId,
+      sugestao,
+    },
   })
 
-  // Indexa conversa no RAG (fire-and-forget — somente se associado)
-  if (associado) {
-    import('@/lib/rag/ingest')
-      .then(({ indexarInteracao }) => indexarInteracao(interacao))
-      .catch(err => console.error('[processar] erro ao indexar interação RAG:', err))
-  }
-
-  return { interacaoId: interacao.id, clienteId, leadId, associado, sugestao, documentosId }
+  return { interacaoId, clienteId, leadId, associado, sugestao, documentosId }
 }
 
 async function identificarRemetente(emailRemetente: string): Promise<{ clienteId: string | null; leadId: string | null }> {

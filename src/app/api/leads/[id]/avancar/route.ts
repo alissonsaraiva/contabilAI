@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 const avancarSchema = z.object({
   status:         z.enum(['iniciado','simulador','plano_escolhido','dados_preenchidos','revisao','contrato_gerado','aguardando_assinatura','assinado','expirado','cancelado']).optional(),
@@ -34,9 +35,8 @@ export async function PUT(req: Request, { params }: Params) {
 
   const lead = await prisma.lead.update({ where: { id }, data: updateData as any })
 
-  // Re-indexa quando dadosJson mudar (dados do formulário de onboarding)
   if (dadosJson) {
-    import('@/lib/rag/ingest').then(({ indexarLead }) => indexarLead(lead)).catch(() => {})
+    indexarAsync('lead', lead)
   }
 
   return NextResponse.json(lead)

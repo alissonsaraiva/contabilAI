@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { registrarInteracao } from '@/lib/services/interacoes'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -39,7 +40,7 @@ const criarTarefaTool: Tool = {
     label: 'Criar tarefa',
     descricao: 'Cria uma tarefa com título, descrição, cliente, prioridade e prazo. Aceita linguagem natural: "amanhã", "semana que vem", "em 3 dias".',
     categoria: 'Tarefas',
-    canais: ['crm', 'whatsapp'],
+    canais: [], // DEPRECADA — usar criarOrdemServico
   },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const titulo     = input.titulo     as string
@@ -70,13 +71,12 @@ const criarTarefaTool: Tool = {
 
     // Registra interação para rastreabilidade
     if (clienteId) {
-      await prisma.interacao.create({
-        data: {
-          clienteId,
-          tipo: 'tarefa_criada',
-          titulo: `Tarefa criada pela IA: ${titulo}`,
-          metadados: { tarefaId: tarefa.id, prazo: prazo?.toISOString() },
-        },
+      await registrarInteracao({
+        clienteId,
+        tipo:   'tarefa_criada',
+        titulo: `Tarefa criada pela IA: ${titulo}`,
+        origem: 'ia',
+        metadados: { tarefaId: tarefa.id, prazo: prazo?.toISOString() },
       })
     }
 

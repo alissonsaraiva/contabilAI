@@ -49,50 +49,12 @@ export type AgenteResultado = {
 
 // ─── Escopo de tools por IA solicitante ───────────────────────────────────────
 //
-// Cada IA tem um nível de acesso diferente ao agente operacional.
-// undefined = sem restrição (acesso total às tools registradas).
-//
-// Onboarding: só pode buscar dados do próprio lead em processo de contratação
-// WhatsApp:   leitura do próprio cliente/lead + criação de tarefa básica
-// Portal:     cliente consultando seus próprios dados (somente leitura)
-// CRM:        operador interno — acesso completo
+// O acesso de cada canal é declarado diretamente no campo `canais` do meta de
+// cada tool — não há mais whitelist manual aqui.
+// Para restringir ou ampliar o acesso de um canal a uma tool específica, edite
+// o campo `canais` na própria tool ou use `toolsCanaisOverride` no banco.
 //
 const SOLICITANTES_VALIDOS: Set<string> = new Set(['crm', 'whatsapp', 'onboarding', 'portal'])
-
-const TOOLS_POR_FEATURE: Record<string, string[] | undefined> = {
-  // Onboarding: lead em processo de contratação — somente consulta e informação
-  onboarding: [
-    'buscarDadosCliente',
-    'listarPlanos',
-  ],
-
-  // WhatsApp: cliente/lead via canal de mensagem — leitura + ações básicas de suporte
-  whatsapp: [
-    'buscarDadosCliente',
-    'buscarHistorico',
-    'buscarDocumentos',
-    'listarTarefas',
-    'listarPlanos',
-    'criarTarefa',
-    'concluirTarefa',
-    'criarLead',
-    'enviarEmail',
-    'registrarInteracao',
-    'enviarDocumentoWhatsApp',
-  ],
-
-  // Portal: cliente autenticado consultando seus próprios dados — somente leitura
-  portal: [
-    'buscarDadosCliente',
-    'buscarHistorico',
-    'buscarDocumentos',
-    'listarTarefas',
-    'listarPlanos',
-  ],
-
-  // CRM: operador interno autenticado — acesso total a todas as tools
-  crm: undefined,
-}
 
 // Timeout total do loop — deixa margem antes do limite de 60s das serverless functions
 const AGENT_TIMEOUT_MS = 45_000
@@ -146,28 +108,24 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
   const providerName = config.providers.agente ?? config.provider
   const model        = config.models.agente ?? config.models.crm
 
-  // 3. Monta tools disponíveis — aplica escopo por feature se toolsPermitidas não foi fornecido
-  //    e exclui as tools desabilitadas pelo admin nas configurações de IA
-  //    e respeita os canaisOverride configurados (o admin pode restringir/ampliar canais por tool)
-  const escopoTools = toolsPermitidas ?? TOOLS_POR_FEATURE[solicitanteSeguro]
-  const desabilitadas = new Set(config.toolsDesabilitadas)
-  const canaisOverride = config.toolsCanaisOverride
+  // 3. Monta tools disponíveis — fonte de verdade é o campo `canais` de cada tool.
+  //    Respeita: canaisOverride do admin > canais do meta > toolsDesabilitadas.
+  //    toolsPermitidas (whitelist explícita) restringe ainda mais quando fornecida.
+  const desabilitadas    = new Set(config.toolsDesabilitadas)
+  const canaisOverride   = config.toolsCanaisOverride
 
-  const allTools = getTools()
-  const nomesAtivos = (escopoTools
-    ? allTools.filter(t => escopoTools.includes(t.definition.name))
-    : allTools
-  )
-    .filter(t => !desabilitadas.has(t.definition.name))
+  const nomesAtivos = getTools()
     .filter(t => {
-      // Se há override de canais para esta tool, verifica se o solicitante está incluído
+      // Override configurado pelo admin tem precedência sobre o meta da tool
       const override = canaisOverride[t.definition.name]
       if (override) return (override as string[]).includes(solicitanteSeguro)
-      // Sem override: usa os canais do meta da tool como referência
-      // (não bloqueia se a tool não define canais — retrocompatibilidade)
-      return t.meta.canais.length === 0 || (t.meta.canais as string[]).includes(solicitanteSeguro)
+      // Sem override: usa os canais declarados no meta da tool
+      return (t.meta.canais as string[]).includes(solicitanteSeguro)
     })
+    .filter(t => !desabilitadas.has(t.definition.name))
+    .filter(t => !toolsPermitidas || toolsPermitidas.includes(t.definition.name))
     .map(t => t.definition.name)
+
   const toolDefinitions = getToolDefinitions(nomesAtivos)
 
   if (toolDefinitions.length === 0) {

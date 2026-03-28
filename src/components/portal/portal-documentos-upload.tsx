@@ -63,7 +63,7 @@ export function PortalDocumentosUpload() {
         ref={inputRef}
         type="file"
         className="hidden"
-        accept=".pdf,.xml,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt"
+        accept="*/*"
         onChange={e => handleFiles(e.target.files)}
       />
 

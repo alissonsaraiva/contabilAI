@@ -27,7 +27,7 @@ export default async function CrmOSDetailPage({ params }: Props) {
   const ordem   = await prisma.ordemServico.findUnique({
     where:   { id },
     include: {
-      cliente: { select: { id: true, nome: true, email: true, telefone: true } },
+      cliente: { select: { id: true, nome: true, email: true, telefone: true, whatsapp: true } },
       empresa: { select: { razaoSocial: true, nomeFantasia: true } },
     },
   })
@@ -109,6 +109,8 @@ export default async function CrmOSDetailPage({ params }: Props) {
               ordemId={id}
               statusAtual={ordem.status}
               temResposta={!!ordem.resposta}
+              clienteEmail={ordem.cliente.email}
+              clienteWpp={ordem.cliente.whatsapp ?? ordem.cliente.telefone}
             />
           )}
         </div>

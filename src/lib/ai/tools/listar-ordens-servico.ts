@@ -31,7 +31,7 @@ const listarOrdensServicoTool: Tool = {
     label: 'Listar chamados (portal)',
     descricao: 'Lista os chamados abertos pelos clientes no portal. Filtrável por status e cliente.',
     categoria: 'Portal',
-    canais: ['crm'],
+    canais: ['crm', 'portal'],
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {

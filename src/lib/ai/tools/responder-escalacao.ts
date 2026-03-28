@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { sendText } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -128,19 +129,16 @@ const responderEscalacaoTool: Tool = {
       },
     })
 
-    // Indexa no RAG
-    import('@/lib/rag/ingest').then(({ indexarEscalacao }) =>
-      indexarEscalacao({
-        id:               esc!.id,
-        clienteId:        esc!.clienteId,
-        leadId:           esc!.leadId,
-        canal:            esc!.canal,
-        motivoIA:         esc!.motivoIA,
-        orientacaoHumana: resposta,
-        respostaEnviada:  resposta,
-        criadoEm:         esc!.criadoEm,
-      })
-    ).catch(() => {})
+    indexarAsync('escalacao', {
+      id:               esc!.id,
+      clienteId:        esc!.clienteId,
+      leadId:           esc!.leadId,
+      canal:            esc!.canal,
+      motivoIA:         esc!.motivoIA,
+      orientacaoHumana: resposta,
+      respostaEnviada:  resposta,
+      criadoEm:         esc!.criadoEm,
+    })
 
     return {
       sucesso: true,

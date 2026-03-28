@@ -50,9 +50,9 @@ export default async function EmpresaDetailPage({ params }: Props) {
   const empresa = await prisma.empresa.findUnique({
     where: { id },
     include: {
+      documentos: { orderBy: { criadoEm: 'desc' } },
       cliente: {
         include: {
-          documentos: true,
           contratos: true,
           responsavel: { select: { nome: true } },
         },
@@ -71,10 +71,13 @@ export default async function EmpresaDetailPage({ params }: Props) {
   const socios  = empresa.socios
   const nomeDisplay = empresa.razaoSocial ?? empresa.nomeFantasia ?? '(sem nome)'
 
+  const documentos = empresa.documentos
+
   const tabs = [
     { value: 'visao-geral', label: 'Visão Geral',  count: null },
     { value: 'titular',     label: 'Titular',       count: null },
     { value: 'socios',      label: 'Sócios',        count: socios.length },
+    { value: 'documentos',  label: 'Documentos',    count: documentos.length },
     { value: 'portal',      label: 'Portal',        count: null },
     { value: 'financeiro',  label: 'Financeiro',    count: null },
     { value: 'fiscal',      label: 'Fiscal',        count: null },
@@ -274,6 +277,49 @@ export default async function EmpresaDetailPage({ params }: Props) {
                   </div>
                   <div className="border-t border-outline-variant/10 px-5 py-3">
                     <SocioPortalControls socioId={s.id} temEmail={!!s.email} portalAccess={s.portalAccess} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Documentos ──────────────────────────────────── */}
+        <TabsContent value="documentos" className="m-0 focus-visible:outline-none">
+          {documentos.length === 0 ? (
+            <EmptyState icon="folder_open" msg="Nenhum documento vinculado a esta empresa" />
+          ) : (
+            <div className="divide-y divide-outline-variant/10 overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
+              {documentos.map(d => (
+                <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-surface-container-low/30">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                      <span className="material-symbols-outlined text-[18px] text-primary">description</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-on-surface">{d.nome}</p>
+                      <p className="text-xs text-on-surface-variant/60">
+                        {d.tipo}
+                        {d.categoria ? ` · ${d.categoria}` : ''}
+                        {d.tamanho ? ` · ${(d.tamanho / 1024).toFixed(0)} KB` : ''}
+                        {` · ${formatDate(d.criadoEm)}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                      d.origem === 'portal' ? 'bg-primary/10 text-primary' : 'bg-green-status/10 text-green-status'
+                    }`}>
+                      {d.origem === 'portal' ? 'cliente' : d.origem}
+                    </span>
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">download</span>
+                    </a>
                   </div>
                 </div>
               ))}

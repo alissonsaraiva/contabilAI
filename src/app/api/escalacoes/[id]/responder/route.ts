@@ -6,6 +6,7 @@ import { sendText, sendMedia } from '@/lib/evolution'
 import { getProvider } from '@/lib/ai/providers'
 import { getAiConfig } from '@/lib/ai/config'
 import { SYSTEM_BASE_DEFAULT } from '@/lib/ai/ask'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -150,18 +151,16 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
   }
 
   // Indexa escalação resolvida no RAG (contexto de atendimento para futuras consultas)
-  import('@/lib/rag/ingest').then(({ indexarEscalacao }) =>
-    indexarEscalacao({
-      id:               escAtualizada.id,
-      clienteId:        escAtualizada.clienteId,
-      leadId:           escAtualizada.leadId,
-      canal:            escAtualizada.canal,
-      motivoIA:         escAtualizada.motivoIA,
-      orientacaoHumana: escAtualizada.orientacaoHumana,
-      respostaEnviada:  escAtualizada.respostaEnviada,
-      criadoEm:         escAtualizada.criadoEm,
-    })
-  ).catch(() => {})
+  indexarAsync('escalacao', {
+    id:               escAtualizada.id,
+    clienteId:        escAtualizada.clienteId,
+    leadId:           escAtualizada.leadId,
+    canal:            escAtualizada.canal,
+    motivoIA:         escAtualizada.motivoIA,
+    orientacaoHumana: escAtualizada.orientacaoHumana,
+    respostaEnviada:  escAtualizada.respostaEnviada,
+    criadoEm:         escAtualizada.criadoEm,
+  })
 
   return NextResponse.json({ ok: true, mensagemEnviada: mensagemFinal })
 }

@@ -44,7 +44,7 @@ const listarTarefasTool: Tool = {
     label: 'Listar tarefas',
     descricao: 'Lista tarefas com filtros por cliente, status, prioridade, vencidas hoje ou urgentes.',
     categoria: 'Tarefas',
-    canais: ['crm', 'whatsapp', 'portal'],
+    canais: [], // DEPRECADA — usar listarOrdensServico
   },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const clienteId   = (input.clienteId  as string  | undefined) ?? ctx.clienteId

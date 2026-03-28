@@ -5,6 +5,9 @@ import type { AIMessage } from './providers'
 import type { AIMessageContentPart } from './providers/types'
 import { getAiConfig } from './config'
 import { completeWithFallback } from './providers/fallback'
+import { getCapacidadesPorCanal } from './tools/registry'
+// Garante que todas as tools estejam registradas (side-effect import centralizado aqui)
+import './tools'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -193,13 +196,21 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
     } catch { /* não bloqueia a resposta */ }
   }
 
-  // 3. Monta system prompt — usa o do DB se configurado, senão o padrão
+  // 3. Monta system prompt — usa o do DB se configurado, senão o default por feature
   // Guardrails de segurança são SEMPRE incluídos, independente do prompt configurado
   const storedPrompt = feature ? config.systemPrompts[feature as keyof typeof config.systemPrompts] : null
   const nomeIa = feature ? config.nomeAssistentes[feature as keyof typeof config.nomeAssistentes] : null
   const basePrompt = storedPrompt ?? SYSTEM_BASE_DEFAULT
   const promptComNome = nomeIa ? `Seu nome é ${nomeIa}.\n\n${basePrompt}` : basePrompt
   const systemParts = [promptComNome, SYSTEM_SECURITY_GUARDRAILS]
+
+  // Capacidades disponíveis para este canal — derivadas automaticamente do registry de tools
+  // Respeita toolsDesabilitadas configuradas pelo escritório
+  const toolCanal = featureToCanalTools(feature)
+  if (toolCanal) {
+    const capacidades = getCapacidadesPorCanal(toolCanal, config.toolsDesabilitadas)
+    if (capacidades) systemParts.push(capacidades)
+  }
 
   // Sanitiza dados externos antes de injetar — previne prompt injection via banco/agente
   if (systemExtra) systemParts.push(sanitizarTextoExterno(systemExtra))
@@ -273,6 +284,17 @@ export function detectarEscalacao(resposta: string): EscalacaoInfo {
   // Fallback: marcador sem colchetes (##HUMANO## mensagem direta)
   const semMarcador = resposta.replace(/^##HUMANO##\s*/m, '').trim()
   return { escalado: true, motivo: 'Escalonado pela IA', textoLimpo: semMarcador }
+}
+
+/** Converte feature para ToolCanal (tipagem da registry). Retorna null para features sem tools. */
+function featureToCanalTools(feature: AskFeature | 'whatsapp' | undefined): import('./tools/types').ToolCanal | null {
+  switch (feature) {
+    case 'crm':        return 'crm'
+    case 'portal':     return 'portal'
+    case 'whatsapp':   return 'whatsapp'
+    case 'onboarding': return 'onboarding'
+    default:           return null
+  }
 }
 
 function buildSearchOpts(

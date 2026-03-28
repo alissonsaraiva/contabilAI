@@ -64,6 +64,11 @@ enum Regime {
   Autonomo
 }
 
+enum TipoContribuinte {
+  pj  // pessoa jurídica — tem empresa/CNPJ
+  pf  // pessoa física — autônomo, profissional liberal
+}
+
 enum Prioridade {
   baixa
   media
@@ -187,6 +192,7 @@ model Empresa {
   socios        Socio[]
   portalTokens  PortalToken[]
   ordensServico OrdemServico[]
+  documentos    Documento[]
 
   @@map("empresas")
 }
@@ -214,6 +220,7 @@ model Cliente {
   bairro              String?
   cidade              String?
   uf                  String?
+  tipoContribuinte    TipoContribuinte @default(pj)
   planoTipo           PlanoTipo
   valorMensal         Decimal         @db.Decimal(10, 2)
   vencimentoDia       Int
@@ -268,6 +275,25 @@ enum TipoOS {
   reclamacao
   documento
   outros
+  emissao_documento
+  correcao_documento
+  solicitacao_documento
+  tarefa_interna
+}
+
+enum OrigemOS {
+  cliente    // aberto pelo cliente via portal
+  ia         // aberto pela IA em nome do cliente
+  operador   // aberto internamente pelo contador/admin
+}
+
+enum CategoriaDocumento {
+  geral
+  nota_fiscal
+  imposto_renda
+  guias_tributos
+  relatorios
+  outros
 }
 
 enum StatusOS {
@@ -286,22 +312,33 @@ enum TipoComunicado {
 }
 
 model Documento {
-  id            String   @id @default(uuid())
-  clienteId     String?
-  cliente       Cliente? @relation(fields: [clienteId], references: [id])
-  leadId        String?
-  lead          Lead?    @relation(fields: [leadId], references: [id])
-  tipo          String
-  nome          String
-  url           String
-  tamanho       Int?
-  mimeType      String?
-  status        String   @default("pendente")
-  observacao    String?
-  origemPortal  Boolean  @default(false)
-  xmlMetadata   Json?
-  criadoEm      DateTime @default(now())
+  id             String             @id @default(uuid())
+  clienteId      String?
+  cliente        Cliente?           @relation(fields: [clienteId], references: [id])
+  leadId         String?
+  lead           Lead?              @relation(fields: [leadId], references: [id])
+  empresaId      String?
+  empresa        Empresa?           @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  ordemServicoId String?
+  ordemServico   OrdemServico?      @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  tipo           String
+  categoria      CategoriaDocumento @default(geral)
+  nome           String
+  url            String
+  tamanho        Int?
+  mimeType       String?
+  status         String             @default("pendente")
+  observacao     String?
+  origem         String             @default("crm")
+  // "crm"        = enviado pelo escritório via CRM
+  // "portal"     = enviado pelo cliente via portal
+  // "integracao" = empurrado por sistema externo (NFe, ERP, etc.)
+  integracaoId   String?            // ex: "focus_nfe", "contaazul", "sefaz"
+  xmlMetadata    Json?
+  criadoEm       DateTime           @default(now())
 
+  @@index([clienteId, criadoEm])
+  @@index([empresaId, criadoEm])
   @@map("documentos")
 }
 
@@ -311,7 +348,9 @@ model OrdemServico {
   cliente         Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   empresaId       String?
   empresa         Empresa?  @relation(fields: [empresaId], references: [id], onDelete: SetNull)
-  tipo            TipoOS    @default(duvida)
+  tipo            TipoOS     @default(duvida)
+  origem          OrigemOS   @default(cliente)
+  visivelPortal   Boolean    @default(true)
   titulo          String
   descricao       String    @db.Text
   status          StatusOS  @default(aberta)
@@ -324,6 +363,8 @@ model OrdemServico {
   fechadoEm       DateTime?
   criadoEm        DateTime  @default(now())
   atualizadoEm    DateTime  @updatedAt
+
+  documentos Documento[]
 
   @@index([clienteId, criadoEm])
   @@index([status, criadoEm])
@@ -519,6 +560,12 @@ model Escritorio {
   emailImapHost    String?  // default: imap.hostinger.com
   emailImapPort    Int?     // default: 993
 
+  // Estratégia de entrega de documentos via WhatsApp
+  // "direto"      = envia URL pública direta
+  // "senha"       = aplica senha (PDF via qpdf, OFX/XLS via 7z) — requer config adicional
+  // "link_portal" = envia link autenticado do portal
+  whatsappDocumentoEntrega String @default("direto")
+
   // WhatsApp AI — usa Evolution API para enviar respostas
   whatsappAiEnabled    Boolean? @default(false)
   whatsappAiFeature    String?  @default("onboarding")  // onboarding | crm | portal
@@ -543,10 +590,11 @@ model ConversaIA {
   lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
   remoteJid    String?      // identificador WhatsApp
   sessionId    String?      // identificador de sessão web
-  pausadaEm    DateTime?    // quando preenchido, IA não responde automaticamente
-  pausadoPorId String?      // id do usuário que pausou a IA
-  criadaEm     DateTime     @default(now())
-  atualizadaEm DateTime     @updatedAt
+  pausadaEm        DateTime?    // quando preenchido, IA não responde automaticamente
+  pausadoPorId     String?      // id do usuário que pausou a IA
+  ultimaMensagemEm DateTime?    // atualizado a cada msg recebida (debounce WhatsApp)
+  criadaEm         DateTime     @default(now())
+  atualizadaEm     DateTime     @updatedAt
 
   mensagens    MensagemIA[]
 
@@ -567,6 +615,7 @@ model MensagemIA {
   status            StatusMensagem @default(pending)
   tentativas        Int            @default(0)
   erroEnvio         String?        @db.Text
+  aiProcessado      Boolean        @default(true)  // false = aguardando processamento (debounce WhatsApp)
   whatsappMsgData   Json?          // payload { key, message } para re-fetch de mídia na Evolution
   // Mídia enviada pelo operador via chat CRM
   mediaUrl          String?        // URL pública do arquivo (S3)

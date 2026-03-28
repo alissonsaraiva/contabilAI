@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -53,14 +54,14 @@ export async function PUT(req: Request, { params }: Params) {
   })
 
   if (cliente) {
-    import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente({
+    indexarAsync('cliente', {
       ...cliente,
       cnpj: cliente.empresa?.cnpj ?? null,
       razaoSocial: cliente.empresa?.razaoSocial ?? null,
       nomeFantasia: cliente.empresa?.nomeFantasia ?? null,
       regime: cliente.empresa?.regime ?? null,
       socios: cliente.empresa?.socios ?? [],
-    })).catch(() => {})
+    })
   }
 
   return NextResponse.json(cliente)

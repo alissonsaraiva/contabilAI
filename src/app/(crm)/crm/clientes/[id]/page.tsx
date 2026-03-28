@@ -98,8 +98,18 @@ export default async function ClienteDetailPage({ params }: Props) {
   })
 
   const socios: NonNullable<typeof cliente.empresa>['socios'] = cliente.empresa?.socios ?? []
-  const documentos = cliente.documentos
   const contratos  = cliente.contratos
+  const isPJ       = cliente.tipoContribuinte === 'pj' || !!cliente.empresa?.cnpj
+
+  // PJ: busca docs da empresa também; PF: só cliente
+  const empresaDocs = (isPJ && cliente.empresa?.id)
+    ? await prisma.documento.findMany({
+        where:   { empresaId: cliente.empresa.id },
+        orderBy: { criadoEm: 'desc' },
+      })
+    : []
+  const documentos = [...cliente.documentos, ...empresaDocs]
+    .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
 
   const tabs = [
     { value: 'dados', label: 'Dados', count: null },
@@ -330,45 +340,65 @@ export default async function ClienteDetailPage({ params }: Props) {
 
         {/* ── Documentos ─────────────────────────────────── */}
         <TabsContent value="documentos" className="m-0 focus-visible:outline-none">
-          {cliente.documentos.length === 0 ? (
-            <EmptyState icon="folder_open" msg="Nenhum documento enviado" />
-          ) : (
-            <div className="divide-y divide-outline-variant/10 overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
-              {cliente.documentos.map((d) => (
-                <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-surface-container-low/30">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                      <span className="material-symbols-outlined text-[18px] text-primary">description</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-on-surface">{d.nome}</p>
-                      {d.tamanho && (
+          <div className="space-y-3">
+            {isPJ && cliente.empresa && (
+              <div className="flex items-center justify-between rounded-xl bg-surface-container-low/60 px-4 py-2.5">
+                <span className="text-[12px] text-on-surface-variant/70">
+                  <span className="material-symbols-outlined text-[14px] align-middle mr-1">info</span>
+                  Inclui documentos vinculados à empresa. Veja todos na aba{' '}
+                  <Link href={`/crm/empresas/${cliente.empresa.id}`} className="text-primary font-semibold hover:underline">
+                    {cliente.empresa.razaoSocial ?? cliente.empresa.nomeFantasia}
+                  </Link>
+                </span>
+              </div>
+            )}
+
+            {documentos.length === 0 ? (
+              <EmptyState icon="folder_open" msg="Nenhum documento enviado" />
+            ) : (
+              <div className="divide-y divide-outline-variant/10 overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
+                {documentos.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-surface-container-low/30">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                        <span className="material-symbols-outlined text-[18px] text-primary">description</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-on-surface">{d.nome}</p>
                         <p className="text-xs text-on-surface-variant">
-                          {(d.tamanho / 1024).toFixed(0)} KB · {formatDate(d.criadoEm)}
+                          {d.tipo}
+                          {d.tamanho ? ` · ${(d.tamanho / 1024).toFixed(0)} KB` : ''}
+                          {` · ${formatDate(d.criadoEm)}`}
                         </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {(d as any).origem && (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          (d as any).origem === 'portal' ? 'bg-primary/10 text-primary' : 'bg-green-status/10 text-green-status'
+                        }`}>
+                          {(d as any).origem === 'portal' ? 'cliente' : (d as any).origem}
+                        </span>
                       )}
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${DOC_STATUS_COLORS[d.status] ?? 'bg-surface-container text-on-surface-variant'}`}
+                      >
+                        {d.status}
+                      </span>
+                      <a
+                        href={d.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">download</span>
+                      </a>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${DOC_STATUS_COLORS[d.status] ?? 'bg-surface-container text-on-surface-variant'
-                        }`}
-                    >
-                      {d.status}
-                    </span>
-                    <a
-                      href={d.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">download</span>
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         {/* ── Contratos ──────────────────────────────────── */}

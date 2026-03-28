@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 const createSchema = z.object({
   tipo: z.enum(['essencial', 'profissional', 'empresarial', 'startup']),
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
 
   try {
     const plano = await prisma.plano.create({ data: parsed.data })
-    import('@/lib/rag/ingest').then(({ indexarPlanos }) => indexarPlanos()).catch(() => {})
+    indexarAsync('planos', null)
     return NextResponse.json(plano, { status: 201 })
   } catch (e: any) {
     if (e.code === 'P2002') {

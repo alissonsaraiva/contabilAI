@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 export async function GET() {
   const session = await auth()
@@ -45,11 +46,8 @@ export async function PUT(req: Request) {
     create: { id: 'singleton', ...body },
   })
 
-  // Re-indexa dados do escritório e planos no RAG em background
-  import('@/lib/rag/ingest').then(async ({ indexarEscritorio, indexarPlanos }) => {
-    await indexarEscritorio(escritorio)
-    await indexarPlanos()
-  }).catch(() => {})
+  indexarAsync('escritorio', escritorio)
+  indexarAsync('planos', null)
 
   return NextResponse.json(escritorio)
 }

@@ -36,7 +36,7 @@ export default async function PortalDashboardPage() {
       where:   { id: clienteId },
       select: {
         nome: true, email: true, planoTipo: true, valorMensal: true,
-        vencimentoDia: true, status: true, dataInicio: true,
+        vencimentoDia: true, status: true, dataInicio: true, tipoContribuinte: true,
         empresa: { select: { razaoSocial: true, nomeFantasia: true, regime: true } },
       },
     }),
@@ -162,7 +162,7 @@ export default async function PortalDashboardPage() {
       {/* Ações rápidas */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { href: '/portal/empresa',       icon: 'domain',         label: 'Minha empresa',  color: 'bg-primary/10 text-primary' },
+          { href: '/portal/empresa',       icon: cliente.tipoContribuinte === 'pf' ? 'badge' : 'domain', label: cliente.tipoContribuinte === 'pf' ? 'Meus dados' : 'Minha empresa', color: 'bg-primary/10 text-primary' },
           { href: '/portal/documentos',    icon: 'folder_open',    label: 'Documentos',     color: 'bg-yellow-500/10 text-yellow-600' },
           { href: '/portal/suporte/os/nova', icon: 'add_box',      label: 'Abrir chamado',  color: 'bg-green-status/10 text-green-status' },
           { href: '/portal/suporte',       icon: 'support_agent',  label: 'Suporte',        color: 'bg-orange-status/10 text-orange-status' },

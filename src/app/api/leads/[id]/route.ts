@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 const updateSchema = z.object({
   responsavelId:  z.string().uuid().optional().nullable(),
@@ -43,7 +44,7 @@ export async function PUT(req: Request, { params }: Params) {
 
   const lead = await prisma.lead.update({ where: { id }, data: parsed.data as any })
 
-  import('@/lib/rag/ingest').then(({ indexarLead }) => indexarLead(lead)).catch(() => {})
+  indexarAsync('lead', lead)
 
   return NextResponse.json(lead)
 }

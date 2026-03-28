@@ -40,6 +40,8 @@ const INIT = {
   valorMensal: '',
   vencimentoDia: '5',
   formaPagamento: 'pix',
+  tipoContribuinte: 'pj' as 'pj' | 'pf',
+  profissao: '',
   cnpj: '',
   razaoSocial: '',
   regime: '',
@@ -88,9 +90,11 @@ export function NovoClienteDrawer() {
           valorMensal: Number(form.valorMensal),
           vencimentoDia: Number(form.vencimentoDia),
           formaPagamento: form.formaPagamento,
-          cnpj: form.cnpj || undefined,
-          razaoSocial: form.razaoSocial || undefined,
-          regime: form.regime || undefined,
+          tipoContribuinte: form.tipoContribuinte,
+          profissao: form.tipoContribuinte === 'pf' ? (form.profissao || undefined) : undefined,
+          cnpj: form.tipoContribuinte === 'pj' ? (form.cnpj || undefined) : undefined,
+          razaoSocial: form.tipoContribuinte === 'pj' ? (form.razaoSocial || undefined) : undefined,
+          regime: form.regime || (form.tipoContribuinte === 'pf' ? 'Autonomo' : undefined),
           cidade: form.cidade || undefined,
           uf: form.uf || undefined,
         }),
@@ -136,6 +140,24 @@ export function NovoClienteDrawer() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6 custom-scrollbar">
+
+            {/* Tipo contribuinte */}
+            <div className="flex gap-2">
+              {(['pj', 'pf'] as const).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => set('tipoContribuinte', t)}
+                  className={`flex-1 rounded-xl border py-2.5 text-[13px] font-semibold transition-all ${
+                    form.tipoContribuinte === t
+                      ? 'border-primary/40 bg-primary/8 text-primary ring-2 ring-primary/20'
+                      : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:border-outline-variant/40'
+                  }`}
+                >
+                  {t === 'pj' ? '🏢 Empresa / PJ' : '👤 Autônomo / PF'}
+                </button>
+              ))}
+            </div>
 
             {/* Dados pessoais */}
             <div className="space-y-1 pb-1">
@@ -193,46 +215,66 @@ export function NovoClienteDrawer() {
               {erros.email && <p className="mt-1.5 text-xs font-medium text-error">{erros.email}</p>}
             </div>
 
-            {/* Dados empresariais */}
-            <div className="space-y-1 pt-2 pb-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Dados empresariais (opcional)</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={LABEL}>CNPJ</label>
-                <input
-                  className={INPUT}
-                  placeholder="00.000.000/0001-00"
-                  value={form.cnpj}
-                  onChange={e => set('cnpj', formatCNPJ(e.target.value))}
-                  inputMode="numeric"
-                  maxLength={18}
-                />
-              </div>
-              <div>
-                <label className={LABEL}>Regime</label>
-                <div className="relative">
-                  <select className={SELECT} value={form.regime} onChange={e => set('regime', e.target.value)}>
-                    <option value="">— Selecione —</option>
-                    {REGIMES.map(r => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                  <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/50">expand_more</span>
+            {/* Dados PJ */}
+            {form.tipoContribuinte === 'pj' && (
+              <>
+                <div className="space-y-1 pt-2 pb-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Dados empresariais (opcional)</p>
                 </div>
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={LABEL}>CNPJ</label>
+                    <input
+                      className={INPUT}
+                      placeholder="00.000.000/0001-00"
+                      value={form.cnpj}
+                      onChange={e => set('cnpj', formatCNPJ(e.target.value))}
+                      inputMode="numeric"
+                      maxLength={18}
+                    />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Regime</label>
+                    <div className="relative">
+                      <select className={SELECT} value={form.regime} onChange={e => set('regime', e.target.value)}>
+                        <option value="">— Selecione —</option>
+                        {REGIMES.filter(r => r.value !== 'Autonomo').map(r => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                      </select>
+                      <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/50">expand_more</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className={LABEL}>Razão social</label>
+                  <input
+                    className={INPUT}
+                    placeholder="Nome da empresa"
+                    value={form.razaoSocial}
+                    onChange={e => set('razaoSocial', e.target.value)}
+                  />
+                </div>
+              </>
+            )}
 
-            <div>
-              <label className={LABEL}>Razão social</label>
-              <input
-                className={INPUT}
-                placeholder="Nome da empresa"
-                value={form.razaoSocial}
-                onChange={e => set('razaoSocial', e.target.value)}
-              />
-            </div>
+            {/* Dados PF */}
+            {form.tipoContribuinte === 'pf' && (
+              <>
+                <div className="space-y-1 pt-2 pb-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Dados profissionais</p>
+                </div>
+                <div>
+                  <label className={LABEL}>Profissão</label>
+                  <input
+                    className={INPUT}
+                    placeholder="Ex: Médico, Dentista, Advogado"
+                    value={form.profissao}
+                    onChange={e => set('profissao', e.target.value)}
+                  />
+                </div>
+              </>
+            )}
 
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">

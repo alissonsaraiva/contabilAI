@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -95,7 +96,7 @@ const criarLeadTool: Tool = {
       },
     })
 
-    import('@/lib/rag/ingest').then(({ indexarLead }) => indexarLead(lead)).catch(() => {})
+    indexarAsync('lead', lead)
 
     const nomeDisplay = nome ?? contatoEntrada
     return {

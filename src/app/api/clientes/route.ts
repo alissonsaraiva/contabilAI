@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 const createSchema = z.object({
   nome: z.string().min(2, 'Nome obrigatório'),
@@ -15,6 +16,8 @@ const createSchema = z.object({
   cnpj: z.string().optional(),
   razaoSocial: z.string().optional(),
   regime: z.enum(['MEI', 'SimplesNacional', 'LucroPresumido', 'LucroReal', 'Autonomo']).optional(),
+  tipoContribuinte: z.enum(['pj', 'pf']).optional().default('pj'),
+  profissao: z.string().optional(),
   cidade: z.string().optional(),
   uf: z.string().max(2).optional(),
 })
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
       },
     })
 
-    import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente)).catch(() => {})
+    indexarAsync('cliente', cliente)
 
     return NextResponse.json(cliente, { status: 201 })
   } catch (e: any) {

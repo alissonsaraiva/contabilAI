@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -32,7 +33,7 @@ const concluirTarefaTool: Tool = {
     label: 'Concluir tarefa',
     descricao: 'Marca uma tarefa como concluída ou atualiza seu status (em andamento, aguardando cliente, cancelada).',
     categoria: 'Tarefas',
-    canais: ['crm', 'whatsapp'],
+    canais: [], // DEPRECADA — usar resolverOrdemServico
   },
 
   async execute(input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {
@@ -67,7 +68,7 @@ const concluirTarefaTool: Tool = {
       },
     })
 
-    import('@/lib/rag/ingest').then(({ indexarTarefa }) => indexarTarefa(updated)).catch(() => {})
+    indexarAsync('tarefa', updated)
 
     const statusLabel: Record<string, string> = {
       pendente:          'Pendente',

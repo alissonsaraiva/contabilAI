@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
 
   const lead = await prisma.lead.update({ where: { id: leadId }, data: data as any })
 
-  import('@/lib/rag/ingest').then(({ indexarLead }) => indexarLead(lead)).catch(() => {})
+  indexarAsync('lead', lead)
 
   return NextResponse.json(lead)
 }

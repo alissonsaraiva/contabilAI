@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -57,6 +58,15 @@ const criarClienteTool: Tool = {
           enum: ['MEI', 'SimplesNacional', 'LucroPresumido', 'LucroReal', 'Autonomo'],
           description: 'Regime tributário (opcional).',
         },
+        tipoContribuinte: {
+          type: 'string',
+          enum: ['pj', 'pf'],
+          description: 'pj = tem empresa/CNPJ; pf = autônomo/profissional liberal sem empresa. Default: pj.',
+        },
+        profissao: {
+          type: 'string',
+          description: 'Profissão do cliente PF (ex: Médico, Dentista, Advogado). Obrigatório quando tipoContribuinte = pf.',
+        },
         cidade: {
           type: 'string',
           description: 'Cidade (opcional).',
@@ -86,14 +96,18 @@ const criarClienteTool: Tool = {
     const valorMensal    = input.valorMensal    as number
     const vencimentoDia  = input.vencimentoDia  as number
     const formaPagamento = input.formaPagamento as string
-    const cnpj           = input.cnpj           as string | undefined
-    const razaoSocial    = input.razaoSocial    as string | undefined
-    const regime         = input.regime         as string | undefined
-    const cidade         = input.cidade         as string | undefined
-    const leadId         = input.leadId         as string | undefined
+    const cnpj             = input.cnpj             as string | undefined
+    const razaoSocial      = input.razaoSocial      as string | undefined
+    const regime           = input.regime           as string | undefined
+    const tipoContribuinte = (input.tipoContribuinte as string | undefined) ?? 'pj'
+    const profissao        = input.profissao        as string | undefined
+    const cidade           = input.cidade           as string | undefined
+    const leadId           = input.leadId           as string | undefined
 
     try {
-      const temEmpresa = !!(cnpj || razaoSocial || regime)
+      // PF = autônomo sem empresa; PJ = tem empresa/CNPJ
+      const isPF       = tipoContribuinte === 'pf' || regime === 'Autonomo'
+      const temEmpresa = !isPF && !!(cnpj || razaoSocial || regime)
 
       const cliente = await prisma.$transaction(async (tx) => {
         const novoCliente = await tx.cliente.create({
@@ -102,15 +116,17 @@ const criarClienteTool: Tool = {
             cpf,
             email,
             telefone,
-            whatsapp:       telefone,
-            planoTipo:      planoTipo      as never,
+            whatsapp:         telefone,
+            planoTipo:        planoTipo        as never,
             valorMensal,
             vencimentoDia,
-            formaPagamento: formaPagamento as never,
-            status:         'ativo',
-            dataInicio:     new Date(),
-            ...(cidade && { cidade }),
-            ...(leadId && { leadId }),
+            formaPagamento:   formaPagamento   as never,
+            tipoContribuinte: tipoContribuinte as never,
+            status:           'ativo',
+            dataInicio:       new Date(),
+            ...(cidade    && { cidade }),
+            ...(leadId    && { leadId }),
+            ...(profissao && { profissao }),
           },
         })
 
@@ -132,7 +148,7 @@ const criarClienteTool: Tool = {
         return novoCliente
       })
 
-      import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(cliente as never)).catch(() => {})
+      indexarAsync('cliente', cliente)
 
       return {
         sucesso: true,

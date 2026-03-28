@@ -6,6 +6,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import { criarClienteDeContrato } from '@/lib/clientes/criar-de-contrato'
 import type { PlanoTipo, FormaPagamento } from '@prisma/client'
 
@@ -78,11 +79,15 @@ export async function POST(req: Request) {
 
   // ── Converte lead em cliente + empresa automaticamente ───────────────────
   const lead = contrato.lead
-  const dados = lead.dadosJson as Record<string, string> | null
-  const nome = dados?.['Nome completo'] ?? lead.contatoEntrada
-  const cpf = dados?.['CPF']
-  const email = dados?.['E-mail'] ?? lead.contatoEntrada
-  const telefone = dados?.['Telefone'] ?? lead.contatoEntrada
+  const dados = lead.dadosJson as Record<string, unknown> | null
+  const nome = (dados?.['Nome completo'] as string | undefined) ?? lead.contatoEntrada
+  const cpf = dados?.['CPF'] as string | undefined
+  const email = (dados?.['E-mail'] as string | undefined) ?? lead.contatoEntrada
+  const telefone = (dados?.['Telefone'] as string | undefined) ?? lead.contatoEntrada
+
+  const simTipo = (dados?.simulador as Record<string, string> | undefined)?.tipo
+  const tipoContribuinte = simTipo === 'liberal' ? 'pf' as const : 'pj' as const
+  const profissao = dados?.['Profissão'] as string | undefined
 
   if (nome && cpf && email) {
     try {
@@ -98,10 +103,12 @@ export async function POST(req: Request) {
               vencimentoDia: contrato.vencimentoDia,
               formaPagamento: contrato.formaPagamento as FormaPagamento,
               dataInicio: agora,
-              cnpj:         dados?.['CNPJ'],
-              razaoSocial:  dados?.['Razão Social'],
-              nomeFantasia: dados?.['Nome Fantasia'],
-              cidade:       dados?.['Cidade'],
+              tipoContribuinte,
+              profissao,
+              cnpj:         dados?.['CNPJ'] as string | undefined,
+              razaoSocial:  dados?.['Razão Social'] as string | undefined,
+              nomeFantasia: dados?.['Nome Fantasia'] as string | undefined,
+              cidade:       dados?.['Cidade'] as string | undefined,
               responsavelId: lead.responsavelId,
             })
             await tx.contrato.update({ where: { id: contrato.id }, data: { clienteId: r.clienteId } })
@@ -120,9 +127,7 @@ export async function POST(req: Request) {
       }
 
       if (cliente) {
-        import('@/lib/rag/ingest')
-          .then(({ indexarCliente }) => indexarCliente(cliente!))
-          .catch(() => {})
+        indexarAsync('cliente', cliente)
         import('@/lib/email/boas-vindas')
           .then(({ enviarBoasVindas }) =>
             enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })

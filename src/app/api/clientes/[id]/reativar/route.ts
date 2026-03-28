@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -46,7 +47,7 @@ export async function POST(_req: Request, { params }: Params) {
     }),
   ])
 
-  import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente(atualizado)).catch(() => {})
+  indexarAsync('cliente', atualizado)
 
   return NextResponse.json({ ok: true, status: 'ativo' })
 }

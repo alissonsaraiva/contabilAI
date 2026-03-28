@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -28,7 +29,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
   const plano = await prisma.plano.update({ where: { id }, data: parsed.data })
-  import('@/lib/rag/ingest').then(({ indexarPlanos }) => indexarPlanos()).catch(() => {})
+  indexarAsync('planos', null)
   return NextResponse.json(plano)
 }
 

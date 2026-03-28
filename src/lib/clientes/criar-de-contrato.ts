@@ -7,7 +7,7 @@
  *
  * Garante que toda conversão cria o par Cliente+Empresa atomicamente.
  */
-import type { PrismaClient, PlanoTipo, FormaPagamento, StatusCliente } from '@prisma/client'
+import type { PrismaClient, PlanoTipo, FormaPagamento, StatusCliente, TipoContribuinte } from '@prisma/client'
 
 type PrismaTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0]
 
@@ -24,7 +24,9 @@ export type DadosConversao = {
   dataInicio: Date
   responsavelId?: string | null
   cidade?: string | null
-  // Dados da empresa (vindos de dadosJson do lead)
+  tipoContribuinte?: TipoContribuinte | null
+  profissao?: string | null
+  // Dados da empresa (vindos de dadosJson do lead) — só PJ
   cnpj?: string | null
   razaoSocial?: string | null
   nomeFantasia?: string | null
@@ -57,14 +59,16 @@ export async function criarClienteDeContrato(
                         : dados.valorMensal.toNumber(),
       vencimentoDia:  dados.vencimentoDia,
       formaPagamento: dados.formaPagamento,
-      status:         'ativo' as StatusCliente,
-      dataInicio:     dados.dataInicio,
+      status:           'ativo' as StatusCliente,
+      dataInicio:       dados.dataInicio,
+      tipoContribuinte: dados.tipoContribuinte ?? 'pj',
       ...(dados.cidade         && { cidade: dados.cidade }),
+      ...(dados.profissao      && { profissao: dados.profissao }),
       ...(dados.responsavelId  && { responsavelId: dados.responsavelId }),
     },
   })
 
-  const temEmpresa = !!(dados.cnpj || dados.razaoSocial || dados.nomeFantasia)
+  const temEmpresa = dados.tipoContribuinte !== 'pf' && !!(dados.cnpj || dados.razaoSocial || dados.nomeFantasia)
   let empresaId: string | null = null
 
   if (temEmpresa) {

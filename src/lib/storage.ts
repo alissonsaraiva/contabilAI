@@ -60,9 +60,10 @@ export async function deletarArquivo(key: string): Promise<void> {
 }
 
 export const storageKeys = {
-  documentoLead: (leadId: string, tipo: string) => `leads/${leadId}/${tipo}`,
-  documentoCliente: (clienteId: string, tipo: string) => `clientes/${clienteId}/${tipo}`,
-  contratoLead: (leadId: string) => `contratos/${leadId}/contrato.pdf`,
-  logoEscritorio: () => `escritorio/logo`,
-  faviconEscritorio: () => `escritorio/favicon`,
+  documentoLead:    (leadId: string, nome: string)    => `leads/${leadId}/docs/${nome}`,
+  documentoCliente: (clienteId: string, nome: string) => `clientes/${clienteId}/docs/${nome}`,
+  documentoEmpresa: (empresaId: string, nome: string) => `empresas/${empresaId}/docs/${nome}`,
+  contratoLead:     (leadId: string)                  => `contratos/${leadId}/contrato.pdf`,
+  logoEscritorio:   ()                                => `escritorio/logo`,
+  faviconEscritorio:()                                => `escritorio/favicon`,
 }

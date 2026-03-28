@@ -21,8 +21,10 @@ import './listar-planos'
 import './resumo-dashboard'
 
 // ─── Tools internas — Escrita CRM ─────────────────────────────────────────────
+// criar-tarefa e concluir-tarefa deprecadas — usar criarOrdemServico
 import './criar-tarefa'
 import './concluir-tarefa'
+import './criar-ordem-servico'
 import './registrar-interacao'
 import './atualizar-status-lead'
 import './avancar-lead'

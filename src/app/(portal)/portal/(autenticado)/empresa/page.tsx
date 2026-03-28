@@ -49,66 +49,121 @@ export default async function PortalEmpresaPage() {
 
   const empresa = cliente.empresa
   const plano   = cliente.contratos[0]
+  const isPF    = cliente.tipoContribuinte === 'pf'
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-headline text-2xl font-semibold text-on-surface">Minha Empresa</h1>
+        <h1 className="font-headline text-2xl font-semibold text-on-surface">
+          {isPF ? 'Meus Dados' : 'Minha Empresa'}
+        </h1>
         <p className="text-sm text-on-surface-variant/70 mt-1">
-          Dados cadastrais e composição societária da sua empresa.
+          {isPF
+            ? 'Seus dados cadastrais e plano contratado.'
+            : 'Dados cadastrais e composição societária da sua empresa.'}
         </p>
       </div>
 
-      {/* Dados da empresa */}
-      <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-            <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-              domain
-            </span>
+      {/* PJ: dados da empresa */}
+      {!isPF && (
+        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                domain
+              </span>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-semibold text-on-surface">
+                {empresa?.razaoSocial ?? empresa?.nomeFantasia ?? 'Empresa não identificada'}
+              </h2>
+              {empresa?.nomeFantasia && empresa.razaoSocial !== empresa.nomeFantasia && (
+                <p className="text-[12px] text-on-surface-variant/60">{empresa.nomeFantasia}</p>
+              )}
+            </div>
           </div>
           <div>
-            <h2 className="text-[15px] font-semibold text-on-surface">
-              {empresa?.razaoSocial ?? empresa?.nomeFantasia ?? 'Empresa não identificada'}
-            </h2>
-            {empresa?.nomeFantasia && empresa.razaoSocial !== empresa.nomeFantasia && (
-              <p className="text-[12px] text-on-surface-variant/60">{empresa.nomeFantasia}</p>
+            <InfoRow label="CNPJ" value={empresa?.cnpj ? formatCNPJ(empresa.cnpj) : undefined} />
+            <InfoRow label="Regime tributário" value={empresa?.regime ? REGIME_LABELS[empresa.regime] ?? empresa.regime : undefined} />
+            <InfoRow label="Status" value={empresa?.status ?? 'ativo'} />
+            {!empresa?.cnpj && !empresa?.razaoSocial && (
+              <p className="text-[13px] text-on-surface-variant/50 py-3">
+                Dados da empresa não preenchidos. Entre em contato com o escritório para atualizar.
+              </p>
             )}
           </div>
-        </div>
-        <div>
-          <InfoRow label="CNPJ" value={empresa?.cnpj ? formatCNPJ(empresa.cnpj) : undefined} />
-          <InfoRow label="Regime tributário" value={empresa?.regime ? REGIME_LABELS[empresa.regime] ?? empresa.regime : undefined} />
-          <InfoRow label="Status" value={empresa?.status ?? 'ativo'} />
-          {!empresa?.cnpj && !empresa?.razaoSocial && (
-            <p className="text-[13px] text-on-surface-variant/50 py-3">
-              Dados da empresa não preenchidos. Entre em contato com o escritório para atualizar.
-            </p>
-          )}
-        </div>
-      </Card>
+        </Card>
+      )}
 
-      {/* Titular */}
-      <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">person</span>
-          <h2 className="text-[14px] font-semibold text-on-surface">Titular / Responsável</h2>
-        </div>
-        <div>
-          <InfoRow label="Nome" value={cliente.nome} />
-          <InfoRow label="CPF" value={cliente.cpf} />
-          <InfoRow label="E-mail" value={cliente.email} />
-          <InfoRow label="Telefone" value={cliente.telefone} />
-          {cliente.cep && (
-            <InfoRow
-              label="Endereço"
-              value={[cliente.logradouro, cliente.numero, cliente.bairro, cliente.cidade, cliente.uf]
-                .filter(Boolean)
-                .join(', ')}
-            />
-          )}
-        </div>
-      </Card>
+      {/* PF: dados profissionais */}
+      {isPF && (
+        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                badge
+              </span>
+            </div>
+            <div>
+              <h2 className="text-[15px] font-semibold text-on-surface">{cliente.nome}</h2>
+              {cliente.profissao && (
+                <p className="text-[12px] text-on-surface-variant/60">{cliente.profissao}</p>
+              )}
+            </div>
+          </div>
+          <div>
+            <InfoRow label="CPF" value={cliente.cpf} />
+            <InfoRow label="Profissão" value={cliente.profissao} />
+            <InfoRow label="Regime" value={REGIME_LABELS['Autonomo']} />
+          </div>
+        </Card>
+      )}
+
+      {/* Titular / Responsável (só PJ) */}
+      {!isPF && (
+        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">person</span>
+            <h2 className="text-[14px] font-semibold text-on-surface">Titular / Responsável</h2>
+          </div>
+          <div>
+            <InfoRow label="Nome" value={cliente.nome} />
+            <InfoRow label="CPF" value={cliente.cpf} />
+            <InfoRow label="E-mail" value={cliente.email} />
+            <InfoRow label="Telefone" value={cliente.telefone} />
+            {cliente.cep && (
+              <InfoRow
+                label="Endereço"
+                value={[cliente.logradouro, cliente.numero, cliente.bairro, cliente.cidade, cliente.uf]
+                  .filter(Boolean)
+                  .join(', ')}
+              />
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* PF: contato */}
+      {isPF && (
+        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">contact_phone</span>
+            <h2 className="text-[14px] font-semibold text-on-surface">Contato</h2>
+          </div>
+          <div>
+            <InfoRow label="E-mail" value={cliente.email} />
+            <InfoRow label="Telefone" value={cliente.telefone} />
+            {cliente.cep && (
+              <InfoRow
+                label="Endereço"
+                value={[cliente.logradouro, cliente.numero, cliente.bairro, cliente.cidade, cliente.uf]
+                  .filter(Boolean)
+                  .join(', ')}
+              />
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Plano contratado */}
       {plano && (
@@ -123,10 +178,7 @@ export default async function PortalEmpresaPage() {
               label="Valor mensal"
               value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(plano.valorMensal))}
             />
-            <InfoRow
-              label="Vencimento"
-              value={`Dia ${cliente.vencimentoDia}`}
-            />
+            <InfoRow label="Vencimento" value={`Dia ${cliente.vencimentoDia}`} />
             {plano.assinadoEm && (
               <InfoRow
                 label="Contrato assinado"
@@ -137,8 +189,8 @@ export default async function PortalEmpresaPage() {
         </Card>
       )}
 
-      {/* Quadro societário */}
-      {empresa?.socios && empresa.socios.length > 0 && (
+      {/* Quadro societário (só PJ) */}
+      {!isPF && empresa?.socios && empresa.socios.length > 0 && (
         <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">group</span>

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { sendText, sendMedia, type EvolutionConfig } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -158,16 +159,14 @@ export async function POST(req: Request, { params }: Params) {
   })
 
   // Indexa no RAG (fire-and-forget)
-  import('@/lib/rag/ingest').then(({ indexarInteracao }) =>
-    indexarInteracao({
-      id: conversa!.id,
-      leadId: id,
-      tipo: 'whatsapp_enviado',
-      titulo: 'WhatsApp enviado pelo escritório',
-      conteudo,
-      criadoEm: new Date(),
-    })
-  ).catch(() => {})
+  indexarAsync('interacao', {
+    id:       conversa!.id,
+    leadId:   id,
+    tipo:     'whatsapp_enviado',
+    titulo:   'WhatsApp enviado pelo escritório',
+    conteudo,
+    criadoEm: new Date(),
+  })
 
   if (!sendResult.ok) {
     return NextResponse.json(

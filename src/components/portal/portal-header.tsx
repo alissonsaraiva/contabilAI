@@ -13,17 +13,22 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
-const NAV_ITEMS = [
-  { href: '/portal/dashboard',     icon: 'home',         label: 'Início' },
-  { href: '/portal/empresa',       icon: 'domain',       label: 'Empresa' },
-  { href: '/portal/documentos',    icon: 'folder_open',  label: 'Documentos' },
-  { href: '/portal/suporte',       icon: 'support_agent',label: 'Suporte' },
-  { href: '/portal/configuracoes', icon: 'settings',     label: 'Config.' },
-]
+type Props = {
+  user: { name?: string | null; email?: string | null }
+  nomeEscritorio: string
+  tipoContribuinte?: 'pj' | 'pf'
+}
 
-type Props = { user: { name?: string | null; email?: string | null }; nomeEscritorio: string }
+export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj' }: Props) {
+  const isPF = tipoContribuinte === 'pf'
 
-export function PortalHeader({ user, nomeEscritorio }: Props) {
+  const NAV_ITEMS = [
+    { href: '/portal/dashboard',     icon: 'home',                        label: 'Início' },
+    { href: '/portal/empresa',       icon: isPF ? 'badge' : 'domain',     label: isPF ? 'Dados' : 'Empresa' },
+    { href: '/portal/documentos',    icon: 'folder_open',                 label: 'Documentos' },
+    { href: '/portal/suporte',       icon: 'support_agent',               label: 'Suporte' },
+    { href: '/portal/configuracoes', icon: 'settings',                    label: 'Config.' },
+  ]
   const pathname = usePathname()
 
   return (

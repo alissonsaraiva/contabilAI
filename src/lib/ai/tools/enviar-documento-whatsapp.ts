@@ -1,23 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { sendMedia } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { prepararEntregaWhatsApp } from '@/lib/whatsapp/entregar-documento'
+import { registrarInteracao } from '@/lib/services/interacoes'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
-import type { MediaType } from '@/lib/evolution'
 
 function buildRemoteJid(phone: string): string {
   const digits      = phone.replace(/\D/g, '')
   const withCountry = digits.startsWith('55') ? digits : `55${digits}`
   return `${withCountry}@s.whatsapp.net`
-}
-
-/** Infere MediaType a partir do mimeType do arquivo */
-function inferirMediaType(mimeType: string | null): MediaType {
-  if (!mimeType) return 'document'
-  if (mimeType.startsWith('image/')) return 'image'
-  if (mimeType.startsWith('video/')) return 'video'
-  if (mimeType.startsWith('audio/')) return 'audio'
-  return 'document'
 }
 
 const enviarDocumentoWhatsAppTool: Tool = {
@@ -130,37 +122,35 @@ const enviarDocumentoWhatsAppTool: Tool = {
     const rawKey    = row.evolutionApiKey
     const apiKey    = isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
     const remoteJid = buildRemoteJid(phone)
-    const mediaType = inferirMediaType(documento.mimeType)
 
-    // 5. Envia o documento via Evolution API (URL pública direta)
+    // 5. Prepara entrega (aplica estratégia configurada: direto | senha | link_portal)
+    const entrega = await prepararEntregaWhatsApp(
+      { id: documento.id, nome: documento.nome, url: documento.url, mimeType: documento.mimeType, tipo: documento.tipo },
+      { mensagem },
+    )
+
     const sendResult = await sendMedia(
       { baseUrl: row.evolutionApiUrl, apiKey, instance: row.evolutionInstance },
       remoteJid,
-      {
-        mediatype: mediaType,
-        mimetype:  documento.mimeType ?? 'application/octet-stream',
-        fileName:  documento.nome,
-        caption:   mensagem,
-        mediaUrl:  documento.url,
-      },
+      entrega.sendMediaParams,
     )
 
     // 6. Registra como interação
-    await prisma.interacao.create({
-      data: {
-        clienteId: destClienteId ?? undefined,
-        leadId:    destLeadId    ?? undefined,
-        tipo:      'whatsapp_enviado',
-        titulo:    `Documento enviado via WhatsApp: ${documento.nome}`,
-        conteudo:  mensagem,
-        metadados: {
-          documentoId:     documento.id,
-          documentoNome:   documento.nome,
-          documentoTipo:   documento.tipo,
-          registradoPorAI: true,
-          solicitante:     ctx.solicitanteAI,
-        },
-      } as never,
+    await registrarInteracao({
+      clienteId: destClienteId ?? undefined,
+      leadId:    destLeadId    ?? undefined,
+      tipo:      'whatsapp_enviado',
+      titulo:    `Documento enviado via WhatsApp: ${documento.nome}`,
+      conteudo:  mensagem,
+      origem:    'usuario',
+      metadados: {
+        documentoId:     documento.id,
+        documentoNome:   documento.nome,
+        documentoTipo:   documento.tipo,
+        estrategiaEntrega: entrega.estrategia,
+        registradoPorAI: true,
+        solicitante:     ctx.solicitanteAI,
+      },
     })
 
     if (!sendResult.ok) {

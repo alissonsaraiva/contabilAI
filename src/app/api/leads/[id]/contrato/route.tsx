@@ -4,7 +4,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { uploadArquivo, storageKeys } from '@/lib/storage'
 import { ContratoPDF } from '@/lib/pdf/contrato-template'
 import { criarClienteDeContrato } from '@/lib/clientes/criar-de-contrato'
-// RAG: indexarContrato é chamado via dynamic import em background
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import React from 'react'
 import type { PlanoTipo, FormaPagamento } from '@prisma/client'
 
@@ -169,9 +169,7 @@ export async function POST(req: Request, { params }: Params) {
       }
 
       if (cliente) {
-        import('@/lib/rag/ingest')
-          .then(({ indexarCliente }) => indexarCliente(cliente!))
-          .catch(() => {})
+        indexarAsync('cliente', cliente)
         import('@/lib/email/boas-vindas')
           .then(({ enviarBoasVindas }) =>
             enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })
@@ -183,21 +181,18 @@ export async function POST(req: Request, { params }: Params) {
     }
   }
 
-  // Indexa o contrato no RAG em background com documentoId para permitir re-indexação idempotente
-  import('@/lib/rag/ingest').then(async ({ indexarContrato }) => {
-    await indexarContrato({
-      id: contrato.id,
-      leadId: id,
-      dados,
-      lead,
-      plano,
-      valor,
-      vencimento,
-      formaPagamento,
-      agora,
-      assinatura: assinatura.trim(),
-    })
-  }).catch(err => console.error('[rag] Erro ao indexar contrato:', err))
+  indexarAsync('contrato', {
+    id: contrato.id,
+    leadId: id,
+    dados,
+    lead,
+    plano,
+    valor,
+    vencimento,
+    formaPagamento,
+    agora,
+    assinatura: assinatura.trim(),
+  })
 
   return NextResponse.json({ ok: true, pdfUrl, contratoId: contrato.id })
 }

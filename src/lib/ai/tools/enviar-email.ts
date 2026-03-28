@@ -1,6 +1,4 @@
-import { prisma } from '@/lib/prisma'
-import { sendEmail } from '@/lib/email/send'
-import { wrapEmailHtml } from '@/lib/email/template'
+import { enviarEmailComHistorico } from '@/lib/email/com-historico'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -74,49 +72,22 @@ const enviarEmailTool: Tool = {
       }
     }
 
-    // Busca nome do escritório para o template (fire-and-forget se falhar)
-    const escritorio = await prisma.escritorio.findFirst({ select: { nome: true } }).catch(() => null)
-    const corpoHtml  = wrapEmailHtml(corpo, { nomeEscritorio: escritorio?.nome ?? 'ContabAI', assunto })
-
-    const resultado = await sendEmail({ para, assunto, corpo: corpoHtml })
+    const resultado = await enviarEmailComHistorico({
+      para,
+      assunto,
+      corpo,
+      clienteId: clienteId ?? undefined,
+      leadId:    leadId    ?? undefined,
+      origem:    'usuario',
+      metadados: { registradoPorAI: true, solicitante: ctx.solicitanteAI },
+    })
 
     if (!resultado.ok) {
       return {
         sucesso: false,
-        erro: resultado.erro,
-        resumo: `Falha ao enviar e-mail para ${para}: ${resultado.erro}`,
+        erro:    resultado.erro,
+        resumo:  `Falha ao enviar e-mail para ${para}: ${resultado.erro}`,
       }
-    }
-
-    await prisma.interacao.create({
-      data: {
-        clienteId: clienteId ?? undefined,
-        leadId:    leadId    ?? undefined,
-        tipo:      'email_enviado',
-        titulo:    assunto,
-        conteudo:  corpo,
-        metadados: {
-          para,
-          messageId:       resultado.messageId,
-          registradoPorAI: true,
-          solicitante:     ctx.solicitanteAI,
-        },
-      } as never,
-    })
-
-    // Indexa no RAG (fire-and-forget)
-    if (clienteId || leadId) {
-      import('@/lib/rag/ingest').then(({ indexarInteracao }) =>
-        indexarInteracao({
-          id:        resultado.messageId ?? 'email',
-          clienteId: clienteId ?? undefined,
-          leadId:    leadId    ?? undefined,
-          tipo:      'email_enviado',
-          titulo:    assunto,
-          conteudo:  corpo,
-          criadoEm:  new Date(),
-        })
-      ).catch(() => {})
     }
 
     return {

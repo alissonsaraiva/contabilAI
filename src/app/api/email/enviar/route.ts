@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { sendEmail } from '@/lib/email/send'
+import { enviarEmailComHistorico } from '@/lib/email/com-historico'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -28,36 +27,25 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
   const { clienteId, leadId, para, assunto, corpo, anexos } = parsed.data
+  const usuarioId = (session.user as any).id as string | undefined
 
-  // Envia via Hostinger SMTP
-  const resultado = await sendEmail({ para, assunto, corpo, anexos })
+  const resultado = await enviarEmailComHistorico({
+    para,
+    assunto,
+    corpo,
+    clienteId,
+    leadId,
+    usuarioId,
+    origem: 'usuario',
+    anexos: anexos?.map(a => ({ nome: a.nome, url: a.url, mimeType: a.mimeType })),
+    metadados: {
+      anexos: anexos?.map(a => ({ nome: a.nome, url: a.url, mimeType: a.mimeType })) ?? [],
+    },
+  })
+
   if (!resultado.ok) {
     return NextResponse.json({ error: resultado.erro }, { status: 500 })
   }
 
-  // Salva como interação
-  const interacao = await prisma.interacao.create({
-    data: {
-      tipo:      'email_enviado',
-      titulo:    assunto,
-      conteudo:  corpo,
-      usuarioId: (session.user as any).id,
-      clienteId: clienteId ?? undefined,
-      leadId:    leadId    ?? undefined,
-      metadados: {
-        para,
-        assunto,
-        messageId: resultado.messageId,
-        status:    'enviado',
-        anexos:    anexos?.map(a => ({ nome: a.nome, url: a.url, mimeType: a.mimeType })) ?? [],
-      },
-    } as any,
-  })
-
-  // Indexa no RAG (fire-and-forget — crm + portal)
-  import('@/lib/rag/ingest')
-    .then(({ indexarInteracao }) => indexarInteracao(interacao))
-    .catch(() => {})
-
-  return NextResponse.json({ ok: true, messageId: resultado.messageId, interacaoId: interacao.id })
+  return NextResponse.json({ ok: true, messageId: resultado.messageId })
 }
