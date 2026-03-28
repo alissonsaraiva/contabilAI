@@ -119,6 +119,11 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
   useEffect(() => {
     if (!open) {
       isFirstLoadRef.current = true
+      // Libera object URL pendente se drawer fechar sem o usuário remover o arquivo
+      setArquivo(prev => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+        return null
+      })
       return
     }
     carregar()

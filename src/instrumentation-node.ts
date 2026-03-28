@@ -1,5 +1,15 @@
 // Código exclusivo para o runtime Node.js — importado condicionalmente em instrumentation.ts
 
+// Variáveis críticas de segurança — falha rápida se ausentes em produção
+if (process.env.NODE_ENV === 'production') {
+  const REQUIRED = ['AUTH_SECRET', 'DATABASE_URL'] as const
+  const faltando = REQUIRED.filter(k => !process.env[k])
+  if (faltando.length > 0) {
+    console.error(`[startup] ERRO CRÍTICO: variáveis de ambiente obrigatórias ausentes: ${faltando.join(', ')}`)
+    process.exit(1)
+  }
+}
+
 const base = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
 
 const EMAIL_INTERVAL_MS = 2 * 60 * 1000

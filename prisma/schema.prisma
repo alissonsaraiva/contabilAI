@@ -611,6 +611,7 @@ model ConversaIA {
   @@index([clienteId, canal])
   @@index([socioId, canal])
   @@index([atualizadaEm])
+  @@index([canal, atualizadaEm])
   @@map("conversas_ia")
 }
 

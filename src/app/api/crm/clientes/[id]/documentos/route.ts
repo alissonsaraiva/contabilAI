@@ -36,6 +36,11 @@ export async function POST(req: Request, { params }: Params) {
 
   if (!file) return NextResponse.json({ error: 'Nenhum arquivo enviado' }, { status: 400 })
 
+  const MAX_SIZE = 25 * 1024 * 1024 // 25 MB (CRM staff)
+  if (file.size > MAX_SIZE) {
+    return NextResponse.json({ error: 'Arquivo muito grande. O limite é 25 MB.' }, { status: 413 })
+  }
+
   const bytes  = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
 

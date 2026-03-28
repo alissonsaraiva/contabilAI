@@ -65,6 +65,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Limite de mensagens atingido. Tente novamente em alguns minutos.' }, { status: 429 })
   }
 
+  // Para sócios: re-valida no DB que o sócio ainda pertence à empresa do token
+  if (isSocio) {
+    const socioAtivo = await prisma.socio.findFirst({
+      where: { id: sessionUserId, empresaId, portalAccess: true },
+      select: { id: true },
+    })
+    if (!socioAtivo) {
+      return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 403 })
+    }
+  }
+
   // Busca dados do titular da empresa para contexto da IA
   const clienteTitular = await prisma.cliente.findUnique({
     where:  { empresaId },

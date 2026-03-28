@@ -36,6 +36,11 @@ export async function POST(req: Request) {
   if (!canal) return NextResponse.json({ error: 'canal obrigatório' }, { status: 400 })
   if (!tipoConhecimento) return NextResponse.json({ error: 'tipo obrigatório' }, { status: 400 })
 
+  const MAX_PDF_SIZE = 20 * 1024 * 1024 // 20 MB
+  if (file.size > MAX_PDF_SIZE) {
+    return NextResponse.json({ error: 'PDF muito grande. O limite é 20 MB.' }, { status: 413 })
+  }
+
   let buffer: Buffer
   try {
     buffer = Buffer.from(await file.arrayBuffer())
