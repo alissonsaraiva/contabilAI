@@ -26,6 +26,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/crm/prospeccao', icon: 'contact_phone', label: 'Prospecção' },
       { href: '/crm/leads',      icon: 'rocket_launch', label: 'Onboarding' },
       { href: '/crm/clientes',   icon: 'group',         label: 'Clientes' },
+      { href: '/crm/empresas',   icon: 'domain',        label: 'Empresas' },
     ],
   },
   {

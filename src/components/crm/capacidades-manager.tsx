@@ -54,7 +54,7 @@ export function CapacidadesManager({ capacidades, desabilitadasIniciais, canaisO
   const categorias = [...new Set(capacidades.map(t => t.categoria))]
 
   // Grupos abertos/fechados — todos abertos por padrão
-  const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set(categorias))
+  const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set())
 
   function toggleGrupo(cat: string) {
     setGruposAbertos(prev => {

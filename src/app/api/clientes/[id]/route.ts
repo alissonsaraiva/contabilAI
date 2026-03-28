@@ -23,20 +23,45 @@ export async function PUT(req: Request, { params }: Params) {
 
   const { id } = await params
   const body = await req.json()
-  const cliente = await prisma.cliente.update({
-    where: { id },
-    data: body,
-    include: { empresa: { include: { socios: true } } },
+
+  // Separar campos do Cliente dos campos da Empresa
+  const { cnpj, razaoSocial, nomeFantasia, regime, ...clienteData } = body
+  const empresaFields = { cnpj: cnpj || null, razaoSocial: razaoSocial || null, nomeFantasia: nomeFantasia || null, regime: regime || null }
+  const temCamposEmpresa = 'cnpj' in body || 'razaoSocial' in body || 'nomeFantasia' in body || 'regime' in body
+
+  const cliente = await prisma.$transaction(async (tx) => {
+    const updated = await tx.cliente.update({
+      where: { id },
+      data: clienteData,
+      include: { empresa: { include: { socios: true } } },
+    })
+
+    if (temCamposEmpresa) {
+      if (updated.empresaId) {
+        await tx.empresa.update({ where: { id: updated.empresaId }, data: empresaFields })
+      } else {
+        // Cliente sem empresa ainda — cria e vincula
+        const empresa = await tx.empresa.create({ data: empresaFields })
+        await tx.cliente.update({ where: { id }, data: { empresaId: empresa.id } })
+      }
+    }
+
+    return tx.cliente.findUnique({
+      where: { id },
+      include: { empresa: { include: { socios: true } } },
+    })
   })
 
-  import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente({
-    ...cliente,
-    cnpj: cliente.empresa?.cnpj ?? null,
-    razaoSocial: cliente.empresa?.razaoSocial ?? null,
-    nomeFantasia: cliente.empresa?.nomeFantasia ?? null,
-    regime: cliente.empresa?.regime ?? null,
-    socios: cliente.empresa?.socios ?? [],
-  })).catch(() => {})
+  if (cliente) {
+    import('@/lib/rag/ingest').then(({ indexarCliente }) => indexarCliente({
+      ...cliente,
+      cnpj: cliente.empresa?.cnpj ?? null,
+      razaoSocial: cliente.empresa?.razaoSocial ?? null,
+      nomeFantasia: cliente.empresa?.nomeFantasia ?? null,
+      regime: cliente.empresa?.regime ?? null,
+      socios: cliente.empresa?.socios ?? [],
+    })).catch(() => {})
+  }
 
   return NextResponse.json(cliente)
 }
