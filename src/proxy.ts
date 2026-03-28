@@ -18,9 +18,11 @@ const PREFIX       = isProduction ? '__Secure-' : ''
 const CRM_COOKIE    = `${PREFIX}authjs.session-token`
 const PORTAL_COOKIE = `${PREFIX}portal.session-token`
 
-const CRM_URL    = process.env.NEXT_PUBLIC_CRM_URL    ?? ''
-const PORTAL_URL = process.env.NEXT_PUBLIC_PORTAL_URL ?? ''
-const ROOT_URL   = process.env.NEXT_PUBLIC_APP_URL    ?? ''
+// AUTH_URL é server-side (disponível em runtime no Edge); NEXT_PUBLIC_* são baked no build
+// e ficam undefined se não passados como build arg — por isso usar AUTH_URL aqui
+const CRM_URL    = process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_CRM_URL ?? ''
+const PORTAL_URL = CRM_URL.replace('://crm.', '://portal.') || (process.env.NEXT_PUBLIC_PORTAL_URL ?? '')
+const ROOT_URL   = process.env.NEXT_PUBLIC_APP_URL ?? ''
 
 async function getToken(req: NextRequest, cookieName: string) {
   const value = req.cookies.get(cookieName)?.value
@@ -41,7 +43,7 @@ export default async function middleware(req: NextRequest) {
   const hostname = req.headers.get('host') ?? ''
 
   // ── Isolamento por subdomínio (produção apenas) ─────────────────────────
-  if (isProduction && CRM_URL && PORTAL_URL) {
+  if (isProduction && CRM_URL) {
     const isCrm    = hostname.startsWith('crm.')
     const isPortal = hostname.startsWith('portal.')
 
