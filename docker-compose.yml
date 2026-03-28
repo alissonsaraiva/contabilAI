@@ -41,10 +41,14 @@ services:
       - contabil_net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.contabai.rule=Host(`srv1524170.hstgr.cloud`)"
+      - "traefik.http.routers.contabai-http.rule=Host(`avos.digital`) || Host(`www.avos.digital`) || Host(`crm.avos.digital`) || Host(`portal.avos.digital`)"
+      - "traefik.http.routers.contabai-http.entrypoints=web"
+      - "traefik.http.routers.contabai-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.contabai.rule=Host(`avos.digital`) || Host(`www.avos.digital`) || Host(`crm.avos.digital`) || Host(`portal.avos.digital`)"
       - "traefik.http.routers.contabai.entrypoints=websecure"
       - "traefik.http.routers.contabai.tls.certresolver=letsencrypt"
-      - "traefik.http.services.contabai.loadbalancer.server.url=http://127.0.0.1:3000"
+      - "traefik.http.services.contabai.loadbalancer.server.port=3000"
 
 networks:
   contabil_net:
