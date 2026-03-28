@@ -32,7 +32,11 @@ const CANAL_BADGE: Record<Canal, string> = {
   onboarding: 'bg-orange-500/10 text-orange-700',
 }
 const CATEGORIA_ICON: Record<string, string> = {
-  'Tarefas': 'task_alt', 'Clientes': 'person', 'Funil': 'filter_alt', 'Histórico': 'history',
+  'Tarefas':  'task_alt',
+  'Clientes': 'person',
+  'Funil':    'filter_alt',
+  'Histórico':'history',
+  'Consulta': 'search',
 }
 
 type Props = {
@@ -48,6 +52,20 @@ export function CapacidadesManager({ capacidades, desabilitadasIniciais, canaisO
   const [saving, setSaving]                 = useState(false)
 
   const categorias = [...new Set(capacidades.map(t => t.categoria))]
+
+  // Grupos abertos/fechados — todos abertos por padrão
+  const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set(categorias))
+
+  function toggleGrupo(cat: string) {
+    setGruposAbertos(prev => {
+      const next = new Set(prev)
+      next.has(cat) ? next.delete(cat) : next.add(cat)
+      return next
+    })
+  }
+
+  function abrirTodos()  { setGruposAbertos(new Set(categorias)) }
+  function fecharTodos() { setGruposAbertos(new Set()) }
 
   function toggleTool(tool: string) {
     setDesabilitadas(prev => {
@@ -147,65 +165,107 @@ export function CapacidadesManager({ capacidades, desabilitadasIniciais, canaisO
       )}
 
       {/* Grid de capacidades */}
-      <div className="space-y-4">
-        {categorias.map(cat => (
-          <div key={cat}>
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="material-symbols-outlined text-[14px] text-on-surface-variant">
-                {CATEGORIA_ICON[cat] ?? 'build'}
-              </span>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">{cat}</span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {capacidades.filter(c => c.categoria === cat).map(cap => {
-                const off = desabilitadas.has(cap.tool)
-                const efetivos = canaisOverride[cap.tool] ?? cap.canais
-                return (
-                  <div key={cap.tool}
-                    className={cn(
-                      'rounded-xl border p-3 space-y-2 transition-opacity',
-                      off ? 'border-outline-variant/10 bg-surface-container/30 opacity-50' : 'border-outline-variant/20 bg-surface-container-low/50',
-                    )}>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-[13px] font-semibold text-on-surface leading-tight">{cap.label}</span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {/* Editar canais */}
-                        <button type="button" onClick={() => setEditingTool(cap.tool)}
-                          className="flex h-6 w-6 items-center justify-center rounded-md text-on-surface-variant/40 hover:bg-surface-container hover:text-primary transition-colors"
-                          title="Editar acesso por agente">
-                          <span className="material-symbols-outlined text-[14px]">edit</span>
-                        </button>
-                        {/* Toggle on/off */}
-                        <button type="button" onClick={() => toggleTool(cap.tool)}
+      <div className="space-y-1">
+
+        {/* Controles de grupo */}
+        <div className="flex items-center justify-end gap-2 pb-1">
+          <button type="button" onClick={abrirTodos}
+            className="text-[11px] text-on-surface-variant hover:text-on-surface transition-colors">
+            Expandir tudo
+          </button>
+          <span className="text-on-surface-variant/30 text-[11px]">·</span>
+          <button type="button" onClick={fecharTodos}
+            className="text-[11px] text-on-surface-variant hover:text-on-surface transition-colors">
+            Recolher tudo
+          </button>
+        </div>
+
+        {categorias.map(cat => {
+          const aberto      = gruposAbertos.has(cat)
+          const toolsCat    = capacidades.filter(c => c.categoria === cat)
+          const totalCat    = toolsCat.length
+          const desabCat    = toolsCat.filter(c => desabilitadas.has(c.tool)).length
+
+          return (
+            <div key={cat} className="rounded-xl border border-outline-variant/15 overflow-hidden">
+              {/* Header do grupo — clicável */}
+              <button
+                type="button"
+                onClick={() => toggleGrupo(cat)}
+                className="flex w-full items-center gap-2.5 px-4 py-3 bg-surface-container-low/60 hover:bg-surface-container-low transition-colors text-left"
+              >
+                <span className="material-symbols-outlined text-[15px] text-on-surface-variant" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {CATEGORIA_ICON[cat] ?? 'build'}
+                </span>
+                <span className="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant flex-1">{cat}</span>
+                <span className="text-[11px] text-on-surface-variant/50 tabular-nums">
+                  {totalCat} ferramenta{totalCat !== 1 ? 's' : ''}
+                  {desabCat > 0 && (
+                    <span className="ml-1.5 text-error/70">· {desabCat} desabilitada{desabCat !== 1 ? 's' : ''}</span>
+                  )}
+                </span>
+                <span className="material-symbols-outlined text-[16px] text-on-surface-variant/50 transition-transform duration-200"
+                  style={{ transform: aberto ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  expand_more
+                </span>
+              </button>
+
+              {/* Conteúdo do grupo */}
+              {aberto && (
+                <div className="p-3">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {toolsCat.map(cap => {
+                      const off      = desabilitadas.has(cap.tool)
+                      const efetivos = canaisOverride[cap.tool] ?? cap.canais
+                      return (
+                        <div key={cap.tool}
                           className={cn(
-                            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
-                            off ? 'bg-outline-variant/40' : 'bg-primary',
-                          )}
-                          aria-label={off ? 'Habilitar' : 'Desabilitar'}>
-                          <span className={cn(
-                            'inline-block h-4 w-4 transform rounded-full bg-white shadow transition',
-                            off ? 'translate-x-0' : 'translate-x-4',
-                          )} />
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-[12px] text-on-surface-variant/80 leading-relaxed">{cap.descricao}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {TODOS_CANAIS.map(canal => (
-                        <span key={canal} className={cn(
-                          'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                          efetivos.includes(canal) ? CANAL_BADGE[canal] : 'bg-surface-container text-on-surface-variant/30',
-                        )}>
-                          {CANAL_LABEL[canal]}
-                        </span>
-                      ))}
-                    </div>
+                            'rounded-xl border p-3 space-y-2 transition-opacity',
+                            off ? 'border-outline-variant/10 bg-surface-container/30 opacity-50' : 'border-outline-variant/20 bg-surface-container-low/50',
+                          )}>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-[13px] font-semibold text-on-surface leading-tight">{cap.label}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* Editar canais */}
+                              <button type="button" onClick={() => setEditingTool(cap.tool)}
+                                className="flex h-6 w-6 items-center justify-center rounded-md text-on-surface-variant/40 hover:bg-surface-container hover:text-primary transition-colors"
+                                title="Editar acesso por agente">
+                                <span className="material-symbols-outlined text-[14px]">edit</span>
+                              </button>
+                              {/* Toggle on/off */}
+                              <button type="button" onClick={() => toggleTool(cap.tool)}
+                                className={cn(
+                                  'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+                                  off ? 'bg-outline-variant/40' : 'bg-primary',
+                                )}
+                                aria-label={off ? 'Habilitar' : 'Desabilitar'}>
+                                <span className={cn(
+                                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition',
+                                  off ? 'translate-x-0' : 'translate-x-4',
+                                )} />
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-[12px] text-on-surface-variant/80 leading-relaxed">{cap.descricao}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {TODOS_CANAIS.map(canal => (
+                              <span key={canal} className={cn(
+                                'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                efetivos.includes(canal) ? CANAL_BADGE[canal] : 'bg-surface-container text-on-surface-variant/30',
+                              )}>
+                                {CANAL_LABEL[canal]}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Rodapé salvar */}
