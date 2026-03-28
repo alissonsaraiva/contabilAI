@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { enviarComunicadoPorEmail } from '@/lib/email/comunicado'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -25,6 +26,12 @@ export async function PATCH(req: Request, { params }: Params) {
     updateData.publicado   = true
     updateData.publicadoEm = new Date()
   }
+
+  let dispararEmail = false
+  const statusEmail: string[] = Array.isArray(body.statusEmail) ? body.statusEmail : ['ativo', 'inadimplente']
+  if (body.publicar === true && !existing.publicado && body.enviarEmail === true) {
+    dispararEmail = true
+  }
   if (body.publicar === false) {
     updateData.publicado   = false
     updateData.publicadoEm = null
@@ -38,7 +45,15 @@ export async function PATCH(req: Request, { params }: Params) {
   // Re-indexa (publicado) ou remove do índice (despublicado)
   indexarAsync('comunicado', comunicado)
 
-  return NextResponse.json(comunicado)
+  // Dispara e-mail para clientes nos status selecionados — fire-and-forget
+  if (dispararEmail) {
+    const { StatusCliente } = await import('@prisma/client')
+    const statusValidos = Object.values(StatusCliente)
+    const filtro = statusEmail.filter(s => statusValidos.includes(s as any)) as any[]
+    enviarComunicadoPorEmail(comunicado.id, filtro.length > 0 ? filtro : ['ativo', 'inadimplente']).catch(() => {})
+  }
+
+  return NextResponse.json({ ...comunicado, emailDisparado: dispararEmail })
 }
 
 export async function DELETE(_req: Request, { params }: Params) {

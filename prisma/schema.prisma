@@ -376,16 +376,17 @@ model OrdemServico {
 }
 
 model Comunicado {
-  id          String         @id @default(uuid())
-  titulo      String
-  conteudo    String         @db.Text
-  tipo        TipoComunicado @default(informativo)
-  publicado   Boolean        @default(false)
-  publicadoEm DateTime?
-  expiradoEm  DateTime?
-  criadoPorId String?
-  criadoEm    DateTime       @default(now())
-  atualizadoEm DateTime      @updatedAt
+  id             String         @id @default(uuid())
+  titulo         String
+  conteudo       String         @db.Text
+  tipo           TipoComunicado @default(informativo)
+  publicado      Boolean        @default(false)
+  publicadoEm    DateTime?
+  expiradoEm     DateTime?
+  emailEnviadoEm DateTime?
+  criadoPorId    String?
+  criadoEm       DateTime       @default(now())
+  atualizadoEm   DateTime       @updatedAt
 
   @@index([publicado, publicadoEm])
   @@map("comunicados")
