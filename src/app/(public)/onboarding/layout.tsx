@@ -33,7 +33,7 @@ function HeaderInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [maxStep, setMaxStep] = useState(0)
-  const [nomeEscritorio, setNomeEscritorio] = useState('ContabAI')
+  const [nomeEscritorio, setNomeEscritorio] = useState('Avos')
 
   useEffect(() => {
     fetch('/api/escritorio')

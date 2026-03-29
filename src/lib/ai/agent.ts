@@ -111,7 +111,7 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
     getAiConfig(),
     prisma.escritorio.findFirst({ select: { nome: true } }),
   ])
-  const nomeEscritorio = escritorioRow?.nome ?? process.env.NEXT_PUBLIC_APP_NAME ?? 'ContabAI'
+  const nomeEscritorio = escritorioRow?.nome ?? process.env.NEXT_PUBLIC_APP_NAME ?? 'Avos'
   const providerName = config.providers.agente ?? config.provider
   const model        = config.models.agente ?? config.models.crm
 

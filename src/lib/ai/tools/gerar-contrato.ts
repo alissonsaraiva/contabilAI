@@ -90,7 +90,7 @@ const gerarContratoTool: Tool = {
       formaPagamento,
       assinadoEm:   agora,
       assinatura:   '',
-      escritorioNome:             escritorio?.nome              ?? 'ContabAI',
+      escritorioNome:             escritorio?.nome              ?? 'Avos',
       escritorioCnpj:             escritorio?.cnpj,
       escritorioCrc:              escritorio?.crc,
       escritorioCidade:           escritorio?.cidade,

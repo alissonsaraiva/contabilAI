@@ -124,7 +124,7 @@ export function EmailsGmail({
             }`}
           >
             <span className="material-symbols-outlined text-[15px]">edit</span>
-            Compor
+            Novo
           </button>
         </div>
 
@@ -156,7 +156,7 @@ export function EmailsGmail({
 
         {/* Busca */}
         <div className="px-3 py-2.5">
-          <div className="flex items-center gap-2 rounded-xl bg-surface-container-low px-3 py-2">
+          <div className="flex items-center gap-2 rounded-xl border border-outline-variant/40 bg-surface px-3 py-2">
             <span className="material-symbols-outlined text-[16px] text-on-surface-variant/40">search</span>
             <input
               value={busca}
@@ -485,13 +485,13 @@ function PainelEmail({ email, aba, onReplied, onDispensed }: {
                 <input
                   value={paraResp}
                   onChange={e => setParaResp(e.target.value)}
-                  className="flex-1 rounded-xl border border-outline-variant/25 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+                  className="flex-1 rounded-xl border border-outline-variant/50 bg-surface px-3 py-2 text-[12px] text-on-surface focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
                   placeholder="Para"
                 />
                 <input
                   value={assuntoResp}
                   onChange={e => setAssuntoResp(e.target.value)}
-                  className="flex-1 rounded-xl border border-outline-variant/25 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+                  className="flex-1 rounded-xl border border-outline-variant/50 bg-surface px-3 py-2 text-[12px] text-on-surface focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
                   placeholder="Assunto"
                 />
               </div>
@@ -502,7 +502,7 @@ function PainelEmail({ email, aba, onReplied, onDispensed }: {
                 rows={6}
                 placeholder="Escreva sua resposta..."
                 autoFocus
-                className="w-full resize-none rounded-xl border border-outline-variant/25 bg-surface-container-low px-3 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+                className="w-full resize-none rounded-xl border border-outline-variant/50 bg-surface px-3 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
               />
 
               <div className="flex items-center gap-2">
@@ -629,7 +629,7 @@ function PainelCompor({ clientes, onSent, onClose }: {
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
         {/* Campo Para com autocomplete */}
         <div className="relative">
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
+          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             Para
           </label>
           <input
@@ -639,7 +639,7 @@ function PainelCompor({ clientes, onSent, onClose }: {
             onBlur={() => setTimeout(() => setMostrarClientes(false), 150)}
             placeholder="email@exemplo.com.br"
             type="email"
-            className="w-full rounded-xl border border-outline-variant/25 bg-surface-container-low px-3 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+            className="w-full rounded-xl border border-outline-variant/50 bg-surface px-3 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
           />
 
           {/* Dropdown de clientes */}
@@ -667,19 +667,19 @@ function PainelCompor({ clientes, onSent, onClose }: {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
+          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             Assunto
           </label>
           <input
             value={assunto}
             onChange={e => setAssunto(e.target.value)}
             placeholder="Assunto do e-mail"
-            className="w-full rounded-xl border border-outline-variant/25 bg-surface-container-low px-3 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+            className="w-full rounded-xl border border-outline-variant/50 bg-surface px-3 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
           />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
+          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             Mensagem
           </label>
           <textarea
@@ -687,7 +687,7 @@ function PainelCompor({ clientes, onSent, onClose }: {
             onChange={e => setCorpo(e.target.value)}
             rows={14}
             placeholder="Escreva sua mensagem..."
-            className="w-full resize-none rounded-xl border border-outline-variant/25 bg-surface-container-low px-3 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+            className="w-full resize-none rounded-xl border border-outline-variant/50 bg-surface px-3 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
           />
         </div>
       </div>

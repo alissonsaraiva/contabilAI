@@ -62,7 +62,7 @@ export async function POST(req: Request, { params }: Params) {
     formaPagamento,
     assinadoEm: agora,
     assinatura: assinatura.trim(),
-    escritorioNome: escritorio?.nome ?? 'ContabAI',
+    escritorioNome: escritorio?.nome ?? 'Avos',
     escritorioCnpj: escritorio?.cnpj,
     escritorioCrc: escritorio?.crc,
     escritorioCidade: escritorio?.cidade,

@@ -137,7 +137,7 @@ const enviarContratoTool: Tool = {
       formaPagamento,
       assinadoEm:   agora,
       assinatura:   '',
-      escritorioNome:                escritorio?.nome              ?? 'ContabAI',
+      escritorioNome:                escritorio?.nome              ?? 'Avos',
       escritorioCnpj:                escritorio?.cnpj,
       escritorioCrc:                 escritorio?.crc,
       escritorioCidade:              escritorio?.cidade,
@@ -150,7 +150,7 @@ const enviarContratoTool: Tool = {
     } as never) as never
 
     const pdfBuffer     = await renderToBuffer(pdfElement as never)
-    const nomeContrato  = `Contrato ${nome} — ${escritorio?.nome ?? 'ContabAI'}`
+    const nomeContrato  = `Contrato ${nome} — ${escritorio?.nome ?? 'Avos'}`
 
     let zapsignDocToken: string | undefined
     let clicksignDocKey: string | undefined

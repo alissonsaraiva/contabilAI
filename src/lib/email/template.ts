@@ -30,7 +30,7 @@ export type WrapOptions = {
 export function wrapEmailHtml(corpo: string, opts: WrapOptions = {}): string {
   if (isHtml(corpo)) return corpo
 
-  const { nomeEscritorio = 'ContabAI', assunto } = opts
+  const { nomeEscritorio = 'Avos', assunto } = opts
   const conteudo = textToHtml(corpo)
 
   return `<!DOCTYPE html>

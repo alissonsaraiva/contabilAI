@@ -65,7 +65,7 @@ type Props = {
   nomeEscritorio?: string
 }
 
-export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, nomeEscritorio = 'ContabAI' }: Props) {
+export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, nomeEscritorio = 'Avos' }: Props) {
   const pathname = usePathname()
 
   function getBadgeCount(item: NavItem): number {

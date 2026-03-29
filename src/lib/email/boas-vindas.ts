@@ -14,7 +14,7 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
     prisma.cliente.findUnique({ where: { id: cliente.id }, select: { empresaId: true } }),
   ])
 
-  const nomeEscritorio = escritorio?.nome ?? 'ContabAI'
+  const nomeEscritorio = escritorio?.nome ?? 'Avos'
   const primeiroNome   = cliente.nome.split(' ')[0]
 
   if (!clienteRow?.empresaId) {

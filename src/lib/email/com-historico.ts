@@ -41,7 +41,7 @@ export async function enviarEmailComHistorico(
   // Busca nome do escritório para o template
   const escritorio = await prisma.escritorio.findFirst({ select: { nome: true } }).catch(() => null)
   const corpoHtml  = wrapEmailHtml(input.corpo, {
-    nomeEscritorio: escritorio?.nome ?? 'ContabAI',
+    nomeEscritorio: escritorio?.nome ?? 'Avos',
     assunto:        input.assunto,
   })
 

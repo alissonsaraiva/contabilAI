@@ -97,7 +97,7 @@ export async function POST(req: Request) {
 
   const historico = await getHistorico(conversaId)
   const nomeCara       = aiConfig.nomeAssistentes.portal ?? 'Clara'
-  const nomeEscritorio = escritorio?.nome ?? process.env.NEXT_PUBLIC_APP_NAME ?? 'ContabAI'
+  const nomeEscritorio = escritorio?.nome ?? process.env.NEXT_PUBLIC_APP_NAME ?? 'Avos'
   const nomeUsuario    = user.name ?? clienteTitular?.nome ?? 'cliente'
 
   let systemExtra = `Você é ${nomeCara}, assistente automatizado do escritório ${nomeEscritorio}. Você está atendendo ${nomeUsuario}${isSocio ? ' (sócio da empresa)' : ''} pelo portal online do escritório.

@@ -46,7 +46,7 @@ function resolveTitle(pathname: string): string {
   if (/^\/crm\/clientes\/.+/.test(pathname)) return 'Detalhes do Cliente'
   if (pathname === '/crm/tarefas') return 'Tarefas'
   if (pathname.startsWith('/crm/configuracoes')) return 'Configurações'
-  return 'ContabAI'
+  return 'Avos'
 }
 
 type Props = { user: SessionUser }

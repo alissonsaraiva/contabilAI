@@ -81,7 +81,7 @@ export async function POST(_req: Request, { params }: Params) {
     formaPagamento,
     assinadoEm: agora,
     assinatura: '',
-    escritorioNome: escritorio?.nome ?? 'ContabAI',
+    escritorioNome: escritorio?.nome ?? 'Avos',
     escritorioCnpj: escritorio?.cnpj,
     escritorioCrc: escritorio?.crc,
     escritorioCidade: escritorio?.cidade,
@@ -94,7 +94,7 @@ export async function POST(_req: Request, { params }: Params) {
   } as never) as never
 
   const pdfBuffer = await renderToBuffer(pdfElement as never)
-  const nomeContrato = `Contrato ${nome} — ${escritorio?.nome ?? 'ContabAI'}`
+  const nomeContrato = `Contrato ${nome} — ${escritorio?.nome ?? 'Avos'}`
 
   // Envia para o provedor configurado
   let zapsignDocToken: string | undefined

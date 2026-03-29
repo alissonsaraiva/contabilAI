@@ -52,7 +52,7 @@ export async function GET(req: Request, { params }: Params) {
   if (formato === 'xls') {
     const ExcelJS = (await import('exceljs')).default
     const workbook = new ExcelJS.Workbook()
-    workbook.creator = 'ContabAI'
+    workbook.creator = 'Avos'
     workbook.created = new Date()
 
     // Aba Resumo com KPIs (se houver)

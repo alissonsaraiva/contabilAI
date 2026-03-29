@@ -3,7 +3,7 @@ import { cache } from 'react'
 
 const FALLBACK = {
       id: 'singleton',
-      nome: process.env.NEXT_PUBLIC_APP_NAME ?? 'ContabAI',
+      nome: process.env.NEXT_PUBLIC_APP_NAME ?? 'Avos',
       nomeFantasia: null,
       logoUrl: null,
       faviconUrl: null,
@@ -38,7 +38,7 @@ export const getEscritorioConfig = cache(async () => {
   if (!escritorio) {
     return {
       id: 'singleton',
-      nome: process.env.NEXT_PUBLIC_APP_NAME ?? 'ContabAI',
+      nome: process.env.NEXT_PUBLIC_APP_NAME ?? 'Avos',
       nomeFantasia: null,
       logoUrl: null,
       faviconUrl: null,
