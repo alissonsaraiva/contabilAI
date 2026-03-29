@@ -31,7 +31,11 @@ Exemplos:
 - "quais tarefas vencem hoje?" → {"tipo":"acao","instrucao":"Listar tarefas com prazo vencendo hoje"}
 - "tem algum lead parado há mais de 7 dias?" → {"tipo":"acao","instrucao":"Listar leads sem atividade há mais de 7 dias"}
 - "mostra os dados do cliente" → {"tipo":"acao","instrucao":"Buscar dados completos do cliente atual"}
-- "qual meu plano?" → {"tipo":"acao","instrucao":"Buscar dados do cliente incluindo plano e valor mensal"}`
+- "qual meu plano?" → {"tipo":"acao","instrucao":"Buscar dados do cliente incluindo plano e valor mensal"}
+- "gera um relatório de clientes" → {"tipo":"acao","instrucao":"Consultar dados de clientes e publicar relatório estruturado no painel usando publicarRelatorio"}
+- "relatório de inadimplentes" → {"tipo":"acao","instrucao":"Consultar clientes inadimplentes e publicar relatório no painel usando publicarRelatorio"}
+- "me dá um resumo geral do escritório" → {"tipo":"acao","instrucao":"Consultar métricas gerais e publicar relatório resumo no painel usando publicarRelatorio"}
+- "quero um relatório de funil" → {"tipo":"acao","instrucao":"Consultar funil de prospecção e publicar relatório no painel usando publicarRelatorio"}`
 
 // ─── Fallback por keywords (quando nenhum provider disponível) ────────────────
 
@@ -44,11 +48,19 @@ const ACAO_KEYWORDS = [
   /\b(cria[r]?|agendar?|adicionar?)\b.*\b(tarefa|atividade|lembrete)\b/i,
   /\b(resumo|panorama|vis[ãa]o geral|como est[ãa]o)\b/i,
   /\b(dados|informa[çc][õo]es?).*(cliente|lead|contrato)\b/i,
+  /\b(relat[oó]rio|relat[oó]rios?)\b/i,
+  /\b(gera[r]?|cria[r]?|monta[r]?|publica[r]?)\b.*\b(relat[oó]rio|resumo|an[aá]lise)\b/i,
 ]
 
 function classificarPorKeyword(mensagem: string): Intencao {
+  const ehRelatorio = /\b(relat[oó]rio|gera[r]?.*resumo|monta[r]?.*relat|cria[r]?.*relat)\b/i.test(mensagem)
   for (const re of ACAO_KEYWORDS) {
-    if (re.test(mensagem)) return { tipo: 'acao', instrucao: mensagem }
+    if (re.test(mensagem)) {
+      const instrucao = ehRelatorio
+        ? `${mensagem} — consultar dados necessários e publicar relatório estruturado no painel usando publicarRelatorio`
+        : mensagem
+      return { tipo: 'acao', instrucao }
+    }
   }
   return { tipo: 'pergunta' }
 }
