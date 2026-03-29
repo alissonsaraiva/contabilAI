@@ -41,9 +41,16 @@ export default async function OSDetailPage({ params }: Props) {
   if (!clienteId) redirect('/portal/login')
 
   const { id } = await params
-  const ordem   = await prisma.ordemServico.findFirst({
-    where: { id, clienteId },
-  })
+  const [ordem, documentos] = await Promise.all([
+    prisma.ordemServico.findFirst({
+      where: { id, clienteId },
+    }),
+    prisma.documento.findMany({
+      where: { ordemServicoId: id, clienteId },
+      orderBy: { criadoEm: 'asc' },
+      select: { id: true, nome: true, url: true, mimeType: true, tamanho: true },
+    }),
+  ])
 
   if (!ordem) notFound()
 
@@ -116,6 +123,44 @@ export default async function OSDetailPage({ params }: Props) {
             <p className="text-[13px] text-on-surface-variant/60">
               Aguardando resposta do escritório. Você será notificado quando houver uma atualização.
             </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Documentos anexados */}
+      {documentos.length > 0 && (
+        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-on-surface-variant/50">attach_file</span>
+            <span className="text-[12px] font-semibold text-on-surface-variant/70">
+              {documentos.length === 1 ? 'Documento anexado' : `${documentos.length} documentos anexados`}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {documentos.map(doc => (
+              <a
+                key={doc.id}
+                href={doc.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-xl border border-outline-variant/20 bg-surface-container-low/60 px-4 py-3 hover:bg-surface-container transition-colors group"
+              >
+                <span className="material-symbols-outlined text-[22px] text-primary/70" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {doc.mimeType?.includes('pdf') ? 'picture_as_pdf' : doc.mimeType?.includes('image') ? 'image' : 'description'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium text-on-surface group-hover:text-primary transition-colors">{doc.nome}</p>
+                  {doc.tamanho && (
+                    <p className="text-[11px] text-on-surface-variant/50">
+                      {doc.tamanho < 1024 * 1024
+                        ? `${Math.round(doc.tamanho / 1024)} KB`
+                        : `${(doc.tamanho / (1024 * 1024)).toFixed(1)} MB`}
+                    </p>
+                  )}
+                </div>
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant/40 group-hover:text-primary transition-colors">download</span>
+              </a>
+            ))}
           </div>
         </Card>
       )}

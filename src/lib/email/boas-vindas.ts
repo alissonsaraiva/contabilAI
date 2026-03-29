@@ -41,7 +41,7 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
         <tr><td align="center" style="padding-bottom:28px">
           <div style="display:inline-flex;align-items:center;gap:10px">
             <div style="width:40px;height:40px;background:#6366F1;border-radius:10px;display:flex;align-items:center;justify-content:center">
-              <span style="color:#fff;font-size:20px;font-weight:700">C</span>
+              <span style="color:#fff;font-size:20px;font-weight:700">${nomeEscritorio.charAt(0).toUpperCase()}</span>
             </div>
             <span style="font-size:22px;font-weight:700;color:#1a1a2e;letter-spacing:-0.5px">${nomeEscritorio}</span>
           </div>

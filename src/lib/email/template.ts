@@ -48,7 +48,7 @@ export function wrapEmailHtml(corpo: string, opts: WrapOptions = {}): string {
         <tr><td align="center" style="padding-bottom:24px">
           <div style="display:inline-flex;align-items:center;gap:10px">
             <div style="width:36px;height:36px;background:#6366F1;border-radius:8px;text-align:center;line-height:36px">
-              <span style="color:#fff;font-size:18px;font-weight:700">C</span>
+              <span style="color:#fff;font-size:18px;font-weight:700">${nomeEscritorio.charAt(0).toUpperCase()}</span>
             </div>
             <span style="font-size:20px;font-weight:700;color:#1a1a2e">${nomeEscritorio}</span>
           </div>

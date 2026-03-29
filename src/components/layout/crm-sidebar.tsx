@@ -62,17 +62,19 @@ type Props = {
   user: SessionUser
   pendingEscalacoes?: number
   pendingEmails?: number
+  pendingChamados?: number
   nomeEscritorio?: string
 }
 
-export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, nomeEscritorio = 'Avos' }: Props) {
+export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pendingChamados = 0, nomeEscritorio = 'Avos' }: Props) {
   const pathname = usePathname()
 
   function getBadgeCount(item: NavItem): number {
     if (item.badge)       return pendingEscalacoes
     if (item.badgeCount !== undefined) return item.badgeCount
     // E-mails: detecta pelo href
-    if (item.href === '/crm/emails') return pendingEmails
+    if (item.href === '/crm/emails')         return pendingEmails
+    if (item.href === '/crm/ordens-servico') return pendingChamados
     return 0
   }
 
