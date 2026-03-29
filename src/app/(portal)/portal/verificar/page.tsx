@@ -1,17 +1,23 @@
 import { prisma } from '@/lib/prisma'
-import { signInPortal } from '@/lib/auth-portal'
+import { PORTAL_COOKIE_NAME } from '@/lib/auth-portal'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
+import { encode } from '@auth/core/jwt'
 import crypto from 'crypto'
 
 type Props = { searchParams: Promise<{ token?: string }> }
 
 /**
  * Verificação de magic-link — 100% server-side.
- * Valida o token, cria a sessão do portal via signInPortal (RSC)
- * e redireciona para /portal/dashboard.
  *
- * Por ser RSC, a sessão é criada server-side (cookie definido no header da resposta),
- * evitando o problema do client-side signIn com basePath customizado no next-auth v5 beta.
+ * IMPORTANTE: NÃO use signInPortal() aqui.
+ * No next-auth v5 beta com basePath customizado + Credentials provider,
+ * o signIn() de RSC faz fetch interno para AUTH_URL/api/portal/auth/callback/portal-token
+ * mas o Set-Cookie da resposta interna NÃO é propagado ao browser — a sessão é criada
+ * mas o cookie nunca chega, e o proxy redireciona para /portal/login.
+ *
+ * Solução: encode JWT manualmente com @auth/core/jwt (mesmo secret + salt do proxy)
+ * e setar o cookie via cookies() do Next.js, que escreve direto no response header.
  */
 export default async function PortalVerificarPage({ searchParams }: Props) {
   const { token } = await searchParams
@@ -34,6 +40,39 @@ export default async function PortalVerificarPage({ searchParams }: Props) {
 
   const r = record!
 
+  async function criarSessao(payload: {
+    id: string
+    name: string
+    email: string
+    tipo: 'cliente' | 'socio'
+    empresaId: string
+  }) {
+    const maxAge = 30 * 24 * 60 * 60 // 30 dias
+
+    const jwt = await encode({
+      token: {
+        sub:       payload.id,
+        id:        payload.id,
+        name:      payload.name,
+        email:     payload.email,
+        tipo:      payload.tipo,
+        empresaId: payload.empresaId,
+      },
+      secret: process.env.AUTH_SECRET!,
+      salt:   PORTAL_COOKIE_NAME,
+      maxAge,
+    })
+
+    const cookieStore = await cookies()
+    cookieStore.set(PORTAL_COOKIE_NAME, jwt, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path:     '/',
+      secure:   process.env.NODE_ENV === 'production',
+      maxAge,
+    })
+  }
+
   if (r.cliente) {
     const { status } = r.cliente
     if (status !== 'ativo' && status !== 'inadimplente') {
@@ -42,15 +81,15 @@ export default async function PortalVerificarPage({ searchParams }: Props) {
 
     await prisma.portalToken.update({ where: { id: r.id }, data: { usedAt: new Date() } })
 
-    // Cria sessão e redireciona — signInPortal lança NEXT_REDIRECT internamente
-    await signInPortal('portal-token', {
-      id:         r.cliente.id,
-      nome:       r.cliente.nome,
-      email:      r.cliente.email ?? '',
-      tipo:       'cliente',
-      empresaId:  r.empresaId!,
-      redirectTo: '/portal/dashboard',
-    } as any)
+    await criarSessao({
+      id:        r.cliente.id,
+      name:      r.cliente.nome,
+      email:     r.cliente.email ?? '',
+      tipo:      'cliente',
+      empresaId: r.empresaId!,
+    })
+
+    redirect('/portal/dashboard')
   }
 
   if (r.socio) {
@@ -59,14 +98,15 @@ export default async function PortalVerificarPage({ searchParams }: Props) {
 
     await prisma.portalToken.update({ where: { id: r.id }, data: { usedAt: new Date() } })
 
-    await signInPortal('portal-token', {
-      id:         r.socio.id,
-      nome:       r.socio.nome,
-      email:      r.socio.email!,
-      tipo:       'socio',
-      empresaId:  r.empresaId!,
-      redirectTo: '/portal/dashboard',
-    } as any)
+    await criarSessao({
+      id:        r.socio.id,
+      name:      r.socio.nome,
+      email:     r.socio.email!,
+      tipo:      'socio',
+      empresaId: r.empresaId!,
+    })
+
+    redirect('/portal/dashboard')
   }
 
   // Sem cliente nem sócio no record — não deveria acontecer
