@@ -33,7 +33,7 @@ type Props = {
   onClose: () => void
 }
 
-const POLL_INTERVAL = 4000
+// POLL_INTERVAL removido — substituído por SSE em /api/stream/conversas/[id]
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 
@@ -119,7 +119,6 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
   useEffect(() => {
     if (!open) {
       isFirstLoadRef.current = true
-      // Libera object URL pendente se drawer fechar sem o usuário remover o arquivo
       setArquivo(prev => {
         if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl)
         return null
@@ -127,9 +126,18 @@ export function WhatsAppDrawer({ apiPath, nomeExibido, open, onClose }: Props) {
       return
     }
     carregar()
-    const interval = setInterval(carregar, POLL_INTERVAL)
-    return () => clearInterval(interval)
   }, [open, carregar])
+
+  // SSE — recebe ping quando nova mensagem WhatsApp chega; recarrega a conversa
+  useEffect(() => {
+    if (!open || !conversaId) return
+
+    const es = new EventSource(`/api/stream/conversas/${conversaId}`)
+    es.onmessage = () => carregar()
+    es.onerror   = () => es.close() // Fecha silenciosamente em caso de erro
+
+    return () => es.close()
+  }, [open, conversaId, carregar])
 
   useEffect(() => {
     if (!open || mensagens.length === 0) return

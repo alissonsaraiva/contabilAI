@@ -28,6 +28,7 @@ export async function GET(req: Request) {
     where:   { sessionId, canal: 'portal' },
     orderBy: { atualizadaEm: 'desc' },
     select:  {
+      id: true,
       mensagens: {
         orderBy: { criadaEm: 'asc' },
         select:  { role: true, conteudo: true },
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
     },
   })
 
-  return NextResponse.json({ mensagens: conversa?.mensagens ?? [] })
+  return NextResponse.json({ conversaId: conversa?.id ?? null, mensagens: conversa?.mensagens ?? [] })
 }
 
 export async function POST(req: Request) {
@@ -210,5 +211,5 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
 
   addMensagens(conversaId, message, resposta)
 
-  return NextResponse.json({ reply: resposta, provider, model, escalado: escalInfo.escalado })
+  return NextResponse.json({ reply: resposta, provider, model, escalado: escalInfo.escalado, conversaId })
 }

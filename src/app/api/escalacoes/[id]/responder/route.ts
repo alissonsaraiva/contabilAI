@@ -7,6 +7,7 @@ import { getProvider } from '@/lib/ai/providers'
 import { getAiConfig } from '@/lib/ai/config'
 import { SYSTEM_BASE_DEFAULT } from '@/lib/ai/ask'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { emitEscalacaoResolvida } from '@/lib/event-bus'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -156,6 +157,9 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
       data: { pausadaEm: null, pausadoPorId: null },
     }).catch(() => {})
   }
+
+  // Notifica widgets via SSE (substitui poll de 4s)
+  emitEscalacaoResolvida(id, { status: 'resolvida', resposta: mensagemFinal })
 
   // Indexa escalação resolvida no RAG (contexto de atendimento para futuras consultas)
   indexarAsync('escalacao', {

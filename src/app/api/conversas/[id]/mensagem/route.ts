@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { isEncrypted, decrypt } from '@/lib/crypto'
 import { sendHumanLike, } from '@/lib/whatsapp/human-like'
 import { sendMedia, type EvolutionConfig } from '@/lib/evolution'
+import { emitConversaMensagem } from '@/lib/event-bus'
 
 export async function POST(
   req: Request,
@@ -113,6 +114,21 @@ export async function POST(
       }
     }
   }
+
+  // Canal portal — mensagem já salva no banco, atualiza conversa e marca como sent
+  await Promise.all([
+    prisma.conversaIA.update({
+      where: { id },
+      data:  { atualizadaEm: new Date() },
+    }),
+    prisma.mensagemIA.updateMany({
+      where: { conversaId: id, role: 'assistant', status: 'pending' },
+      data:  { status: 'sent' },
+    }),
+  ])
+
+  // Notifica o portal Clara via SSE (substitui setInterval de 5s)
+  emitConversaMensagem(id, { role: 'assistant', conteudo: texto || '', mediaUrl })
 
   return NextResponse.json({ ok: true })
 }

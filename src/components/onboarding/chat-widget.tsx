@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { stripMarkdown } from '@/lib/utils/split-chunks'
 
@@ -52,8 +52,6 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
   const [escalacaoId, setEscalacaoId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   useEffect(() => {
     if (open) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -61,44 +59,40 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
     }
   }, [open, msgs])
 
-  // Polling quando escalado — aguarda resposta humana (timeout 20min)
-  const startPolling = useCallback((escId: string) => {
-    const deadline = Date.now() + 20 * 60 * 1000
-    const poll = async () => {
-      // Timeout: desiste após 20min e reabilita o input
-      if (Date.now() > deadline) {
-        setMsgs(m => [...m, {
-          role: 'assistant',
-          text: 'Nossa equipe está ocupada no momento. Deixe seu contato que retornaremos assim que possível.',
-        }])
-        setEscalacaoId(null)
-        setLoading(false)
-        return
-      }
-      try {
-        const res = await fetch(`/api/escalacoes/${escId}/poll`)
-        if (!res.ok) {
-          // Escalação não encontrada ou erro — para o poll
-          setEscalacaoId(null)
-          setLoading(false)
-          return
-        }
-        const data = await res.json()
-        if (data.status === 'resolvida' && data.resposta) {
-          setMsgs(m => [...m, { role: 'assistant', text: data.resposta }])
-          setEscalacaoId(null)
-          setLoading(false)
-          return
-        }
-      } catch { /* ignora erros de rede, tenta novamente */ }
-      pollRef.current = setTimeout(poll, 4000)
-    }
-    pollRef.current = setTimeout(poll, 4000)
-  }, [])
-
+  // SSE quando escalado — substitui setTimeout recursivo de 4s
   useEffect(() => {
-    return () => { if (pollRef.current) clearTimeout(pollRef.current) }
-  }, [])
+    if (!escalacaoId) return
+
+    const es = new EventSource(`/api/stream/escalacoes/${escalacaoId}?sessionId=${sessionId}`)
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as { status: string; resposta?: string }
+        if (data.status === 'resolvida' && data.resposta) {
+          setMsgs(m => [...m, { role: 'assistant', text: data.resposta! }])
+          setEscalacaoId(null)
+          setLoading(false)
+        } else if (data.status === 'timeout') {
+          setMsgs(m => [...m, {
+            role: 'assistant',
+            text: 'Nossa equipe está ocupada no momento. Deixe seu contato que retornaremos assim que possível.',
+          }])
+          setEscalacaoId(null)
+          setLoading(false)
+        }
+      } catch {}
+      es.close()
+    }
+
+    es.onerror = () => {
+      // Falha de rede — fecha e reabilita input
+      setEscalacaoId(null)
+      setLoading(false)
+      es.close()
+    }
+
+    return () => es.close()
+  }, [escalacaoId, sessionId])
 
   async function handleSend() {
     const text = input.trim()
@@ -121,8 +115,8 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
         setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
         if (data.escalacaoId) {
           setEscalacaoId(data.escalacaoId)
-          startPolling(data.escalacaoId)
-          // loading permanece true até o poll resolver
+          // SSE useEffect acima observa escalacaoId e conecta automaticamente
+          // loading permanece true até o SSE resolver
         } else {
           // DB falhou ao criar escalação — reabilita input
           setLoading(false)

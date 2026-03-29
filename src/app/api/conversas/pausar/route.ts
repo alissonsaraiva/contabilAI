@@ -22,6 +22,12 @@ export async function POST(req: Request) {
     select: { clienteId: true, leadId: true, canal: true },
   })
 
+  // Marca escalação vinculada como em_atendimento
+  prisma.escalacao.updateMany({
+    where: { conversaIAId: conversaId, status: 'pendente' },
+    data:  { status: 'em_atendimento' },
+  }).catch(() => {})
+
   registrarHumanoAssumiu({
     conversaId,
     operadorId:   user.id,

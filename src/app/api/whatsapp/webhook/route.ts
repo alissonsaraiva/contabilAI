@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { emitWhatsAppRefresh } from '@/lib/event-bus'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import type { EvolutionConfig } from '@/lib/evolution'
 import {
@@ -389,6 +390,8 @@ export async function POST(req: Request) {
 
     // ── Salva mensagem como pendente (debounce) ───────────────────────────────
     // O processamento real ocorre em /api/whatsapp/processar-pendentes (cron ~5s)
+    // Notifica o WhatsApp Drawer do CRM via SSE
+    emitWhatsAppRefresh(conversaId)
     await prisma.mensagemIA.create({
       data: {
         conversaId,

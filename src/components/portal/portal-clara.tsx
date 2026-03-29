@@ -29,6 +29,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const [loading, setLoading] = useState(false)
   const [escalando, setEscalando] = useState(false)
   const [escalada, setEscalada]   = useState(false)
+  const [conversaId, setConversaId] = useState<string | null>(null)
   const sessionIdRef          = useRef<string>('')
   const historyLoadedRef      = useRef(false)
   const bottomRef             = useRef<HTMLDivElement>(null)
@@ -47,13 +48,14 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
     text: `Olá! Sou ${nomeIa}, da equipe do escritório. Posso ajudar com dúvidas sobre contabilidade, obrigações fiscais, seu plano e muito mais. Como posso te ajudar?`,
   }
 
-  // Carrega histórico da sessão na primeira abertura
+  // Carrega histórico e conversaId na primeira abertura
   useEffect(() => {
     if (!open || historyLoadedRef.current) return
     historyLoadedRef.current = true
     fetch(`/api/portal/chat?sessionId=${sessionId}`)
       .then(r => r.json())
-      .then(({ mensagens }) => {
+      .then(({ conversaId: cid, mensagens }) => {
+        if (cid) setConversaId(cid)
         if (Array.isArray(mensagens) && mensagens.length > 0) {
           setMsgs(mensagens.map((m: { role: string; conteudo: string }) => ({
             role: m.role as 'user' | 'assistant',
@@ -63,6 +65,24 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       })
       .catch(() => {})
   }, [open, sessionId])
+
+  // SSE quando escalada — recebe mensagens do operador sem polling
+  useEffect(() => {
+    if (!escalada || !open || !conversaId) return
+
+    const es = new EventSource(`/api/stream/portal/conversa?sessionId=${sessionId}`)
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as { role: string; conteudo: string }
+        if (data.role && data.conteudo) {
+          setMsgs(prev => [...prev, { role: data.role as 'assistant', text: data.conteudo }])
+        }
+      } catch {}
+    }
+
+    return () => es.close()
+  }, [escalada, open, conversaId, sessionId])
 
   useEffect(() => {
     if (open) {
@@ -91,8 +111,9 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         const { error } = await res.json().catch(() => ({ error: 'Erro desconhecido' }))
         setMsgs(m => [...m, { role: 'assistant', text: `⚠️ ${error}` }])
       } else {
-        const { reply } = await res.json()
-        setMsgs(m => [...m, { role: 'assistant', text: reply }])
+        const data = await res.json()
+        if (data.conversaId) setConversaId(data.conversaId)
+        setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
       }
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Não consegui me conectar. Verifique sua conexão e tente novamente.' }])
@@ -113,7 +134,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         setEscalada(true)
         setMsgs(m => [...m, {
           role: 'assistant',
-          text: '✅ **Solicitação enviada!** Um especialista da nossa equipe entrará em contato em breve pelo WhatsApp ou e-mail cadastrado.',
+          text: '✅ **Solicitação enviada!** Um especialista da nossa equipe vai responder aqui neste chat em breve. Pode deixar o chat aberto ou voltar mais tarde.',
         }])
       }
     } catch {

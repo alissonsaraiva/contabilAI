@@ -21,6 +21,12 @@ export async function POST(
     select: { clienteId: true, leadId: true },
   })
 
+  // Resolve escalação vinculada — badge some do sidebar
+  prisma.escalacao.updateMany({
+    where: { conversaIAId: id, status: { in: ['pendente', 'em_atendimento'] } },
+    data:  { status: 'resolvida' },
+  }).catch(() => {})
+
   registrarIaRetomada({
     conversaId:   id,
     operadorId:   user.id,
