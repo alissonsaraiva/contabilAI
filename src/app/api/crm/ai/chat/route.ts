@@ -76,21 +76,89 @@ export async function POST(req: Request) {
 
   // Resolve nome do cliente/lead para o contexto (evita expor UUID ao modelo)
   let escopoLabel = 'escopo geral do escritório'
+  let dadosContextoExtra = ''
+
   if (clienteId) {
     const cliente = await prisma.cliente.findUnique({
       where: { id: clienteId },
-      select: { nome: true, empresa: { select: { razaoSocial: true } } },
+      select: {
+        nome: true,
+        email: true,
+        telefone: true,
+        whatsapp: true,
+        cpf: true,
+        planoTipo: true,
+        valorMensal: true,
+        vencimentoDia: true,
+        formaPagamento: true,
+        status: true,
+        cidade: true,
+        uf: true,
+        tipoContribuinte: true,
+        empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true } },
+        responsavel: { select: { nome: true } },
+      },
     })
     const nome = cliente?.empresa?.razaoSocial ?? cliente?.nome
     escopoLabel = nome ? `cliente: ${nome}` : 'cliente (dados não encontrados)'
+    if (cliente) {
+      const linhas: string[] = []
+      if (cliente.nome)              linhas.push(`Nome: ${cliente.nome}`)
+      if (cliente.email)             linhas.push(`E-mail: ${cliente.email}`)
+      if (cliente.telefone)          linhas.push(`Telefone: ${cliente.telefone}`)
+      if (cliente.whatsapp)          linhas.push(`WhatsApp: ${cliente.whatsapp}`)
+      if (cliente.cpf)               linhas.push(`CPF: ${cliente.cpf}`)
+      if (cliente.empresa?.cnpj)     linhas.push(`CNPJ: ${cliente.empresa.cnpj}`)
+      if (cliente.empresa?.razaoSocial) linhas.push(`Razão Social: ${cliente.empresa.razaoSocial}`)
+      if (cliente.empresa?.nomeFantasia) linhas.push(`Nome Fantasia: ${cliente.empresa.nomeFantasia}`)
+      if (cliente.empresa?.regime)   linhas.push(`Regime: ${cliente.empresa.regime}`)
+      if (cliente.planoTipo)         linhas.push(`Plano: ${cliente.planoTipo}`)
+      if (cliente.valorMensal)       linhas.push(`Valor mensal: R$ ${cliente.valorMensal}`)
+      if (cliente.vencimentoDia)     linhas.push(`Vencimento: dia ${cliente.vencimentoDia}`)
+      if (cliente.formaPagamento)    linhas.push(`Forma de pagamento: ${cliente.formaPagamento}`)
+      if (cliente.cidade || cliente.uf) linhas.push(`Cidade: ${[cliente.cidade, cliente.uf].filter(Boolean).join('/')}`)
+      if (cliente.tipoContribuinte)  linhas.push(`Tipo: ${cliente.tipoContribuinte}`)
+      if (cliente.status)            linhas.push(`Status: ${cliente.status}`)
+      if (cliente.responsavel?.nome) linhas.push(`Responsável: ${cliente.responsavel.nome}`)
+      if (linhas.length > 0) {
+        dadosContextoExtra = `\n\nDADOS DO CLIENTE:\n${linhas.join('\n')}`
+      }
+    }
   } else if (leadId) {
     const lead = await prisma.lead.findUnique({
       where: { id: leadId },
-      select: { contatoEntrada: true, dadosJson: true },
+      select: {
+        contatoEntrada: true,
+        dadosJson: true,
+        planoTipo: true,
+        valorNegociado: true,
+        vencimentoDia: true,
+        formaPagamento: true,
+        status: true,
+        observacoes: true,
+        responsavel: { select: { nome: true } },
+      },
     })
     const dados = (lead?.dadosJson ?? {}) as Record<string, string>
     const nome = dados['Nome completo'] ?? dados['Razão Social'] ?? lead?.contatoEntrada
     escopoLabel = nome ? `lead: ${nome}` : 'lead (sem dados completos ainda)'
+    if (lead) {
+      const linhas: string[] = []
+      // Injeta todos os campos do dadosJson (formulário de onboarding)
+      for (const [k, v] of Object.entries(dados)) {
+        if (v) linhas.push(`${k}: ${v}`)
+      }
+      if (lead.planoTipo)      linhas.push(`Plano de interesse: ${lead.planoTipo}`)
+      if (lead.valorNegociado) linhas.push(`Valor negociado: R$ ${lead.valorNegociado}`)
+      if (lead.vencimentoDia)  linhas.push(`Vencimento: dia ${lead.vencimentoDia}`)
+      if (lead.formaPagamento) linhas.push(`Forma de pagamento: ${lead.formaPagamento}`)
+      if (lead.status)         linhas.push(`Status: ${lead.status}`)
+      if (lead.observacoes)    linhas.push(`Observações: ${lead.observacoes}`)
+      if (lead.responsavel?.nome) linhas.push(`Responsável: ${lead.responsavel.nome}`)
+      if (linhas.length > 0) {
+        dadosContextoExtra = `\n\nDADOS DO LEAD:\n${linhas.join('\n')}`
+      }
+    }
   }
 
   let systemExtra = `CONTEXTO DE USO: Você está sendo consultado por um membro interno da equipe contábil (contador ou admin) via painel CRM. Responda de forma técnica e detalhada. O usuário tem acesso completo à base de clientes do escritório.
@@ -103,6 +171,8 @@ REGRAS OBRIGATÓRIAS:
 - NUNCA diga que não tem acesso ao banco de dados ou ao sistema
 - Se os dados não aparecerem abaixo, significa que o sistema não encontrou resultados — informe isso claramente, mas não peça ao usuário para fornecer a informação manualmente
 - Se a pergunta exigir dados que ainda não foram buscados, informe que pode buscá-los e peça confirmação — mas nunca transfira a responsabilidade de busca para o usuário`
+
+  if (dadosContextoExtra) systemExtra += dadosContextoExtra
 
   const whereClause = clienteId
     ? { conversa: { clienteId } }

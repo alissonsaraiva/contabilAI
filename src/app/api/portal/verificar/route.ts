@@ -15,8 +15,18 @@ import crypto from 'crypto'
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
 
+  // req.url resolves to internal address (0.0.0.0:3000) when behind Traefik.
+  // Use the forwarded host header or the configured portal URL.
+  const forwardedProto = req.headers.get('x-forwarded-proto') ?? 'https'
+  const forwardedHost  = req.headers.get('x-forwarded-host')
+  const baseUrl =
+    (forwardedHost ? `${forwardedProto}://${forwardedHost}` : null) ??
+    process.env.NEXT_PUBLIC_PORTAL_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    req.nextUrl.origin
+
   const loginError = (erro: string) =>
-    NextResponse.redirect(new URL(`/portal/login?erro=${erro}`, req.url))
+    NextResponse.redirect(new URL(`/portal/login?erro=${erro}`, baseUrl))
 
   if (!token) return loginError('token_invalido')
 
@@ -54,7 +64,7 @@ export async function GET(req: NextRequest) {
       maxAge,
     })
 
-    const res = NextResponse.redirect(new URL('/portal/dashboard', req.url))
+    const res = NextResponse.redirect(new URL('/portal/dashboard', baseUrl))
     res.cookies.set(PORTAL_COOKIE_NAME, jwt, {
       httpOnly: true,
       sameSite: 'lax',

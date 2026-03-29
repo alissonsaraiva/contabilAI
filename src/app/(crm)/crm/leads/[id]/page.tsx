@@ -12,6 +12,7 @@ import { WhatsAppLeadDrawerButton } from '@/components/crm/whatsapp-lead-drawer-
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { EnviarZapSignBtn } from '@/components/crm/enviar-zapsign-btn'
+import { LeadActionsMenu } from '@/components/crm/lead-actions-menu'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -107,6 +108,10 @@ export default async function LeadDetailPage({ params }: Props) {
             ? <IniciarOnboardingBtn leadId={lead.id} />
             : <AvancarEtapaBtn leadId={lead.id} />
           }
+          <LeadActionsMenu
+            leadId={lead.id}
+            backHref={isProspecto ? '/crm/prospeccao' : '/crm/leads'}
+          />
         </div>
       </div>
 
