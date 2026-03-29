@@ -11,7 +11,7 @@ import { Toaster } from '@/components/ui/sonner'
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
-  if (!session) redirect('/login')
+  if (!session?.user) redirect('/login')
 
   const [pendingEscalacoes, pendingEmails, escritorio, aiConfig] = await Promise.all([
     prisma.escalacao.count({ where: { status: 'pendente' } }).catch(() => 0),

@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
 import { GeistMono } from 'geist/font/mono'
 import { Plus_Jakarta_Sans } from 'next/font/google'
-import { ThemeProvider } from 'next-themes'
 import { Toaster } from '@/components/ui/sonner'
-import { SuppressThemeScriptWarning } from '@/components/suppress-theme-script-warning'
 import { getEscritorioConfig } from '@/lib/escritorio'
 import './globals.css'
 
@@ -38,11 +36,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="antialiased">
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          <SuppressThemeScriptWarning />
-          {children}
-          <Toaster richColors position="top-right" />
-        </ThemeProvider>
+        {children}
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   )
