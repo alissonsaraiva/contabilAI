@@ -123,7 +123,7 @@ const convidarSocioPortalTool: Tool = {
       })
     }
 
-    const link = await criarTokenPortalSocio(socio.id, socio.empresaId, 24 * 60 * 60 * 1000) // 24h para convite
+    const { link } = await criarTokenPortalSocio(socio.id, socio.empresaId, 24 * 60 * 60 * 1000) // 24h para convite
 
     const nome = socio.nome.split(' ')[0]
     await sendEmail({

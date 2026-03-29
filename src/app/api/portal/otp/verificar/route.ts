@@ -1,0 +1,124 @@
+/**
+ * POST /api/portal/otp/verificar
+ * Body: { email: string; otp: string }
+ *
+ * Valida o código OTP de 6 dígitos, cria JWT de sessão do portal e retorna { ok: true }
+ * com o cookie de sessão setado no header da resposta.
+ *
+ * Fluxo: login PWA/WhatsApp — sem redirecionamento, o cliente redireciona via JS.
+ */
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { PORTAL_COOKIE_NAME } from '@/lib/auth-portal'
+import { encode } from '@auth/core/jwt'
+import crypto from 'crypto'
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null)
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : null
+  const otp   = typeof body?.otp   === 'string' ? body.otp.trim() : null
+
+  if (!email || !otp) {
+    return NextResponse.json({ error: 'parametros_invalidos' }, { status: 400 })
+  }
+
+  const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
+
+  // Tenta cliente (titular)
+  const cliente = await prisma.cliente.findUnique({
+    where:  { email },
+    select: { id: true, nome: true, email: true, status: true, empresaId: true },
+  })
+
+  if (cliente) {
+    if (cliente.status !== 'ativo' && cliente.status !== 'inadimplente') {
+      return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
+    }
+
+    const record = await prisma.portalToken.findFirst({
+      where: { clienteId: cliente.id },
+    })
+
+    const otpError = validarOtp(record, otpHash)
+    if (otpError) return NextResponse.json({ error: otpError }, { status: 400 })
+
+    await prisma.portalToken.update({ where: { id: record!.id }, data: { usedAt: new Date() } })
+
+    return buildSessionResponse({
+      id:        cliente.id,
+      name:      cliente.nome,
+      email:     cliente.email ?? '',
+      tipo:      'cliente',
+      empresaId: cliente.empresaId!,
+    })
+  }
+
+  // Tenta sócio com acesso
+  const socio = await prisma.socio.findFirst({
+    where:  { email, portalAccess: true },
+    select: { id: true, nome: true, email: true, empresaId: true },
+  })
+
+  if (socio) {
+    if (!socio.email) return NextResponse.json({ error: 'codigo_invalido' }, { status: 400 })
+
+    const record = await prisma.portalToken.findFirst({
+      where: { socioId: socio.id },
+    })
+
+    const otpError = validarOtp(record, otpHash)
+    if (otpError) return NextResponse.json({ error: otpError }, { status: 400 })
+
+    await prisma.portalToken.update({ where: { id: record!.id }, data: { usedAt: new Date() } })
+
+    return buildSessionResponse({
+      id:        socio.id,
+      name:      socio.nome,
+      email:     socio.email,
+      tipo:      'socio',
+      empresaId: socio.empresaId,
+    })
+  }
+
+  return NextResponse.json({ error: 'codigo_invalido' }, { status: 400 })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function validarOtp(record: any, otpHash: string): string | null {
+  if (!record || !record.otp)              return 'codigo_invalido'
+  if (record.usedAt)                       return 'codigo_invalido'
+  if (record.otp !== otpHash)              return 'codigo_invalido'
+  if (record.otpExpiresAt && record.otpExpiresAt < new Date()) return 'codigo_expirado'
+  return null
+}
+
+async function buildSessionResponse(payload: {
+  id: string; name: string; email: string
+  tipo: 'cliente' | 'socio'; empresaId: string
+}) {
+  const maxAge = 30 * 24 * 60 * 60 // 30 dias
+
+  const jwt = await encode({
+    token: {
+      sub:       payload.id,
+      id:        payload.id,
+      name:      payload.name,
+      email:     payload.email,
+      tipo:      payload.tipo,
+      empresaId: payload.empresaId,
+    },
+    secret: process.env.AUTH_SECRET!,
+    salt:   PORTAL_COOKIE_NAME,
+    maxAge,
+  })
+
+  const res = NextResponse.json({ ok: true })
+  res.cookies.set(PORTAL_COOKIE_NAME, jwt, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path:     '/',
+    secure:   process.env.NODE_ENV === 'production',
+    maxAge,
+  })
+  return res
+}

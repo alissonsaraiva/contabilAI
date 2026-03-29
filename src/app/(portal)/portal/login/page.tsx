@@ -1,9 +1,15 @@
 import { getEscritorioConfig } from '@/lib/escritorio'
+import { prisma } from '@/lib/prisma'
 import { PortalLoginForm } from './_login-form'
 
 export default async function PortalLoginPage() {
   const escritorio = await getEscritorioConfig()
   const nome = escritorio.nome
+
+  const row = await prisma.escritorio.findFirst({
+    select: { evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
+  })
+  const whatsappHabilitado = !!(row?.evolutionApiUrl && row.evolutionApiKey && row.evolutionInstance)
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface-container-lowest px-4">
@@ -13,7 +19,7 @@ export default async function PortalLoginPage() {
         </div>
         <span className="font-headline text-2xl font-bold tracking-tight text-on-surface">{nome}</span>
       </div>
-      <PortalLoginForm nome={nome} />
+      <PortalLoginForm nome={nome} whatsappHabilitado={whatsappHabilitado} />
     </div>
   )
 }

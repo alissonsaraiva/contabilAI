@@ -26,7 +26,7 @@ export async function POST(
     return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
   }
 
-  const link = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000) // 30 min
+  const { link } = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000) // 30 min
 
   return NextResponse.json({ link })
 }

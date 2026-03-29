@@ -26,7 +26,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     await prisma.socio.update({ where: { id }, data: { portalAccess: true } })
   }
 
-  const link = await criarTokenPortalSocio(socio.id, socio.empresaId, 24 * 60 * 60 * 1000)
+  const { link } = await criarTokenPortalSocio(socio.id, socio.empresaId, 24 * 60 * 60 * 1000)
   const nome = socio.nome.split(' ')[0]
 
   await sendEmail({

@@ -673,6 +673,8 @@ model PortalToken {
   token      String    @unique  // hash SHA-256 do token enviado por e-mail
   expiresAt  DateTime
   usedAt     DateTime?
+  otp        String?   // hash SHA-256 do código OTP de 6 dígitos
+  otpExpiresAt DateTime? // expiração do OTP (independente do link)
   criadoEm   DateTime  @default(now())
 
   @@index([empresaId])

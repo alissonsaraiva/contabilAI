@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
     if (cliente.status === 'cancelado') return NextResponse.json({ error: 'conta_cancelada' },        { status: 403 })
     if (!cliente.empresaId)             return NextResponse.json({ error: 'empresa_nao_vinculada' },  { status: 400 })
 
-    const link = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000)
-    await enviarEmailAcesso(emailNorm, cliente.nome, link)
+    const { link, otp } = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000)
+    await enviarEmailAcesso(emailNorm, cliente.nome, link, otp)
     return NextResponse.json({ ok: true })
   }
 
@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
   })
 
   if (socio) {
-    const link = await criarTokenPortalSocio(socio.id, socio.empresaId, 30 * 60 * 1000)
-    await enviarEmailAcesso(emailNorm, socio.nome, link)
+    const { link, otp } = await criarTokenPortalSocio(socio.id, socio.empresaId, 30 * 60 * 1000)
+    await enviarEmailAcesso(emailNorm, socio.nome, link, otp)
     return NextResponse.json({ ok: true })
   }
 
@@ -43,17 +43,25 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ error: 'email_nao_cadastrado' }, { status: 404 })
 }
 
-async function enviarEmailAcesso(email: string, nomeCompleto: string, link: string) {
+async function enviarEmailAcesso(email: string, nomeCompleto: string, link: string, otp: string) {
   const nome = nomeCompleto.split(' ')[0]
   await sendEmail({
     para:    email,
-    assunto: 'Seu link de acesso ao Portal',
+    assunto: 'Seu código de acesso ao Portal',
     corpo: `
       <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="margin-bottom:8px;font-size:20px">Olá, ${nome}!</h2>
         <p style="color:#555;margin-bottom:24px">
-          Clique no botão abaixo para acessar sua área exclusiva no Portal ContabAI.
-          O link é válido por <strong>30 minutos</strong>.
+          Use o código abaixo para acessar sua área exclusiva. Válido por <strong>10 minutos</strong>.
+        </p>
+
+        <div style="background:#f5f5f5;border-radius:12px;padding:20px 24px;text-align:center;margin-bottom:24px">
+          <p style="margin:0 0 4px;font-size:13px;color:#888;letter-spacing:.05em;text-transform:uppercase">Código de acesso</p>
+          <p style="margin:0;font-size:40px;font-weight:700;letter-spacing:.18em;color:#1a1a1a">${otp}</p>
+        </div>
+
+        <p style="color:#555;margin-bottom:16px;font-size:14px">
+          Prefere entrar com um clique? Use o botão abaixo (link válido por 30 minutos):
         </p>
         <a href="${link}"
            style="display:inline-block;background:#6366F1;color:#fff;font-weight:600;
@@ -62,7 +70,7 @@ async function enviarEmailAcesso(email: string, nomeCompleto: string, link: stri
         </a>
         <p style="margin-top:24px;font-size:12px;color:#999">
           Se você não solicitou este acesso, ignore este e-mail.<br>
-          Nunca compartilhe este link com ninguém.
+          Nunca compartilhe este código ou link com ninguém.
         </p>
       </div>
     `,

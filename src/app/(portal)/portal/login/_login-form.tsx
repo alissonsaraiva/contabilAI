@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
@@ -11,21 +11,32 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const ERRO_LABELS: Record<string, string> = {
-  email_nao_cadastrado: 'Nenhuma conta encontrada com esse e-mail. Use o e-mail que você cadastrou no onboarding ou tente o link de acesso.',
-  conta_inativa:        'Sua conta está inativa. Entre em contato com o escritório.',
-  conta_suspensa:       'Seu acesso ao portal está temporariamente suspenso. Entre em contato com o escritório para regularizar.',
-  conta_cancelada:      'Sua conta foi cancelada. Se deseja reativar os serviços, entre em contato com o escritório.',
-  token_invalido:       'Link de acesso inválido ou expirado. Solicite um novo abaixo.',
-  token_expirado:       'Este link de acesso expirou. Solicite um novo abaixo.',
+  email_nao_cadastrado:  'Nenhuma conta encontrada com esse e-mail.',
+  conta_inativa:         'Sua conta está inativa. Entre em contato com o escritório.',
+  conta_suspensa:        'Seu acesso ao portal está temporariamente suspenso.',
+  conta_cancelada:       'Sua conta foi cancelada. Entre em contato com o escritório.',
+  whatsapp_nao_cadastrado: 'Nenhum número de WhatsApp cadastrado nessa conta. Use outro método.',
+  whatsapp_indisponivel: 'WhatsApp indisponível no momento. Tente por e-mail.',
+  whatsapp_falhou:       'Não foi possível enviar o código. Tente novamente.',
+  codigo_invalido:       'Código incorreto ou expirado. Verifique e tente novamente.',
+  codigo_expirado:       'Código expirado. Solicite um novo.',
+  token_invalido:        'Link de acesso inválido ou expirado. Solicite um novo abaixo.',
+  token_expirado:        'Este link de acesso expirou. Solicite um novo abaixo.',
 }
 
-// Componente interno que usa useSearchParams — precisa de Suspense no pai
-function LoginFormInner({ nome }: { nome: string }) {
+type Etapa  = 'email' | 'codigo'
+type Canal  = 'email' | 'whatsapp'
+
+function LoginFormInner({ nome, whatsappHabilitado }: { nome: string; whatsappHabilitado: boolean }) {
   const searchParams = useSearchParams()
-  const [email, setEmail]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [enviado, setEnviado]   = useState(false)
+  const [isPwa, setIsPwa]         = useState(false)
+  const [email, setEmail]         = useState('')
+  const [otp, setOtp]             = useState('')
+  const [etapa, setEtapa]         = useState<Etapa>('email')
+  const [canal, setCanal]         = useState<Canal>('email')
+  const [loading, setLoading]     = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const otpInputRef = useRef<HTMLInputElement>(null)
 
   const erroParam = searchParams.get('erro')
 
@@ -33,21 +44,63 @@ function LoginFormInner({ nome }: { nome: string }) {
     if (erroParam) toast.error(ERRO_LABELS[erroParam] ?? 'Ocorreu um erro. Tente novamente.')
   }, [erroParam])
 
-  async function handleMagicLink(e: React.FormEvent) {
-    e.preventDefault()
+  // Detecta modo PWA (standalone) — oculta opção de link por e-mail
+  useEffect(() => {
+    const mq = window.matchMedia('(display-mode: standalone)')
+    setIsPwa(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsPwa(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  useEffect(() => {
+    if (etapa === 'codigo') otpInputRef.current?.focus()
+  }, [etapa])
+
+  async function enviarCodigo(canalEscolhido: Canal) {
     if (!email.trim()) return
     setLoading(true)
     try {
-      const res = await fetch('/api/portal/magic-link', {
+      const endpoint = canalEscolhido === 'whatsapp'
+        ? '/api/portal/otp/whatsapp'
+        : '/api/portal/magic-link'
+
+      const res = await fetch(endpoint, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: email.trim().toLowerCase() }),
       })
+
       if (res.ok) {
-        setEnviado(true)
+        setCanal(canalEscolhido)
+        setEtapa('codigo')
       } else {
         const { error } = await res.json()
-        toast.error(ERRO_LABELS[error] ?? 'Não foi possível enviar o link. Tente novamente.')
+        toast.error(ERRO_LABELS[error] ?? 'Não foi possível enviar o código. Tente novamente.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function verificarCodigo(e: React.FormEvent) {
+    e.preventDefault()
+    if (otp.length !== 6) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/portal/otp/verificar', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: email.trim().toLowerCase(), otp }),
+      })
+
+      if (res.ok) {
+        window.location.replace('/portal/dashboard')
+      } else {
+        const { error } = await res.json()
+        toast.error(ERRO_LABELS[error] ?? 'Código inválido. Tente novamente.')
+        setOtp('')
+        otpInputRef.current?.focus()
       }
     } finally {
       setLoading(false)
@@ -59,27 +112,87 @@ function LoginFormInner({ nome }: { nome: string }) {
     await signIn('google', { callbackUrl: '/portal/dashboard' })
   }
 
-  if (enviado) {
+  // ─── Tela de verificação de código ──────────────────────────────────────────
+
+  if (etapa === 'codigo') {
+    const icone = canal === 'whatsapp' ? 'chat' : 'mark_email_read'
+    const destino = canal === 'whatsapp'
+      ? 'seu WhatsApp'
+      : `${email}`
+
     return (
-      <Card className="w-full max-w-[420px] border-outline-variant/15 bg-card/60 p-8 shadow-sm backdrop-blur-xl rounded-[20px] text-center space-y-4">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-          <span className="material-symbols-outlined text-[28px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>mark_email_read</span>
+      <Card className="w-full max-w-[420px] border-outline-variant/15 bg-card/60 p-8 shadow-sm backdrop-blur-xl rounded-[20px]">
+        <div className="text-center space-y-3 mb-7">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+            <span
+              className="material-symbols-outlined text-[28px] text-primary"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              {icone}
+            </span>
+          </div>
+          <h2 className="font-headline text-xl font-semibold text-on-surface">Código enviado!</h2>
+          <p className="text-sm text-on-surface-variant">
+            Enviamos um código de 6 dígitos para{' '}
+            <span className="font-semibold text-on-surface">{destino}</span>.
+          </p>
         </div>
-        <h2 className="font-headline text-xl font-semibold text-on-surface">Link enviado!</h2>
-        <p className="text-sm text-on-surface-variant">
-          Enviamos um link de acesso para <span className="font-semibold text-on-surface">{email}</span>.
-          Verifique sua caixa de entrada e clique no link para entrar.
-        </p>
-        <p className="text-xs text-on-surface-variant/60">O link expira em 30 minutos. Não compartilhe com ninguém.</p>
-        <button
-          onClick={() => setEnviado(false)}
-          className="text-sm font-semibold text-primary hover:underline"
-        >
-          Usar outro e-mail
-        </button>
+
+        <form onSubmit={verificarCodigo} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="otp" className="text-[13px] font-semibold text-on-surface-variant">
+              Código de acesso
+            </Label>
+            <Input
+              ref={otpInputRef}
+              id="otp"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              placeholder="000000"
+              value={otp}
+              onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              required
+              className="h-14 rounded-xl border-outline-variant/30 bg-surface-container-low text-center text-2xl font-bold tracking-[.35em] shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:ring-[3px] focus:ring-primary/10"
+            />
+          </div>
+
+          <Button
+            type="submit"
+            className="h-11 w-full rounded-xl text-sm font-semibold shadow-sm"
+            disabled={loading || otp.length !== 6}
+          >
+            {loading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <span className="material-symbols-outlined mr-2 text-[18px]">lock_open</span>
+            )}
+            Verificar código
+          </Button>
+        </form>
+
+        <div className="mt-5 flex flex-col items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => { setLoading(false); enviarCodigo(canal) }}
+            className="font-semibold text-primary hover:underline"
+          >
+            Reenviar código
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEtapa('email'); setOtp('') }}
+            className="text-on-surface-variant/60 hover:text-on-surface-variant"
+          >
+            Usar outro e-mail
+          </button>
+        </div>
       </Card>
     )
   }
+
+  // ─── Tela de entrada (email) ─────────────────────────────────────────────────
 
   return (
     <div className="w-full max-w-[420px]">
@@ -116,12 +229,14 @@ function LoginFormInner({ nome }: { nome: string }) {
             <div className="w-full border-t border-outline-variant/30" />
           </div>
           <div className="relative flex justify-center">
-            <span className="bg-card px-3 text-xs text-on-surface-variant/50">ou receba um link por e-mail</span>
+            <span className="bg-card px-3 text-xs text-on-surface-variant/50">
+              ou entre com um código
+            </span>
           </div>
         </div>
 
-        {/* Magic link form */}
-        <form onSubmit={handleMagicLink} className="space-y-4">
+        {/* Email input */}
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email" className="text-[13px] font-semibold text-on-surface-variant">
               E-mail cadastrado
@@ -132,25 +247,53 @@ function LoginFormInner({ nome }: { nome: string }) {
               placeholder="seu@email.com.br"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              required
               autoFocus
               className="h-11 rounded-xl border-outline-variant/30 bg-surface-container-low text-[14px] shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:ring-[3px] focus:ring-primary/10"
             />
           </div>
 
+          {/* WhatsApp (prioritário no PWA, só se configurado no escritório) */}
+          {whatsappHabilitado && (
           <Button
-            type="submit"
-            className="h-11 w-full rounded-xl text-sm font-semibold shadow-sm"
+            type="button"
+            className="h-11 w-full rounded-xl text-sm font-semibold shadow-sm gap-2"
             disabled={loading || !email.trim()}
+            onClick={() => enviarCodigo('whatsapp')}
           >
             {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <span className="material-symbols-outlined mr-2 text-[18px]">send</span>
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden>
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
             )}
-            Enviar link de acesso
+            Receber código no WhatsApp
           </Button>
-        </form>
+          )}
+
+          {/* Email code — sempre visível (útil também fora do PWA) */}
+          {!isPwa && (
+            <button
+              type="button"
+              disabled={loading || !email.trim()}
+              onClick={() => enviarCodigo('email')}
+              className="w-full text-sm font-semibold text-primary hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              Enviar código por e-mail
+            </button>
+          )}
+
+          {isPwa && whatsappHabilitado && (
+            <button
+              type="button"
+              disabled={loading || !email.trim()}
+              onClick={() => enviarCodigo('email')}
+              className="w-full text-xs text-on-surface-variant/50 hover:text-on-surface-variant/80 disabled:opacity-40"
+            >
+              Receber por e-mail
+            </button>
+          )}
+        </div>
       </Card>
 
       <p className="mt-8 text-center text-[11px] font-medium uppercase tracking-wider text-on-surface-variant/40">
@@ -160,14 +303,14 @@ function LoginFormInner({ nome }: { nome: string }) {
   )
 }
 
-export function PortalLoginForm({ nome }: { nome: string }) {
+export function PortalLoginForm({ nome, whatsappHabilitado }: { nome: string; whatsappHabilitado: boolean }) {
   return (
     <Suspense fallback={
       <div className="w-full max-w-[420px] rounded-[20px] border border-outline-variant/15 bg-card/60 p-8 flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     }>
-      <LoginFormInner nome={nome} />
+      <LoginFormInner nome={nome} whatsappHabilitado={whatsappHabilitado} />
     </Suspense>
   )
 }

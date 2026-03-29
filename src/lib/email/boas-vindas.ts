@@ -23,7 +23,7 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
   }
 
   // Link válido por 24h — tempo suficiente para o cliente acessar com calma
-  const link = await criarTokenPortal(cliente.id, clienteRow.empresaId, 24 * 60 * 60 * 1000)
+  const { link } = await criarTokenPortal(cliente.id, clienteRow.empresaId, 24 * 60 * 60 * 1000)
 
   await sendEmail({
     para:    cliente.email,
