@@ -10,14 +10,13 @@ const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 
 const TIPOS = [
   { value: 'nota_interna',     label: 'Nota interna',      icon: 'sticky_note_2' },
-  { value: 'email_enviado',    label: 'E-mail enviado',     icon: 'mail' },
   { value: 'ligacao',          label: 'Ligação',            icon: 'call' },
   { value: 'documento_enviado',label: 'Documento enviado',  icon: 'upload_file' },
   { value: 'whatsapp_enviado', label: 'WhatsApp',           icon: 'chat' },
 ]
 
 // Tipos visíveis no portal do cliente (indicação visual no formulário)
-const TIPOS_PORTAL = ['email_enviado', 'documento_enviado']
+const TIPOS_PORTAL = ['documento_enviado']
 
 type Props = { clienteId: string }
 

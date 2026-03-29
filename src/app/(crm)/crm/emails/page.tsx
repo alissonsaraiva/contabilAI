@@ -1,85 +1,81 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { EmailsClient } from './_components/emails-client'
+import { EmailsGmail } from './_components/emails-gmail'
 
 export default async function EmailsPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const [pendentes, resolvidos, total] = await Promise.all([
-    prisma.interacao.findMany({
-      where:   { tipo: 'email_recebido', respondidoEm: null },
-      orderBy: { criadoEm: 'desc' },
-      take: 50,
-      include: {
-        cliente: { select: { id: true, nome: true } },
-        lead:    { select: { id: true, contatoEntrada: true, dadosJson: true } },
-      },
-    }),
-    prisma.interacao.findMany({
-      where:   { tipo: 'email_recebido', respondidoEm: { not: null } },
-      orderBy: { respondidoEm: 'desc' },
-      take: 20,
-      include: {
-        cliente: { select: { id: true, nome: true } },
-        lead:    { select: { id: true, contatoEntrada: true, dadosJson: true } },
-      },
-    }),
-    prisma.interacao.count({ where: { tipo: 'email_recebido', respondidoEm: null } }),
-  ])
-
-  // Serializa para client component
-  function serializarEmail(i: (typeof pendentes)[number]) {
+  function serializarInteracao(i: any) {
     const meta = (i.metadados ?? {}) as Record<string, unknown>
     return {
-      id:          i.id,
-      titulo:      i.titulo,
-      conteudo:    i.conteudo,
-      criadoEm:    i.criadoEm.toISOString(),
-      respondidoEm: (i as any).respondidoEm?.toISOString() ?? null,
-      clienteId:   i.clienteId,
-      leadId:      i.leadId,
-      clienteNome: i.cliente?.nome
+      id:           i.id,
+      tipo:         i.tipo as 'email_recebido' | 'email_enviado',
+      titulo:       i.titulo as string | null,
+      conteudo:     i.conteudo as string | null,
+      criadoEm:     i.criadoEm.toISOString(),
+      respondidoEm: (i.respondidoEm as Date | null)?.toISOString() ?? null,
+      clienteId:    i.clienteId as string | null,
+      leadId:       i.leadId as string | null,
+      clienteNome:  (i.cliente?.nome as string | undefined)
         ?? ((i.lead?.dadosJson as any)?.nomeCompleto as string | undefined)
-        ?? i.lead?.contatoEntrada
+        ?? (i.lead?.contatoEntrada as string | undefined)
         ?? null,
-      clienteLink: i.clienteId ? `/crm/clientes/${i.clienteId}` : i.leadId ? `/crm/leads/${i.leadId}` : null,
+      clienteLink:  i.clienteId
+        ? `/crm/clientes/${i.clienteId}`
+        : i.leadId ? `/crm/leads/${i.leadId}` : null,
       metadados: {
         de:            (meta.de            as string)  ?? '',
+        para:          (meta.para          as string)  ?? '',
         nomeRemetente: (meta.nomeRemetente as string | null) ?? null,
         assunto:       (meta.assunto       as string)  ?? i.titulo ?? '',
         messageId:     (meta.messageId     as string | null) ?? null,
         dataEnvio:     (meta.dataEnvio     as string | null) ?? null,
         anexos:        (meta.anexos        as Array<{ nome: string; url: string; mimeType: string }>) ?? [],
-        documentosId:  (meta.documentosId  as string[]) ?? [],
         sugestao:      (meta.sugestao      as string | null) ?? null,
       },
     }
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-light tracking-tight text-on-surface">E-mails</h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
-            Caixa de entrada do escritório
-          </p>
-        </div>
-        {total > 0 && (
-          <span className="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-[13px] font-bold text-primary">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-            {total} aguardando resposta
-          </span>
-        )}
-      </div>
+  const include = {
+    cliente: { select: { id: true, nome: true } },
+    lead:    { select: { id: true, contatoEntrada: true, dadosJson: true } },
+  }
 
-      <EmailsClient
-        pendentes={pendentes.map(serializarEmail)}
-        resolvidos={resolvidos.map(serializarEmail)}
-      />
-    </div>
+  const [recebidos, respondidos, enviados] = await Promise.all([
+    prisma.interacao.findMany({
+      where:   { tipo: 'email_recebido', respondidoEm: null },
+      orderBy: { criadoEm: 'desc' },
+      take: 100,
+      include,
+    }),
+    prisma.interacao.findMany({
+      where:   { tipo: 'email_recebido', respondidoEm: { not: null } },
+      orderBy: { respondidoEm: 'desc' },
+      take: 50,
+      include,
+    }),
+    prisma.interacao.findMany({
+      where:   { tipo: 'email_enviado' },
+      orderBy: { criadoEm: 'desc' },
+      take: 50,
+      include,
+    }),
+  ])
+
+  const clientes = await prisma.cliente.findMany({
+    where:  { status: { in: ['ativo', 'inadimplente'] } },
+    select: { id: true, nome: true, email: true },
+    orderBy: { nome: 'asc' },
+  })
+
+  return (
+    <EmailsGmail
+      recebidos={recebidos.map(serializarInteracao)}
+      respondidos={respondidos.map(serializarInteracao)}
+      enviados={enviados.map(serializarInteracao)}
+      clientes={clientes}
+    />
   )
 }

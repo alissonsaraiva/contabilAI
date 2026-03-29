@@ -14,7 +14,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
 import { NovaInteracaoDrawer } from '@/components/crm/nova-interacao-drawer'
-import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
@@ -483,16 +482,6 @@ export default async function ClienteDetailPage({ params }: Props) {
           )}
 
           <div className="mb-5 flex items-center justify-end gap-2">
-            <EnviarEmailDrawer
-              clienteId={cliente.id}
-              leadId={cliente.leadId ?? undefined}
-              clienteEmail={cliente.email}
-              clienteNome={cliente.nome}
-              documentos={cliente.documentos.map((d: any) => ({
-                id: d.id, nome: d.nome, url: d.url,
-                mimeType: d.mimeType ?? null, tipo: d.tipo,
-              }))}
-            />
             <NovaInteracaoDrawer clienteId={cliente.id} />
           </div>
           <HistoricoTimeline clienteId={cliente.id} nomeIa={nomeIa} />
