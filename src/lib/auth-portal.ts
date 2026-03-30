@@ -30,6 +30,8 @@ const portalAuth = NextAuth({
   basePath: '/api/portal/auth',
 
   cookies: {
+    // Session e callbackUrl com domain=.avos.digital para funcionar cross-subdomain:
+    // callback em crm.avos.digital cria sessão que é válida em portal.avos.digital
     sessionToken: {
       name: PORTAL_COOKIE_NAME,
       options: {
@@ -37,7 +39,12 @@ const portalAuth = NextAuth({
         sameSite: 'lax' as const,
         path: '/',
         secure: IS_PROD,
+        domain: IS_PROD ? '.avos.digital' : undefined,
       },
+    },
+    callbackUrl: {
+      name: IS_PROD ? '__Secure-portal-auth-callback-url' : 'portal-auth-callback-url',
+      options: OAUTH_COOKIE_OPTS,
     },
     state: {
       name: IS_PROD ? '__Secure-portal-auth-state' : 'portal-auth-state',
