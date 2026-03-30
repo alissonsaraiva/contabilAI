@@ -76,13 +76,7 @@ export async function notificarIaOffline(provider: string, erro: string): Promis
   registrarCooldown(chave)
 
   try {
-    const PROVIDER_LABELS: Record<string, string> = {
-      claude:  'Claude (Anthropic)',
-      openai:  'OpenAI',
-      google:  'Google Gemini',
-      groq:    'Groq',
-      voyage:  'Voyage AI (RAG)',
-    }
+    const { PROVIDER_LABELS } = await import('@/lib/ai/constants')
 
     const ids = await buscarAdmins()
     await criarParaTodos(ids, {
