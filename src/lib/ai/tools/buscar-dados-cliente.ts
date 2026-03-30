@@ -71,7 +71,7 @@ const buscarDadosClienteTool: Tool = {
             },
             interacoes: {
               where: ctx.solicitanteAI === 'portal'
-                ? { tipo: { in: ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou'] } }
+                ? { tipo: { in: ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou', 'whatsapp_enviado'] } }
                 : undefined,
               select: { tipo: true, titulo: true, criadoEm: true },
               orderBy: { criadoEm: 'desc' },
@@ -105,7 +105,7 @@ const buscarDadosClienteTool: Tool = {
             },
             interacoes: {
               where: ctx.solicitanteAI === 'portal'
-                ? { tipo: { in: ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou'] } }
+                ? { tipo: { in: ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou', 'whatsapp_enviado'] } }
                 : undefined,
               select: { tipo: true, titulo: true, criadoEm: true },
               orderBy: { criadoEm: 'desc' },

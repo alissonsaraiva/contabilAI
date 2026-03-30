@@ -71,7 +71,7 @@ export default async function ClienteDetailPage({ params }: Props) {
       where: { id },
       include: {
         empresa: { include: { socios: true } },
-        documentos: true,
+        documentos: { where: { deletadoEm: null } },
         contratos: true,
         tarefas: { orderBy: { criadoEm: 'desc' }, take: 10 },
         responsavel: { select: { nome: true } },
@@ -106,7 +106,7 @@ export default async function ClienteDetailPage({ params }: Props) {
   // PJ: busca docs da empresa também; PF: só cliente
   const empresaDocs = (isPJ && cliente.empresa?.id)
     ? await prisma.documento.findMany({
-        where:   { empresaId: cliente.empresa.id },
+        where:   { empresaId: cliente.empresa.id, deletadoEm: null },
         orderBy: { criadoEm: 'desc' },
       })
     : []

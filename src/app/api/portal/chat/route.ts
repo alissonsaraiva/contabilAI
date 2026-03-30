@@ -87,7 +87,7 @@ export async function POST(req: Request) {
   // Busca dados do titular da empresa para contexto da IA
   const clienteTitular = await prisma.cliente.findUnique({
     where:  { empresaId },
-    select: { id: true, nome: true, planoTipo: true, valorMensal: true, vencimentoDia: true, cidade: true, uf: true, empresa: { select: { regime: true } } },
+    select: { id: true, nome: true, planoTipo: true, valorMensal: true, vencimentoDia: true, cidade: true, uf: true, status: true, empresa: { select: { regime: true } } },
   })
 
   // Para sócios, vincula conversa ao clienteId do titular; titulares usam o próprio id.
@@ -149,6 +149,7 @@ DADOS DA EMPRESA:
 - Vencimento dia: ${clienteTitular?.vencimentoDia ?? '—'}
 - Regime tributário: ${clienteTitular?.empresa?.regime ?? 'não informado'}
 - Localidade: ${clienteTitular?.cidade ?? ''}${clienteTitular?.uf ? '/' + clienteTitular.uf : ''}
+- Status financeiro: ${clienteTitular?.status === 'inadimplente' ? 'INADIMPLENTE — mensalidade em atraso' : clienteTitular?.status === 'suspenso' ? 'SUSPENSO' : clienteTitular?.status === 'cancelado' ? 'CANCELADO' : 'em dia'}
 
 ACESSO A DADOS: Você tem acesso em tempo real aos dados da empresa — documentos, histórico de interações, tarefas, planos disponíveis. Os dados já foram consultados automaticamente e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL". Use esses dados para responder diretamente.
 

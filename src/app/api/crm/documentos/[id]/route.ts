@@ -1,10 +1,11 @@
 /**
  * DELETE /api/crm/documentos/[id]
- * Soft-delete de documento (seta deletadoEm). Apenas operadores CRM.
+ * Soft-delete de documento (seta deletadoEm) + deindex RAG. Apenas operadores CRM.
  */
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { deleteBySourceId } from '@/lib/rag/store'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -26,6 +27,9 @@ export async function DELETE(_req: Request, { params }: Params) {
     where: { id },
     data:  { deletadoEm: new Date() },
   })
+
+  // Remove embeddings do RAG (falha silenciosa — não bloqueia a resposta)
+  deleteBySourceId(id).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

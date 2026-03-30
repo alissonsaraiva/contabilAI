@@ -22,6 +22,7 @@ export async function GET(req: Request, { params }: Params) {
         },
       },
       documentos: {
+        where:   { deletadoEm: null },
         select: { id: true, nome: true, tipo: true, categoria: true, status: true, origem: true, criadoEm: true, tamanho: true, mimeType: true, url: true },
         orderBy: { criadoEm: 'desc' },
       },

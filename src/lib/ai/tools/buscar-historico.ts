@@ -3,7 +3,7 @@ import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
 // Tipos de interação visíveis ao cliente via portal — notas internas e chamadas são CRM-only
-const TIPOS_PORTAL = ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou']
+const TIPOS_PORTAL = ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou', 'whatsapp_enviado']
 
 const buscarHistoricoTool: Tool = {
   definition: {

@@ -19,8 +19,8 @@ export default async function PortalDocumentosPage({ searchParams }: Props) {
   const empresaId = user.empresaId as string | undefined
 
   const baseWhere: any = empresaId
-    ? { OR: [{ clienteId }, { empresaId }] }
-    : { clienteId }
+    ? { OR: [{ clienteId }, { empresaId }], deletadoEm: null }
+    : { clienteId, deletadoEm: null }
 
   const documentos = await prisma.documento.findMany({
     where:   baseWhere,

@@ -61,7 +61,7 @@ export default async function PortalAutenticadoLayout({ children }: { children: 
       ? prisma.cliente.findUnique({ where: { id: clienteId }, select: { tipoContribuinte: true } })
       : Promise.resolve(null),
     clienteId
-      ? prisma.documento.count({ where: { clienteId, origem: 'crm', visualizadoEm: null } })
+      ? prisma.documento.count({ where: { clienteId, origem: 'crm', visualizadoEm: null, deletadoEm: null } })
       : Promise.resolve(0),
   ])
 

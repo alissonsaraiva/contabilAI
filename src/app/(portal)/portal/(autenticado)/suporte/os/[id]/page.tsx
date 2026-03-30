@@ -46,7 +46,7 @@ export default async function OSDetailPage({ params }: Props) {
       where: { id, clienteId },
     }),
     prisma.documento.findMany({
-      where: { ordemServicoId: id, clienteId },
+      where: { ordemServicoId: id, clienteId, deletadoEm: null },
       orderBy: { criadoEm: 'asc' },
       select: { id: true, nome: true, url: true, mimeType: true, tamanho: true },
     }),

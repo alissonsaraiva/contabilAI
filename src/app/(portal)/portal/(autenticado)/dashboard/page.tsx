@@ -90,7 +90,7 @@ export default async function PortalDashboardPage() {
       },
     }),
     prisma.documento.findMany({
-      where:   { clienteId },
+      where:   { clienteId, deletadoEm: null },
       orderBy: { criadoEm: 'desc' },
       take:    6,
       select:  { id: true, nome: true, tipo: true, url: true, criadoEm: true, status: true },

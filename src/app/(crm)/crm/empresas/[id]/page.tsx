@@ -53,7 +53,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
   const empresa = await prisma.empresa.findUnique({
     where: { id },
     include: {
-      documentos: { orderBy: { criadoEm: 'desc' } },
+      documentos: { where: { deletadoEm: null }, orderBy: { criadoEm: 'desc' } },
       cliente: {
         include: {
           contratos: true,
