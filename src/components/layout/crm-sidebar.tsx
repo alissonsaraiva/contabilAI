@@ -8,7 +8,7 @@ import type { SessionUser } from '@/types'
 
 type NavItem = {
   href: string
-  icon: string
+  icon: string   // emoji
   label: string
   badge?: boolean       // usa pendingEscalacoes (item Atendimentos)
   badgeCount?: number   // contagem explícita para o item (ex: emails)
@@ -23,37 +23,37 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Comercial',
     items: [
-      { href: '/crm/dashboard',  icon: 'dashboard',     label: 'Dashboard' },
-      { href: '/crm/prospeccao', icon: 'contact_phone', label: 'Prospecção' },
-      { href: '/crm/leads',      icon: 'rocket_launch', label: 'Onboarding' },
-      { href: '/crm/clientes',   icon: 'group',         label: 'Clientes' },
-      { href: '/crm/empresas',   icon: 'domain',        label: 'Empresas' },
+      { href: '/crm/dashboard',  icon: '📊', label: 'Dashboard' },
+      { href: '/crm/prospeccao', icon: '📡', label: 'Prospecção' },
+      { href: '/crm/leads',      icon: '🚀', label: 'Onboarding' },
+      { href: '/crm/clientes',   icon: '👥', label: 'Clientes' },
+      { href: '/crm/empresas',   icon: '🏢', label: 'Empresas' },
     ],
   },
   {
     label: 'Atendimento',
     items: [
-      { href: '/crm/atendimentos',   icon: 'support_agent', label: 'Atendimentos', badge: true },
-      { href: '/crm/ordens-servico', icon: 'inbox',         label: 'Chamados' },
-      { href: '/crm/emails',         icon: 'mail',          label: 'E-mails' },
+      { href: '/crm/atendimentos',   icon: '💬', label: 'Atendimentos', badge: true },
+      { href: '/crm/ordens-servico', icon: '📋', label: 'Chamados' },
+      { href: '/crm/emails',         icon: '📧', label: 'E-mails' },
     ],
   },
   {
     label: 'Comunicação',
     items: [
-      { href: '/crm/comunicados', icon: 'campaign', label: 'Comunicados' },
+      { href: '/crm/comunicados', icon: '📢', label: 'Comunicados' },
     ],
   },
   {
     label: 'Inteligência',
     items: [
-      { href: '/crm/relatorios', icon: 'insights', label: 'Relatórios IA' },
+      { href: '/crm/relatorios', icon: '🧠', label: 'Relatórios IA' },
     ],
   },
   {
     label: 'Configurações',
     items: [
-      { href: '/crm/configuracoes', icon: 'settings', label: 'Configurações' },
+      { href: '/crm/configuracoes', icon: '⚙️', label: 'Configurações' },
     ],
   },
 ]
@@ -122,10 +122,7 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pen
                         : 'text-white/60 hover:bg-white/5 hover:text-white',
                     )}
                   >
-                    <span
-                      className="material-symbols-outlined text-[18px]"
-                      style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
-                    >
+                    <span className={cn('text-[18px] leading-none transition-all', active ? 'opacity-100' : 'opacity-60')}>
                       {icon}
                     </span>
                     <span>{label}</span>
