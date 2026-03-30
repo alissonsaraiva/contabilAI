@@ -52,42 +52,37 @@ export function EmpresaDocumentoUpload({ clienteId, empresaId }: Props) {
     }
   }
 
-  const categoriaDesc = CATEGORIAS.find(c => c.value === categoria)?.desc ?? ''
-
   return (
-    <div className="flex flex-wrap items-start gap-2">
+    <div className="flex items-center gap-2">
       <input
         type="text"
-        placeholder="Tipo (ex: Guia DAS, DCTF...)"
+        placeholder="Nome / tipo (ex: Guia DAS)"
         value={tipo}
         onChange={e => setTipo(e.target.value)}
-        className="h-9 w-48 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10"
+        className="h-9 w-44 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10"
       />
-      <div className="flex flex-col gap-0.5">
+      <div className="relative">
         <select
           value={categoria}
           onChange={e => setCategoria(e.target.value)}
-          className="h-9 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 cursor-pointer"
+          className="h-9 appearance-none rounded-[10px] border border-outline-variant/30 bg-surface-container-low pl-3 pr-8 text-[13px] text-on-surface focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 cursor-pointer"
         >
           {CATEGORIAS.map(c => (
             <option key={c.value} value={c.value}>{c.label}</option>
           ))}
         </select>
-        {categoriaDesc && (
-          <p className="text-[11px] text-on-surface-variant/50 px-1">{categoriaDesc}</p>
-        )}
+        <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-on-surface-variant/40">expand_more</span>
       </div>
-      <label className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-semibold transition-colors cursor-pointer ${
+      <label className={`flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-semibold transition-colors cursor-pointer ${
         loading
           ? 'bg-primary/50 text-white cursor-not-allowed'
           : 'bg-primary text-primary-foreground hover:bg-primary/90'
       }`}>
-        {loading ? (
-          <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
-        ) : (
-          <span className="material-symbols-outlined text-[16px]">upload</span>
-        )}
-        {loading ? 'Enviando...' : 'Enviar documento'}
+        {loading
+          ? <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+          : <span className="material-symbols-outlined text-[16px]">upload</span>
+        }
+        {loading ? 'Enviando...' : 'Enviar'}
         <input
           ref={fileRef}
           type="file"

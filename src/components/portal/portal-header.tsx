@@ -2,17 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { signOut } from 'next-auth/react'
-import { cn, getInitials } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { logoutPortal } from '@/app/(portal)/portal/actions'
 import { AvosIcon } from '@/components/avos-logo'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 type Props = {
   user: { name?: string | null; email?: string | null }
@@ -35,78 +27,72 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', do
   const pathname = usePathname()
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center border-b border-outline-variant/15 bg-card/80 px-4 backdrop-blur-md md:px-8">
-      {/* Brand */}
-      <Link href="/portal/dashboard" className="flex items-center gap-2 mr-8 shrink-0">
-        <AvosIcon size={32} className="shrink-0 rounded-lg shadow-sm" />
-        <span className="hidden font-headline text-[15px] font-bold tracking-tight text-on-surface sm:block">
-          {nomeEscritorio}
-        </span>
-      </Link>
+    <>
+      <header className="sticky top-0 z-40 flex h-16 items-center border-b border-outline-variant/15 bg-card/80 px-4 backdrop-blur-md md:px-8">
+        {/* Brand */}
+        <Link href="/portal/dashboard" className="flex items-center gap-2 mr-8 shrink-0">
+          <AvosIcon size={32} className="shrink-0 rounded-lg shadow-sm" />
+          <span className="hidden font-headline text-[15px] font-bold tracking-tight text-on-surface sm:block">
+            {nomeEscritorio}
+          </span>
+        </Link>
 
-      {/* Nav */}
-      <nav className="hidden md:flex items-center gap-1 flex-1">
-        {NAV_ITEMS.map(({ href, icon, label, badge }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'relative flex items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] font-medium transition-colors',
-                active
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-on-surface-variant/70 hover:bg-surface-container hover:text-on-surface',
-              )}
-            >
-              <span
-                className="material-symbols-outlined text-[18px]"
-                style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
+        {/* Nav */}
+        <nav className="hidden md:flex items-center gap-1 flex-1">
+          {NAV_ITEMS.map(({ href, icon, label, badge }) => {
+            const active = pathname === href || pathname.startsWith(href + '/')
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'relative flex items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] font-medium transition-colors',
+                  active
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-on-surface-variant/70 hover:bg-surface-container hover:text-on-surface',
+                )}
               >
-                {icon}
-              </span>
-              {label}
-              {badge > 0 && (
-                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-                  {badge > 99 ? '99+' : badge}
+                <span
+                  className="material-symbols-outlined text-[18px]"
+                  style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
+                >
+                  {icon}
                 </span>
-              )}
-            </Link>
-          )
-        })}
-      </nav>
+                {label}
+                {badge > 0 && (
+                  <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
+        </nav>
 
-      {/* User dropdown */}
-      <div className="ml-auto flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ring-offset-2 ring-offset-card">
-            <Avatar className="h-8 w-8 cursor-pointer ring-1 ring-outline-variant/20">
-              <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
-                {getInitials(user.name ?? 'C')}
-              </AvatarFallback>
-            </Avatar>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-outline-variant/15">
-            <div className="px-2.5 py-2">
-              <div className="flex flex-col space-y-0.5">
-                <p className="text-[14px] font-semibold text-on-surface">{user.name}</p>
-                <p className="text-[12px] text-on-surface-variant/80">{user.email}</p>
-              </div>
-            </div>
-            <DropdownMenuSeparator className="bg-outline-variant/10 -mx-1.5" />
-            <DropdownMenuItem
-              onClick={() => signOut({ callbackUrl: '/portal/login' })}
-              className="cursor-pointer rounded-md text-[13px] font-medium text-error focus:bg-error/10 focus:text-error px-2.5"
+        {/* Logout */}
+        <div className="ml-auto flex items-center gap-3 shrink-0">
+          {/* Nome do usuário — apenas desktop */}
+          {user.name && (
+            <span className="hidden md:block max-w-[140px] truncate text-[13px] text-on-surface-variant/60">
+              {user.name}
+            </span>
+          )}
+          <form action={logoutPortal}>
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[13px] font-medium text-on-surface-variant/70 transition-colors hover:bg-error/10 hover:text-error"
+              title="Sair"
             >
-              <span className="material-symbols-outlined mr-2 text-[18px]">logout</span>
-              Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 0" }}>logout</span>
+              <span className="hidden sm:inline">Sair</span>
+            </button>
+          </form>
+        </div>
+      </header>
 
-      {/* Mobile nav — bottom bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-outline-variant/15 bg-card/95 backdrop-blur-md pb-safe">
+      {/* Mobile nav — fora do <header> para evitar que backdrop-blur crie containing block
+          e quebre position:fixed no iOS Safari/Chrome */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-outline-variant/15 bg-card/95 pb-safe" style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
         {NAV_ITEMS.map(({ href, icon, mobileLabel, badge }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
@@ -136,6 +122,6 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', do
           )
         })}
       </nav>
-    </header>
+    </>
   )
 }
