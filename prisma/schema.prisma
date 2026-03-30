@@ -355,6 +355,7 @@ model Documento {
   // "integracao" = empurrado por sistema externo (NFe, ERP, etc.)
   integracaoId   String?            // ex: "focus_nfe", "contaazul", "sefaz"
   xmlMetadata    Json?
+  visualizadoEm  DateTime?          // null = não visualizado pelo cliente (origem 'crm')
   deletadoEm     DateTime?
   criadoEm       DateTime           @default(now())
 

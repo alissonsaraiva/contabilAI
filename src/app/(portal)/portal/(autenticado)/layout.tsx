@@ -54,17 +54,20 @@ export default async function PortalAutenticadoLayout({ children }: { children: 
   }
 
   const clienteId = await resolveClienteId(user)
-  const [aiConfig, escritorio, clienteRow] = await Promise.all([
+  const [aiConfig, escritorio, clienteRow, docsNovos] = await Promise.all([
     getAiConfig(),
     getEscritorioConfig(),
     clienteId
       ? prisma.cliente.findUnique({ where: { id: clienteId }, select: { tipoContribuinte: true } })
       : Promise.resolve(null),
+    clienteId
+      ? prisma.documento.count({ where: { clienteId, origem: 'crm', visualizadoEm: null } })
+      : Promise.resolve(0),
   ])
 
   return (
     <div className="min-h-screen bg-surface-container-lowest">
-      <PortalHeader user={user} nomeEscritorio={escritorio.nome} tipoContribuinte={clienteRow?.tipoContribuinte ?? 'pj'} />
+      <PortalHeader user={user} nomeEscritorio={escritorio.nome} tipoContribuinte={clienteRow?.tipoContribuinte ?? 'pj'} docsNovos={docsNovos} />
       <main className="mx-auto max-w-5xl px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">{children}</main>
       <PortalClara nomeIa={aiConfig.nomeAssistentes.portal ?? 'Clara'} />
       <PortalPWA />

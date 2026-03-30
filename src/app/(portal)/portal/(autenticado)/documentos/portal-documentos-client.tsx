@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -35,6 +35,7 @@ type Doc = {
   mimeType: string | null
   tamanho: number | null
   criadoEm: string
+  visualizadoEm: string | null
   xmlMetadata?: unknown
 }
 
@@ -83,6 +84,32 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
   const [q,         setQ]         = useState('')
   const [origem,    setOrigem]    = useState('')
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
+  // IDs de docs marcados como vistos nesta sessão (otimístico)
+  const [vistos, setVistos] = useState<Set<string>>(new Set())
+
+  const isNovo = useCallback((d: Doc) =>
+    d.origem === 'crm' && !d.visualizadoEm && !vistos.has(d.id),
+  [vistos])
+
+  function handleDownload(d: Doc) {
+    if (isNovo(d)) {
+      setVistos(prev => new Set(prev).add(d.id))
+      fetch(`/api/portal/documentos/${d.id}/visualizar`, { method: 'PATCH' }).catch(() => {})
+    }
+    window.open(`/api/portal/documentos/${d.id}/download`, '_blank', 'noopener,noreferrer')
+  }
+
+  // Contagem de novos por categoria (para badge nas tabs)
+  const novosMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const d of documentos) {
+      if (d.origem === 'crm' && !d.visualizadoEm && !vistos.has(d.id)) {
+        map['todos'] = (map['todos'] ?? 0) + 1
+        map[d.categoria] = (map[d.categoria] ?? 0) + 1
+      }
+    }
+    return map
+  }, [documentos, vistos])
 
   const filtered = useMemo(() => {
     const qLow = q.toLowerCase().trim()
@@ -121,14 +148,15 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
       {/* Tabs de categoria */}
       <div className="flex flex-wrap gap-2">
         {CATEGORIAS_INFO.map(cat => {
-          const count = cat.value === 'todos' ? totalGeral : (contagemMap[cat.value] ?? 0)
+          const count   = cat.value === 'todos' ? totalGeral : (contagemMap[cat.value] ?? 0)
+          const novos   = novosMap[cat.value] ?? 0
           if (cat.value !== 'todos' && count === 0) return null
           const isActive = categoria === cat.value
           return (
             <button
               key={cat.value}
               onClick={() => setCategoria(cat.value)}
-              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-all ${
+              className={`relative flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-all ${
                 isActive
                   ? 'bg-primary text-white shadow-sm'
                   : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
@@ -139,6 +167,11 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
               {count > 0 && (
                 <span className={`rounded-full px-1.5 text-[10px] font-bold ${isActive ? 'bg-white/20' : 'bg-surface-container-high'}`}>
                   {count}
+                </span>
+              )}
+              {novos > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-white ring-2 ring-background">
+                  {novos}
                 </span>
               )}
             </button>
@@ -217,8 +250,9 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                       const icon    = getIcon(d.mimeType, d.nome)
                       const isXML   = d.mimeType?.includes('xml') || d.nome.toLowerCase().endsWith('.xml')
                       const xmlMeta = d.xmlMetadata as any
+                      const novo    = isNovo(d)
                       return (
-                        <li key={d.id} className="flex items-start gap-3 px-5 py-3.5">
+                        <li key={d.id} className={`flex items-start gap-3 px-5 py-3.5 transition-colors ${novo ? 'bg-primary/[0.03]' : ''}`}>
                           <span
                             className={`mt-0.5 material-symbols-outlined text-[20px] shrink-0 ${isXML ? 'text-primary' : 'text-on-surface-variant/50'}`}
                             style={{ fontVariationSettings: "'FILL' 1" }}
@@ -226,7 +260,14 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                             {icon}
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-medium text-on-surface truncate">{d.nome}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[13px] font-medium text-on-surface truncate">{d.nome}</p>
+                              {novo && (
+                                <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                                  Novo
+                                </span>
+                              )}
+                            </div>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                               <span className="text-[11px] text-on-surface-variant/60">
                                 {d.tipo} · {new Date(d.criadoEm).toLocaleDateString('pt-BR')}
@@ -252,15 +293,13 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                               {s.label}
                             </span>
                             {d.url && (
-                              <a
-                                href={`/api/portal/documentos/${d.id}/download`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                onClick={() => handleDownload(d)}
                                 aria-label={`Baixar ${d.nome}`}
                                 className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-primary transition-colors"
                               >
                                 <span className="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
-                              </a>
+                              </button>
                             )}
                           </div>
                         </li>

@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 const CATEGORIAS = [
-  { value: 'geral', label: 'Geral' },
-  { value: 'nota_fiscal', label: 'Nota Fiscal' },
-  { value: 'imposto_renda', label: 'Imposto de Renda' },
-  { value: 'guias_tributos', label: 'Guias / Tributos' },
-  { value: 'relatorios', label: 'Relatórios' },
-  { value: 'outros', label: 'Outros' },
+  { value: 'geral',          label: 'Geral',              desc: 'Documentos gerais, contratos, correspondências' },
+  { value: 'nota_fiscal',    label: 'Nota Fiscal',        desc: 'NF-e, NFS-e, notas de produto ou serviço' },
+  { value: 'imposto_renda',  label: 'Imposto de Renda',   desc: 'DIRPF, informe de rendimentos, DIRF' },
+  { value: 'guias_tributos', label: 'Guias / Tributos',   desc: 'DAS, DARF, GNRE, GPS, parcelamentos' },
+  { value: 'relatorios',     label: 'Relatórios',         desc: 'Balancete, DRE, fluxo de caixa, relatórios contábeis' },
+  { value: 'outros',         label: 'Outros',             desc: 'Documentos que não se encaixam nas demais categorias' },
 ]
 
 type Props = {
@@ -52,8 +52,10 @@ export function EmpresaDocumentoUpload({ clienteId, empresaId }: Props) {
     }
   }
 
+  const categoriaDesc = CATEGORIAS.find(c => c.value === categoria)?.desc ?? ''
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-start gap-2">
       <input
         type="text"
         placeholder="Tipo (ex: Guia DAS, DCTF...)"
@@ -61,15 +63,20 @@ export function EmpresaDocumentoUpload({ clienteId, empresaId }: Props) {
         onChange={e => setTipo(e.target.value)}
         className="h-9 w-48 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10"
       />
-      <select
-        value={categoria}
-        onChange={e => setCategoria(e.target.value)}
-        className="h-9 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 cursor-pointer"
-      >
-        {CATEGORIAS.map(c => (
-          <option key={c.value} value={c.value}>{c.label}</option>
-        ))}
-      </select>
+      <div className="flex flex-col gap-0.5">
+        <select
+          value={categoria}
+          onChange={e => setCategoria(e.target.value)}
+          className="h-9 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 cursor-pointer"
+        >
+          {CATEGORIAS.map(c => (
+            <option key={c.value} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+        {categoriaDesc && (
+          <p className="text-[11px] text-on-surface-variant/50 px-1">{categoriaDesc}</p>
+        )}
+      </div>
       <label className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-semibold transition-colors cursor-pointer ${
         loading
           ? 'bg-primary/50 text-white cursor-not-allowed'

@@ -38,6 +38,9 @@ services:
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
       NEXT_PUBLIC_CRM_URL: ${NEXT_PUBLIC_CRM_URL:-}
       NEXT_PUBLIC_PORTAL_URL: ${NEXT_PUBLIC_PORTAL_URL:-}
+      CRON_SECRET: ${CRON_SECRET}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       TZ: America/Sao_Paulo
     networks:
       - contabil_net
