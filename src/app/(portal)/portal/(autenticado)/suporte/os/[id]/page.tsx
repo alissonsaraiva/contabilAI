@@ -54,6 +54,8 @@ export default async function OSDetailPage({ params }: Props) {
 
   if (!ordem) notFound()
 
+  const documentosNorm = documentos.map(d => ({ ...d, tamanho: d.tamanho != null ? Number(d.tamanho) : null }))
+
   const s  = STATUS_OS[ordem.status] ?? STATUS_OS.aberta
   const p  = PRIORIDADE[ordem.prioridade] ?? PRIORIDADE.media
   const podeAvaliar = ordem.status === 'resolvida' && !ordem.avaliacaoNota
@@ -128,16 +130,16 @@ export default async function OSDetailPage({ params }: Props) {
       )}
 
       {/* Documentos anexados */}
-      {documentos.length > 0 && (
+      {documentosNorm.length > 0 && (
         <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <span className="material-symbols-outlined text-[18px] text-on-surface-variant/50">attach_file</span>
             <span className="text-[12px] font-semibold text-on-surface-variant/70">
-              {documentos.length === 1 ? 'Documento anexado' : `${documentos.length} documentos anexados`}
+              {documentosNorm.length === 1 ? 'Documento anexado' : `${documentosNorm.length} documentos anexados`}
             </span>
           </div>
           <div className="space-y-2">
-            {documentos.map(doc => (
+            {documentosNorm.map(doc => (
               <a
                 key={doc.id}
                 href={`/api/portal/documentos/${doc.id}/download`}
