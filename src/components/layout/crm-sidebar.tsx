@@ -82,7 +82,7 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pen
     <aside className="hidden md:flex w-64 shrink-0 flex-col bg-[#0A0A0B] border-r border-white/5">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 px-6 mt-2">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_0_14px_rgba(0,85,255,0.35)]">
           <span
             className="material-symbols-outlined text-[18px]"
             style={{ fontVariationSettings: "'FILL' 1" }}
@@ -135,7 +135,7 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pen
                       </span>
                     )}
                     {active && (
-                      <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+                      <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(0,85,255,0.8)]" />
                     )}
                   </Link>
                 )
@@ -148,7 +148,7 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pen
       {/* User */}
       <div className="border-t border-white/5 p-4 m-2 rounded-xl bg-white/5">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-700 text-[11px] font-bold text-white shadow-sm ring-1 ring-white/10">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-blue-700 text-[11px] font-bold text-white shadow-sm ring-1 ring-white/10">
             {getInitials(user.name ?? 'U')}
           </div>
           <div className="min-w-0 flex-1">
