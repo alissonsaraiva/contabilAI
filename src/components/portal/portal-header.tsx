@@ -27,6 +27,7 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj' }: 
     { href: '/portal/dashboard',     icon: 'home',                        label: 'Início' },
     { href: '/portal/empresa',       icon: isPF ? 'badge' : 'domain',     label: isPF ? 'Dados' : 'Empresa' },
     { href: '/portal/documentos',    icon: 'folder_open',                 label: 'Documentos' },
+    { href: '/portal/financeiro',    icon: 'payments',                    label: 'Financeiro' },
     { href: '/portal/suporte',       icon: 'support_agent',               label: 'Suporte' },
     { href: '/portal/configuracoes', icon: 'settings',                    label: 'Config.' },
   ]

@@ -27,10 +27,33 @@ export type SendEmailResult = {
 // ─── Resend (REST API) ────────────────────────────────────────────────────────
 
 async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY!
-  // RESEND_FROM aceita qualquer remetente de domínio verificado no Resend.
-  // Sem domínio próprio, use: "onboarding@resend.dev"
-  const from   = process.env.RESEND_FROM ?? 'onboarding@resend.dev'
+  const apiKey    = process.env.RESEND_API_KEY!
+  const emailFrom = process.env.RESEND_FROM ?? 'onboarding@resend.dev'
+
+  // Busca o nome do remetente no escritório para montar "Nome <email>"
+  const escritorio = await prisma.escritorio.findFirst({
+    select: { emailNome: true },
+  })
+  const nomeRemetente = escritorio?.emailNome ?? process.env.EMAIL_NOME ?? ''
+  const from = nomeRemetente ? `${nomeRemetente} <${emailFrom}>` : emailFrom
+
+  // Baixa os anexos e converte para base64 (formato exigido pela API do Resend)
+  const attachments = opts.anexos && opts.anexos.length > 0
+    ? await Promise.all(
+        opts.anexos.map(async (a) => {
+          const ac = new AbortController()
+          const at = setTimeout(() => ac.abort(), 10_000)
+          let res: Response
+          try { res = await fetch(a.url, { signal: ac.signal }) } finally { clearTimeout(at) }
+          const buf = Buffer.from(await res.arrayBuffer())
+          return {
+            filename:     a.nome,
+            content:      buf.toString('base64'),
+            content_type: a.mimeType ?? 'application/octet-stream',
+          }
+        })
+      )
+    : undefined
 
   const body: Record<string, unknown> = {
     from,
@@ -38,7 +61,8 @@ async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
     subject: opts.assunto,
     html:    opts.corpo,
   }
-  if (opts.replyTo) body.reply_to = opts.replyTo
+  if (opts.replyTo)   body.reply_to    = opts.replyTo
+  if (attachments)    body.attachments = attachments
 
   const res = await fetch('https://api.resend.com/emails', {
     method:  'POST',

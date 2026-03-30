@@ -25,6 +25,22 @@ const PRIORIDADE: Record<string, string> = {
   baixa: 'text-on-surface-variant/50', media: 'text-blue-600', alta: 'text-yellow-600', urgente: 'text-error',
 }
 
+function StarsInline({ nota }: { nota: number }) {
+  return (
+    <span className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(i => (
+        <span
+          key={i}
+          className={`material-symbols-outlined text-[10px] ${i <= nota ? 'text-amber-400' : 'text-on-surface-variant/20'}`}
+          style={{ fontVariationSettings: i <= nota ? "'FILL' 1" : "'FILL' 0" }}
+        >
+          star
+        </span>
+      ))}
+    </span>
+  )
+}
+
 export default async function CrmOrdensServicoPage({ searchParams }: Props) {
   const session = await auth()
   if (!session) redirect('/crm/login')
@@ -37,7 +53,7 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
   const where: any = {}
   if (status) where.status = status
 
-  const [ordens, total, counts, clientes] = await Promise.all([
+  const [ordens, total, counts, clientes, avalStats, avalDist] = await Promise.all([
     prisma.ordemServico.findMany({
       where,
       orderBy: [{ prioridade: 'desc' }, { criadoEm: 'desc' }],
@@ -58,10 +74,25 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
       select:  { id: true, nome: true },
       orderBy: { nome: 'asc' },
     }),
+    prisma.ordemServico.aggregate({
+      where:  { avaliacaoNota: { not: null } },
+      _avg:   { avaliacaoNota: true },
+      _count: { id: true },
+    }),
+    prisma.ordemServico.groupBy({
+      by:      ['avaliacaoNota'],
+      where:   { avaliacaoNota: { not: null } },
+      _count:  { id: true },
+      orderBy: { avaliacaoNota: 'desc' },
+    }),
   ])
 
-  const totalPages   = Math.ceil(total / PER_PAGE)
-  const statusCounts = Object.fromEntries(counts.map(c => [c.status, c._count.status]))
+  const totalPages      = Math.ceil(total / PER_PAGE)
+  const statusCounts    = Object.fromEntries(counts.map(c => [c.status, c._count.status]))
+  const mediaAvaliacao  = avalStats._avg.avaliacaoNota
+  const totalAvaliados  = avalStats._count.id
+  const totalResolvidas = statusCounts['resolvida'] ?? 0
+  const distMap         = Object.fromEntries(avalDist.map(d => [d.avaliacaoNota ?? 0, d._count.id]))
 
   return (
     <div className="space-y-6 p-6 md:p-8">
@@ -77,6 +108,64 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
           <NovaOSDrawer clientes={clientes} />
         </div>
       </div>
+
+      {/* Painel de avaliações */}
+      {totalResolvidas > 0 && (
+        <Card className="border-outline-variant/15 bg-card/60 p-4 rounded-[16px] shadow-sm">
+          <div className="flex flex-wrap items-center gap-6">
+
+            {/* Média */}
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/10">
+                <span className="material-symbols-outlined text-[20px] text-amber-500" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">Média de avaliação</p>
+                <p className="text-[20px] font-bold text-on-surface leading-none">
+                  {mediaAvaliacao != null ? mediaAvaliacao.toFixed(1) : '—'}
+                  <span className="text-[12px] font-normal text-on-surface-variant/50 ml-1">/ 5</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Distribuição */}
+            {totalAvaliados > 0 && (
+              <div className="flex items-end gap-1">
+                {[5, 4, 3, 2, 1].map(n => {
+                  const count = distMap[n] ?? 0
+                  const pct   = Math.round((count / totalAvaliados) * 100)
+                  return (
+                    <div key={n} title={`${n}★: ${count}`} className="flex flex-col items-center gap-0.5">
+                      <span className="text-[9px] font-semibold text-on-surface-variant/50">{count > 0 ? count : ''}</span>
+                      <div className="relative w-4 h-8 rounded-sm bg-surface-container overflow-hidden">
+                        <div
+                          className="absolute bottom-0 w-full rounded-sm bg-amber-400/70"
+                          style={{ height: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] text-on-surface-variant/40">{n}★</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Cobertura */}
+            <div className="ml-auto text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">Avaliados</p>
+              <p className="text-[16px] font-bold text-on-surface leading-none">
+                {totalAvaliados}
+                <span className="text-[12px] font-normal text-on-surface-variant/50"> / {totalResolvidas}</span>
+              </p>
+              {totalResolvidas - totalAvaliados > 0 && (
+                <p className="text-[11px] text-on-surface-variant/50 mt-0.5">
+                  {totalResolvidas - totalAvaliados} aguardando
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Status counts */}
       <div className="flex flex-wrap gap-2">
@@ -146,6 +235,9 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>
                           {s.label}
                         </span>
+                        {o.status === 'resolvida' && o.avaliacaoNota != null && (
+                          <StarsInline nota={o.avaliacaoNota} />
+                        )}
                       </td>
                       <td className="px-5 py-3.5 hidden lg:table-cell">
                         <span className="text-[12px] text-on-surface-variant/60">

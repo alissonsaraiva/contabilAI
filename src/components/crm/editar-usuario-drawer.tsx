@@ -5,16 +5,11 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import type { TipoUsuario } from '@prisma/client'
+import { TIPOS } from '@/lib/usuarios/constants'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 const SELECT = INPUT + ' appearance-none cursor-pointer pr-10'
-
-const TIPOS = [
-  { value: 'assistente', label: 'Assistente' },
-  { value: 'contador', label: 'Contador' },
-  { value: 'admin', label: 'Admin' },
-]
 
 type Usuario = {
   id: string

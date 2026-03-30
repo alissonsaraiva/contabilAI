@@ -1,17 +1,21 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { TipoUsuario } from '@prisma/client'
 import { EditarUsuarioDrawer } from './editar-usuario-drawer'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-
-const TIPOS: { value: TipoUsuario; label: string }[] = [
-  { value: 'assistente', label: 'Assistente' },
-  { value: 'contador', label: 'Contador' },
-  { value: 'admin', label: 'Admin' },
-]
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu'
+import { TIPOS } from '@/lib/usuarios/constants'
 
 type Usuario = {
   id: string
@@ -23,11 +27,7 @@ type Usuario = {
 
 type Props = { usuario: Usuario }
 
-type SenhaResetada = {
-  nome: string
-  email: string
-  senha: string
-}
+type SenhaResetada = { nome: string; email: string; senha: string }
 
 function ModalSenhaResetada({ dados, onClose }: { dados: SenhaResetada; onClose: () => void }) {
   const [copiado, setCopiado] = useState(false)
@@ -48,8 +48,8 @@ function ModalSenhaResetada({ dados, onClose }: { dados: SenhaResetada; onClose:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-sm overflow-hidden rounded-[16px] border border-outline-variant/20 bg-card shadow-xl">
+    <Dialog open onOpenChange={open => { if (!open) onClose() }}>
+      <DialogContent className="max-w-sm gap-0 p-0 overflow-hidden bg-card" showCloseButton={false}>
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-outline-variant/15 px-5 py-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400/10">
@@ -82,7 +82,6 @@ function ModalSenhaResetada({ dados, onClose }: { dados: SenhaResetada; onClose:
             </p>
           </div>
 
-          {/* Prévia mensagem */}
           <div>
             <p className="mb-1.5 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">Mensagem para enviar</p>
             <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low p-3">
@@ -109,65 +108,69 @@ function ModalSenhaResetada({ dados, onClose }: { dados: SenhaResetada; onClose:
             Fechar
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
+// ─── Estilos reutilizáveis dos itens ──────────────────────────────────────────
+const ITEM_BASE = 'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2.5 text-[13px] font-medium text-on-surface focus:bg-surface-container-low focus:text-on-surface'
+const ITEM_DANGER = 'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2.5 text-[13px] font-medium text-error focus:bg-error/5 focus:text-error'
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
 export function UsuarioActionsMenu({ usuario }: Props) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [pos, setPos] = useState({ top: 0, right: 0 })
-  const [editarOpen, setEditarOpen] = useState(false)
+  const [editarOpen, setEditarOpen]       = useState(false)
   const [senhaResetada, setSenhaResetada] = useState<SenhaResetada | null>(null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [confirmOpen, setConfirmOpen]     = useState(false)
+  const [loadingToggle, setLoadingToggle] = useState(false)
+  const [loadingReset, setLoadingReset]   = useState(false)
+  const [loadingDelete, setLoadingDelete] = useState(false)
+  const [loadingTipo, setLoadingTipo]     = useState<TipoUsuario | null>(null)
 
-  function handleOpen(e: React.MouseEvent) {
-    e.stopPropagation()
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect()
-      setPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    }
-    setOpen(v => !v)
-  }
+  const anyLoading = loadingToggle || loadingReset || loadingDelete || loadingTipo !== null
 
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (
-        menuRef.current && !menuRef.current.contains(e.target as Node) &&
-        btnRef.current && !btnRef.current.contains(e.target as Node)
-      ) setOpen(false)
-    }
-    if (open) document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  async function patch(data: Record<string, unknown>, successMsg: string) {
-    setLoading(true)
+  async function handleToggleAtivo() {
+    setLoadingToggle(true)
     try {
       const res = await fetch(`/api/usuarios/${usuario.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ativo: !usuario.ativo }),
       })
       if (res.status === 403) { toast.error('Sem permissão'); return }
       if (!res.ok) throw new Error()
-      toast.success(successMsg)
-      setOpen(false)
+      toast.success(usuario.ativo ? 'Usuário desativado' : 'Usuário ativado')
       router.refresh()
     } catch {
       toast.error('Erro ao atualizar')
     } finally {
-      setLoading(false)
+      setLoadingToggle(false)
+    }
+  }
+
+  async function handleMudarTipo(tipo: TipoUsuario, label: string) {
+    setLoadingTipo(tipo)
+    try {
+      const res = await fetch(`/api/usuarios/${usuario.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo }),
+      })
+      if (res.status === 403) { toast.error('Sem permissão'); return }
+      if (!res.ok) throw new Error()
+      toast.success(`Tipo alterado para ${label}`)
+      router.refresh()
+    } catch {
+      toast.error('Erro ao atualizar')
+    } finally {
+      setLoadingTipo(null)
     }
   }
 
   async function handleResetSenha() {
-    setOpen(false)
-    setLoading(true)
+    setLoadingReset(true)
     try {
       const res = await fetch(`/api/usuarios/${usuario.id}/reset-senha`, { method: 'POST' })
       if (res.status === 403) { toast.error('Sem permissão'); return }
@@ -177,102 +180,102 @@ export function UsuarioActionsMenu({ usuario }: Props) {
     } catch {
       toast.error('Erro ao resetar senha')
     } finally {
-      setLoading(false)
+      setLoadingReset(false)
     }
   }
 
   async function handleDelete() {
-    setLoading(true)
+    setLoadingDelete(true)
     try {
       const res = await fetch(`/api/usuarios/${usuario.id}`, { method: 'DELETE' })
       if (res.status === 400) { const d = await res.json(); toast.error(d.error); return }
       if (res.status === 403) { toast.error('Sem permissão'); return }
       if (!res.ok) throw new Error()
       toast.success('Usuário excluído')
-      setOpen(false)
       router.refresh()
     } catch {
       toast.error('Erro ao excluir')
     } finally {
-      setLoading(false)
+      setLoadingDelete(false)
     }
   }
 
   return (
     <>
-      <button
-        ref={btnRef}
-        onClick={handleOpen}
-        disabled={loading}
-        className="rounded-lg p-1 text-on-surface-variant opacity-0 transition-opacity hover:text-on-surface group-hover:opacity-100 disabled:opacity-30"
-      >
-        <span className="material-symbols-outlined text-[18px]">more_vert</span>
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          disabled={anyLoading}
+          className="rounded-lg p-1 text-on-surface-variant opacity-0 transition-opacity hover:text-on-surface group-hover:opacity-100 disabled:opacity-30"
+        >
+          {anyLoading
+            ? <span className="block h-4 w-4 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
+            : <span className="material-symbols-outlined text-[18px]">more_vert</span>
+          }
+        </DropdownMenuTrigger>
 
-      {open && (
-        <div
-          ref={menuRef}
-          style={{ top: pos.top, right: pos.right }}
-          className="fixed z-50 min-w-[200px] overflow-hidden rounded-[12px] border border-outline-variant/20 bg-card shadow-lg"
+        <DropdownMenuContent
+          side="bottom"
+          align="end"
+          className="min-w-[200px] rounded-[12px] border border-outline-variant/20 bg-card p-1 shadow-lg"
         >
           {/* Editar */}
-          <button
-            onClick={() => { setOpen(false); setEditarOpen(true) }}
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+          <DropdownMenuItem
+            onClick={() => setEditarOpen(true)}
+            className={ITEM_BASE}
           >
             <span className="material-symbols-outlined text-[16px] text-on-surface-variant">edit</span>
             Editar usuário
-          </button>
+          </DropdownMenuItem>
 
           {/* Toggle ativo */}
-          <button
-            onClick={() => patch({ ativo: !usuario.ativo }, usuario.ativo ? 'Usuário desativado' : 'Usuário ativado')}
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+          <DropdownMenuItem
+            onClick={handleToggleAtivo}
+            className={ITEM_BASE}
           >
             <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
               {usuario.ativo ? 'person_off' : 'person_check'}
             </span>
             {usuario.ativo ? 'Desativar acesso' : 'Reativar acesso'}
-          </button>
+          </DropdownMenuItem>
 
           {/* Reset senha */}
-          <button
+          <DropdownMenuItem
             onClick={handleResetSenha}
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+            className={ITEM_BASE}
           >
             <span className="material-symbols-outlined text-[16px] text-on-surface-variant">lock_reset</span>
             Resetar senha
-          </button>
+          </DropdownMenuItem>
 
-          {/* Divider */}
-          <div className="mx-3 my-1 border-t border-outline-variant/15" />
+          <DropdownMenuSeparator className="mx-3 my-1" />
 
           {/* Mudar tipo */}
-          <p className="px-4 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Mudar tipo</p>
+          <DropdownMenuLabel className="px-4 pb-1 pt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+            Mudar tipo
+          </DropdownMenuLabel>
           {TIPOS.filter(t => t.value !== usuario.tipo).map(t => (
-            <button
+            <DropdownMenuItem
               key={t.value}
-              onClick={() => patch({ tipo: t.value }, `Tipo alterado para ${t.label}`)}
-              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+              onClick={() => handleMudarTipo(t.value, t.label)}
+              className={ITEM_BASE}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40" />
               {t.label}
-            </button>
+            </DropdownMenuItem>
           ))}
 
-          {/* Divider */}
-          <div className="mx-3 my-1 border-t border-outline-variant/15" />
+          <DropdownMenuSeparator className="mx-3 my-1" />
 
           {/* Excluir */}
-          <button
+          <DropdownMenuItem
             onClick={() => setConfirmOpen(true)}
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-error transition-colors hover:bg-error/5"
+            className={ITEM_DANGER}
           >
             <span className="material-symbols-outlined text-[16px]">delete</span>
             Excluir usuário
-          </button>
-        </div>
-      )}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <EditarUsuarioDrawer
         usuario={usuario}
@@ -287,7 +290,7 @@ export function UsuarioActionsMenu({ usuario }: Props) {
         title={`Excluir "${usuario.nome}"?`}
         description="Esta ação não pode ser desfeita."
         confirmLabel="Excluir"
-        loading={loading}
+        loading={loadingDelete}
       />
 
       {senhaResetada && (

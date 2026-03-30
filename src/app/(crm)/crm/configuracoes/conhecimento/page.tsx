@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { RagDiagnostico } from '@/components/crm/rag-diagnostico'
 
 type CanalRAG = 'onboarding' | 'crm' | 'portal' | 'whatsapp' | 'geral'
 type TipoConhecimento = 'base_conhecimento' | 'fiscal_normativo' | 'template'
@@ -444,6 +445,9 @@ export default function ConhecimentoPage() {
           Cada IA acessa apenas os artigos do seu canal + Geral — o onboarding não vê a base do portal, e vice-versa.
         </p>
       </div>
+
+      {/* Diagnóstico de qualidade do RAG */}
+      <RagDiagnostico />
 
       <ConfirmDialog
         open={confirmSeed}

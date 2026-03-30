@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { PROVIDER_LABELS } from '@/lib/ai/constants'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -36,14 +37,6 @@ type HealthData = {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const PROVIDER_LABELS: Record<string, string> = {
-  claude: 'Claude (Anthropic)',
-  openai: 'OpenAI',
-  google: 'Google Gemini',
-  groq:   'Groq',
-  voyage: 'Voyage AI (RAG)',
-}
 
 const TOOL_LABELS: Record<string, string> = {
   resumirFunil:        'Resumir funil',

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
 import { Card } from '@/components/ui/card'
+import { PortalPushToggle } from '@/components/portal/portal-push-toggle'
 
 export default async function PortalConfiguracoesPage() {
   const session = await auth()
@@ -97,17 +98,22 @@ export default async function PortalConfiguracoesPage() {
         </Card>
       )}
 
-      {/* Notificações (placeholder) */}
+      {/* Notificações */}
       <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
         <div className="mb-4 flex items-center gap-2">
           <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">notifications</span>
           <h2 className="text-[14px] font-semibold text-on-surface">Notificações</h2>
         </div>
-        <div className="flex items-center gap-3 rounded-xl bg-surface-container-low/60 px-4 py-3">
-          <span className="material-symbols-outlined text-[18px] text-on-surface-variant/40" style={{ fontVariationSettings: "'FILL' 1" }}>email</span>
-          <p className="text-[13px] text-on-surface-variant/70">
-            Notificações importantes são enviadas para <strong>{user.email ?? cliente.email}</strong>.
-          </p>
+        <div className="space-y-3">
+          {/* E-mail — sempre ativo */}
+          <div className="flex items-center gap-3 rounded-xl bg-surface-container-low/60 px-4 py-3">
+            <span className="material-symbols-outlined text-[18px] text-on-surface-variant/50" style={{ fontVariationSettings: "'FILL' 1" }}>email</span>
+            <p className="text-[13px] text-on-surface-variant/70">
+              Avisos importantes são enviados para <strong className="text-on-surface">{user.email ?? cliente.email}</strong>.
+            </p>
+          </div>
+          {/* Push — controlado pelo cliente */}
+          <PortalPushToggle />
         </div>
       </Card>
     </div>

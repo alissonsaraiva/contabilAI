@@ -455,6 +455,75 @@ O **Assistente CRM** já recebe `email_recebido` automaticamente via RAG e via `
 
 ---
 
+---
+
+## Feature: Arquivos do Sistema como Anexo
+
+> Implementado em v3.7+ — permite anexar documentos já salvos no sistema (tabela `Documento`) em qualquer ponto de envio, sem re-upload.
+
+### Componente central: `DocumentoPicker`
+
+**Arquivo:** `src/components/crm/documento-picker.tsx`
+
+Modal reutilizável para seleção de documentos existentes no banco.
+
+```tsx
+<DocumentoPicker
+  open={pickerOpen}
+  onClose={() => setPickerOpen(false)}
+  onSelect={(doc: DocSistema) => { /* usa doc.url, doc.nome, etc. */ }}
+  clienteId="uuid"   // contexto automático: carrega docs do cliente
+  leadId="uuid"      // OU contexto de lead
+  // sem clienteId/leadId → busca livre cross-client (exige 2+ chars)
+/>
+```
+
+**Comportamento:**
+- Com `clienteId` ou `leadId`: carrega documentos automaticamente, busca filtrada
+- Sem contexto: campo de busca livre por nome, tipo ou cliente (mínimo 2 caracteres)
+- Filtros: categoria, texto livre (debounce 350ms)
+- Para clientes PJ: inclui automaticamente documentos da empresa vinculada
+
+### Endpoint: `GET /api/crm/documentos`
+
+**Arquivo:** `src/app/api/crm/documentos/route.ts`
+
+Busca genérica de documentos para o picker.
+
+| Param | Descrição |
+|---|---|
+| `clienteId` | Docs do cliente + empresa vinculada (PJ) |
+| `leadId` | Docs do lead |
+| `empresaId` | Docs da empresa |
+| `search` | Filtro textual (nome, tipo, cliente) |
+| `categoria` | Filtro de categoria |
+
+Sem contexto, exige `search` com 2+ caracteres.
+
+### Pontos de integração
+
+| Onde | Como | Arquivo |
+|---|---|---|
+| **Email (página do cliente)** | Drawer auto-fetch com busca + checkboxes múltiplos | `enviar-email-drawer.tsx` + `clientes/[id]/page.tsx` |
+| **Chat/Conversa** | Botão `folder_open` ao lado do `attach_file` | `conversa-rodape.tsx` |
+| **Escalação WhatsApp** | Botão `folder_open` no modo direto (WhatsApp) | `escalacao-responder.tsx` |
+| **OS Responder** | Botões "Fazer upload" / "Do sistema" | `os-responder-form.tsx` |
+| **Comunicados** | Opções "Fazer upload" / "Do sistema" | `comunicado-form.tsx` |
+
+### Fluxo de documento existente na OS
+
+1. Usuário clica "Do sistema" → `DocumentoPicker` abre com docs do cliente
+2. Seleciona doc → form envia `documento_id`, `documento_url`, `documento_nome`, `documento_mime` no FormData
+3. Route PATCH `/api/crm/ordens-servico/[id]` extrai os campos e monta `documentoExistente`
+4. `resolverOS()` usa a URL existente (sem upload) para envio por email/WhatsApp
+5. Vincula o `Documento` existente à OS via `update({ ordemServicoId })`
+
+### Fluxo de documento existente no Comunicado
+
+FormData aceita `anexo_url` + `anexo_nome` como alternativa ao `File`. O route de comunicados salva diretamente `anexoUrl` e `anexoNome` sem upload, reutilizando a URL do S3.
+
+---
+
 ## Lacunas / próximos passos
 
 | Item | Status |

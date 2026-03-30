@@ -37,6 +37,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/crm/atendimentos',   icon: '💬', label: 'Atendimentos', badge: true },
       { href: '/crm/ordens-servico', icon: '📋', label: 'Chamados' },
       { href: '/crm/emails',         icon: '📧', label: 'E-mails' },
+      { href: '/crm/tarefas',        icon: '✅', label: 'Tarefas' },
     ],
   },
   {
