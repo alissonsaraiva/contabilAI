@@ -350,7 +350,7 @@ export default async function ClienteDetailPage({ params }: Props) {
         {/* ── Documentos ─────────────────────────────────── */}
         <TabsContent value="documentos" className="m-0 focus-visible:outline-none">
           <DocumentosTabContent
-            documentos={documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), xmlMetadata: (d as any).xmlMetadata as unknown }))}
+            documentos={documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), tamanho: d.tamanho != null ? Number(d.tamanho) : null, xmlMetadata: (d as any).xmlMetadata as unknown }))}
             empresaLink={isPJ && cliente.empresa ? (
               <div className="flex items-center rounded-xl bg-surface-container-low/60 px-4 py-2.5">
                 <span className="text-[12px] text-on-surface-variant/70">
