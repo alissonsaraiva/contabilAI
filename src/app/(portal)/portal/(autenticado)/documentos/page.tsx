@@ -51,6 +51,7 @@ export default async function PortalDocumentosPage({ searchParams }: Props) {
         documentos={documentos.map(d => ({
           ...d,
           criadoEm: d.criadoEm.toISOString(),
+          tamanho: d.tamanho != null ? Number(d.tamanho) : null,
           xmlMetadata: d.xmlMetadata as unknown,
         }))}
         contagemMap={contagemMap}

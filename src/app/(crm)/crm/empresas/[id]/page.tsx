@@ -296,7 +296,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
         {/* ── Documentos ──────────────────────────────────── */}
         <TabsContent value="documentos" className="m-0 focus-visible:outline-none">
           <DocumentosTabContent
-            documentos={documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), xmlMetadata: d.xmlMetadata as unknown }))}
+            documentos={documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), tamanho: d.tamanho != null ? Number(d.tamanho) : null, xmlMetadata: d.xmlMetadata as unknown }))}
             uploadSlot={cliente ? <EmpresaDocumentoUpload clienteId={cliente.id} empresaId={empresa.id} /> : undefined}
           />
         </TabsContent>
