@@ -11,8 +11,20 @@ import Credentials from 'next-auth/providers/credentials'
 import Google from 'next-auth/providers/google'
 import { prisma } from '@/lib/prisma'
 
+const IS_PROD = process.env.NODE_ENV === 'production'
+
 export const PORTAL_COOKIE_NAME =
-  `${process.env.NODE_ENV === 'production' ? '__Secure-' : ''}portal.session-token`
+  `${IS_PROD ? '__Secure-' : ''}portal.session-token`
+
+// Cookies OAuth (state/PKCE) precisam ser acessíveis de todos os subdomínios de avos.digital
+// para que o callback em crm.avos.digital consiga ler cookies setados em avos.digital/portal.avos.digital
+const OAUTH_COOKIE_OPTS = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  path: '/',
+  secure: IS_PROD,
+  domain: IS_PROD ? '.avos.digital' : undefined,
+}
 
 const portalAuth = NextAuth({
   basePath: '/api/portal/auth',
@@ -24,8 +36,16 @@ const portalAuth = NextAuth({
         httpOnly: true,
         sameSite: 'lax' as const,
         path: '/',
-        secure: process.env.NODE_ENV === 'production',
+        secure: IS_PROD,
       },
+    },
+    state: {
+      name: IS_PROD ? '__Secure-portal-auth-state' : 'portal-auth-state',
+      options: OAUTH_COOKIE_OPTS,
+    },
+    pkceCodeVerifier: {
+      name: IS_PROD ? '__Secure-portal-auth-pkce' : 'portal-auth-pkce',
+      options: OAUTH_COOKIE_OPTS,
     },
   },
 
@@ -53,12 +73,10 @@ const portalAuth = NextAuth({
     }),
 
     // Google OAuth — apenas titulares (clientes) — redirect URI: /api/portal/auth/callback/google
-    // checks: ['state'] — desabilita PKCE para evitar falha cross-domain quando AUTH_URL
-    // difere do domínio de onde o login foi iniciado (cookie de code verifier não viaja entre domínios).
+    // Cookies state/pkce configurados com domain=.avos.digital para funcionar cross-subdomain
     Google({
       clientId:     process.env.GOOGLE_CLIENT_ID     ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-      checks:       ['state'],
     }),
   ],
 
