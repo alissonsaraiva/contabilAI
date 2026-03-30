@@ -51,3 +51,11 @@ export function emitEscalacaoResolvida(escalacaoId: string, payload: EventEscala
 export function emitWhatsAppRefresh(conversaId: string) {
   eventBus.emit(`whatsapp:${conversaId}`, { type: 'refresh' } satisfies EventWhatsAppRefresh)
 }
+
+// ── Portal: mensagem do cliente durante conversa pausada ─────────────────────
+
+export type EventPortalUserMessage = { type: 'portal-user-message' }
+
+export function emitPortalUserMessage(conversaId: string) {
+  eventBus.emit(`portal-user:${conversaId}`, { type: 'portal-user-message' } satisfies EventPortalUserMessage)
+}

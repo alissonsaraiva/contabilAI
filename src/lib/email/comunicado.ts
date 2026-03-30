@@ -42,7 +42,7 @@ export async function enviarComunicadoPorEmail(
   // Monta corpo com link para o anexo (se houver)
   const corpoComAnexo = comunicado.conteudo + (
     comunicado.anexoUrl
-      ? `\n\n📎 <a href="${comunicado.anexoUrl}" style="color:#6366F1;font-weight:600;" target="_blank">${comunicado.anexoNome ?? 'Baixar anexo'}</a>`
+      ? `\n\n📎 <a href="${comunicado.anexoUrl}" style="color:#0C2240;font-weight:600;" target="_blank">${comunicado.anexoNome ?? 'Baixar anexo'}</a>`
       : ''
   )
 

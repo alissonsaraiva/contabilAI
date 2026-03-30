@@ -41,16 +41,36 @@ const s = StyleSheet.create({
   header: {
     marginBottom: 28,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  headerBadge: {
+    width: 32,
+    height: 32,
+    backgroundColor: '#0C2240',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBadgeText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontFamily: 'Helvetica-Bold',
+  },
+  headerInfo: {
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   headerNome: {
-    fontSize: 11,
+    fontSize: 13,
     fontFamily: 'Helvetica-Bold',
-    color: '#1a1a1a',
+    color: '#0C2240',
   },
   headerSub: {
-    fontSize: 8.5,
+    fontSize: 8,
     color: '#555',
-    marginTop: 2,
+    marginTop: 1,
   },
   divider: {
     borderBottomWidth: 1,
@@ -155,11 +175,20 @@ const s = StyleSheet.create({
 export interface ContratoPDFProps {
   nome: string
   cpf: string
+  rg?: string
   email: string
   telefone: string
   cnpj?: string
   razaoSocial?: string
+  nomeFantasia?: string
+  // Endereço
+  logradouro?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
   cidade?: string
+  uf?: string
+  cep?: string
   plano: string
   valor: number
   vencimentoDia: number
@@ -170,6 +199,11 @@ export interface ContratoPDFProps {
   escritorioCnpj?: string | null
   escritorioCrc?: string | null
   escritorioCidade?: string | null
+  escritorioLogradouro?: string | null
+  escritorioNumero?: string | null
+  escritorioBairro?: string | null
+  escritorioUf?: string | null
+  escritorioCep?: string | null
   // Termos configuráveis
   multaPercent?: number
   jurosMesPercent?: number
@@ -198,10 +232,15 @@ export function ContratoPDF(p: ContratoPDFProps) {
 
         {/* Cabeçalho */}
         <View style={s.header}>
-          <Text style={s.headerNome}>{p.escritorioNome}</Text>
-          {p.escritorioCrc && <Text style={s.headerSub}>CRC: {p.escritorioCrc}</Text>}
-          {p.escritorioCnpj && <Text style={s.headerSub}>CNPJ: {p.escritorioCnpj}</Text>}
-          {p.escritorioCidade && <Text style={s.headerSub}>{p.escritorioCidade}</Text>}
+          <View style={s.headerBadge}>
+            <Text style={s.headerBadgeText}>A</Text>
+          </View>
+          <View style={s.headerInfo}>
+            <Text style={s.headerNome}>{p.escritorioNome}</Text>
+            {p.escritorioCrc    && <Text style={s.headerSub}>CRC: {p.escritorioCrc}</Text>}
+            {p.escritorioCnpj   && <Text style={s.headerSub}>CNPJ: {p.escritorioCnpj}</Text>}
+            {p.escritorioCidade && <Text style={s.headerSub}>{p.escritorioCidade}</Text>}
+          </View>
         </View>
 
         <View style={s.divider} />
@@ -233,6 +272,21 @@ export function ContratoPDF(p: ContratoPDFProps) {
               <Text style={s.boxValue}>{p.escritorioCrc}</Text>
             </View>
           )}
+          {(p.escritorioLogradouro || p.escritorioCidade) && (
+            <View style={s.boxRow}>
+              <Text style={s.boxLabel}>Endereço:</Text>
+              <Text style={s.boxValue}>
+                {[
+                  p.escritorioLogradouro,
+                  p.escritorioNumero,
+                  p.escritorioBairro,
+                  p.escritorioCidade,
+                  p.escritorioUf,
+                  p.escritorioCep ? `CEP ${p.escritorioCep}` : undefined,
+                ].filter(Boolean).join(', ')}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={[s.boxInfo, { marginTop: 6 }]}>
@@ -247,6 +301,12 @@ export function ContratoPDF(p: ContratoPDFProps) {
             <Text style={s.boxLabel}>CPF:</Text>
             <Text style={s.boxValue}>{p.cpf}</Text>
           </View>
+          {p.rg && (
+            <View style={s.boxRow}>
+              <Text style={s.boxLabel}>RG:</Text>
+              <Text style={s.boxValue}>{p.rg}</Text>
+            </View>
+          )}
           {p.cnpj && (
             <View style={s.boxRow}>
               <Text style={s.boxLabel}>CNPJ:</Text>
@@ -259,6 +319,12 @@ export function ContratoPDF(p: ContratoPDFProps) {
               <Text style={s.boxValue}>{p.razaoSocial}</Text>
             </View>
           )}
+          {p.nomeFantasia && (
+            <View style={s.boxRow}>
+              <Text style={s.boxLabel}>Nome Fantasia:</Text>
+              <Text style={s.boxValue}>{p.nomeFantasia}</Text>
+            </View>
+          )}
           <View style={s.boxRow}>
             <Text style={s.boxLabel}>E-mail:</Text>
             <Text style={s.boxValue}>{p.email}</Text>
@@ -267,10 +333,22 @@ export function ContratoPDF(p: ContratoPDFProps) {
             <Text style={s.boxLabel}>Telefone/WhatsApp:</Text>
             <Text style={s.boxValue}>{p.telefone}</Text>
           </View>
-          {p.cidade && (
+          {(p.logradouro || p.cidade) && (
             <View style={s.boxRow}>
-              <Text style={s.boxLabel}>Cidade:</Text>
-              <Text style={s.boxValue}>{p.cidade}</Text>
+              <Text style={s.boxLabel}>{p.logradouro ? 'Endereço:' : 'Cidade:'}</Text>
+              <Text style={s.boxValue}>
+                {p.logradouro
+                  ? [
+                      p.logradouro,
+                      p.numero,
+                      p.complemento,
+                      p.bairro,
+                      p.cidade,
+                      p.uf,
+                      p.cep ? `CEP ${p.cep}` : undefined,
+                    ].filter(Boolean).join(', ')
+                  : `${p.cidade}${p.uf ? `/${p.uf}` : ''}`}
+              </Text>
             </View>
           )}
         </View>
@@ -366,6 +444,100 @@ export function ContratoPDF(p: ContratoPDFProps) {
 
         {/* Rodapé */}
         <Text style={s.rodape}>{p.escritorioNome} · Contrato gerado automaticamente via portal</Text>
+        <Text
+          style={s.pageNumber}
+          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          fixed
+        />
+      </Page>
+    </Document>
+  )
+}
+
+// ─── Versão baseada em template de texto livre ───────────────────────────────
+
+export interface ContratoPDFTemplateProps extends ContratoPDFProps {
+  textoTemplate: string
+}
+
+export function ContratoPDFTemplate(p: ContratoPDFTemplateProps) {
+  const dataStr = fmtData(p.assinadoEm)
+  const horaStr = fmtHora(p.assinadoEm)
+
+  // Divide o template em parágrafos pelo duplo-newline ou newline simples
+  const paragrafos = p.textoTemplate
+    .split(/\n{2,}/)
+    .map(bloco => bloco.trim())
+    .filter(Boolean)
+
+  return (
+    <Document
+      title="Contrato de Prestação de Serviços Contábeis"
+      author={p.escritorioNome}
+    >
+      <Page size="A4" style={s.page}>
+
+        {/* Cabeçalho */}
+        <View style={s.header}>
+          <View style={s.headerBadge}>
+            <Text style={s.headerBadgeText}>A</Text>
+          </View>
+          <View style={s.headerInfo}>
+            <Text style={s.headerNome}>{p.escritorioNome}</Text>
+            {p.escritorioCrc    && <Text style={s.headerSub}>CRC: {p.escritorioCrc}</Text>}
+            {p.escritorioCnpj   && <Text style={s.headerSub}>CNPJ: {p.escritorioCnpj}</Text>}
+            {p.escritorioCidade && <Text style={s.headerSub}>{p.escritorioCidade}</Text>}
+          </View>
+        </View>
+
+        <View style={s.divider} />
+
+        <Text style={s.titulo}>CONTRATO DE PRESTAÇÃO DE SERVIÇOS CONTÁBEIS</Text>
+        <Text style={s.subtitulo}>Celebrado em {dataStr}</Text>
+
+        {/* Corpo do template */}
+        {paragrafos.map((paragrafo, i) => (
+          <Text key={i} style={[s.paragrafo, { marginTop: i === 0 ? 8 : 0 }]}>
+            {paragrafo}
+          </Text>
+        ))}
+
+        <View style={[s.divider, { marginTop: 16 }]} />
+
+        {/* Assinatura */}
+        <View style={s.assinaturaBox}>
+          <Text style={{ fontSize: 8.5, textAlign: 'center', color: '#555', marginBottom: 12 }}>
+            Assinado digitalmente em {dataStr} às {horaStr}
+          </Text>
+          <View style={s.assinaturaRow}>
+            <View style={s.assinaturaCol}>
+              <View style={s.assinaturaLinha} />
+              <Text style={s.assinaturaNome}>{p.escritorioNome}</Text>
+              {p.escritorioCnpj && (
+                <Text style={[s.assinaturaNome, { color: '#888' }]}>CNPJ: {p.escritorioCnpj}</Text>
+              )}
+              <Text style={[s.assinaturaNome, { color: '#888', marginTop: 2 }]}>CONTRATADA</Text>
+            </View>
+            <View style={s.assinaturaCol}>
+              <View style={s.assinaturaLinha}>
+                {p.assinatura ? (
+                  <Text style={{ fontSize: 8, color: '#555', textAlign: 'center', paddingTop: 6 }}>
+                    {p.assinatura}
+                  </Text>
+                ) : null}
+              </View>
+              <Text style={s.assinaturaNome}>{p.nome}</Text>
+              <Text style={[s.assinaturaNome, { color: '#888' }]}>CPF: {p.cpf}</Text>
+              <Text style={[s.assinaturaNome, { color: '#888', marginTop: 2 }]}>CONTRATANTE</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 7.5, textAlign: 'center', color: '#aaa', marginTop: 14 }}>
+            Assinatura eletrônica com validade jurídica conforme Lei 14.063/2020 · IP registrado em {dataStr} {horaStr}
+          </Text>
+        </View>
+
+        {/* Rodapé */}
+        <Text style={s.rodape}>{p.escritorioNome} · Contrato gerado via portal</Text>
         <Text
           style={s.pageNumber}
           render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}

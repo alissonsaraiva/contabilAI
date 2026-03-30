@@ -18,6 +18,7 @@ import { prisma } from '@/lib/prisma'
 import { criarDocumento } from '@/lib/services/documentos'
 import { enviarEmailComHistorico } from '@/lib/email/com-historico'
 import { registrarInteracao } from '@/lib/services/interacoes'
+import { sendPushToCliente } from '@/lib/push'
 import { prepararEntregaWhatsApp } from '@/lib/whatsapp/entregar-documento'
 import { sendMedia, sendText } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
@@ -31,11 +32,18 @@ export type ResolverOSInput = {
   // Resposta textual (opcional — pode resolver só com status)
   resposta?:  string
 
-  // Arquivo a entregar (opcional)
+  // Arquivo NOVO a entregar (upload de buffer)
   arquivo?: {
     buffer:   Buffer
     nome:     string
     mimeType: string
+  }
+  // Documento JÁ EXISTENTE no sistema (referência — não faz upload, reutiliza URL)
+  documentoExistente?: {
+    id:       string
+    url:      string
+    nome:     string
+    mimeType: string | null
   }
   categoria?: CategoriaDocumento
 
@@ -95,12 +103,13 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
 
   const result: ResolverOSResult = { osId: input.osId }
 
-  // 3. Cria documento se arquivo fornecido
+  // 3. Documento: upload novo OU reutilizar existente do sistema
   let documentoUrl:   string | undefined
   let documentoNome:  string | undefined
   let documentoMime:  string | undefined
 
   if (input.arquivo) {
+    // Upload de arquivo novo → cria registro no banco
     const empresaId = os.cliente.empresaId ?? os.empresa?.id
     const doc = await criarDocumento({
       clienteId:      os.clienteId,
@@ -115,6 +124,17 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
     documentoUrl       = doc.url
     documentoNome      = doc.nome
     documentoMime      = input.arquivo.mimeType
+  } else if (input.documentoExistente) {
+    // Documento já existente no sistema — apenas vincula à OS e usa a URL
+    result.documentoId = input.documentoExistente.id
+    documentoUrl       = input.documentoExistente.url
+    documentoNome      = input.documentoExistente.nome
+    documentoMime      = input.documentoExistente.mimeType ?? undefined
+    // Vincula o documento existente a esta OS
+    await prisma.documento.update({
+      where: { id: input.documentoExistente.id },
+      data:  { ordemServicoId: input.osId },
+    }).catch(() => {})  // ignora se já tiver outra OS vinculada
   }
 
   // 4. Envia por e-mail
@@ -234,6 +254,13 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
       whatsappOk:  result.whatsappOk,
     },
   })
+
+  // 7. Push notification — avisa o cliente no portal mesmo com o app fechado
+  sendPushToCliente(os.clienteId, {
+    title: 'Chamado respondido',
+    body:  `Seu chamado "${os.titulo}" foi respondido. Acesse o portal para ver a resposta.`,
+    url:   '/portal/suporte',
+  }).catch(() => {})
 
   return result
 }

@@ -2,7 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { uploadArquivo, storageKeys } from '@/lib/storage'
-import { ContratoPDF } from '@/lib/pdf/contrato-template'
+import { ContratoPDF, ContratoPDFTemplate } from '@/lib/pdf/contrato-template'
+import { substituirVariaveis, buildContratoVariaveis } from '@/lib/pdf/contrato-variaveis'
 import { criarClienteDeContrato } from '@/lib/clientes/criar-de-contrato'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import React from 'react'
@@ -48,14 +49,22 @@ export async function POST(req: Request, { params }: Params) {
     valor = planoDB ? Number(planoDB.valorMinimo) : (PLANO_PRECOS_FALLBACK[plano] ?? 199)
   }
 
-  const pdfElement = React.createElement(ContratoPDF, {
+  const pdfProps = {
     nome: dados?.['Nome completo'] ?? lead.contatoEntrada,
     cpf: dados?.['CPF'] ?? '',
+    rg: dados?.['RG'],
     email: dados?.['E-mail'] ?? lead.contatoEntrada,
     telefone: dados?.['Telefone'] ?? lead.contatoEntrada,
     cnpj: dados?.['CNPJ'],
     razaoSocial: dados?.['Razão Social'],
+    nomeFantasia: dados?.['Nome Fantasia'],
+    logradouro: dados?.['Logradouro'] ?? dados?.['Endereço'],
+    numero: dados?.['Número'],
+    complemento: dados?.['Complemento'],
+    bairro: dados?.['Bairro'],
     cidade: dados?.['Cidade'],
+    uf: dados?.['UF'] ?? dados?.['Estado'],
+    cep: dados?.['CEP'],
     plano,
     valor,
     vencimentoDia: vencimento,
@@ -66,15 +75,45 @@ export async function POST(req: Request, { params }: Params) {
     escritorioCnpj: escritorio?.cnpj,
     escritorioCrc: escritorio?.crc,
     escritorioCidade: escritorio?.cidade,
+    escritorioLogradouro: escritorio?.logradouro,
+    escritorioNumero: escritorio?.numero,
+    escritorioBairro: escritorio?.bairro,
+    escritorioUf: escritorio?.uf,
+    escritorioCep: escritorio?.cep,
     multaPercent: escritorio?.multaPercent ?? 2.0,
     jurosMesPercent: escritorio?.jurosMesPercent ?? 1.0,
     diasAtrasoMulta: escritorio?.diasAtrasoMulta ?? 15,
     diasInadimplenciaRescisao: escritorio?.diasInadimplenciaRescisao ?? 60,
     diasAvisoRescisao: escritorio?.diasAvisoRescisao ?? 30,
     diasDocumentosAntecedencia: escritorio?.diasDocumentosAntecedencia ?? 5,
-  // @react-pdf/renderer types require DocumentProps but ContratoPDF wraps Document internally
+  }
+
+  // Usa template customizado se estiver preenchido, caso contrário usa o padrão
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  }) as any
+  let pdfElement: any
+  if (escritorio?.contratoTemplate?.trim()) {
+    const vars = buildContratoVariaveis({
+      dados,
+      plano,
+      valor,
+      vencimentoDia: vencimento,
+      formaPagamento,
+      assinadoEm: agora,
+      escritorioNome: escritorio.nome ?? 'Avos',
+      escritorioCnpj: escritorio.cnpj,
+      escritorioCrc: escritorio.crc,
+      escritorioCidade: escritorio.cidade,
+      escritorioLogradouro: escritorio.logradouro,
+      escritorioNumero: escritorio.numero,
+      escritorioBairro: escritorio.bairro,
+      escritorioUf: escritorio.uf,
+      escritorioCep: escritorio.cep,
+    })
+    const textoTemplate = substituirVariaveis(escritorio.contratoTemplate, vars)
+    pdfElement = React.createElement(ContratoPDFTemplate, { ...pdfProps, textoTemplate })
+  } else {
+    pdfElement = React.createElement(ContratoPDF, pdfProps)
+  }
   const pdfBuffer = await renderToBuffer(pdfElement)
 
   let pdfUrl: string | null = null

@@ -35,6 +35,52 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
+// ── Push Notifications ────────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+
+  let payload
+  try {
+    payload = event.data.json()
+  } catch {
+    payload = { title: 'Nova notificação', body: event.data.text(), url: '/portal/dashboard' }
+  }
+
+  const { title = 'Nova notificação', body = '', url = '/portal/dashboard', icon } = payload
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: icon || '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url },
+      vibrate: [200, 100, 200],
+    })
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = event.notification.data?.url || '/portal/dashboard'
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Se já tem uma aba do portal aberta, foca nela
+      for (const client of windowClients) {
+        if (client.url.includes('/portal') && 'focus' in client) {
+          client.navigate(url)
+          return client.focus()
+        }
+      }
+      // Senão, abre nova aba
+      if (clients.openWindow) return clients.openWindow(url)
+    })
+  )
+})
+
+// ── Fetch (cache strategy) ─────────────────────────────────────────────────
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
 

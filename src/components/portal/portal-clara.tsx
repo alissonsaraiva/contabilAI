@@ -23,17 +23,20 @@ function getOrCreatePortalSessionId(): string {
 }
 
 export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
-  const [open, setOpen]       = useState(false)
-  const [msgs, setMsgs]       = useState<Msg[]>([])
-  const [input, setInput]     = useState('')
-  const [loading, setLoading] = useState(false)
+  const [open, setOpen]           = useState(false)
+  const [msgs, setMsgs]           = useState<Msg[]>([])
+  const [input, setInput]         = useState('')
+  const [loading, setLoading]     = useState(false)
   const [escalando, setEscalando] = useState(false)
   const [escalada, setEscalada]   = useState(false)
   const [conversaId, setConversaId] = useState<string | null>(null)
-  const sessionIdRef          = useRef<string>('')
-  const historyLoadedRef      = useRef(false)
-  const bottomRef             = useRef<HTMLDivElement>(null)
-  const inputRef              = useRef<HTMLInputElement>(null)
+  const [unread, setUnread]         = useState(0)   // badge de não-lidas
+
+  const sessionIdRef      = useRef<string>('')
+  const historyLoadedRef  = useRef(false)
+  const bottomRef         = useRef<HTMLDivElement>(null)
+  const inputRef          = useRef<HTMLInputElement>(null)
+  const openRef           = useRef(open)
 
   // sessionId estável — persiste entre navegações via localStorage
   if (!sessionIdRef.current) {
@@ -43,19 +46,23 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   }
   const sessionId = sessionIdRef.current
 
+  // Mantém openRef em sync para uso dentro do callback SSE
+  useEffect(() => { openRef.current = open }, [open])
+
   const greeting: Msg = {
     role: 'assistant',
     text: `Olá! Sou ${nomeIa}, da equipe do escritório. Posso ajudar com dúvidas sobre contabilidade, obrigações fiscais, seu plano e muito mais. Como posso te ajudar?`,
   }
 
-  // Carrega histórico e conversaId na primeira abertura
+  // ── Carrega histórico no mount (não só ao abrir) ────────────────────────────
   useEffect(() => {
-    if (!open || historyLoadedRef.current) return
+    if (historyLoadedRef.current) return
     historyLoadedRef.current = true
     fetch(`/api/portal/chat?sessionId=${sessionId}`)
       .then(r => r.json())
-      .then(({ conversaId: cid, mensagens }) => {
+      .then(({ conversaId: cid, mensagens, pausada }) => {
         if (cid) setConversaId(cid)
+        if (pausada) setEscalada(true)
         if (Array.isArray(mensagens) && mensagens.length > 0) {
           setMsgs(mensagens.map((m: { role: string; conteudo: string }) => ({
             role: m.role as 'user' | 'assistant',
@@ -64,11 +71,12 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         }
       })
       .catch(() => {})
-  }, [open, sessionId])
+  }, [sessionId])
 
-  // SSE quando escalada — recebe mensagens do operador sem polling
+  // ── SSE para receber mensagens do operador — ativo sempre que há conversaId ──
+  // Cobre: escalação humana E mensagens proativas enviadas pelo agente/operador CRM
   useEffect(() => {
-    if (!escalada || !open || !conversaId) return
+    if (!conversaId) return
 
     const es = new EventSource(`/api/stream/portal/conversa?sessionId=${sessionId}`)
 
@@ -76,14 +84,19 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       try {
         const data = JSON.parse(e.data) as { role: string; conteudo: string }
         if (data.role && data.conteudo) {
-          setMsgs(prev => [...prev, { role: data.role as 'assistant', text: data.conteudo }])
+          setMsgs(prev => [...prev, { role: 'assistant', text: data.conteudo }])
+          // Se o chat está fechado → incrementa badge de não-lidas
+          if (!openRef.current) {
+            setUnread(n => n + 1)
+          }
         }
       } catch {}
     }
 
     return () => es.close()
-  }, [escalada, open, conversaId, sessionId])
+  }, [conversaId, sessionId])
 
+  // Scroll / focus ao abrir o painel
   useEffect(() => {
     if (open) {
       setTimeout(() => {
@@ -92,6 +105,14 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       }, 100)
     }
   }, [open, msgs])
+
+  // ── Abrir/fechar — zera não-lidas ao abrir ──────────────────────────────────
+  function toggleOpen() {
+    setOpen(v => {
+      if (!v) setUnread(0)   // abrindo → zera badge
+      return !v
+    })
+  }
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -113,6 +134,8 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       } else {
         const data = await res.json()
         if (data.conversaId) setConversaId(data.conversaId)
+        // IA detectou escalação automática ou conversa já estava pausada
+        if (data.escalado || data.pausada) setEscalada(true)
         setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
       }
     } catch {
@@ -148,11 +171,11 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
 
   return (
     <>
-      {/* Botão flutuante */}
+      {/* ── Botão flutuante ── */}
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={toggleOpen}
         className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg hover:bg-primary/90 transition-all active:scale-95 md:bottom-6 md:right-6"
-        aria-label="Falar com Clara"
+        aria-label={`Falar com ${nomeIa}`}
       >
         <span
           className="material-symbols-outlined text-[24px]"
@@ -160,9 +183,16 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         >
           {open ? 'close' : 'support_agent'}
         </span>
+
+        {/* Badge de não-lidas — aparece só quando chat fechado e tem msgs novas */}
+        {!open && unread > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF5C35] px-1 text-[10px] font-bold text-white shadow-sm animate-bounce">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
       </button>
 
-      {/* Painel de chat */}
+      {/* ── Painel de chat ── */}
       {open && (
         <div className="fixed bottom-36 right-4 z-50 flex h-[480px] w-[340px] flex-col overflow-hidden rounded-[20px] border border-outline-variant/15 bg-card shadow-2xl md:bottom-24 md:right-6 md:w-[380px]">
           {/* Header */}
@@ -174,7 +204,9 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
             </div>
             <div className="flex-1">
               <p className="text-[13px] font-semibold text-on-surface">{nomeIa}</p>
-              <p className="text-[11px] text-on-surface-variant/60">Atendimento online</p>
+              <p className="text-[11px] text-on-surface-variant/60">
+                {escalada ? 'Especialista online' : 'Atendimento online'}
+              </p>
             </div>
             {!escalada && (
               <button
@@ -186,6 +218,12 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
                 <span className="material-symbols-outlined text-[14px]">person_raised_hand</span>
                 <span className="hidden sm:block">Especialista</span>
               </button>
+            )}
+            {escalada && (
+              <span className="flex items-center gap-1 rounded-lg bg-green-status/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-green-status">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-status animate-pulse" />
+                Humano
+              </span>
             )}
             <button
               onClick={() => setOpen(false)}

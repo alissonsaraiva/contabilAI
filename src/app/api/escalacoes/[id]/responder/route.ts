@@ -8,6 +8,7 @@ import { getAiConfig } from '@/lib/ai/config'
 import { SYSTEM_BASE_DEFAULT } from '@/lib/ai/ask'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import { emitEscalacaoResolvida } from '@/lib/event-bus'
+import { sendPushToCliente } from '@/lib/push'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -160,6 +161,15 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
 
   // Notifica widgets via SSE (substitui poll de 4s)
   emitEscalacaoResolvida(id, { status: 'resolvida', resposta: mensagemFinal })
+
+  // Push para cliente portal/onboarding — WhatsApp já entrega pela Evolution API
+  if (esc.canal !== 'whatsapp' && esc.clienteId) {
+    sendPushToCliente(esc.clienteId, {
+      title: 'Resposta da equipe',
+      body:  mensagemFinal.slice(0, 100),
+      url:   '/portal/suporte',
+    }).catch(() => {})
+  }
 
   // Indexa escalação resolvida no RAG (contexto de atendimento para futuras consultas)
   indexarAsync('escalacao', {

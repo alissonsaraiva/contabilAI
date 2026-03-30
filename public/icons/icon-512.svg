@@ -1,4 +1,12 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'>
-  <rect width='512' height='512' rx='100' fill='#6366f1'/>
-  <text x='256' y='340' font-size='240' text-anchor='middle' fill='white' font-family='sans-serif'>C</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- AVOS — fundo navy (maskable: safe zone 40% = raio 102px) -->
+  <circle cx="256" cy="256" r="256" fill="#0C2240"/>
+  <!-- Perna direita do A (completa) -->
+  <polygon points="256,107 304,107 432,405 384,405 256,165" fill="white"/>
+  <!-- Perna esquerda superior (do ápice até acima do corte) -->
+  <polygon points="208,107 256,107 256,165 222,256 173,256" fill="white"/>
+  <!-- Travessa horizontal -->
+  <polygon points="173,256 323,256 310,293 160,293" fill="white"/>
+  <!-- Perna esquerda inferior (o "relâmpago" — peça abaixo do corte) -->
+  <polygon points="147,314 101,405 149,405 196,314" fill="white"/>
 </svg>

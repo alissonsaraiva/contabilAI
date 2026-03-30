@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import { enviarComunicadoPorEmail } from '@/lib/email/comunicado'
 import { uploadArquivo, storageKeys } from '@/lib/storage'
+import { sendPushToCliente } from '@/lib/push'
 import type { TipoComunicado } from '@prisma/client'
 
 export async function GET(req: Request) {
@@ -38,7 +39,10 @@ export async function POST(req: Request) {
   const publicar    = formData.get('publicar')    === 'true'
   const enviarEmail = formData.get('enviarEmail') === 'true'
   const expiradoEm  = formData.get('expiradoEm') as string | null
-  const anexo       = formData.get('anexo') as File | null
+  const anexo      = formData.get('anexo')      as File | null
+  // Alternativa ao upload: doc já existente no sistema
+  const anexoUrlSistema  = (formData.get('anexo_url')  as string | null)?.trim() || null
+  const anexoNomeSistema = (formData.get('anexo_nome') as string | null)?.trim() || null
 
   if (!titulo || !conteudo) {
     return NextResponse.json({ error: 'Título e conteúdo são obrigatórios' }, { status: 400 })
@@ -57,7 +61,7 @@ export async function POST(req: Request) {
     },
   })
 
-  // Upload do anexo (se houver)
+  // Upload do anexo (se houver arquivo novo)
   if (anexo && anexo.size > 0) {
     const MAX_SIZE = 10 * 1024 * 1024
     if (anexo.size > MAX_SIZE) {
@@ -76,6 +80,15 @@ export async function POST(req: Request) {
 
     comunicado.anexoUrl  = url
     comunicado.anexoNome = anexo.name
+  } else if (anexoUrlSistema && anexoNomeSistema) {
+    // Documento existente no sistema — reutiliza a URL sem novo upload
+    await prisma.comunicado.update({
+      where: { id: comunicado.id },
+      data:  { anexoUrl: anexoUrlSistema, anexoNome: anexoNomeSistema },
+    })
+
+    comunicado.anexoUrl  = anexoUrlSistema
+    comunicado.anexoNome = anexoNomeSistema
   }
 
   if (comunicado.publicado) {
@@ -83,6 +96,19 @@ export async function POST(req: Request) {
     if (enviarEmail) {
       enviarComunicadoPorEmail(comunicado.id).catch(() => {})
     }
+    // Push broadcast para todos os clientes ativos (fire-and-forget)
+    prisma.cliente.findMany({
+      where:  { status: { in: ['ativo', 'inadimplente'] } },
+      select: { id: true },
+    }).then(clientes => {
+      for (const c of clientes) {
+        sendPushToCliente(c.id, {
+          title: comunicado.titulo,
+          body:  comunicado.conteudo.slice(0, 100),
+          url:   '/portal/dashboard',
+        }).catch(() => {})
+      }
+    }).catch(() => {})
   }
 
   return NextResponse.json(comunicado, { status: 201 })

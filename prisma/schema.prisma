@@ -239,16 +239,30 @@ model Cliente {
   criadoEm            DateTime        @default(now())
   atualizadoEm        DateTime        @updatedAt
 
-  documentos      Documento[]
-  contratos       Contrato[]
-  tarefas         Tarefa[]
-  interacoes      Interacao[]
-  conversas       ConversaIA[]
-  portalTokens    PortalToken[]
-  statusHistorico ClienteStatusHistorico[]
-  ordensServico   OrdemServico[]
+  documentos        Documento[]
+  contratos         Contrato[]
+  tarefas           Tarefa[]
+  interacoes        Interacao[]
+  conversas         ConversaIA[]
+  portalTokens      PortalToken[]
+  statusHistorico   ClienteStatusHistorico[]
+  ordensServico     OrdemServico[]
+  pushSubscriptions PushSubscription[]
 
   @@map("clientes")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  clienteId String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  criadaEm  DateTime @default(now())
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }
 
 model Socio {

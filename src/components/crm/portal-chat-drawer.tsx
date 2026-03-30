@@ -21,11 +21,12 @@ type Conversa = {
 type Props = {
   clienteId: string
   clienteNome: string
+  nomeIa?: string
   open: boolean
   onClose: () => void
 }
 
-export function PortalChatDrawer({ clienteId, clienteNome, open, onClose }: Props) {
+export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente', open, onClose }: Props) {
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [loading, setLoading] = useState(false)
   const [conversaAberta, setConversaAberta] = useState<string | null>(null)
@@ -60,7 +61,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, open, onClose }: Prop
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-semibold text-on-surface truncate">{clienteNome}</p>
-            <p className="text-[11px] text-on-surface-variant">Chat do Portal (Clara)</p>
+            <p className="text-[11px] text-on-surface-variant">Chat do Portal ({nomeIa})</p>
           </div>
           <button
             onClick={onClose}
@@ -83,7 +84,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, open, onClose }: Prop
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <span className="material-symbols-outlined mb-3 text-[40px] text-on-surface-variant/25">forum</span>
               <p className="text-[13px] font-semibold text-on-surface-variant">Nenhuma conversa no portal</p>
-              <p className="mt-1 text-[12px] text-on-surface-variant/60">O cliente ainda não conversou com a Clara.</p>
+              <p className="mt-1 text-[12px] text-on-surface-variant/60">O cliente ainda não conversou com {nomeIa}.</p>
             </div>
           )}
 

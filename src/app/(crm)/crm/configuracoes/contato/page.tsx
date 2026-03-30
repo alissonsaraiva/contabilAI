@@ -82,7 +82,7 @@ export default function ContatoPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} autoComplete="off" className="space-y-6">
         {/* Contato */}
         <div>
           <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Contato</p>

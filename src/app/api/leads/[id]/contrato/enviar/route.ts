@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
-import { ContratoPDF } from '@/lib/pdf/contrato-template'
+import { ContratoPDF, ContratoPDFTemplate } from '@/lib/pdf/contrato-template'
+import { substituirVariaveis, buildContratoVariaveis } from '@/lib/pdf/contrato-variaveis'
 import { enviarZapSign } from '@/lib/zapsign'
 import { enviarClickSign } from '@/lib/clicksign'
 import React from 'react'
@@ -66,15 +67,22 @@ export async function POST(_req: Request, { params }: Params) {
   }
 
   // Gera PDF com dados reais do cliente
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfElement = React.createElement(ContratoPDF, {
+  const pdfProps = {
     nome,
     cpf: dados?.['CPF'] ?? '',
+    rg: dados?.['RG'],
     email,
     telefone: dados?.['Telefone'] ?? lead.contatoEntrada,
     cnpj: dados?.['CNPJ'],
     razaoSocial: dados?.['Razão Social'],
+    nomeFantasia: dados?.['Nome Fantasia'],
+    logradouro: dados?.['Logradouro'] ?? dados?.['Endereço'],
+    numero: dados?.['Número'],
+    complemento: dados?.['Complemento'],
+    bairro: dados?.['Bairro'],
     cidade: dados?.['Cidade'],
+    uf: dados?.['UF'] ?? dados?.['Estado'],
+    cep: dados?.['CEP'],
     plano,
     valor,
     vencimentoDia: vencimento,
@@ -85,15 +93,46 @@ export async function POST(_req: Request, { params }: Params) {
     escritorioCnpj: escritorio?.cnpj,
     escritorioCrc: escritorio?.crc,
     escritorioCidade: escritorio?.cidade,
+    escritorioLogradouro: escritorio?.logradouro,
+    escritorioNumero: escritorio?.numero,
+    escritorioBairro: escritorio?.bairro,
+    escritorioUf: escritorio?.uf,
+    escritorioCep: escritorio?.cep,
     multaPercent: escritorio?.multaPercent ?? 2.0,
     jurosMesPercent: escritorio?.jurosMesPercent ?? 1.0,
     diasAtrasoMulta: escritorio?.diasAtrasoMulta ?? 15,
     diasInadimplenciaRescisao: escritorio?.diasInadimplenciaRescisao ?? 60,
     diasAvisoRescisao: escritorio?.diasAvisoRescisao ?? 30,
     diasDocumentosAntecedencia: escritorio?.diasDocumentosAntecedencia ?? 5,
-  } as never) as never
+  }
 
-  const pdfBuffer = await renderToBuffer(pdfElement as never)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let pdfElement: any
+  if (escritorio?.contratoTemplate?.trim()) {
+    const vars = buildContratoVariaveis({
+      dados,
+      plano,
+      valor,
+      vencimentoDia: vencimento,
+      formaPagamento,
+      assinadoEm: agora,
+      escritorioNome: escritorio.nome ?? 'Avos',
+      escritorioCnpj: escritorio.cnpj,
+      escritorioCrc: escritorio.crc,
+      escritorioCidade: escritorio.cidade,
+      escritorioLogradouro: escritorio.logradouro,
+      escritorioNumero: escritorio.numero,
+      escritorioBairro: escritorio.bairro,
+      escritorioUf: escritorio.uf,
+      escritorioCep: escritorio.cep,
+    })
+    const textoTemplate = substituirVariaveis(escritorio.contratoTemplate, vars)
+    pdfElement = React.createElement(ContratoPDFTemplate, { ...pdfProps, textoTemplate })
+  } else {
+    pdfElement = React.createElement(ContratoPDF, pdfProps)
+  }
+
+  const pdfBuffer = await renderToBuffer(pdfElement)
   const nomeContrato = `Contrato ${nome} — ${escritorio?.nome ?? 'Avos'}`
 
   // Envia para o provedor configurado

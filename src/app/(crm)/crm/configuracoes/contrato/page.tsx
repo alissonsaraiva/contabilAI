@@ -194,16 +194,67 @@ export default function ContratoPage() {
         {/* Template de contrato */}
         <div>
           <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Template de Contrato</h3>
-          <div className="space-y-1.5">
-            <p className="text-[12px] text-on-surface-variant/60 mb-2">
-              Texto base opcional. Variáveis disponíveis:{' '}
-              <code className="rounded bg-surface-container px-1 py-0.5 text-[11px] font-mono">{'{{nomeCliente}}'}</code>{' '}
-              <code className="rounded bg-surface-container px-1 py-0.5 text-[11px] font-mono">{'{{plano}}'}</code>{' '}
-              <code className="rounded bg-surface-container px-1 py-0.5 text-[11px] font-mono">{'{{valor}}'}</code>
+          <div className="space-y-3">
+            <p className="text-[12px] text-on-surface-variant/60">
+              Texto base opcional. Deixe em branco para usar o contrato padrão. Use as variáveis abaixo — elas são substituídas automaticamente ao gerar o contrato.
             </p>
+            <div className="rounded-[10px] border border-outline-variant/20 bg-surface-container-low/50 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-3">Variáveis do cliente</p>
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {[
+                  ['{{nomeCliente}}', 'Nome completo'],
+                  ['{{cpf}}', 'CPF'],
+                  ['{{rg}}', 'RG'],
+                  ['{{email}}', 'E-mail'],
+                  ['{{telefone}}', 'Telefone'],
+                  ['{{cnpj}}', 'CNPJ'],
+                  ['{{razaoSocial}}', 'Razão Social'],
+                  ['{{nomeFantasia}}', 'Nome Fantasia'],
+                  ['{{logradouro}}', 'Logradouro'],
+                  ['{{numero}}', 'Número'],
+                  ['{{complemento}}', 'Complemento'],
+                  ['{{bairro}}', 'Bairro'],
+                  ['{{cidade}}', 'Cidade'],
+                  ['{{uf}}', 'Estado'],
+                  ['{{cep}}', 'CEP'],
+                ].map(([v, label]) => (
+                  <span key={v} title={label} className="inline-flex items-center gap-1 rounded bg-surface-container px-1.5 py-0.5 text-[11px] font-mono text-on-surface/70 cursor-default border border-outline-variant/20">
+                    {v}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-3">Variáveis do contrato</p>
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {[
+                  ['{{plano}}', 'Plano contratado'],
+                  ['{{valor}}', 'Valor mensal'],
+                  ['{{vencimento}}', 'Dia de vencimento'],
+                  ['{{formaPagamento}}', 'Forma de pagamento'],
+                  ['{{dataContrato}}', 'Data do contrato'],
+                ].map(([v, label]) => (
+                  <span key={v} title={label} className="inline-flex items-center gap-1 rounded bg-surface-container px-1.5 py-0.5 text-[11px] font-mono text-on-surface/70 cursor-default border border-outline-variant/20">
+                    {v}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-3">Variáveis do escritório</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  ['{{escritorioNome}}', 'Nome do escritório'],
+                  ['{{escritorioCnpj}}', 'CNPJ do escritório'],
+                  ['{{escritorioCrc}}', 'CRC'],
+                  ['{{escritorioCidade}}', 'Cidade do escritório'],
+                  ['{{escritorioEndereco}}', 'Endereço completo do escritório'],
+                ].map(([v, label]) => (
+                  <span key={v} title={label} className="inline-flex items-center gap-1 rounded bg-surface-container px-1.5 py-0.5 text-[11px] font-mono text-on-surface/70 cursor-default border border-outline-variant/20">
+                    {v}
+                  </span>
+                ))}
+              </div>
+            </div>
             <textarea
               {...register('contratoTemplate')}
-              rows={8}
+              rows={12}
               className="w-full resize-y rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[13px] font-mono text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 custom-scrollbar"
               placeholder="Deixe em branco para usar o contrato padrão gerado automaticamente."
             />

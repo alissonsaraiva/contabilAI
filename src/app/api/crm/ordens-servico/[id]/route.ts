@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolverOS } from '@/lib/services/ordens-servico'
 import { notificarOSResolvida } from '@/lib/notificacoes'
+import { sendPushToCliente } from '@/lib/push'
 import type { CategoriaDocumento } from '@prisma/client'
 
 type Params = { params: Promise<{ id: string }> }
@@ -67,6 +68,12 @@ export async function PATCH(req: Request, { params }: Params) {
     const wppMensagem    = form.get('wpp_mensagem')        as string | null
     const wppDestRaw     = form.get('wpp_destinatarios')   as string | null
 
+    // Documento existente no sistema (alternativa ao upload de arquivo novo)
+    const documentoId   = form.get('documento_id')   as string | null
+    const documentoUrl  = form.get('documento_url')  as string | null
+    const documentoNome = form.get('documento_nome') as string | null
+    const documentoMime = form.get('documento_mime') as string | null
+
     let wppDestinatariosAdicionais: Array<{ nome: string; telefone: string }> | undefined
     if (wppDestRaw) {
       try { wppDestinatariosAdicionais = JSON.parse(wppDestRaw) } catch { /* ignora parse error */ }
@@ -82,12 +89,18 @@ export async function PATCH(req: Request, { params }: Params) {
       }
     }
 
+    // Documento existente (sem upload) — só usado quando não há arquivo novo
+    const documentoExistente = (!arquivo && documentoId && documentoUrl && documentoNome)
+      ? { id: documentoId, url: documentoUrl, nome: documentoNome, mimeType: documentoMime }
+      : undefined
+
     try {
       const result = await resolverOS({
         osId:      id,
         usuarioId,
         resposta:  resposta ?? undefined,
         arquivo,
+        documentoExistente,
         categoria: categoria ?? undefined,
         canais: {
           email: canalEmail && emailAssunto && emailCorpo
@@ -137,6 +150,15 @@ export async function PATCH(req: Request, { params }: Params) {
       clienteId: existing.clienteId,
       titulo:    existing.titulo,
     }).catch(() => {})
+
+    // Push para o cliente no portal
+    if (existing.clienteId) {
+      sendPushToCliente(existing.clienteId, {
+        title: 'Chamado respondido',
+        body:  `Seu chamado "${existing.titulo}" foi respondido. Acesse o portal para ver a resposta.`,
+        url:   '/portal/suporte',
+      }).catch(() => {})
+    }
   }
 
   return NextResponse.json(ordem)

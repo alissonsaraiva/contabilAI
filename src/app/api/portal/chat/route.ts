@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { askAI, detectarEscalacao } from '@/lib/ai/ask'
 import { getAiConfig } from '@/lib/ai/config'
-import { getOrCreateConversaSession, getHistorico, addMensagens } from '@/lib/ai/conversa'
+import { getOrCreateConversaSession, getHistorico, addMensagens, addMensagemUsuario } from '@/lib/ai/conversa'
 import { classificarIntencao } from '@/lib/ai/classificar-intencao'
 import { executarAgente } from '@/lib/ai/agent'
 import { rateLimit } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
+import { emitPortalUserMessage } from '@/lib/event-bus'
 // Garante que todas as tools estejam registradas
 import '@/lib/ai/tools'
 
@@ -28,7 +29,8 @@ export async function GET(req: Request) {
     where:   { sessionId, canal: 'portal' },
     orderBy: { atualizadaEm: 'desc' },
     select:  {
-      id: true,
+      id:        true,
+      pausadaEm: true,
       mensagens: {
         orderBy: { criadaEm: 'asc' },
         select:  { role: true, conteudo: true },
@@ -36,7 +38,11 @@ export async function GET(req: Request) {
     },
   })
 
-  return NextResponse.json({ conversaId: conversa?.id ?? null, mensagens: conversa?.mensagens ?? [] })
+  return NextResponse.json({
+    conversaId: conversa?.id ?? null,
+    mensagens:  conversa?.mensagens ?? [],
+    pausada:    conversa ? Boolean(conversa.pausadaEm) : false,
+  })
 }
 
 export async function POST(req: Request) {
@@ -95,6 +101,23 @@ export async function POST(req: Request) {
     getAiConfig(),
     prisma.escritorio.findFirst({ select: { nome: true } }),
   ])
+
+  // ── Guarda pausada ANTES de chamar a IA — se pausada, só salva msg do usuário ──
+  const conversaStatus = await prisma.conversaIA.findUnique({
+    where: { id: conversaId },
+    select: { pausadaEm: true },
+  })
+
+  if (conversaStatus?.pausadaEm) {
+    addMensagemUsuario(conversaId, message)
+    emitPortalUserMessage(conversaId)
+    return NextResponse.json({
+      reply:      'Sua mensagem foi recebida. Um especialista da equipe vai responder aqui em breve. 👆',
+      conversaId,
+      pausada:    true,
+    })
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   const historico = await getHistorico(conversaId)
   const nomeCara       = aiConfig.nomeAssistentes.portal ?? 'Clara'

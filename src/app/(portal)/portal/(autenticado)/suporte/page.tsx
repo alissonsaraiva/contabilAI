@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth-portal'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
+import { getAiConfig } from '@/lib/ai/config'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
 
@@ -37,7 +38,8 @@ export default async function PortalSuportePage() {
   if (!clienteId) redirect('/portal/login')
 
   const now = new Date()
-  const [ordensRecentes, comunicados] = await Promise.all([
+  const [aiConfig, ordensRecentes, comunicados] = await Promise.all([
+    getAiConfig(),
     prisma.ordemServico.findMany({
       where:   { clienteId },
       orderBy: { criadoEm: 'desc' },
@@ -54,6 +56,7 @@ export default async function PortalSuportePage() {
     }),
   ])
 
+  const nomeIa   = aiConfig.nomeAssistentes.portal ?? 'Assistente'
   const osAberta = ordensRecentes.filter(o => o.status === 'aberta' || o.status === 'em_andamento' || o.status === 'aguardando_cliente')
 
   return (
@@ -81,7 +84,7 @@ export default async function PortalSuportePage() {
             <span className="material-symbols-outlined text-[26px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
           </div>
           <div className="flex-1">
-            <h2 className="text-[14px] font-semibold text-on-surface">Clara — Assistente Virtual</h2>
+            <h2 className="text-[14px] font-semibold text-on-surface">{nomeIa} — Assistente Virtual</h2>
             <p className="text-[12px] text-on-surface-variant/70 mt-0.5">
               Tire dúvidas rápidas sobre contabilidade, obrigações e documentos. Disponível 24h.
             </p>

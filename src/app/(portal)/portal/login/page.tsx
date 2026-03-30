@@ -1,5 +1,6 @@
 import { getEscritorioConfig } from '@/lib/escritorio'
 import { prisma } from '@/lib/prisma'
+import { AvosWordmark } from '@/components/avos-logo'
 import { PortalLoginForm } from './_login-form'
 
 export default async function PortalLoginPage() {
@@ -16,11 +17,8 @@ export default async function PortalLoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface-container-lowest px-4">
-      <div className="mb-8 flex items-center gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
-          <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>calculate</span>
-        </div>
-        <span className="font-headline text-2xl font-bold tracking-tight text-on-surface">{nome}</span>
+      <div className="mb-8">
+        <AvosWordmark size={48} nome={nome} tagline="Gestão Inteligente" />
       </div>
       <PortalLoginForm nome={nome} whatsappHabilitado={whatsappHabilitado} />
     </div>

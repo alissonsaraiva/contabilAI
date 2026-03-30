@@ -59,6 +59,7 @@ import './publicar-relatorio'
 import './listar-ordens-servico'
 import './responder-ordem-servico'
 import './publicar-comunicado'
+import './enviar-mensagem-portal'
 
 // ─── Tools de documentos ──────────────────────────────────────────────────────
 import './listar-documentos-pendentes'

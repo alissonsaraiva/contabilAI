@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { cn, getInitials } from '@/lib/utils'
+import { AvosIcon } from '@/components/avos-logo'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,9 +36,7 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj' }: 
     <header className="sticky top-0 z-40 flex h-16 items-center border-b border-outline-variant/15 bg-card/80 px-4 backdrop-blur-md md:px-8">
       {/* Brand */}
       <Link href="/portal/dashboard" className="flex items-center gap-2 mr-8 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
-          <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>calculate</span>
-        </div>
+        <AvosIcon size={32} className="shrink-0 rounded-lg shadow-sm" />
         <span className="hidden font-headline text-[15px] font-bold tracking-tight text-on-surface sm:block">
           {nomeEscritorio}
         </span>

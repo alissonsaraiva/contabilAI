@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatDateTime } from '@/lib/utils'
 import { ConversaRodape } from '../../_components/conversa-rodape'
+import { ConversaRefresher } from './conversa-refresher'
 
 export default async function ConversaDetalhe({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -34,6 +35,8 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
 
   return (
     <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 4rem)' }}>
+      {/* Atualiza em tempo real quando cliente envia mensagem durante conversa pausada */}
+      <ConversaRefresher conversaId={id} />
       {/* Header */}
       <div className="flex items-start gap-4 px-1 pb-4">
         <Link

@@ -117,6 +117,7 @@ export default async function CrmOSDetailPage({ params }: Props) {
           {ordem.status !== 'resolvida' && ordem.status !== 'cancelada' && (
             <OSResponderForm
               ordemId={id}
+              clienteId={ordem.cliente.id}
               statusAtual={ordem.status}
               temResposta={!!ordem.resposta}
               clienteNome={ordem.cliente.nome}

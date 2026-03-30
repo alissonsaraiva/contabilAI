@@ -39,12 +39,22 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
 
         <!-- Header -->
         <tr><td align="center" style="padding-bottom:28px">
-          <div style="display:inline-flex;align-items:center;gap:10px">
-            <div style="width:40px;height:40px;background:#6366F1;border-radius:10px;display:flex;align-items:center;justify-content:center">
-              <span style="color:#fff;font-size:20px;font-weight:700">${nomeEscritorio.charAt(0).toUpperCase()}</span>
-            </div>
-            <span style="font-size:22px;font-weight:700;color:#1a1a2e;letter-spacing:-0.5px">${nomeEscritorio}</span>
-          </div>
+          <table cellpadding="0" cellspacing="0" style="display:inline-table">
+            <tr>
+              <td style="vertical-align:middle;padding-right:10px">
+                <table cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="width:40px;height:40px;background:#0C2240;border-radius:10px;text-align:center;vertical-align:middle">
+                      <span style="color:#fff;font-size:22px;font-weight:900;font-family:Arial Black,Impact,sans-serif;display:block;line-height:40px">A</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+              <td style="vertical-align:middle">
+                <span style="font-size:22px;font-weight:700;color:#0C2240;font-family:Arial Black,Impact,sans-serif;letter-spacing:-0.5px">${nomeEscritorio}</span>
+              </td>
+            </tr>
+          </table>
         </td></tr>
 
         <!-- Card principal -->
@@ -107,9 +117,9 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
           <!-- CTA -->
           <div style="text-align:center;margin-bottom:20px">
             <a href="${link}"
-               style="display:inline-block;background:#6366F1;color:#fff;font-weight:600;
+               style="display:inline-block;background:#0C2240;color:#fff;font-weight:600;
                       padding:14px 36px;border-radius:12px;text-decoration:none;font-size:16px;
-                      letter-spacing:-0.2px;box-shadow:0 4px 12px rgba(99,102,241,0.35)">
+                      letter-spacing:-0.2px;box-shadow:0 4px 12px rgba(12,34,64,0.35)">
               Acessar meu Portal →
             </a>
           </div>

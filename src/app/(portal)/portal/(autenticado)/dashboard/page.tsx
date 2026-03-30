@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth-portal'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
+import { getAiConfig } from '@/lib/ai/config'
 import Link from 'next/link'
 import { formatBRL, cn } from '@/lib/utils'
 import { PLANO_LABELS } from '@/types'
@@ -73,7 +74,8 @@ export default async function PortalDashboardPage() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
-  const [cliente, documentos, ordensRecentes, comunicados] = await Promise.all([
+  const [aiConfig, cliente, documentos, ordensRecentes, comunicados] = await Promise.all([
+    getAiConfig(),
     prisma.cliente.findUnique({
       where:  { id: clienteId },
       select: {
@@ -112,6 +114,7 @@ export default async function PortalDashboardPage() {
 
   if (!cliente) redirect('/portal/login')
 
+  const nomeIa       = aiConfig.nomeAssistentes.portal ?? 'Assistente'
   const primeiroNome = (user.tipo === 'socio' ? (user.name ?? cliente.nome) : cliente.nome).split(' ')[0]
   const empresa       = cliente.empresa
   const regime        = empresa?.regime ?? null
@@ -193,7 +196,7 @@ export default async function PortalDashboardPage() {
             </ul>
             <div className="border-t border-outline-variant/8 px-5 py-3">
               <p className="text-[11px] text-on-surface-variant/50">
-                Dúvidas sobre obrigações? Abra um chamado ou fale com a Clara.
+                Dúvidas sobre obrigações? Abra um chamado ou fale com {nomeIa}.
               </p>
             </div>
           </div>

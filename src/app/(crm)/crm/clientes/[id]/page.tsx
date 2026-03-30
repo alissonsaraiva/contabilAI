@@ -25,6 +25,7 @@ import { ReprocessarPdfButton } from '@/components/crm/reprocessar-pdf-button'
 import { EditarClienteButton } from '@/components/crm/editar-cliente-button'
 import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
+import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -80,7 +81,8 @@ export default async function ClienteDetailPage({ params }: Props) {
   ])
 
   if (!cliente) notFound()
-  const nomeIa = aiConfig.nomeAssistentes.crm ?? 'Assistente'
+  const nomeIa       = aiConfig.nomeAssistentes.crm    ?? 'Assistente'
+  const nomeIaPortal = aiConfig.nomeAssistentes.portal ?? 'Assistente'
 
   // Conversas IA: pelo clienteId direto + pelo leadId de origem
   const leadIds = cliente.leadId ? [cliente.leadId] : []
@@ -190,7 +192,14 @@ export default async function ClienteDetailPage({ params }: Props) {
               status: cliente.status,
             }} />
             <WhatsAppDrawerButton clienteId={cliente.id} clienteNome={cliente.nome} />
-            <PortalChatButton clienteId={cliente.id} clienteNome={cliente.nome} status={cliente.status} />
+            {cliente.email && (
+              <EnviarEmailDrawer
+                clienteId={cliente.id}
+                clienteEmail={cliente.email}
+                clienteNome={cliente.nome}
+              />
+            )}
+            <PortalChatButton clienteId={cliente.id} clienteNome={cliente.nome} status={cliente.status} nomeIa={nomeIaPortal} />
             <PortalLinkButton clienteId={cliente.id} status={cliente.status} />
           </div>
         </div>

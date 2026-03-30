@@ -21,37 +21,32 @@ export default async function ClientesPage({ searchParams }: Props) {
   const skip = (page - 1) * PER_PAGE
   const qClean = q.replace(/\D/g, '')
 
+  const searchWhere = q ? { OR: [
+    { nome:     { contains: q,      mode: 'insensitive' as const } },
+    { email:    { contains: q,      mode: 'insensitive' as const } },
+    { cpf:      { contains: qClean } },
+    { telefone: { contains: qClean.length >= 4 ? qClean : q } },
+    { empresa:  { cnpj:       { contains: qClean } } },
+    { empresa:  { razaoSocial: { contains: q, mode: 'insensitive' as const } } },
+  ]} : {}
+
+  const filterWhere = {
+    AND: [
+      searchWhere,
+      status ? { status:    status as any } : {},
+      plano  ? { planoTipo: plano  as any } : {},
+    ],
+  }
+
   const [raw, total] = await Promise.all([
     prisma.cliente.findMany({
-      where: {
-        AND: [
-          q ? { OR: [
-            { nome: { contains: q, mode: 'insensitive' } },
-            { email: { contains: q, mode: 'insensitive' } },
-            { cpf: { contains: qClean } },
-          ]} : {},
-          status ? { status: status as any } : {},
-          plano  ? { planoTipo: plano as any } : {},
-        ],
-      },
+      where: filterWhere,
       orderBy: { criadoEm: 'desc' },
       skip,
       take: PER_PAGE,
       include: { responsavel: { select: { nome: true } }, empresa: { select: { cnpj: true, razaoSocial: true, regime: true } } },
     }),
-    prisma.cliente.count({
-      where: {
-        AND: [
-          q ? { OR: [
-            { nome: { contains: q, mode: 'insensitive' } },
-            { email: { contains: q, mode: 'insensitive' } },
-            { cpf: { contains: qClean } },
-          ]} : {},
-          status ? { status: status as any } : {},
-          plano  ? { planoTipo: plano as any } : {},
-        ],
-      },
-    }),
+    prisma.cliente.count({ where: filterWhere }),
   ])
 
   const clientes = raw.map((c: typeof raw[number]) => ({

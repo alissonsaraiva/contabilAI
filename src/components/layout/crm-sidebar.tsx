@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { cn, getInitials } from '@/lib/utils'
+import { AvosIcon } from '@/components/avos-logo'
 import type { SessionUser } from '@/types'
 
 type NavItem = {
@@ -82,14 +83,7 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pen
     <aside className="hidden md:flex w-64 shrink-0 flex-col bg-[#0A0A0B] border-r border-white/5">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 px-6 mt-2">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_0_14px_rgba(0,85,255,0.35)]">
-          <span
-            className="material-symbols-outlined text-[18px]"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            calculate
-          </span>
-        </div>
+        <AvosIcon size={32} className="shrink-0 rounded-lg shadow-[0_0_14px_rgba(12,34,64,0.4)]" />
         <div>
           <h1 className="text-[15px] font-semibold tracking-tight text-white mb-0.5">{nomeEscritorio}</h1>
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 leading-none">Workspace</p>
