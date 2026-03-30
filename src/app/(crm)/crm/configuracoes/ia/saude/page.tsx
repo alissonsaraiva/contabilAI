@@ -119,6 +119,43 @@ function ProviderCard({ p }: { p: ProviderInfo }) {
   )
 }
 
+// ─── Card de evento de fallback (expansível) ──────────────────────────────────
+
+function FallbackEventCard({ ev }: { ev: FallbackEvent }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div
+      className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 cursor-pointer select-none"
+      onClick={() => setExpanded(v => !v)}
+    >
+      <div className="flex items-start gap-3">
+        <span className="material-symbols-outlined text-[18px] text-amber-600 dark:text-amber-400 mt-0.5 shrink-0">
+          electric_bolt
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-on-surface">
+            <span className="font-semibold text-red-600 dark:text-red-400">{PROVIDER_LABELS[ev.fromProvider] ?? ev.fromProvider}</span>
+            <span className="text-on-surface-variant mx-1.5">→</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">{PROVIDER_LABELS[ev.toProvider] ?? ev.toProvider}</span>
+            <span className="ml-2 rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">
+              {ev.feature}
+            </span>
+          </p>
+          <p className={`text-xs text-on-surface-variant mt-0.5 ${expanded ? 'whitespace-pre-wrap break-all' : 'truncate'}`}>
+            {ev.error}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-on-surface-variant whitespace-nowrap">{timeAgo(ev.timestamp)}</span>
+          <span className="material-symbols-outlined text-[16px] text-on-surface-variant transition-transform duration-150" style={{ transform: expanded ? 'rotate(180deg)' : 'none' }}>
+            expand_more
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function SaudePage() {
@@ -275,26 +312,7 @@ export default function SaudePage() {
         ) : (
           <div className="space-y-2">
             {data.fallbackEvents.map(ev => (
-              <div
-                key={ev.id}
-                className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-4 py-3"
-              >
-                <span className="material-symbols-outlined text-[18px] text-amber-600 dark:text-amber-400 mt-0.5 shrink-0">
-                  electric_bolt
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-on-surface">
-                    <span className="font-semibold text-red-600 dark:text-red-400">{PROVIDER_LABELS[ev.fromProvider] ?? ev.fromProvider}</span>
-                    <span className="text-on-surface-variant mx-1.5">→</span>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">{PROVIDER_LABELS[ev.toProvider] ?? ev.toProvider}</span>
-                    <span className="ml-2 rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">
-                      {ev.feature}
-                    </span>
-                  </p>
-                  <p className="text-xs text-on-surface-variant mt-0.5 truncate">{ev.error}</p>
-                </div>
-                <span className="text-xs text-on-surface-variant whitespace-nowrap">{timeAgo(ev.timestamp)}</span>
-              </div>
+              <FallbackEventCard key={ev.id} ev={ev} />
             ))}
           </div>
         )}

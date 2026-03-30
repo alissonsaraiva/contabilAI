@@ -81,17 +81,21 @@ type OpenAIToolCallResponse = {
 
 // ─── Provider OpenAI ──────────────────────────────────────────────────────────
 
-/** Retorna true para modelos o-series (o1, o3, o4-mini, etc.) que usam max_completion_tokens */
+/** Retorna true para modelos o-series (o1, o3, o4-mini, etc.) que não aceitam temperature */
 function isOSeries(model: string): boolean {
-  return /^o\d/.test(model)
+  return /^o\d/i.test(model.trim())
 }
 
-/** Monta os parâmetros de tokens/temperatura compatíveis com o modelo */
+/**
+ * Monta os parâmetros de tokens/temperatura compatíveis com o modelo.
+ * OpenAI deprecou max_tokens em favor de max_completion_tokens para todos os modelos —
+ * usa max_completion_tokens sempre, e omite temperature para o-series.
+ */
 function tokenParams(model: string, maxTokens: number, temperature: number): Record<string, unknown> {
   if (isOSeries(model)) {
     return { max_completion_tokens: maxTokens }
   }
-  return { max_tokens: maxTokens, temperature }
+  return { max_completion_tokens: maxTokens, temperature }
 }
 
 export const openaiProvider: AIProvider = {
