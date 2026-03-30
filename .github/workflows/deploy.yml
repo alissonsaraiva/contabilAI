@@ -96,8 +96,17 @@ jobs:
             APP_DIR="/home/deploy/contabai"
 
             # Credenciais do banco — lidas do .env na VPS (nunca hardcoded)
-            DB_USER=$(grep '^DB_USER=' "$APP_DIR/.env" | cut -d= -f2- | tr -d '"'"'" || echo "postgres")
-            DB_NAME=$(grep '^DB_NAME=' "$APP_DIR/.env" | cut -d= -f2- | tr -d '"'"'" || echo "contabil_ia")
+            DB_USER=$(grep '^DB_USER=' "$APP_DIR/.env" | cut -d= -f2- | tr -d '"'"'")
+            DB_NAME=$(grep '^DB_NAME=' "$APP_DIR/.env" | cut -d= -f2- | tr -d '"'"'")
+            # Fallback: extrai da DATABASE_URL se as vars individuais não existirem
+            if [ -z "$DB_USER" ]; then
+              DB_USER=$(grep '^DATABASE_URL=' "$APP_DIR/.env" | grep -oP '(?<=://)[^:@]+' | head -1)
+            fi
+            if [ -z "$DB_NAME" ]; then
+              DB_NAME=$(grep '^DATABASE_URL=' "$APP_DIR/.env" | grep -oP '[^/]+$' | head -1 | cut -d'?' -f1)
+            fi
+            [ -z "$DB_USER" ] && DB_USER="postgres"
+            [ -z "$DB_NAME" ] && DB_NAME="contabil_ia"
 
             # Backup do banco antes de qualquer alteração
             mkdir -p $APP_DIR/backups
