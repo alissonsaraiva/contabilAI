@@ -39,6 +39,7 @@ export async function GET(req: Request) {
     ? (await prisma.cliente.findUnique({ where: { empresaId: user.empresaId }, select: { id: true } }))?.id
     : user.id
 
+  if (!clienteId) return new Response('forbidden', { status: 403 })
   if (conversa.clienteId !== clienteId) {
     return new Response('forbidden', { status: 403 })
   }

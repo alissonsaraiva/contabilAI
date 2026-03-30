@@ -19,6 +19,9 @@ const updateSchema = z.object({
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: Request, { params }: Params) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const lead = await prisma.lead.findUnique({
     where: { id },
@@ -30,6 +33,13 @@ export async function GET(_req: Request, { params }: Params) {
     },
   })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Apenas admins/contadores ou o próprio responsável podem acessar o lead
+  const user = session.user as any
+  if (user.tipo !== 'admin' && user.tipo !== 'contador' && lead.responsavelId !== user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   return NextResponse.json(lead)
 }
 

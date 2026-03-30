@@ -24,12 +24,12 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj' }: 
   const isPF = tipoContribuinte === 'pf'
 
   const NAV_ITEMS = [
-    { href: '/portal/dashboard',     icon: 'home',                        label: 'Início' },
-    { href: '/portal/empresa',       icon: isPF ? 'badge' : 'domain',     label: isPF ? 'Dados' : 'Empresa' },
-    { href: '/portal/documentos',    icon: 'folder_open',                 label: 'Documentos' },
-    { href: '/portal/financeiro',    icon: 'payments',                    label: 'Financeiro' },
-    { href: '/portal/suporte',       icon: 'support_agent',               label: 'Suporte' },
-    { href: '/portal/configuracoes', icon: 'settings',                    label: 'Config.' },
+    { href: '/portal/dashboard',     icon: 'home',                        label: 'Início',      mobileLabel: 'Início' },
+    { href: '/portal/empresa',       icon: isPF ? 'badge' : 'domain',     label: isPF ? 'Dados' : 'Empresa', mobileLabel: isPF ? 'Dados' : 'Empresa' },
+    { href: '/portal/documentos',    icon: 'folder_open',                 label: 'Documentos',  mobileLabel: 'Docs' },
+    { href: '/portal/financeiro',    icon: 'payments',                    label: 'Financeiro',  mobileLabel: 'Financ.' },
+    { href: '/portal/suporte',       icon: 'support_agent',               label: 'Suporte',     mobileLabel: 'Suporte' },
+    { href: '/portal/configuracoes', icon: 'settings',                    label: 'Config.',     mobileLabel: 'Config.' },
   ]
   const pathname = usePathname()
 
@@ -100,15 +100,15 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj' }: 
       </div>
 
       {/* Mobile nav — bottom bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-outline-variant/15 bg-card/95 backdrop-blur-md">
-        {NAV_ITEMS.map(({ href, icon, label }) => {
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-outline-variant/15 bg-card/95 backdrop-blur-md pb-safe">
+        {NAV_ITEMS.map(({ href, icon, mobileLabel }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-semibold uppercase tracking-wide transition-colors',
+                'flex flex-1 flex-col items-center gap-0.5 py-2 text-[9px] font-semibold uppercase transition-colors',
                 active ? 'text-primary' : 'text-on-surface-variant/50',
               )}
             >
@@ -118,7 +118,7 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj' }: 
               >
                 {icon}
               </span>
-              {label}
+              {mobileLabel}
             </Link>
           )
         })}

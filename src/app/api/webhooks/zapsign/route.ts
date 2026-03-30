@@ -36,10 +36,10 @@ async function verificarSecret(req: Request): Promise<boolean> {
   const escritorio = await prisma.escritorio.findFirst({ select: { zapsignWebhookSecret: true } })
   const secret = escritorio?.zapsignWebhookSecret
   if (!secret) {
-    // Secret não configurado — aceita para não bloquear antes da configuração,
-    // mas loga aviso para que o administrador configure o secret o quanto antes.
-    console.warn('[ZapSign webhook] AVISO: zapsignWebhookSecret não configurado — qualquer requisição é aceita. Configure em Configurações → Integrações.')
-    return true
+    // Secret não configurado — bloqueia para evitar fraudes.
+    // Configure em: Configurações → Integrações → ZapSign Webhook Secret.
+    console.error('[ZapSign webhook] ERRO: zapsignWebhookSecret não configurado — requisição bloqueada por segurança.')
+    return false
   }
   const { searchParams } = new URL(req.url)
   const tokenRecebido = searchParams.get('secret')

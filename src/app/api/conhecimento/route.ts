@@ -57,18 +57,27 @@ export async function POST(req: Request) {
   if (!chunks.length) return NextResponse.json({ error: 'conteudo vazio após processamento' }, { status: 400 })
 
   const sourceId = randomUUID()
-  const embeddings = await embedTexts(chunks)
 
-  const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
-    escopo: 'global' as const,
-    canal: body.canal,
-    tipo: body.tipo,
-    titulo: body.titulo,
-    conteudo,
-    metadata: { sourceId, chunkIndex: i, totalChunks: chunks.length },
-  }))
+  try {
+    const embeddings = await embedTexts(chunks)
 
-  await storeEmbeddings(rows, embeddings)
+    const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
+      escopo: 'global' as const,
+      canal: body.canal,
+      tipo: body.tipo,
+      titulo: body.titulo,
+      conteudo,
+      metadata: { sourceId, chunkIndex: i, totalChunks: chunks.length },
+    }))
+
+    await storeEmbeddings(rows, embeddings)
+  } catch (err: any) {
+    console.error('[conhecimento] POST embed/store error:', err)
+    return NextResponse.json(
+      { error: err?.message ?? 'Erro ao gerar embeddings ou salvar no banco de vetores' },
+      { status: 502 }
+    )
+  }
 
   return NextResponse.json({ ok: true, sourceId, chunks: chunks.length })
 }

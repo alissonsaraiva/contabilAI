@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-export type SaveStatus = 'idle' | 'saving' | 'saved'
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 export function useAutoSave(
   leadId: string | null | undefined,
@@ -27,7 +27,7 @@ export function useAutoSave(
         lastSaved.current = dataJson
         setStatus('saved')
       } catch {
-        setStatus('idle')
+        setStatus('error')
       }
     }, delay)
     return () => { if (timer.current) clearTimeout(timer.current) }

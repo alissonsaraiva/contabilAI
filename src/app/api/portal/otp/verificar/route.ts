@@ -12,8 +12,14 @@ import { prisma } from '@/lib/prisma'
 import { PORTAL_COOKIE_NAME } from '@/lib/auth-portal'
 import { encode } from '@auth/core/jwt'
 import crypto from 'crypto'
+import { rateLimit, getClientIp, tooManyRequests } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 5 tentativas por IP por 15 minutos (brute force de OTP)
+  const ip = getClientIp(req)
+  const rl = rateLimit(`otp-verify:${ip}`, 5, 15 * 60_000)
+  if (!rl.allowed) return tooManyRequests(rl.retryAfterMs)
+
   const body = await req.json().catch(() => null)
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : null
   const otp   = typeof body?.otp   === 'string' ? body.otp.trim() : null
@@ -22,9 +28,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'parametros_invalidos' }, { status: 400 })
   }
 
+  // Validação básica de formato de email
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: 'codigo_invalido' }, { status: 400 })
+  }
+
   const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
 
-  // Tenta cliente (titular)
+  // Tenta cliente (titular) — busca token pelo clienteId E otpHash para garantir vínculo correto
   const cliente = await prisma.cliente.findUnique({
     where:  { email },
     select: { id: true, nome: true, email: true, status: true, empresaId: true },
@@ -35,8 +46,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
     }
 
+    // Busca token mais recente não usado para este cliente específico
     const record = await prisma.portalToken.findFirst({
-      where: { clienteId: cliente.id },
+      where:   { clienteId: cliente.id, usedAt: null },
+      orderBy: { criadoEm: 'desc' },
     })
 
     const otpError = validarOtp(record, otpHash)
@@ -53,7 +66,7 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Tenta sócio com acesso
+  // Tenta sócio com acesso — busca token pelo socioId E mais recente não usado
   const socio = await prisma.socio.findFirst({
     where:  { email, portalAccess: true },
     select: { id: true, nome: true, email: true, empresaId: true },
@@ -63,7 +76,8 @@ export async function POST(req: NextRequest) {
     if (!socio.email) return NextResponse.json({ error: 'codigo_invalido' }, { status: 400 })
 
     const record = await prisma.portalToken.findFirst({
-      where: { socioId: socio.id },
+      where:   { socioId: socio.id, usedAt: null },
+      orderBy: { criadoEm: 'desc' },
     })
 
     const otpError = validarOtp(record, otpHash)

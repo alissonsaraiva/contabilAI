@@ -6,7 +6,9 @@ import ReactMarkdown from 'react-markdown'
 type Msg = { role: 'user' | 'assistant'; text: string }
 
 function newSessionId() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
 function getOrCreatePortalSessionId(): string {
@@ -78,22 +80,44 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   useEffect(() => {
     if (!conversaId) return
 
-    const es = new EventSource(`/api/stream/portal/conversa?sessionId=${sessionId}`)
+    let retryCount = 0
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let closed = false
 
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data) as { role: string; conteudo: string }
-        if (data.role && data.conteudo) {
-          setMsgs(prev => [...prev, { role: 'assistant', text: data.conteudo }])
-          // Se o chat está fechado → incrementa badge de não-lidas
-          if (!openRef.current) {
-            setUnread(n => n + 1)
+    function connect() {
+      if (closed) return
+      const es = new EventSource(`/api/stream/portal/conversa?sessionId=${sessionId}`)
+
+      es.onmessage = (e) => {
+        retryCount = 0 // reset backoff em mensagem bem-sucedida
+        try {
+          const data = JSON.parse(e.data) as { role: string; conteudo: string }
+          if (data.role && data.conteudo) {
+            setMsgs(prev => [...prev, { role: 'assistant', text: data.conteudo }])
+            if (!openRef.current) setUnread(n => n + 1)
           }
-        }
-      } catch {}
+        } catch {}
+      }
+
+      es.onerror = () => {
+        es.close()
+        if (closed) return
+        // Backoff exponencial: 2s, 4s, 8s, 16s, max 30s
+        const delay = Math.min(2000 * 2 ** retryCount, 30_000)
+        retryCount++
+        retryTimer = setTimeout(connect, delay)
+      }
+
+      return es
     }
 
-    return () => es.close()
+    const es = connect()
+
+    return () => {
+      closed = true
+      if (retryTimer) clearTimeout(retryTimer)
+      es?.close()
+    }
   }, [conversaId, sessionId])
 
   // Scroll / focus ao abrir o painel
@@ -180,6 +204,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         <span
           className="material-symbols-outlined text-[24px]"
           style={{ fontVariationSettings: open ? "'FILL' 0" : "'FILL' 1" }}
+          aria-hidden="true"
         >
           {open ? 'close' : 'support_agent'}
         </span>
@@ -227,9 +252,10 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
             )}
             <button
               onClick={() => setOpen(false)}
+              aria-label="Fechar chat"
               className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant/60 transition-colors"
             >
-              <span className="material-symbols-outlined text-[18px]">close</span>
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
             </button>
           </div>
 

@@ -26,7 +26,7 @@ const buscarDadosClienteTool: Tool = {
     label: 'Buscar dados do cliente',
     descricao: 'Retorna perfil completo por nome, CPF, CNPJ ou e-mail — plano, status, últimas tarefas e interações.',
     categoria: 'Clientes',
-    canais: ['crm', 'whatsapp', 'portal', 'onboarding'],
+    canais: ['crm', 'whatsapp', 'portal'],
   },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const clienteId = (input.clienteId as string | undefined) ?? ctx.clienteId

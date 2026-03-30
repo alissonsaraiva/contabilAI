@@ -17,9 +17,12 @@ import { askAI, detectarEscalacao } from '@/lib/ai/ask'
 import type { AskContext } from '@/lib/ai/ask'
 import {
   getHistorico,
+  getHistoricoSessaoAnterior,
   addMensagens,
   atualizarStatusMensagem,
 } from '@/lib/ai/conversa'
+import { roterarDocumentoWhatsapp } from '@/lib/whatsapp/action-router'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import { sendHumanLike } from '@/lib/whatsapp/human-like'
 import { classificarIntencao } from '@/lib/ai/classificar-intencao'
 import { executarAgente } from '@/lib/ai/agent'
@@ -62,6 +65,7 @@ export async function processarMensagensPendentes(): Promise<{
       remoteJid:       true,
       clienteId:       true,
       leadId:          true,
+      socioId:         true,
       ultimaMensagemEm: true,
     },
     take: 10, // processa no máximo 10 conversas por invocação
@@ -144,7 +148,16 @@ export async function processarMensagensPendentes(): Promise<{
           select: { nome: true, empresa: { select: { razaoSocial: true } } },
         }).catch(() => null)
         const nomeLabel = clienteRow?.empresa?.razaoSocial ?? clienteRow?.nome ?? ''
-        systemExtra = `CONTEXTO: CLIENTE ATIVO${nomeLabel ? ` — ${nomeLabel}` : ''}\n\n${whatsappGuardrail}`
+        // Sócio: adiciona identificação extra
+        if (conversa.socioId) {
+          const socioRow = await prisma.socio.findUnique({
+            where:  { id: conversa.socioId },
+            select: { nome: true },
+          }).catch(() => null)
+          systemExtra = `CONTEXTO: SÓCIO DA EMPRESA${nomeLabel ? ` — ${nomeLabel}` : ''}${socioRow?.nome ? ` | Sócio: ${socioRow.nome}` : ''}\n\n${whatsappGuardrail}`
+        } else {
+          systemExtra = `CONTEXTO: CLIENTE ATIVO${nomeLabel ? ` — ${nomeLabel}` : ''}\n\n${whatsappGuardrail}`
+        }
       } else if (conversa.leadId) {
         context = { escopo: 'lead+global', leadId: conversa.leadId }
         const leadRow = await prisma.lead.findUnique({
@@ -181,6 +194,33 @@ export async function processarMensagensPendentes(): Promise<{
 
       // Carrega histórico
       const historico = await getHistorico(conversa.id)
+
+      // ── Re-contexto pós-24h ───────────────────────────────────────────────
+      // Se a sessão é nova (sem histórico), injeta resumo da conversa anterior
+      // para que a IA não perca o fio da conversa.
+      if (historico.length === 0 && conversa.remoteJid) {
+        const anterior = await getHistoricoSessaoAnterior(conversa.remoteJid, conversa.id, 6)
+        if (anterior.length > 0) {
+          const resumo = anterior
+            .map(m => `${m.role === 'user' ? 'Cliente' : 'Clara'}: ${m.content.slice(0, 150)}`)
+            .join('\n')
+          systemExtra += `\n\n--- CONTEXTO DA CONVERSA ANTERIOR ---\n${resumo}\n--- FIM DO CONTEXTO ANTERIOR ---`
+        }
+      }
+
+      // ── Action router: classifica documentos recebidos ────────────────────
+      if (mediaContentParts || textoAgregado.startsWith('[Documento recebido:') || textoAgregado === '[imagem enviada]' || textoAgregado === '[documento/imagem enviado]') {
+        const roteado = await roterarDocumentoWhatsapp({
+          conteudo:         textoAgregado,
+          mediaContentParts,
+          clienteId:        conversa.clienteId ?? undefined,
+          leadId:           conversa.leadId    ?? undefined,
+          conversaId:       conversa.id,
+        })
+        if (roteado.classificado) {
+          systemExtra += `\n\n${roteado.contextoIA}`
+        }
+      }
 
       // Chama IA
       const result = await askAI({
@@ -225,6 +265,15 @@ export async function processarMensagensPendentes(): Promise<{
             ultimaMensagem: textoAgregado,
             motivoIA:       escalInfo.motivo,
           },
+        }).then(esc => {
+          indexarAsync('escalacao', {
+            id:        esc.id,
+            clienteId: esc.clienteId,
+            leadId:    esc.leadId,
+            canal:     'whatsapp',
+            motivoIA:  esc.motivoIA,
+            criadoEm:  esc.criadoEm,
+          })
         }).catch(() => {})
         await prisma.conversaIA.update({
           where: { id: conversa.id },

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
-  <!-- AVOS — fundo navy -->
-  <circle cx="96" cy="96" r="96" fill="#0C2240"/>
+  <!-- AVOS — fundo navy (cobre o quadrado inteiro, sem cantos pretos) -->
+  <rect width="192" height="192" fill="#0C2240"/>
   <!-- Perna direita do A (completa) -->
   <polygon points="96,40 114,40 162,152 144,152 96,62" fill="white"/>
   <!-- Perna esquerda superior (do ápice até acima do corte) -->

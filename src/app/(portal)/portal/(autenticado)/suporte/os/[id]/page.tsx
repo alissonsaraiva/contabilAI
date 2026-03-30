@@ -140,7 +140,7 @@ export default async function OSDetailPage({ params }: Props) {
             {documentos.map(doc => (
               <a
                 key={doc.id}
-                href={doc.url}
+                href={`/api/portal/documentos/${doc.id}/download`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 rounded-xl border border-outline-variant/20 bg-surface-container-low/60 px-4 py-3 hover:bg-surface-container transition-colors group"

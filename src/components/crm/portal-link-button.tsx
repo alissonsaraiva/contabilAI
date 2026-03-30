@@ -33,9 +33,9 @@ export function PortalLinkButton({ clienteId, status }: Props) {
       onClick={handleInspecionar}
       disabled={loading}
       title="Ver portal como o cliente (modo inspeção)"
-      className="flex items-center gap-1.5 rounded-xl border border-tertiary/30 bg-tertiary/8 px-3 py-1.5 text-[12px] font-semibold text-tertiary transition-colors hover:bg-tertiary/15 disabled:opacity-50"
+      className="flex items-center gap-1.5 rounded-xl border border-outline-variant/30 bg-card px-3.5 py-2 text-[13px] font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container hover:border-outline-variant/50 disabled:opacity-50"
     >
-      <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+      <span className="material-symbols-outlined text-[15px] text-on-surface-variant" style={{ fontVariationSettings: "'FILL' 1" }}>
         {loading ? 'hourglass_empty' : 'visibility'}
       </span>
       Inspecionar

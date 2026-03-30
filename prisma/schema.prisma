@@ -164,7 +164,7 @@ model Lead {
   utmMedium      String?
   utmCampaign    String?
   responsavelId  String?
-  responsavel    Usuario?        @relation("LeadResponsavel", fields: [responsavelId], references: [id])
+  responsavel    Usuario?        @relation("LeadResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
   observacoes    String?         @db.Text
   criadoEm      DateTime        @default(now())
   atualizadoEm  DateTime        @updatedAt
@@ -195,6 +195,7 @@ model Empresa {
   ordensServico OrdemServico[]
   documentos    Documento[]
 
+  @@index([cnpj], name: "empresa_cnpj_partial")
   @@map("empresas")
 }
 
@@ -232,7 +233,7 @@ model Cliente {
   inativadoPorId      String?
   reativadoEm         DateTime?
   responsavelId       String?
-  responsavel         Usuario?        @relation("ClienteResponsavel", fields: [responsavelId], references: [id])
+  responsavel         Usuario?        @relation("ClienteResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
   observacoesInternas String?         @db.Text
   tags                Json?
   dataInicio          DateTime?
@@ -249,6 +250,8 @@ model Cliente {
   ordensServico     OrdemServico[]
   pushSubscriptions PushSubscription[]
 
+  @@index([leadId], name: "cliente_leadId_partial")
+  @@index([empresaId], name: "cliente_empresaId_partial")
   @@map("clientes")
 }
 
@@ -331,9 +334,9 @@ enum TipoComunicado {
 model Documento {
   id             String             @id @default(uuid())
   clienteId      String?
-  cliente        Cliente?           @relation(fields: [clienteId], references: [id])
+  cliente        Cliente?           @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   leadId         String?
-  lead           Lead?              @relation(fields: [leadId], references: [id])
+  lead           Lead?              @relation(fields: [leadId], references: [id], onDelete: SetNull)
   empresaId      String?
   empresa        Empresa?           @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   ordemServicoId String?
@@ -342,7 +345,7 @@ model Documento {
   categoria      CategoriaDocumento @default(geral)
   nome           String
   url            String
-  tamanho        Int?
+  tamanho        BigInt?
   mimeType       String?
   status         String             @default("pendente")
   observacao     String?
@@ -352,10 +355,12 @@ model Documento {
   // "integracao" = empurrado por sistema externo (NFe, ERP, etc.)
   integracaoId   String?            // ex: "focus_nfe", "contaazul", "sefaz"
   xmlMetadata    Json?
+  deletadoEm     DateTime?
   criadoEm       DateTime           @default(now())
 
   @@index([clienteId, criadoEm])
   @@index([empresaId, criadoEm])
+  @@index([clienteId, deletadoEm])
   @@map("documentos")
 }
 
@@ -405,15 +410,16 @@ model Comunicado {
   atualizadoEm   DateTime       @updatedAt
 
   @@index([publicado, publicadoEm])
+  @@index([criadoEm])
   @@map("comunicados")
 }
 
 model Contrato {
   id               String         @id @default(uuid())
   leadId           String         @unique
-  lead             Lead           @relation(fields: [leadId], references: [id])
+  lead             Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
   clienteId        String?
-  cliente          Cliente?       @relation(fields: [clienteId], references: [id])
+  cliente          Cliente?       @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   clicksignKey     String?  @unique
   clicksignUrl     String?
   clicksignSignUrl String?
@@ -430,8 +436,10 @@ model Contrato {
   enviadoEm       DateTime?
   assinadoEm      DateTime?
   expiradoEm      DateTime?
+  deletadoEm      DateTime?
   criadoEm        DateTime       @default(now())
 
+  @@index([clienteId, deletadoEm])
   @@map("contratos")
 }
 
@@ -440,9 +448,9 @@ model Tarefa {
   titulo        String
   descricao     String?      @db.Text
   clienteId     String?
-  cliente       Cliente?     @relation(fields: [clienteId], references: [id])
+  cliente       Cliente?     @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   responsavelId String?
-  responsavel   Usuario?     @relation("TarefaResponsavel", fields: [responsavelId], references: [id])
+  responsavel   Usuario?     @relation("TarefaResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
   status        StatusTarefa @default(pendente)
   prioridade    Prioridade   @default(media)
   prazo         DateTime?
@@ -456,11 +464,11 @@ model Tarefa {
 model Interacao {
   id               String   @id @default(uuid())
   clienteId        String?
-  cliente          Cliente? @relation(fields: [clienteId], references: [id])
+  cliente          Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   leadId           String?
-  lead             Lead?    @relation(fields: [leadId], references: [id])
+  lead             Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
   usuarioId        String?
-  usuario          Usuario? @relation(fields: [usuarioId], references: [id])
+  usuario          Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   tipo             String   // string livre — veja TipoEvento em src/lib/historico.ts
   origem           String   @default("sistema") // "usuario" | "ia" | "agente" | "sistema"
   escritorioEvento Boolean  @default(false)      // aparece no feed global do dashboard
@@ -470,19 +478,22 @@ model Interacao {
   // E-mail: rastreia se o email_recebido foi respondido ou dispensado
   respondidoEm     DateTime?
   respondidoPorId  String?
+  deletadoEm       DateTime?
   criadoEm         DateTime @default(now())
 
   @@index([clienteId, criadoEm])
   @@index([leadId, criadoEm])
   @@index([origem, criadoEm])
   @@index([escritorioEvento, criadoEm])
+  @@index([tipo, criadoEm])
+  @@index([clienteId, deletadoEm])
   @@map("interacoes")
 }
 
 model Notificacao {
   id         String   @id @default(uuid())
   usuarioId  String
-  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   tipo       String
   titulo     String
   mensagem   String?
@@ -632,6 +643,7 @@ model ConversaIA {
   @@index([socioId, canal])
   @@index([atualizadaEm])
   @@index([canal, atualizadaEm])
+  @@index([pausadaEm])
   @@map("conversas_ia")
 }
 
@@ -689,6 +701,7 @@ model PortalToken {
   token      String    @unique  // hash SHA-256 do token enviado por e-mail
   expiresAt  DateTime
   usedAt     DateTime?
+  revokedAt  DateTime? // para invalidação no logout
   otp        String?   // hash SHA-256 do código OTP de 6 dígitos
   otpExpiresAt DateTime? // expiração do OTP (independente do link)
   criadoEm   DateTime  @default(now())
@@ -696,6 +709,9 @@ model PortalToken {
   @@index([empresaId])
   @@index([clienteId])
   @@index([socioId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@index([clienteId, usedAt])
   @@map("portal_tokens")
 }
 
@@ -770,4 +786,17 @@ model RelatorioAgente {
   @@index([tipo, criadoEm])
   @@index([criadoPorId, criadoEm])
   @@map("relatorios_agente")
+}
+
+model WebhookLog {
+  id         String   @id @default(uuid())
+  provider   String   // "zapsign" | "clicksign" | "docuseal"
+  eventId    String   // token/id único do evento
+  processado Boolean  @default(false)
+  payload    Json?
+  criadoEm   DateTime @default(now())
+
+  @@unique([provider, eventId])
+  @@index([criadoEm])
+  @@map("webhook_logs")
 }

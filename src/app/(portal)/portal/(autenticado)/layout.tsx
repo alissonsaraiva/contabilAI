@@ -43,9 +43,11 @@ export const viewport: Viewport = {
   viewportFit:        'cover',
 }
 
+type PortalUser = { id: string; name?: string | null; email?: string | null; tipo: 'cliente' | 'socio'; empresaId: string }
+
 export default async function PortalAutenticadoLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
-  const user    = session?.user as any
+  const user    = session?.user as PortalUser
 
   if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) {
     redirect('/portal/login')

@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { sendText } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
@@ -40,8 +41,12 @@ const enviarWhatsAppSocioTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const socioId  = input.socioId  as string
-    const mensagem = input.mensagem as string
+    const parsed = z.object({
+      socioId:  z.string().min(1).max(200),
+      mensagem: z.string().min(1).max(5000),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const { socioId, mensagem } = parsed.data
 
     const socio = await prisma.socio.findUnique({
       where:  { id: socioId },

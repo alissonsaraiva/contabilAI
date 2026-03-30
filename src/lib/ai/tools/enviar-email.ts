@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { enviarEmailComHistorico } from '@/lib/email/com-historico'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -53,15 +54,23 @@ const enviarEmailTool: Tool = {
     label: 'Enviar e-mail',
     descricao: 'Envia e-mail para cliente ou lead via SMTP/Resend e registra automaticamente como interação.',
     categoria: 'Clientes',
-    canais: ['crm', 'whatsapp'],
+    canais: ['crm'],
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const para      = input.para    as string
-    const assunto   = input.assunto as string
-    const corpo     = input.corpo   as string
-    const clienteId = (input.clienteId as string | undefined) ?? ctx.clienteId
-    const leadId    = (input.leadId    as string | undefined) ?? ctx.leadId
+    const parsed = z.object({
+      para:      z.string().email().max(320),
+      assunto:   z.string().min(1).max(500),
+      corpo:     z.string().min(1).max(50000),
+      clienteId: z.string().min(1).max(200).optional(),
+      leadId:    z.string().min(1).max(200).optional(),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const para      = parsed.data.para
+    const assunto   = parsed.data.assunto
+    const corpo     = parsed.data.corpo
+    const clienteId = parsed.data.clienteId ?? ctx.clienteId
+    const leadId    = parsed.data.leadId    ?? ctx.leadId
 
     // Evita duplicatas (ex: boas-vindas automática + e-mail manual com mesmo assunto)
     if (jáEnviado(para, assunto)) {

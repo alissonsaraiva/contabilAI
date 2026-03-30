@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -43,11 +44,19 @@ const publicarComunicadoTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const titulo    = input.titulo    as string
-    const conteudo  = input.conteudo  as string
-    const tipo      = (input.tipo      as string | undefined) ?? 'informativo'
-    const expirarEm = input.expirarEm as string | undefined
-    const publicar  = input.publicar  !== false  // default true
+    const parsed = z.object({
+      titulo:    z.string().min(1).max(500),
+      conteudo:  z.string().min(1).max(50000),
+      tipo:      z.string().max(50).optional(),
+      expirarEm: z.string().max(50).optional(),
+      publicar:  z.boolean().optional(),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const titulo    = parsed.data.titulo
+    const conteudo  = parsed.data.conteudo
+    const tipo      = parsed.data.tipo ?? 'informativo'
+    const expirarEm = parsed.data.expirarEm
+    const publicar  = parsed.data.publicar !== false  // default true
 
     const comunicado = await prisma.comunicado.create({
       data: {

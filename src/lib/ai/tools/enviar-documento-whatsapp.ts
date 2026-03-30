@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { sendMedia } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
@@ -49,10 +50,17 @@ const enviarDocumentoWhatsAppTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const documentoId = input.documentoId as string
-    const mensagem    = input.mensagem    as string | undefined
-    const clienteId   = (input.clienteId as string | undefined) ?? ctx.clienteId
-    const leadId      = (input.leadId    as string | undefined) ?? ctx.leadId
+    const parsed = z.object({
+      documentoId: z.string().min(1).max(200),
+      mensagem:    z.string().min(1).max(5000).optional(),
+      clienteId:   z.string().min(1).max(200).optional(),
+      leadId:      z.string().min(1).max(200).optional(),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const documentoId = parsed.data.documentoId
+    const mensagem    = parsed.data.mensagem
+    const clienteId   = parsed.data.clienteId ?? ctx.clienteId
+    const leadId      = parsed.data.leadId    ?? ctx.leadId
 
     // 1. Busca o documento
     const documento = await prisma.documento.findUnique({

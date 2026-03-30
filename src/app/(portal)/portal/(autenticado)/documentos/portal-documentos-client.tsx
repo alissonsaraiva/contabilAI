@@ -253,12 +253,13 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                             </span>
                             {d.url && (
                               <a
-                                href={d.url}
+                                href={`/api/portal/documentos/${d.id}/download`}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                aria-label={`Baixar ${d.nome}`}
                                 className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-primary transition-colors"
                               >
-                                <span className="material-symbols-outlined text-[18px]">download</span>
+                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
                               </a>
                             )}
                           </div>

@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -35,9 +36,13 @@ const responderOrdemServicoTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const ordemId  = input.ordemId  as string
-    const resposta = input.resposta as string | undefined
-    const status   = input.status   as string | undefined
+    const parsed = z.object({
+      ordemId:  z.string().min(1).max(200),
+      resposta: z.string().min(1).max(5000).optional(),
+      status:   z.string().max(50).optional(),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const { ordemId, resposta, status } = parsed.data
 
     const existing = await prisma.ordemServico.findUnique({
       where:   { id: ordemId },

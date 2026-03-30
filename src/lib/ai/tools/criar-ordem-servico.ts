@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -45,16 +46,26 @@ const criarOrdemServicoTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const clienteId    = (input.clienteId as string | undefined) ?? ctx.clienteId
-    const tipo         = (input.tipo      as string) ?? 'outros'
-    const titulo       = input.titulo     as string
-    const descricao    = input.descricao  as string
-    const prioridade   = (input.prioridade as string | undefined) ?? 'media'
-    const origemInput  = (input.origem    as string | undefined)
+    const parsed = z.object({
+      clienteId:  z.string().min(1).max(200).optional(),
+      tipo:       z.string().max(100).optional(),
+      titulo:     z.string().min(1).max(500),
+      descricao:  z.string().min(1).max(5000),
+      prioridade: z.string().max(50).optional(),
+      origem:     z.string().max(50).optional(),
+      visivelPortal: z.boolean().optional(),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const clienteId    = parsed.data.clienteId ?? ctx.clienteId
+    const tipo         = parsed.data.tipo ?? 'outros'
+    const titulo       = parsed.data.titulo
+    const descricao    = parsed.data.descricao
+    const prioridade   = parsed.data.prioridade ?? 'media'
+    const origemInput  = parsed.data.origem
     const origem       = origemInput ?? (ctx.solicitanteAI === 'crm' ? 'operador' : 'ia')
     const tarRefInterna = tipo === 'tarefa_interna'
-    const visivelPortal = input.visivelPortal !== undefined
-      ? (input.visivelPortal as boolean)
+    const visivelPortal = parsed.data.visivelPortal !== undefined
+      ? parsed.data.visivelPortal
       : !tarRefInterna
 
     if (!clienteId) {

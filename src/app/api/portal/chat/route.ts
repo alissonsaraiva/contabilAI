@@ -8,6 +8,7 @@ import { executarAgente } from '@/lib/ai/agent'
 import { rateLimit } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { emitPortalUserMessage } from '@/lib/event-bus'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 // Garante que todas as tools estejam registradas
 import '@/lib/ai/tools'
 
@@ -96,6 +97,15 @@ export async function POST(req: Request) {
   }
   const clienteIdParaConversa = isSocio ? clienteTitular!.id : sessionUserId
 
+  // RISCO-3: Para sócios, carrega dados específicos do sócio para injetar no contexto
+  let dadosSocio: { nome: string; email?: string | null; qualificacao?: string | null; participacao?: unknown } | null = null
+  if (isSocio) {
+    dadosSocio = await prisma.socio.findUnique({
+      where: { id: sessionUserId },
+      select: { nome: true, email: true, qualificacao: true, participacao: true },
+    }).catch(() => null)
+  }
+
   const [conversaId, aiConfig, escritorio] = await Promise.all([
     getOrCreateConversaSession(sessionId, 'portal', { clienteId: clienteIdParaConversa }),
     getAiConfig(),
@@ -149,6 +159,33 @@ REGRAS DE ATENDIMENTO:
 - NUNCA acesse dados de outras empresas — você atende SOMENTE esta empresa.
 - Se o usuário quiser falar com outro membro da equipe ou um especialista, use o botão disponível no chat para encaminhar.`
 
+  // RISCO-3: Injeta dados do sócio no systemExtra quando aplicável
+  if (isSocio && dadosSocio) {
+    const linhasSocio = [
+      `CONTEXTO DO SÓCIO (usuário atual):`,
+      `- Nome: ${dadosSocio.nome}`,
+      dadosSocio.email       ? `- E-mail: ${dadosSocio.email}` : null,
+      dadosSocio.qualificacao ? `- Qualificação: ${dadosSocio.qualificacao}` : null,
+      dadosSocio.participacao != null ? `- Participação na empresa: ${dadosSocio.participacao}%` : null,
+    ].filter(Boolean).join('\n')
+    systemExtra += `\n\n${linhasSocio}`
+  }
+
+  // FALHA-1/RISCO-2: Injeta escalações abertas deste cliente no contexto da IA
+  const escalacoesPendentes = await prisma.escalacao.findMany({
+    where: { clienteId: clienteIdParaConversa, status: { in: ['pendente', 'em_atendimento'] } },
+    orderBy: { criadoEm: 'desc' },
+    take: 3,
+    select: { canal: true, motivoIA: true, criadoEm: true, status: true },
+  }).catch(() => [])
+  if (escalacoesPendentes.length > 0) {
+    const linhasEsc = escalacoesPendentes.map(e => {
+      const data = e.criadoEm.toLocaleDateString('pt-BR')
+      return `- [${e.status}] ${e.canal} em ${data}: ${e.motivoIA ?? 'aguardando atendimento'}`
+    })
+    systemExtra += `\n\nATENDIMENTO HUMANO PENDENTE:\nEsta empresa tem atendimentos aguardando resposta da equipe:\n${linhasEsc.join('\n')}\nSe o cliente perguntar sobre isso, confirme que a equipe está verificando e responderá em breve.`
+  }
+
   // ── Classificação de intenção + agente (escopo portal — somente leitura) ────
   const intencao = await classificarIntencao(message, `usuário: ${nomeUsuario}`)
 
@@ -187,7 +224,7 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
       feature:    'portal',
       historico,
       systemExtra,
-      maxTokens:  512,
+      maxTokens:  1024,
     })
     respostaRaw = result.resposta
     provider    = result.provider
@@ -219,6 +256,13 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
           motivoIA:       escalInfo.motivo ?? 'IA identificou necessidade de atendimento humano.',
         },
       }).then(esc => {
+        indexarAsync('escalacao', {
+          id:        esc.id,
+          clienteId: clienteIdParaConversa,
+          canal:     'portal',
+          motivoIA:  esc.motivoIA,
+          criadoEm:  esc.criadoEm,
+        })
         import('@/lib/notificacoes')
           .then(({ notificarEscalacaoPortal }) =>
             notificarEscalacaoPortal(clienteIdParaConversa, esc.id)

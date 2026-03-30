@@ -22,6 +22,15 @@ export async function uploadArquivo(
   body: Buffer | Uint8Array,
   contentType: string,
 ): Promise<string> {
+  const MAX_SIZE = 100 * 1024 * 1024 // 100 MB
+  if (body.length > MAX_SIZE) {
+    throw new Error(`Arquivo muito grande: ${body.length} bytes (máximo ${MAX_SIZE})`)
+  }
+  const BLOCKED_TYPES = ['application/x-msdownload', 'application/x-executable', 'application/x-sh']
+  if (BLOCKED_TYPES.includes(contentType)) {
+    throw new Error(`Tipo de arquivo não permitido: ${contentType}`)
+  }
+
   await storage.send(
     new PutObjectCommand({
       Bucket: process.env.STORAGE_BUCKET_NAME,
@@ -42,7 +51,7 @@ export async function getUploadUrl(key: string, contentType: string): Promise<st
   return getSignedUrl(storage, command, { expiresIn: 300 })
 }
 
-export async function getDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+export async function getDownloadUrl(key: string, expiresIn = 300): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: process.env.STORAGE_BUCKET_NAME,
     Key: key,

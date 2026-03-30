@@ -225,7 +225,7 @@ export default async function PortalDashboardPage() {
                   return (
                     <li key={d.id}>
                       <a
-                        href={d.url}
+                        href={`/api/portal/documentos/${d.id}/download`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-3 px-5 py-3 hover:bg-surface-container-lowest/40 transition-colors"

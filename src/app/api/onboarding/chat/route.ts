@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { askAI, detectarEscalacao } from '@/lib/ai/ask'
 import { getOrCreateConversaSession, getHistorico, addMensagens } from '@/lib/ai/conversa'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 const MSG_MAX_LENGTH = 2000
 
@@ -104,6 +105,13 @@ export async function POST(req: Request) {
             },
           })
           escalacaoId = esc.id
+          indexarAsync('escalacao', {
+            id:      esc.id,
+            leadId:  esc.leadId,
+            canal:   'onboarding',
+            motivoIA: esc.motivoIA,
+            criadoEm: esc.criadoEm,
+          })
         }
       } catch (err) {
         console.error('[onboarding/chat] erro ao criar escalação pausada:', err)
@@ -155,21 +163,48 @@ export async function POST(req: Request) {
     try {
       const lead = await prisma.lead.findUnique({
         where:  { id: leadId },
-        select: { planoTipo: true, dadosJson: true, status: true },
+        select: { planoTipo: true, dadosJson: true, status: true, canal: true, observacoes: true },
       })
       if (lead) {
-        const dados = (lead.dadosJson ?? {}) as Record<string, string>
-        const nome = dados['Nome completo'] ?? dados['Razão Social'] ?? null
-        const partes = [
+        const dados = (lead.dadosJson ?? {}) as Record<string, unknown>
+
+        // Campos com prioridade — apresentados primeiro com label legível
+        const camposPrioritarios = [
           `CONTEXTO DO LEAD EM ATENDIMENTO:`,
-          nome                       ? `• Nome: ${nome}` : null,
-          (lead.planoTipo ?? plano)   ? `• Plano selecionado: ${lead.planoTipo ?? plano}` : null,
+          dados['Nome completo']   ? `• Nome: ${dados['Nome completo']}`         : null,
+          dados['Razão Social']    ? `• Razão Social: ${dados['Razão Social']}`  : null,
+          dados['CPF']             ? `• CPF: ${dados['CPF']}`                    : null,
+          dados['CNPJ']            ? `• CNPJ: ${dados['CNPJ']}`                  : null,
+          dados['E-mail']          ? `• E-mail: ${dados['E-mail']}`              : null,
+          dados['Telefone']        ? `• Telefone: ${dados['Telefone']}`          : null,
           dados['Regime Tributário'] ? `• Regime: ${dados['Regime Tributário']}` : null,
-          dados['Cidade']            ? `• Cidade: ${dados['Cidade']}` : null,
-          lead.status                ? `• Status no fluxo: ${lead.status}` : null,
+          dados['Cidade']          ? `• Cidade: ${dados['Cidade']}`              : null,
+          dados['Atividade Principal'] ? `• Atividade: ${dados['Atividade Principal']}` : null,
+          (lead.planoTipo ?? plano) ? `• Plano de interesse: ${lead.planoTipo ?? plano}` : null,
+          lead.status              ? `• Status no fluxo: ${lead.status}`         : null,
+          lead.canal               ? `• Canal de entrada: ${lead.canal}`         : null,
+          lead.observacoes         ? `• Observações: ${lead.observacoes}`        : null,
         ].filter(Boolean)
+
+        // Campos dinâmicos restantes (formulário customizado) — excluindo os já listados
+        const camposConhecidos = new Set([
+          'Nome completo', 'Razão Social', 'CPF', 'CNPJ', 'E-mail', 'Telefone',
+          'Regime Tributário', 'Cidade', 'Atividade Principal',
+          'nome', 'email', 'cpf', 'cnpj', 'telefone', 'simulador',
+        ])
+        const camposDinamicos = Object.entries(dados)
+          .filter(([chave, valor]) =>
+            !camposConhecidos.has(chave) &&
+            valor != null &&
+            typeof valor !== 'object' &&
+            String(valor).trim().length > 0 &&
+            String(valor).trim() !== 'null'
+          )
+          .map(([chave, valor]) => `• ${chave}: ${String(valor).trim()}`)
+
+        const partes = [...camposPrioritarios, ...camposDinamicos]
         if (partes.length > 1) systemExtra = partes.join('\n') + planosExtra
-        else if (planosExtra) systemExtra = planosExtra.trim()
+        else if (planosExtra)  systemExtra = planosExtra.trim()
       } else if (planosExtra) {
         systemExtra = planosExtra.trim()
       }
@@ -213,6 +248,13 @@ export async function POST(req: Request) {
         },
       })
       escalacaoId = esc.id
+      indexarAsync('escalacao', {
+        id:      esc.id,
+        leadId:  esc.leadId,
+        canal:   'onboarding',
+        motivoIA: esc.motivoIA,
+        criadoEm: esc.criadoEm,
+      })
     } catch (err) {
       console.error('[onboarding/chat] erro ao criar escalação de falha IA:', err)
     }
@@ -250,6 +292,13 @@ export async function POST(req: Request) {
         },
       })
       escalacaoId = esc.id
+      indexarAsync('escalacao', {
+        id:      esc.id,
+        leadId:  esc.leadId,
+        canal:   'onboarding',
+        motivoIA: esc.motivoIA,
+        criadoEm: esc.criadoEm,
+      })
     } catch (err) {
       console.error('[onboarding/chat] erro ao criar escalação:', err)
     }

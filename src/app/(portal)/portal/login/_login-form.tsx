@@ -271,24 +271,27 @@ function LoginFormInner({ nome, whatsappHabilitado }: { nome: string; whatsappHa
           </Button>
           )}
 
-          {/* Email code — sempre visível (útil também fora do PWA) */}
-          {!isPwa && (
+          {/* Email code — botão primário quando WhatsApp indisponível, link secundário quando disponível */}
+          {(!whatsappHabilitado) && (
             <button
               type="button"
               disabled={loading || !email.trim()}
               onClick={() => enviarCodigo('email')}
-              className="w-full text-sm font-semibold text-primary hover:underline disabled:opacity-40 disabled:no-underline"
+              className="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-sm disabled:opacity-40 hover:bg-primary/90 transition-colors"
             >
-              Enviar código por e-mail
+              {loading
+                ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                : 'Enviar código por e-mail'
+              }
             </button>
           )}
 
-          {isPwa && whatsappHabilitado && (
+          {whatsappHabilitado && (
             <button
               type="button"
               disabled={loading || !email.trim()}
               onClick={() => enviarCodigo('email')}
-              className="w-full text-xs text-on-surface-variant/50 hover:text-on-surface-variant/80 disabled:opacity-40"
+              className="w-full text-xs text-on-surface-variant/50 hover:text-on-surface-variant/80 disabled:opacity-40 transition-colors"
             >
               Receber por e-mail
             </button>

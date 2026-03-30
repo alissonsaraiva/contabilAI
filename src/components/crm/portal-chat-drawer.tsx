@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { formatDateTime } from '@/lib/utils'
 
@@ -15,6 +15,7 @@ type Conversa = {
   id: string
   criadaEm: string | Date
   atualizadaEm: string | Date
+  pausadaEm: string | Date | null
   mensagens: Mensagem[]
 }
 
@@ -30,6 +31,9 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [loading, setLoading] = useState(false)
   const [conversaAberta, setConversaAberta] = useState<string | null>(null)
+  const [texto, setTexto] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
     if (!open) return
@@ -45,6 +49,30 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
   }, [open, clienteId])
 
   useEffect(() => { load() }, [load])
+
+  // Scroll para o final quando mensagens carregam
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [conversaAberta, conversas])
+
+  async function handleEnviar() {
+    if (!texto.trim() || !conversaAberta || enviando) return
+    setEnviando(true)
+    try {
+      const res = await fetch(`/api/crm/clientes/${clienteId}/portal-chat`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ conversaId: conversaAberta, mensagem: texto.trim() }),
+      })
+      if (!res.ok) throw new Error()
+      setTexto('')
+      load() // recarrega mensagens
+    } catch {
+      // falha silenciosa — o texto permanece no input para reenvio
+    } finally {
+      setEnviando(false)
+    }
+  }
 
   const conversaAtual = conversas.find(c => c.id === conversaAberta)
 
@@ -168,6 +196,37 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
                     )}
                   </div>
                 ))}
+                <div ref={bottomRef} />
+              </div>
+
+              {/* Input de resposta */}
+              <div className="border-t border-outline-variant/10 p-3 bg-card">
+                {conversaAtual.pausadaEm && (
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-amber-600 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[12px]">pause_circle</span>
+                    IA pausada · aguardando resposta humana
+                  </p>
+                )}
+                <div className="flex items-end gap-2">
+                  <textarea
+                    value={texto}
+                    onChange={e => setTexto(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() } }}
+                    placeholder="Responder ao cliente..."
+                    rows={2}
+                    className="flex-1 resize-none rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10"
+                  />
+                  <button
+                    onClick={handleEnviar}
+                    disabled={!texto.trim() || enviando}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                  >
+                    {enviando
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      : <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
+                    }
+                  </button>
+                </div>
               </div>
             </>
           )}

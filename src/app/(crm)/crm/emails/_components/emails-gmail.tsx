@@ -32,6 +32,7 @@ type EmailItem = {
 type ClienteOpt = { id: string; nome: string; email: string | null }
 type Aba = 'recebidos' | 'respondidos' | 'enviados'
 type PainelDireito = { tipo: 'vazio' } | { tipo: 'email'; email: EmailItem } | { tipo: 'compor' }
+type VincularEstado = 'idle' | 'selecionando' | 'salvando'
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -207,8 +208,20 @@ export function EmailsGmail({
           <PainelEmail
             email={painel.email}
             aba={aba}
+            clientes={clientes}
             onReplied={onReplied}
             onDispensed={onDispensed}
+            onVinculado={(id, clienteId, clienteNome) => {
+              const atualizar = (lista: EmailItem[]) =>
+                lista.map(e => e.id === id
+                  ? { ...e, clienteId, clienteNome, clienteLink: `/crm/clientes/${clienteId}` }
+                  : e
+                )
+              setRecebidos(prev => atualizar(prev))
+              if (painel.tipo === 'email' && painel.email.id === id) {
+                setPainel({ tipo: 'email', email: { ...painel.email, clienteId, clienteNome, clienteLink: `/crm/clientes/${clienteId}` } })
+              }
+            }}
           />
         )}
         {painel.tipo === 'compor' && (
@@ -260,10 +273,17 @@ function EmailRow({ email, aba, selecionado, onClick }: {
       <p className="truncate text-[11px] text-on-surface-variant/50 leading-relaxed">
         {email.conteudo?.slice(0, 80)}
       </p>
-      {email.clienteNome && !isEnviado && (
-        <span className="self-start rounded-full bg-surface-container px-2 py-0.5 text-[9px] text-on-surface-variant/50">
-          {email.clienteNome}
-        </span>
+      {!isEnviado && (
+        email.clienteNome
+          ? (
+            <span className="self-start rounded-full bg-surface-container px-2 py-0.5 text-[9px] text-on-surface-variant/50">
+              {email.clienteNome}
+            </span>
+          ) : aba === 'recebidos' && (
+            <span className="self-start rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-medium text-amber-500/80">
+              Sem vínculo
+            </span>
+          )
       )}
     </button>
   )
@@ -295,11 +315,13 @@ function PainelVazio({ onCompor }: { onCompor: () => void }) {
 
 // ─── Painel: leitura + resposta ───────────────────────────────────────────────
 
-function PainelEmail({ email, aba, onReplied, onDispensed }: {
+function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado }: {
   email: EmailItem
   aba: Aba
+  clientes: ClienteOpt[]
   onReplied: (id: string) => void
   onDispensed: (id: string) => void
+  onVinculado: (id: string, clienteId: string, clienteNome: string) => void
 }) {
   const [resposta, setResposta]       = useState('')
   const [assuntoResp, setAssuntoResp] = useState(`Re: ${email.metadados.assunto}`)
@@ -308,6 +330,9 @@ function PainelEmail({ email, aba, onReplied, onDispensed }: {
   const [dispensando, setDispensando] = useState(false)
   const [usouSugestao, setUsouSugestao] = useState(false)
   const [repondendo, setRespondendo]  = useState(false)
+  const [vincularEstado, setVincularEstado] = useState<VincularEstado>('idle')
+  const [vincularBusca, setVincularBusca]   = useState('')
+  const [vincularClienteId, setVincularClienteId] = useState('')
 
   // Reset ao trocar de email
   useEffect(() => {
@@ -316,6 +341,9 @@ function PainelEmail({ email, aba, onReplied, onDispensed }: {
     setParaResp(email.metadados.de)
     setUsouSugestao(false)
     setRespondendo(false)
+    setVincularEstado('idle')
+    setVincularBusca('')
+    setVincularClienteId('')
   }, [email.id, email.metadados.assunto, email.metadados.de])
 
   const isRecebido = email.tipo === 'email_recebido'
@@ -345,6 +373,24 @@ function PainelEmail({ email, aba, onReplied, onDispensed }: {
       onReplied(email.id)
     } finally {
       setEnviando(false)
+    }
+  }
+
+  async function vincular() {
+    if (!vincularClienteId) return
+    setVincularEstado('salvando')
+    try {
+      const res = await fetch(`/api/email/inbox/${email.id}/vincular`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ clienteId: vincularClienteId }),
+      })
+      if (!res.ok) { toast.error('Erro ao vincular e-mail'); return }
+      const d = await res.json()
+      onVinculado(email.id, vincularClienteId, d.clienteNome ?? '')
+      toast.success('E-mail vinculado ao cliente!')
+    } finally {
+      setVincularEstado('idle')
     }
   }
 
@@ -434,6 +480,77 @@ function PainelEmail({ email, aba, onReplied, onDispensed }: {
         <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-on-surface/80">
           {email.conteudo}
         </p>
+
+        {/* Vincular ao cliente (só para emails não identificados) */}
+        {isPendente && isRecebido && !email.clienteId && !email.leadId && (
+          <div className="mt-5 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="material-symbols-outlined text-[16px] text-amber-500/80">link</span>
+              <p className="text-[12px] font-semibold text-amber-500/90">E-mail não vinculado a nenhum cliente</p>
+            </div>
+            {vincularEstado === 'idle' ? (
+              <button
+                onClick={() => setVincularEstado('selecionando')}
+                className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[12px] font-semibold text-amber-500/80 hover:bg-amber-500/20 transition-colors"
+              >
+                Vincular ao cliente
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <input
+                  value={vincularBusca}
+                  onChange={e => { setVincularBusca(e.target.value); setVincularClienteId('') }}
+                  placeholder="Buscar cliente..."
+                  autoFocus
+                  className="rounded-xl border border-outline-variant/50 bg-surface px-3 py-2 text-[12px] text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
+                />
+                {vincularBusca.trim().length >= 2 && (
+                  <div className="rounded-xl border border-outline-variant/20 bg-card shadow-sm overflow-hidden max-h-40 overflow-y-auto">
+                    {clientes
+                      .filter(c =>
+                        c.nome.toLowerCase().includes(vincularBusca.toLowerCase()) ||
+                        (c.email?.toLowerCase().includes(vincularBusca.toLowerCase()) ?? false)
+                      )
+                      .slice(0, 6)
+                      .map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => { setVincularClienteId(c.id); setVincularBusca(c.nome) }}
+                          className={`flex w-full items-center gap-3 px-3 py-2 text-left text-[12px] transition-colors hover:bg-surface-container-low ${vincularClienteId === c.id ? 'bg-primary/8' : ''}`}
+                        >
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                            <span className="text-[10px] font-bold text-primary">{c.nome.charAt(0)}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate font-medium text-on-surface">{c.nome}</p>
+                            {c.email && <p className="truncate text-[10px] text-on-surface-variant/60">{c.email}</p>}
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                )}
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => { setVincularEstado('idle'); setVincularBusca(''); setVincularClienteId('') }}
+                    className="rounded-xl border border-outline-variant/25 px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={vincular}
+                    disabled={!vincularClienteId || vincularEstado === 'salvando'}
+                    className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {vincularEstado === 'salvando'
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      : <span className="material-symbols-outlined text-[13px]">link</span>}
+                    Vincular
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Área de resposta (só para recebidos pendentes) */}

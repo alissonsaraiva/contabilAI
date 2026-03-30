@@ -13,7 +13,32 @@ export async function GET(req: Request, { params }: Params) {
   const { id } = await params
   const cliente = await prisma.cliente.findUnique({
     where: { id },
-    include: { empresa: { include: { socios: true } }, documentos: true, contratos: true, tarefas: true, interacoes: true },
+    include: {
+      empresa: {
+        include: {
+          socios: {
+            select: { id: true, nome: true, cpf: true, email: true, qualificacao: true, participacao: true, portalAccess: true, criadoEm: true },
+          },
+        },
+      },
+      documentos: {
+        select: { id: true, nome: true, tipo: true, categoria: true, status: true, origem: true, criadoEm: true, tamanho: true, mimeType: true, url: true },
+        orderBy: { criadoEm: 'desc' },
+      },
+      contratos: {
+        select: { id: true, status: true, planoTipo: true, valorMensal: true, vencimentoDia: true, formaPagamento: true, assinadoEm: true, criadoEm: true },
+        orderBy: { criadoEm: 'desc' },
+      },
+      tarefas: {
+        select: { id: true, titulo: true, status: true, prioridade: true, prazo: true, criadoEm: true },
+        orderBy: { criadoEm: 'desc' },
+      },
+      interacoes: {
+        select: { id: true, tipo: true, titulo: true, conteudo: true, origem: true, criadoEm: true },
+        orderBy: { criadoEm: 'desc' },
+        take: 50,
+      },
+    },
   })
   if (!cliente) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(cliente)

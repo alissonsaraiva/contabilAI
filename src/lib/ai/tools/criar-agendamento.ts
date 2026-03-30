@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { proximoDisparo, validarCron, CRON_EXEMPLOS } from '@/lib/ai/cron-helper'
 import { registrarTool } from './registry'
@@ -36,9 +37,13 @@ const criarAgendamentoTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const descricao  = input.descricao  as string
-    const cron       = input.cron       as string
-    const instrucao  = input.instrucao  as string
+    const parsed = z.object({
+      descricao: z.string().min(1).max(500),
+      cron:      z.string().min(1).max(100),
+      instrucao: z.string().min(1).max(5000),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const { descricao, cron, instrucao } = parsed.data
 
     if (!validarCron(cron)) {
       const exemplos = Object.entries(CRON_EXEMPLOS)

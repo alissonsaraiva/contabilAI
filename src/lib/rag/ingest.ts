@@ -98,7 +98,15 @@ async function indexar(
     await deleteEmbeddings({ clienteId: row.clienteId, tipo: row.tipo })
   }
 
-  const embeddings = await embedTexts(chunks, keys)
+  // Prefixo de título: injeta o título no texto embeddado para que chunks de
+  // documentos longos mantenham contexto semântico mesmo sem a primeira página.
+  // O conteúdo armazenado permanece limpo (sem prefixo) — só o embedding muda.
+  const titulo = (row as { titulo?: string }).titulo
+  const chunksParaEmbed = titulo && chunks.length > 1
+    ? chunks.map(c => `[${titulo}]\n${c}`)
+    : chunks
+
+  const embeddings = await embedTexts(chunksParaEmbed, keys)
   const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
     ...row,
     conteudo,
@@ -117,6 +125,9 @@ type LeadData = {
   status?: string | null
   planoTipo?: string | null
   dadosJson?: unknown
+  utmSource?: string | null
+  utmMedium?: string | null
+  utmCampaign?: string | null
 }
 
 export async function indexarLead(lead: LeadData): Promise<void> {
@@ -172,6 +183,10 @@ export async function indexarLead(lead: LeadData): Promise<void> {
     dados['Atividade Principal']     ? `Atividade: ${dados['Atividade Principal']}` : '',
     // Campos dinâmicos adicionais (customizações do formulário de onboarding)
     ...camposDinamicos,
+    // UTM — origem de marketing para diagnóstico de funil
+    lead.utmSource   ? `UTM Source: ${lead.utmSource}` : '',
+    lead.utmMedium   ? `UTM Medium: ${lead.utmMedium}` : '',
+    lead.utmCampaign ? `UTM Campaign: ${lead.utmCampaign}` : '',
   ].filter(Boolean).join('\n')
 
   const nomeDisplay = String(dados['Nome completo'] ?? dados['nome'] ?? lead.contatoEntrada)
@@ -298,7 +313,7 @@ type InteracaoData = {
 }
 
 // Tipos visíveis apenas no CRM (notas internas, registros de atendimento)
-const TIPOS_SOMENTE_CRM = ['nota_interna', 'ligacao', 'whatsapp_enviado']
+const TIPOS_SOMENTE_CRM = ['nota_interna', 'ligacao', 'whatsapp_enviado', 'documento_recebido_whatsapp']
 // Tipos client-facing: indexados no CRM e também no portal (entregáveis visíveis ao cliente)
 // email_recebido: cliente enviou → CRM precisa saber "o que o João nos enviou?", portal AI precisa de contexto
 const TIPOS_CRM_E_PORTAL = ['email_enviado', 'email_recebido', 'documento_enviado']
@@ -356,6 +371,11 @@ type EscritorioData = {
   bairro?: string | null
   fraseBemVindo?: string | null
   metaDescricao?: string | null
+  // Termos contratuais — usados pela IA ao explicar multa, juros, desconto Pix
+  multaPercent?: number | null
+  jurosMesPercent?: number | null
+  diasAtrasoMulta?: number | null
+  pixDescontoPercent?: number | null
 }
 
 // Indexa os dados do escritório em canal 'geral' — disponível para todas as IAs
@@ -376,6 +396,11 @@ export async function indexarEscritorio(escritorio: EscritorioData): Promise<voi
     escritorio.logradouro ? `Endereço: ${escritorio.logradouro}${escritorio.bairro ? ', ' + escritorio.bairro : ''}` : '',
     escritorio.fraseBemVindo  ? `Apresentação: ${escritorio.fraseBemVindo}` : '',
     escritorio.metaDescricao  ? `Descrição: ${escritorio.metaDescricao}` : '',
+    // Termos contratuais — informados pela IA quando clientes perguntam sobre encargos
+    escritorio.multaPercent      != null ? `Multa por atraso: ${escritorio.multaPercent}%` : '',
+    escritorio.jurosMesPercent   != null ? `Juros mensais: ${escritorio.jurosMesPercent}%` : '',
+    escritorio.diasAtrasoMulta   != null ? `Multa aplicada após: ${escritorio.diasAtrasoMulta} dias de atraso` : '',
+    escritorio.pixDescontoPercent != null ? `Desconto para pagamento via Pix: ${escritorio.pixDescontoPercent}%` : '',
   ].filter(Boolean).join('\n')
 
   await indexar(linhas, {
@@ -968,14 +993,37 @@ type AgenteAcaoData = {
 // Indexa ações executadas pelo agente operacional no tipo 'historico_agente'.
 // Permite que a IA responda "o que foi feito para o cliente X?" via RAG sem
 // recorrer ao banco, e aprenda padrões de sucesso/falha por tool ao longo do tempo.
-// Indexa apenas ações bem-sucedidas com resumo substantivo (evita poluir com erros).
+// Indexa ações bem-sucedidas e falhas (com prefixo [FALHA]) para aprendizado de padrões.
 export async function indexarAgenteAcao(acao: AgenteAcaoData): Promise<void> {
-  // Não indexa falhas — conteúdo de erro não agrega contexto semântico útil
-  if (!acao.sucesso) return
-  const resumo = acao.resultado?.resumo?.trim()
-  if (!resumo || resumo.length < 20) return  // sem resumo útil
-
   if (!acao.clienteId && !acao.leadId) return  // sem contexto de entidade
+
+  const resumo = acao.resultado?.resumo?.trim()
+  const erro   = acao.resultado?.erro?.trim()
+
+  // Falhas: indexa com prefixo [FALHA] para permitir diagnóstico de padrões recorrentes
+  if (!acao.sucesso) {
+    if (!erro || erro.length < 5) return
+    const resumoFalha = `[FALHA] ${acao.tool}: ${erro}`
+    const keys = await getEmbeddingKeys()
+    if (!keys.openai && !keys.voyage) return
+    const data = acao.criadoEm ? acao.criadoEm.toLocaleDateString('pt-BR') : ''
+    const linhasErr = [
+      resumoFalha,
+      `Canal: ${acao.solicitanteAI}`,
+      data ? `Data: ${data}` : '',
+    ].filter(Boolean).join('\n')
+    await indexar(linhasErr, {
+      escopo:    acao.clienteId ? 'cliente' : 'lead',
+      canal:     'crm',
+      tipo:      'historico_crm' as const,
+      clienteId: acao.clienteId ?? undefined,
+      leadId:    acao.leadId    ?? undefined,
+      titulo:    `[FALHA] ${acao.tool}`,
+    }, keys)
+    return
+  }
+
+  if (!resumo || resumo.length < 5) return  // sem resumo útil
 
   const keys = await getEmbeddingKeys()
   if (!keys.openai && !keys.voyage) return

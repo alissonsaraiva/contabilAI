@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -72,16 +73,20 @@ Segmento pode filtrar por:
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const titulo   = input.titulo   as string
-    const mensagem = input.mensagem as string
+    const parsed = z.object({
+      titulo:          z.string().min(1).max(500),
+      mensagem:        z.string().min(1).max(50000),
+      canais:          z.array(z.string()).optional(),
+      segmento:        z.record(z.string(), z.unknown()).optional(),
+      limiteClientes:  z.number().optional(),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const titulo   = parsed.data.titulo
+    const mensagem = parsed.data.mensagem
 
-    if (!titulo?.trim() || !mensagem?.trim()) {
-      return { sucesso: false, erro: 'Título e mensagem são obrigatórios.', resumo: 'Comunicado não enviado — campos obrigatórios ausentes.' }
-    }
-
-    const canais        = (input.canais as string[] | undefined) ?? ['portal']
-    const segmento      = (input.segmento as SegmentoCliente | undefined) ?? {}
-    const limiteClientes = Math.min(Number(input.limiteClientes ?? 100), 200)
+    const canais        = (parsed.data.canais) ?? ['portal']
+    const segmento      = (parsed.data.segmento as SegmentoCliente | undefined) ?? {}
+    const limiteClientes = Math.min(Number(parsed.data.limiteClientes ?? 100), 200)
 
     // ─── Monta filtro de clientes ─────────────────────────────────────────────
     const where: Record<string, unknown> = {}

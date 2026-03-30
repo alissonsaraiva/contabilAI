@@ -1,7 +1,7 @@
-# Arquitetura de IA — ContabAI
+# Arquitetura de IA — AVOS
 
 > Referência técnica do subsistema de inteligência artificial: providers, RAG, canais, ingestão automática e fluxo de cada IA.
-> Última atualização: 2026-03-25 (v2 — email bidirecional)
+> Última atualização: 2026-03-30 (v3.9 — RAG quality, 46 tools, feedback loop, guardrails)
 
 ---
 
@@ -15,11 +15,13 @@ Mensagem do usuário
        ▼
    askAI(opts)
        │
-       ├─ 1. getAiConfig()          — lê config do banco (provider, modelo, system prompt por feature)
-       ├─ 2. embedText(pergunta)     — Voyage AI gera embedding da pergunta
-       ├─ 3. searchSimilar(...)      — busca vetorial filtrada por canal + escopo
-       ├─ 4. monta system prompt     — SYSTEM_BASE_DEFAULT (ou prompt do DB) + systemExtra + chunks RAG
-       └─ 5. provider.complete(...)  — Claude / OpenAI / Gemini responde
+       ├─ 1. getAiConfig()           — lê config do banco (provider, modelo, system prompt por feature)
+       ├─ 2. embedText(pergunta)      — OpenAI text-embedding-3-small (512d MRL) ou Voyage fallback
+       ├─ 3. searchHybrid(...)        — dense (cosine) + BM25 → RRF (k=60) — top-8 chunks
+       │     └─ thresholds dinâmicos: fiscal_normativo=0.72 / base_conhecimento=0.65 / historico_crm=0.55
+       ├─ 4. classificarIntencao()    — decide: pergunta (RAG) ou ação (agente)
+       ├─ 5. monta system prompt      — base + guardrails + capacidades + systemExtra + chunks RAG
+       └─ 6. provider.complete(...)   — Claude / OpenAI / Gemini com fallback automático
 ```
 
 ---
@@ -42,6 +44,11 @@ Mensagem do usuário
 - Canal `geral` (sempre incluso) — inclui dados do escritório e planos
 - Dados do lead preenchidos nos steps → indexados automaticamente via `indexarLead`
 - Histórico de conversa persistido em banco (tabela `mensagens_ia`, session por `sessionId`)
+
+**Contexto injetado (systemExtra):**
+Todos os campos do `dadosJson` (formulário dinâmico) são injetados no `systemExtra`, incluindo:
+nome, CPF, CNPJ, razão social, e-mail, telefone, regime tributário, cidade, atividade principal,
+plano de interesse, status no fluxo, canal de entrada, observações e campos customizados.
 
 **Fluxo de sessão:**
 - O widget extrai `leadId` da URL (query param) via `useSearchParams`
@@ -68,7 +75,7 @@ Mensagem do usuário
 - Dados do cliente (CNPJ, regime, plano, valor, vencimento) → `indexarCliente`, escopo `cliente`
 - Histórico de interações (notas, emails enviados/recebidos, ligações, WhatsApp) → `indexarInteracao`, escopo `cliente`
 - **Emails recebidos do cliente** — indexados como `email_recebido` com corpo e assunto
-- **Histórico de conversas de todos os canais** — últimas 60 mensagens de `mensagens_ia` (WhatsApp, Portal, Onboarding, CRM) injetadas como `systemExtra`
+- **Histórico de conversas de todos os canais** — últimas 100 mensagens de `mensagens_ia` (WhatsApp, Portal, Onboarding, CRM) injetadas como `systemExtra`
 - Histórico da sessão CRM atual persistido em banco
 
 **Contexto cross-canal injetado:**
@@ -90,7 +97,7 @@ Clara (portal): ..."
 | **Feature** | `portal` |
 | **Canal RAG** | `portal` + `geral` |
 | **Escopo RAG** | `cliente+global` |
-| **Endpoint** | *(pendente — portal em desenvolvimento)* |
+| **Endpoint** | `POST /api/portal/chat` |
 
 **O que faz:** Atende o cliente diretamente no portal. Responde sobre obrigações fiscais, documentos, prazos, DAS, IRPF usando os dados específicos do cliente logado.
 
@@ -251,7 +258,20 @@ Fire-and-forget em background após writes no banco — não bloqueia a resposta
 | Email enviado pelo contador | `POST /api/email/enviar` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
 | Email recebido do cliente (IMAP polling) | `processarEmailRecebido` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
 | Anexo recebido por email | upload S3 → cria `Documento` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
-| Escritório salvo (configurações) | `indexarEscritorio` + `indexarPlanos` | `geral` | `global` |
+| OS criada/atualizada | `indexarOrdemServico` | `crm` ou `geral` | `cliente` |
+| OS resolvida (PATCH multipart) | `indexarOrdemServico` (via `resolverOS`) | `geral` | `cliente` |
+| Comunicado publicado | `indexarComunicado` | `geral` | `global` |
+| Comunicado despublicado | remove do índice | — | — |
+| Escalação resolvida | `indexarEscalacao` (inclui resolução) | `crm` ou `geral` | `cliente`/`lead` |
+| Relatório publicado pelo agente | `indexarRelatorio` | `crm` | `global` |
+| Ação do agente (tool sucesso) | `indexarAgenteAcao` | `crm` | `cliente`/`lead` |
+| Conversa pausada (humano assume) | `indexarConversa` | canal origem | `cliente`/`lead` |
+| Status do cliente alterado | `indexarStatusHistorico` | `geral` | `cliente` |
+| Tarefa criada/concluída | `indexarTarefa` | `crm` | `cliente` |
+| Tarefa cancelada | remove do índice | — | — |
+| Contrato assinado | `indexarContrato` | `onboarding` | `lead` |
+| Documento enviado/recebido | `indexarDocumento` | `geral` ou `crm` | `cliente`/`lead` |
+| Configurações de IA salvas (PUT) | `indexarEscritorio` + `indexarPlanos` | `geral` | `global` |
 | Artigo criado na base de conhecimento | `ingestirTexto` | canal configurado | `global` |
 | Upload de PDF na base de conhecimento | `/api/conhecimento/pdf` → `ingestirTexto` | canal configurado | `global` |
 
@@ -524,21 +544,174 @@ FormData aceita `anexo_url` + `anexo_nome` como alternativa ao `File`. O route d
 
 ---
 
+## Agente Operacional (CRM)
+
+O Assistente CRM opera em modo agêntico: além de responder perguntas via RAG, pode **executar ações** no sistema usando um loop de tool use.
+
+### Loop agêntico (`executarAgente`)
+
+Arquivo: [`src/lib/ai/agent.ts`](../src/lib/ai/agent.ts)
+
+```
+pergunta do operador
+       │
+       ▼
+  classificarIntencao()   — pergunta (vai direto pro RAG) ou ação (entra no loop)
+       │
+       ▼  (se ação)
+  loop (máx 5 iterações):
+    ├─ provider.complete(tools=[...46 tools...])
+    ├─ tool_use? → executar tool → resultado → próxima iteração
+    └─ stop_reason=end_turn → resposta final
+       │
+       ▼
+  salvarAuditoria() → AgenteAcao (tabela de audit trail)
+  indexarAsync('agenteAcao', ...) → RAG feedback loop (tool sucesso)
+```
+
+### Registro de tools
+
+- **Registry global:** `src/lib/ai/tools/registry.ts` — `Map<string, Tool>`
+- **Ponto de entrada:** `src/lib/ai/tools/index.ts` — registra todas as 46 tools via side-effect de import
+- **Permissões por canal:** cada tool declara `meta.canais: string[]` — filtrado em runtime
+
+### 46 Tools implementadas
+
+#### Leitura CRM (8)
+| Tool | Descrição |
+|---|---|
+| `buscarDadosOperador` | Dados do operador logado + permissões |
+| `resumirFunil` | Resumo do funil de leads com contagens por status |
+| `listarLeadsInativos` | Leads sem interação há N dias |
+| `buscarDadosCliente` | Ficha completa do cliente (dados cadastrais + plano + empresa) |
+| `listarTarefas` | Tarefas abertas do operador ou do cliente |
+| `buscarHistorico` | Histórico de interações (notas, emails, WhatsApp, ligações) |
+| `listarPlanos` | Planos ativos com valores e serviços |
+| `resumoDashboard` | Métricas do dashboard: clientes, leads, OS, tarefas |
+
+#### Escrita CRM (11)
+| Tool | Descrição |
+|---|---|
+| `criarTarefa` | Cria tarefa (deprecada — usar `criarOrdemServico`) |
+| `concluirTarefa` | Conclui tarefa (deprecada — usar `criarOrdemServico`) |
+| `criarOrdemServico` | Cria OS vinculada ao cliente |
+| `registrarInteracao` | Registra nota/ligação/interação no histórico |
+| `atualizarStatusLead` | Atualiza status de um lead no funil |
+| `avancarLead` | Avança lead para a próxima etapa do onboarding |
+| `criarLead` | Cria novo lead (onboarding ou prospecção) |
+| `criarCliente` | Converte lead em cliente |
+| `convidarSocioPortal` | Convida sócio para acessar o portal |
+| `atualizarDadosCliente` | Atualiza telefone, email, WhatsApp, endereço, vencimento, responsável + re-indexa RAG |
+| `transferirCliente` | Transfere cliente/lead para outro responsável + registra interação + re-indexa |
+
+#### Comunicação (10)
+| Tool | Descrição |
+|---|---|
+| `enviarEmail` | Envia email para cliente/lead via SMTP |
+| `listarEmailsPendentes` | Emails sem resposta aguardando ação |
+| `enviarWhatsappCliente` | Envia mensagem WhatsApp para cliente |
+| `enviarWhatsappLead` | Envia mensagem WhatsApp para lead |
+| `enviarWhatsappSocio` | Envia mensagem WhatsApp para sócio |
+| `responderEscalacao` | Responde escalação aberta (human-in-the-loop) |
+| `buscarDocumentos` | Busca documentos do cliente por tipo/categoria |
+| `enviarDocumentoWhatsapp` | Envia documento existente por WhatsApp |
+| `enviarLembreteVencimento` | Envia lembrete de vencimento por email e/ou WhatsApp (cliente específico ou lote) |
+| `buscarEmailInbox` | Busca emails recebidos por remetente, assunto, período ou cliente |
+
+#### Contrato (2)
+| Tool | Descrição |
+|---|---|
+| `gerarContrato` | Gera contrato de prestação de serviços (DocuSeal) |
+| `enviarContrato` | Envia contrato para assinatura eletrônica |
+
+#### Agendamento (3)
+| Tool | Descrição |
+|---|---|
+| `criarAgendamento` | Cria agendamento com cliente |
+| `listarAgendamentos` | Lista agendamentos futuros |
+| `cancelarAgendamento` | Cancela agendamento |
+
+#### Consultas e relatórios (4)
+| Tool | Descrição |
+|---|---|
+| `consultarDados` | Consulta genérica de dados do CRM via filtros |
+| `publicarRelatorio` | Publica relatório no painel do cliente (portal) |
+| `gerarRelatorioInadimplencia` | Aging report (≤30d, 31-60d, 61-90d, >90d) dos clientes inadimplentes |
+| `buscarCnpjExterno` | Consulta Receita Federal via proxy (situação cadastral, CNAE, endereço, sócios) |
+
+#### Portal do cliente (5)
+| Tool | Descrição |
+|---|---|
+| `listarOrdensServico` | Lista OS do cliente no portal |
+| `responderOrdemServico` | Responde OS com texto e/ou documento |
+| `publicarComunicado` | Publica comunicado no portal (todos os clientes ou segmento) |
+| `enviarMensagemPortal` | Envia mensagem privada no portal para cliente específico |
+| `listarComunicados` | Lista comunicados publicados não expirados |
+
+#### Documentos (2)
+| Tool | Descrição |
+|---|---|
+| `listarDocumentosPendentes` | Documentos aguardando aprovação |
+| `aprovarDocumento` | Aprova ou rejeita documento (com `motivoRejeicao` obrigatório na rejeição) |
+
+#### Email (1)
+| Tool | Descrição |
+|---|---|
+| `classificarEmail` | Classifica email recebido por categoria/urgência |
+
+#### Comunicação segmentada (1)
+| Tool | Descrição |
+|---|---|
+| `enviarComunicadoSegmentado` | Envia comunicado por segmento de clientes (plano, regime, etc.) |
+
+#### Externas (1)
+| Tool | Descrição |
+|---|---|
+| `buscarCnpjExterno` | Consulta pública Receita Federal via proxy |
+
+### Feedback loop
+
+Toda execução de tool bem-sucedida com `clienteId` ou `leadId` é indexada no RAG via `indexarAsync('agenteAcao', ...)`. Isso permite que futuras perguntas sobre "o que foi feito" retornem ações anteriores do agente como contexto.
+
+### Auditoria
+
+Todas as execuções são salvas na tabela `AgenteAcao`:
+```
+AgenteAcao { id, tool, input, resultado, sucesso, duracaoMs,
+             clienteId?, leadId?, usuarioNome, solicitanteAI, criadoEm }
+```
+
+UI: **CRM → Configurações → IA → Logs** — histórico de ações com filtros por tool/status/período.
+
+---
+
+## Guardrails de Segurança
+
+Arquivo: [`src/lib/ai/ask.ts`](../src/lib/ai/ask.ts) — constante `SYSTEM_SECURITY_GUARDRAILS`
+
+Aplicados em **todas** as IAs, em todos os canais:
+
+| Regra | Contexto |
+|---|---|
+| Nunca inventar prazos ou valores fiscais não presentes no RAG | Todos |
+| Nunca revelar dados de outros clientes ou leads | Todos |
+| Nunca executar ações irreversíveis sem confirmação explícita | CRM |
+| Contato não identificado no WhatsApp: não fornecer dados pessoais, valores de contrato ou prazos específicos | WhatsApp |
+| Não vazar notas internas, ligações ou conversas WhatsApp da equipe para o portal do cliente | Portal |
+
+### Guardrail WhatsApp — contato desconhecido
+
+Quando `tipo: 'desconhecido'` (sem clienteId e sem leadId), o guardrail ativo instrui:
+> "Se o contexto indicar que o contato é DESCONHECIDO (sem clienteId e sem leadId), NÃO forneça informações pessoais, valores de contrato, prazos específicos nem acesso a documentos. Responda apenas com informações públicas do escritório (localização, horário, planos gerais). Se o contato demonstrar interesse, use ##LEAD## para criar um prospect."
+
+---
+
 ## Lacunas / próximos passos
 
 | Item | Status |
 |---|---|
-| Portal do cliente | Pendente — tela + autenticação própria + endpoint `/api/portal/chat` |
 | Caixa de entrada de emails não identificados | Pendente — UI para emails recebidos sem vínculo com cliente/lead |
-| IA autônoma (tool use) | Futuro — emissão de NF, busca de documentos, alertas via function calling |
-
-### Lembretes para o Portal do cliente
-
-Ao implementar a IA do portal, incluir no system prompt:
-
-1. **Emails enviados pelo escritório** — a IA já terá acesso via RAG (`email_enviado` indexado no canal `portal`). Mencionar no prompt que ela pode referenciar comunicações anteriores.
-2. **Emails enviados pelo cliente** — `email_recebido` também indexado no canal `portal`. A IA pode confirmar ao cliente que a mensagem foi recebida e está em análise.
-3. **Sugestão de resposta** — a IA do portal **não** gera sugestões (isso é exclusivo do CRM para o contador). No portal, ela apenas informa o status.
-
-Exemplo de trecho para o prompt do portal:
-> "Você tem acesso aos emails trocados entre o cliente e o escritório. Se o cliente perguntar sobre um email enviado ou recebido, referencie o histórico disponível. Não mencione informações internas do escritório (notas, ligações, conversas de WhatsApp entre a equipe)."
+| Calendário fiscal por tipo de cliente | Pendente — base para lembretes proativos automáticos (MEI/PF/EPP) |
+| Open Finance (Pluggy) | Pendente — plano detalhado em `project_openfinance_pluggy.md` |
+| Re-contexto WhatsApp pós-24h | Pendente — injetar últimas mensagens da conversa anterior ao criar nova janela |
+| Verificação de identidade WhatsApp | Pendente — 4 opções mapeadas, recomendação: PIN de sessão + restrição de escopo |

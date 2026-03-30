@@ -12,6 +12,21 @@ import '@/lib/ai/tools'
 
 const MSG_MAX_LENGTH = 4000
 
+function mascararCpf(cpf: string): string {
+  return cpf.replace(/^(\d{3})\.?(\d{3})\.?(\d{3})-?(\d{2})$/, '***.***.***-$4')
+}
+
+function mascararCnpj(cnpj: string): string {
+  return cnpj.replace(/^(\d{2})\.?(\d{3})\.?(\d{3})\/?(\d{4})-?(\d{2})$/, '**.***.***/****-$5')
+}
+
+function sanitizarDadosExternos(texto: string): string {
+  return texto
+    .replace(/##[A-Z_]+##/g, '')
+    .replace(/\b(ignore|forget|disregard|system|instruction)\b/gi, '[FILTRADO]')
+    .slice(0, 3000)
+}
+
 // GET — carrega histórico de uma sessão existente para restaurar o chat na UI
 export async function GET(req: Request) {
   const session = await auth()
@@ -107,8 +122,8 @@ export async function POST(req: Request) {
       if (cliente.email)             linhas.push(`E-mail: ${cliente.email}`)
       if (cliente.telefone)          linhas.push(`Telefone: ${cliente.telefone}`)
       if (cliente.whatsapp)          linhas.push(`WhatsApp: ${cliente.whatsapp}`)
-      if (cliente.cpf)               linhas.push(`CPF: ${cliente.cpf}`)
-      if (cliente.empresa?.cnpj)     linhas.push(`CNPJ: ${cliente.empresa.cnpj}`)
+      if (cliente.cpf)               linhas.push(`CPF: ${mascararCpf(cliente.cpf)}`)
+      if (cliente.empresa?.cnpj)     linhas.push(`CNPJ: ${mascararCnpj(cliente.empresa.cnpj)}`)
       if (cliente.empresa?.razaoSocial) linhas.push(`Razão Social: ${cliente.empresa.razaoSocial}`)
       if (cliente.empresa?.nomeFantasia) linhas.push(`Nome Fantasia: ${cliente.empresa.nomeFantasia}`)
       if (cliente.empresa?.regime)   linhas.push(`Regime: ${cliente.empresa.regime}`)
@@ -172,7 +187,7 @@ REGRAS OBRIGATÓRIAS:
 - Se os dados não aparecerem abaixo, significa que o sistema não encontrou resultados — informe isso claramente, mas não peça ao usuário para fornecer a informação manualmente
 - Se a pergunta exigir dados que ainda não foram buscados, informe que pode buscá-los e peça confirmação — mas nunca transfira a responsabilidade de busca para o usuário`
 
-  if (dadosContextoExtra) systemExtra += dadosContextoExtra
+  if (dadosContextoExtra) systemExtra += sanitizarDadosExternos(dadosContextoExtra)
 
   const whereClause = clienteId
     ? { conversa: { clienteId } }
@@ -186,19 +201,27 @@ REGRAS OBRIGATÓRIAS:
       leadId    ? { leadId }    : null,
     ].filter(Boolean) as Array<{ clienteId?: string; leadId?: string }>
 
+    const sessenta_dias_atras = new Date(Date.now() - 60 * 24 * 60 * 60_000)
     const mensagensCanais = await prisma.mensagemIA.findMany({
-      where: { conversa: { OR: orConditions } },
+      where: {
+        conversa: { OR: orConditions },
+        criadaEm: { gte: sessenta_dias_atras },
+      },
       orderBy: { criadaEm: 'asc' },
-      take: 60,
+      take: 100,
       select: { role: true, conteudo: true, criadaEm: true, conversa: { select: { canal: true } } },
     })
 
     if (mensagensCanais.length > 0) {
+      const agora = Date.now()
       const linhas = mensagensCanais.map((m: { role: string; conteudo: string; criadaEm: Date; conversa: { canal: string } }) => {
         const autor = m.role === 'user' ? 'Cliente' : (aiConfig.nomeAssistentes.crm ?? 'Assistente')
-        return `${autor} (${m.conversa.canal}): ${m.conteudo}`
+        const diffMs = agora - m.criadaEm.getTime()
+        const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+        const tempo = diffDias === 0 ? 'hoje' : diffDias === 1 ? 'ontem' : `há ${diffDias}d`
+        return `${autor} (${m.conversa.canal}, ${tempo}): ${m.conteudo}`
       })
-      systemExtra += `\n\nHISTÓRICO DE CONVERSAS DO CLIENTE (todos os canais — últimas mensagens):\n${linhas.join('\n')}`
+      systemExtra += `\n\nHISTÓRICO DE CONVERSAS DO CLIENTE (todos os canais — últimos 60 dias):\n${linhas.join('\n')}`
     }
   }
 

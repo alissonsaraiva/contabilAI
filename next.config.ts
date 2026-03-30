@@ -1,13 +1,36 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 
+const cspDirectives = [
+  "default-src 'self'",
+  // Next.js requires unsafe-inline for hydration scripts; unsafe-eval for dev HMR
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  // Inline styles are common in Next.js + Tailwind; Google Fonts for Material Symbols
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  // Material Symbols and other Google font assets
+  "font-src 'self' data: https://fonts.gstatic.com",
+  // Images: R2/Cloudflare storage buckets + data URIs for inline previews
+  "img-src 'self' data: blob: https://*.r2.dev https://*.cloudflarestorage.com",
+  // XHR/fetch: Sentry error tracking
+  "connect-src 'self' https://*.sentry.io https://sentry.io",
+  // DocuSeal self-hosted for contract iframe embeds
+  "frame-src 'self' http://82.25.79.193:32825",
+  // Block this app from being framed elsewhere (complementa X-Frame-Options)
+  "frame-ancestors 'none'",
+  // Only allow form submissions to same origin
+  "form-action 'self'",
+  // Upgrade HTTP→HTTPS for mixed content
+  "upgrade-insecure-requests",
+].join('; ')
+
 const securityHeaders = [
-  { key: 'X-Content-Type-Options',   value: 'nosniff' },
-  { key: 'X-Frame-Options',          value: 'DENY' },
-  { key: 'X-XSS-Protection',         value: '1; mode=block' },
-  { key: 'Referrer-Policy',          value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy',       value: 'camera=(), microphone=(), geolocation=()' },
+  { key: 'X-Content-Type-Options',    value: 'nosniff' },
+  { key: 'X-Frame-Options',           value: 'DENY' },
+  { key: 'X-XSS-Protection',          value: '1; mode=block' },
+  { key: 'Referrer-Policy',           value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy',        value: 'camera=(), microphone=(), geolocation=()' },
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'Content-Security-Policy',   value: cspDirectives },
 ]
 
 const nextConfig: NextConfig = {

@@ -31,7 +31,7 @@ const listarEmailsPendentesTool: Tool = {
     label: 'Listar e-mails pendentes',
     descricao: 'Consulta a caixa de entrada do escritório e retorna e-mails recebidos não respondidos, com remetente, assunto, corpo e sugestão da IA.',
     categoria: 'Clientes',
-    canais: ['crm', 'whatsapp'],
+    canais: ['crm'],
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {

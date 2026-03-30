@@ -5,6 +5,7 @@ import { getToolDefinitions, getTools, getTool } from './tools/registry'
 import type { ToolContext, ToolExecuteResult } from './tools/types'
 import type { AIMessageExtended, AnyContentPart } from './providers/types'
 import { completeWithToolsFallback } from './providers/fallback'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 // ─── Tipos públicos ────────────────────────────────────────────────────────────
 
@@ -58,6 +59,8 @@ const SOLICITANTES_VALIDOS: Set<string> = new Set(['crm', 'whatsapp', 'onboardin
 
 // Timeout total do loop — deixa margem antes do limite de 60s das serverless functions
 const AGENT_TIMEOUT_MS = 45_000
+// Timeout por execução de tool individual
+const TOOL_TIMEOUT_MS = 10_000
 
 // ─── System prompt do agente operacional ──────────────────────────────────────
 
@@ -246,7 +249,12 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
         }
       } else {
         try {
-          resultado = await tool.execute(toolCall.input, contexto)
+          resultado = await Promise.race([
+            tool.execute(toolCall.input, contexto),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Tool timeout após 10s')), TOOL_TIMEOUT_MS)
+            ),
+          ])
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           resultado = { sucesso: false, erro: msg, resumo: `Erro ao executar ${toolCall.name}: ${msg}` }
@@ -268,7 +276,28 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
         input:         toolCall.input,
         resultado,
         duracaoMs,
-      }).catch(err => console.error('[agent] falha ao salvar auditoria:', err))
+      })
+        .then(acao => {
+          // Feedback loop: indexa ações bem-sucedidas no RAG para que a IA possa
+          // responder "o que foi feito para o cliente X?" sem precisar de tool call.
+          // Apenas ações com contexto de cliente/lead e resumo substantivo são indexadas.
+          if (resultado.sucesso && acao?.id && (contexto.clienteId || contexto.leadId)) {
+            indexarAsync('agenteAcao', {
+              id:            acao.id,
+              clienteId:     contexto.clienteId,
+              leadId:        contexto.leadId,
+              tool:          toolCall.name,
+              solicitanteAI: solicitanteSeguro,
+              usuarioNome:   contexto.usuarioNome,
+              input:         toolCall.input,
+              resultado,
+              sucesso:       resultado.sucesso,
+              duracaoMs,
+              criadoEm:      new Date(),
+            })
+          }
+        })
+        .catch(err => console.error('[agent] falha ao salvar auditoria:', err))
 
       // Histórico central — fire-and-forget
       registrarAgenteExecutou({
@@ -316,7 +345,7 @@ async function salvarAuditoria(params: {
   resultado: ToolExecuteResult
   duracaoMs: number
 }) {
-  await prisma.agenteAcao.create({
+  return prisma.agenteAcao.create({
     data: {
       clienteId:     params.clienteId,
       leadId:        params.leadId,

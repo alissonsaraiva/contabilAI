@@ -24,17 +24,35 @@ export type SendEmailResult = {
   erro: string
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try { return await fn() }
+    catch (err) {
+      if (attempt === maxAttempts) throw err
+      await new Promise(r => setTimeout(r, 500 * 2 ** (attempt - 1)))
+    }
+  }
+  throw new Error('unreachable')
+}
+
 // ─── Resend (REST API) ────────────────────────────────────────────────────────
 
 async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
   const apiKey    = process.env.RESEND_API_KEY!
   const emailFrom = process.env.RESEND_FROM ?? 'onboarding@resend.dev'
 
-  // Busca o nome do remetente no escritório para montar "Nome <email>"
+  // Busca o nome do remetente — emailNome > nome do escritório > EMAIL_NOME env
   const escritorio = await prisma.escritorio.findFirst({
-    select: { emailNome: true },
+    select: { emailNome: true, nome: true },
   })
-  const nomeRemetente = escritorio?.emailNome ?? process.env.EMAIL_NOME ?? ''
+  const nomeRemetente = escritorio?.emailNome?.trim()
+    || escritorio?.nome?.trim()
+    || process.env.EMAIL_NOME
+    || ''
   const from = nomeRemetente ? `${nomeRemetente} <${emailFrom}>` : emailFrom
 
   // Baixa os anexos e converte para base64 (formato exigido pela API do Resend)
@@ -45,11 +63,12 @@ async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
           const at = setTimeout(() => ac.abort(), 10_000)
           let res: Response
           try { res = await fetch(a.url, { signal: ac.signal }) } finally { clearTimeout(at) }
+          if (!res.ok) throw new Error(`Falha ao baixar anexo "${a.nome}": HTTP ${res.status}`)
           const buf = Buffer.from(await res.arrayBuffer())
           return {
             filename:     a.nome,
             content:      buf.toString('base64'),
-            content_type: a.mimeType ?? 'application/octet-stream',
+            content_type: a.mimeType || 'application/octet-stream',
           }
         })
       )
@@ -64,14 +83,14 @@ async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
   if (opts.replyTo)   body.reply_to    = opts.replyTo
   if (attachments)    body.attachments = attachments
 
-  const res = await fetch('https://api.resend.com/emails', {
+  const res = await withRetry(() => fetch('https://api.resend.com/emails', {
     method:  'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type':  'application/json',
     },
     body: JSON.stringify(body),
-  })
+  }))
 
   if (!res.ok) {
     const text = await res.text()
@@ -122,6 +141,7 @@ async function sendViaSmtp(opts: SendEmailOpts): Promise<SendEmailResult> {
           const at = setTimeout(() => ac.abort(), 10_000)
           let res: Response
           try { res = await fetch(a.url, { signal: ac.signal }) } finally { clearTimeout(at) }
+          if (!res.ok) throw new Error(`Falha ao baixar anexo "${a.nome}": HTTP ${res.status}`)
           const buf = Buffer.from(await res.arrayBuffer())
           return { filename: a.nome, content: buf, contentType: a.mimeType }
         })
@@ -143,6 +163,9 @@ async function sendViaSmtp(opts: SendEmailOpts): Promise<SendEmailResult> {
 // ─── API pública ──────────────────────────────────────────────────────────────
 
 export async function sendEmail(opts: SendEmailOpts): Promise<SendEmailResult> {
+  if (!emailRegex.test(opts.para)) {
+    return { ok: false, erro: `Email inválido: ${opts.para}` }
+  }
   try {
     if (process.env.RESEND_API_KEY) {
       return await sendViaResend(opts)

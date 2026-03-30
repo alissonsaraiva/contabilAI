@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { registrarInteracao } from '@/lib/services/interacoes'
 import { registrarTool } from './registry'
@@ -54,9 +55,15 @@ const atualizarStatusLeadTool: Tool = {
     canais: ['crm'],
   },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const leadId     = (input.leadId     as string | undefined) ?? ctx.leadId
-    const novoStatus = input.novoStatus  as string
-    const observacao = input.observacao  as string | undefined
+    const parsed = z.object({
+      leadId:      z.string().min(1).max(200).optional(),
+      novoStatus:  z.string().min(1).max(100),
+      observacao:  z.string().max(2000).optional(),
+    }).safeParse(input)
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    const leadId     = parsed.data.leadId ?? ctx.leadId
+    const novoStatus = parsed.data.novoStatus
+    const observacao = parsed.data.observacao
 
     if (!leadId) {
       return {

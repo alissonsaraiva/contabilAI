@@ -11,6 +11,7 @@ import { sendHumanLike } from '@/lib/whatsapp/human-like'
 import { downloadMedia, detectMediaType, extractMediaCaption, extractMimeType, extractPdfText } from '@/lib/whatsapp/media'
 import { transcribeAudio } from '@/lib/ai/transcribe'
 import type { AIMessageContentPart } from '@/lib/ai/providers/types'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 // Garante que todas as tools estejam registradas
 import '@/lib/ai/tools'
 
@@ -50,7 +51,8 @@ const PHONE_CACHE_TTL_MS = 30 * 60 * 1000
 const phoneCache = new Map<string, {
   clienteId?: string
   leadId?: string
-  tipo: 'cliente' | 'lead' | 'prospect' | 'desconhecido'
+  socioId?: string
+  tipo: 'cliente' | 'lead' | 'socio' | 'prospect' | 'desconhecido'
   conversaId?: string
   cachedAt: number
 }>()
@@ -70,10 +72,12 @@ function normalizarPhone(remoteJid: string): string[] {
 async function buscarPorTelefone(phone: string): Promise<{
   clienteId?: string
   leadId?: string
+  socioId?: string
 }> {
   const variants = normalizarPhone(phone)
   if (!variants.length) return {}
 
+  // 1. Busca titular (cliente direto)
   const cliente = await prisma.cliente.findFirst({
     where: {
       OR: variants.flatMap(v => [
@@ -85,6 +89,27 @@ async function buscarPorTelefone(phone: string): Promise<{
   })
   if (cliente) return { clienteId: cliente.id }
 
+  // 2. Busca sócio — associado a uma empresa que tem cliente vinculado
+  const socio = await prisma.socio.findFirst({
+    where: {
+      OR: variants.flatMap(v => [
+        { whatsapp: { contains: v } },
+        { telefone: { contains: v } },
+      ]),
+    },
+    select: {
+      id: true,
+      empresa: { select: { cliente: { select: { id: true } } } },
+    },
+  })
+  if (socio) {
+    return {
+      socioId:   socio.id,
+      clienteId: socio.empresa.cliente?.id,
+    }
+  }
+
+  // 3. Busca lead
   const lead = await prisma.lead.findFirst({
     where: {
       OR: variants.map(v => ({ contatoEntrada: { contains: v } })),
@@ -235,7 +260,14 @@ export async function POST(req: Request) {
 
     if (!cached) {
       const encontrado = await buscarPorTelefone(remoteJid)
-      if (encontrado.clienteId) {
+      if (encontrado.socioId) {
+        cached = {
+          socioId:   encontrado.socioId,
+          clienteId: encontrado.clienteId,
+          tipo:      'socio',
+          cachedAt:  Date.now(),
+        }
+      } else if (encontrado.clienteId) {
         cached = { clienteId: encontrado.clienteId, tipo: 'cliente', cachedAt: Date.now() }
       } else if (encontrado.leadId) {
         cached = { leadId: encontrado.leadId, tipo: 'lead', cachedAt: Date.now() }
@@ -250,6 +282,7 @@ export async function POST(req: Request) {
     const conversaIdAtivo = await getOrCreateConversaWhatsapp(remoteJid, {
       clienteId: cached.clienteId,
       leadId:    cached.leadId,
+      socioId:   cached.socioId,
     })
     // Atualiza cache se o conversaId mudou (ex: servidor reiniciou, nova sessão criada)
     if (cached.conversaId !== conversaIdAtivo) {
@@ -322,6 +355,11 @@ export async function POST(req: Request) {
                 ultimaMensagem: '[Áudio não transcrito — erro na API Groq]',
                 motivoIA: `Falha na transcrição: ${(err as Error).message?.slice(0, 200)}`,
               },
+            }).then(esc => {
+              indexarAsync('escalacao', {
+                id: esc.id, clienteId: esc.clienteId, leadId: esc.leadId,
+                canal: 'whatsapp', motivoIA: esc.motivoIA, criadoEm: esc.criadoEm,
+              })
             }).catch(() => {})
             await prisma.conversaIA.update({ where: { id: conversaId }, data: { pausadaEm: new Date() } })
             return new Response('transcription_error', { status: 200 })
@@ -340,6 +378,11 @@ export async function POST(req: Request) {
               ultimaMensagem: '[Áudio recebido — transcrição não configurada]',
               motivoIA: 'Groq API key não configurada',
             },
+          }).then(esc => {
+            indexarAsync('escalacao', {
+              id: esc.id, clienteId: esc.clienteId, leadId: esc.leadId,
+              canal: 'whatsapp', motivoIA: esc.motivoIA, criadoEm: esc.criadoEm,
+            })
           }).catch(() => {})
           return new Response('no_groq_key', { status: 200 })
         }

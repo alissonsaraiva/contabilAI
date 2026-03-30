@@ -31,6 +31,9 @@ import './avancar-lead'
 import './criar-lead'
 import './criar-cliente'
 import './convidar-socio-portal'
+import './atualizar-dados-cliente'
+import './transferir-cliente'
+import './reativar-cliente'
 
 // ─── Tools de comunicação ─────────────────────────────────────────────────────
 import './enviar-email'
@@ -41,6 +44,8 @@ import './enviar-whatsapp-socio'
 import './responder-escalacao'
 import './buscar-documentos'
 import './enviar-documento-whatsapp'
+import './enviar-lembrete-vencimento'
+import './buscar-email-inbox'
 
 // ─── Tools de contrato ────────────────────────────────────────────────────────
 import './gerar-contrato'
@@ -54,15 +59,19 @@ import './cancelar-agendamento'
 // ─── Tools de consulta/relatórios ────────────────────────────────────────────
 import './consultar-dados'
 import './publicar-relatorio'
+import './gerar-relatorio-inadimplencia'
+import './verificar-status-contrato'
 
 // ─── Tools do portal do cliente ───────────────────────────────────────────────
 import './listar-ordens-servico'
 import './responder-ordem-servico'
 import './publicar-comunicado'
 import './enviar-mensagem-portal'
+import './listar-comunicados'
 
 // ─── Tools de documentos ──────────────────────────────────────────────────────
 import './listar-documentos-pendentes'
+import './aprovar-documento'
 
 // ─── Tools de email ───────────────────────────────────────────────────────────
 import './classificar-email'
@@ -70,8 +79,8 @@ import './classificar-email'
 // ─── Tools de comunicação segmentada ─────────────────────────────────────────
 import './enviar-comunicado-segmentado'
 
-// ─── Tools externas (adicionar aqui quando implementadas) ─────────────────────
-// import './consultar-cnpj'
+// ─── Tools externas ───────────────────────────────────────────────────────────
+import './buscar-cnpj-externo'
 // import './buscar-boleto'
 // import './emitir-nfe'
 

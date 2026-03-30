@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { encrypt, maskKey, isEncrypted } from '@/lib/crypto'
 import { invalidateAiConfigCache } from '@/lib/ai/config'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 // Campos que são chaves secretas — encriptados no banco, mascarados na resposta
 const SECRET_FIELDS = ['anthropicApiKey', 'voyageApiKey', 'openaiApiKey', 'googleApiKey', 'evolutionApiKey', 'groqApiKey'] as const
@@ -118,6 +119,20 @@ export async function PUT(req: Request) {
 
   // Invalida o cache em memória para que a nova config seja lida imediatamente
   invalidateAiConfigCache()
+
+  // Reindexação em background: nome, apresentação e planos refletem dados atualizados.
+  // Fire-and-forget — não bloqueia a resposta ao admin.
+  prisma.escritorio.findFirst({
+    select: {
+      nome: true, nomeFantasia: true, cnpj: true, crc: true,
+      email: true, telefone: true, whatsapp: true,
+      cidade: true, uf: true, logradouro: true, bairro: true,
+      fraseBemVindo: true, metaDescricao: true,
+    },
+  }).then(esc => {
+    if (esc) indexarAsync('escritorio', esc)
+    indexarAsync('planos', null)   // indexarPlanos() faz seu próprio fetch
+  }).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

@@ -20,7 +20,7 @@ export type HistoricoMsg = { role: 'user' | 'assistant'; content: string }
  */
 export async function getOrCreateConversaWhatsapp(
   remoteJid: string,
-  opts?: { clienteId?: string; leadId?: string },
+  opts?: { clienteId?: string; leadId?: string; socioId?: string },
 ): Promise<string> {
   const cutoff = new Date(Date.now() - SESSION_TIMEOUT_H * 3600 * 1000)
 
@@ -40,12 +40,13 @@ export async function getOrCreateConversaWhatsapp(
 
   if (existente) {
     // Atualiza clienteId/leadId se o contato foi identificado nesta mensagem
-    if (opts?.clienteId || opts?.leadId) {
+    if (opts?.clienteId || opts?.leadId || opts?.socioId) {
       prisma.conversaIA.update({
         where: { id: existente.id },
         data: {
           clienteId: opts.clienteId ?? undefined,
           leadId:    opts.leadId    ?? undefined,
+          socioId:   opts.socioId   ?? undefined,
         },
       }).catch(() => {})
     }
@@ -58,6 +59,7 @@ export async function getOrCreateConversaWhatsapp(
       remoteJid,
       clienteId: opts?.clienteId,
       leadId:    opts?.leadId,
+      socioId:   opts?.socioId,
     },
     select: { id: true },
   })
@@ -193,6 +195,30 @@ export async function atualizarStatusMensagem(
   }).catch((err) => {
     console.error('[conversa] Falha ao atualizar status da mensagem:', mensagemId, err)
   })
+}
+
+// ─── Re-contexto pós-24h (WhatsApp) ──────────────────────────────────────────
+
+/**
+ * Retorna as últimas N mensagens da sessão anterior de um número WhatsApp.
+ * Usada para re-injetar contexto quando uma nova sessão de 24h é criada.
+ */
+export async function getHistoricoSessaoAnterior(
+  remoteJid: string,
+  currentConversaId: string,
+  limit = 6,
+): Promise<HistoricoMsg[]> {
+  const anterior = await prisma.conversaIA.findFirst({
+    where: {
+      canal:     'whatsapp',
+      remoteJid,
+      id:        { not: currentConversaId },
+    },
+    orderBy: { atualizadaEm: 'desc' },
+    select:  { id: true },
+  })
+  if (!anterior) return []
+  return getHistorico(anterior.id, limit)
 }
 
 // ─── CRM: histórico consolidado de conversas de um cliente/lead ──────────────

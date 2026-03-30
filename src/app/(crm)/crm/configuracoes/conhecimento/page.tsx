@@ -49,6 +49,7 @@ export default function ConhecimentoPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ sourceId: string; titulo: string | null } | null>(null)
 
   // Form texto
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null)
   const [titulo, setTitulo]     = useState('')
   const [conteudo, setConteudo] = useState('')
   const [tipo, setTipo]         = useState<TipoConhecimento>('base_conhecimento')
@@ -76,7 +77,29 @@ export default function ConhecimentoPage() {
   useEffect(() => { loadEntries() }, [loadEntries])
 
   // Fecha forms ao trocar de canal
-  useEffect(() => { setFormOpen(false); setPdfOpen(false) }, [activeCanal])
+  useEffect(() => { setFormOpen(false); setPdfOpen(false); resetForm() }, [activeCanal])
+
+  function resetForm() {
+    setEditingSourceId(null)
+    setTitulo('')
+    setConteudo('')
+    setTipo('base_conhecimento')
+  }
+
+  function openEdit(entry: KnowledgeEntry) {
+    setEditingSourceId(entry.sourceId)
+    setTitulo(entry.titulo ?? '')
+    setConteudo('')
+    setTipo(entry.tipo)
+    setFormOpen(true)
+    setPdfOpen(false)
+  }
+
+  function openNew() {
+    resetForm()
+    setFormOpen(o => !o)
+    setPdfOpen(false)
+  }
 
   async function handleSave() {
     if (!titulo.trim() || !conteudo.trim()) {
@@ -85,15 +108,18 @@ export default function ConhecimentoPage() {
     }
     setSaving(true)
     try {
-      const res = await fetch('/api/conhecimento', {
-        method: 'POST',
+      const isEdit = !!editingSourceId
+      const url = isEdit ? `/api/conhecimento/${editingSourceId}` : '/api/conhecimento'
+      const method = isEdit ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ titulo: titulo.trim(), conteudo: conteudo.trim(), tipo, canal: activeCanal }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast.success(`Artigo salvo em ${data.chunks} chunk(s)`)
-      setTitulo(''); setConteudo(''); setTipo('base_conhecimento')
+      toast.success(isEdit ? `Artigo atualizado em ${data.chunks} chunk(s)` : `Artigo salvo em ${data.chunks} chunk(s)`)
+      resetForm()
       setFormOpen(false)
       loadEntries()
     } catch (err) {
@@ -224,18 +250,18 @@ export default function ConhecimentoPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
-            onClick={() => { setPdfOpen(o => !o); setFormOpen(false) }}
+            onClick={() => { setPdfOpen(o => !o); setFormOpen(false); resetForm() }}
             className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-card px-4 py-2 text-[13px] font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">{pdfOpen ? 'close' : 'picture_as_pdf'}</span>
             {pdfOpen ? 'Cancelar' : 'Upload PDF'}
           </button>
           <button
-            onClick={() => { setFormOpen(o => !o); setPdfOpen(false) }}
+            onClick={openNew}
             className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
           >
-            <span className="material-symbols-outlined text-[16px]">{formOpen ? 'close' : 'add'}</span>
-            {formOpen ? 'Cancelar' : 'Novo artigo'}
+            <span className="material-symbols-outlined text-[16px]">{formOpen && !editingSourceId ? 'close' : 'add'}</span>
+            {formOpen && !editingSourceId ? 'Cancelar' : 'Novo artigo'}
           </button>
         </div>
       </div>
@@ -316,9 +342,23 @@ export default function ConhecimentoPage() {
         </div>
       )}
 
-      {/* Formulário de criação (texto) */}
+      {/* Formulário de criação / edição (texto) */}
       {formOpen && (
         <div className="space-y-4 rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm">
+          {editingSourceId && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+              <span className="material-symbols-outlined text-[15px] text-amber-600">edit_note</span>
+              <p className="text-[12px] text-amber-700">
+                <strong>Editando artigo.</strong> Digite o conteúdo completo — o conteúdo anterior será substituído.
+              </p>
+              <button
+                onClick={() => { resetForm(); setFormOpen(false) }}
+                className="ml-auto shrink-0 text-amber-500 hover:text-amber-700"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={LABEL}>Título</label>
@@ -349,18 +389,30 @@ export default function ConhecimentoPage() {
             </div>
           </div>
           <div>
-            <label className={LABEL}>Conteúdo</label>
+            <label className={LABEL}>Conteúdo{editingSourceId ? ' completo' : ''}</label>
             <textarea
               value={conteudo}
               onChange={e => setConteudo(e.target.value)}
               className={`${INPUT} min-h-[160px] resize-y`}
-              placeholder="Cole ou escreva o conteúdo. O sistema divide automaticamente em chunks otimizados para busca semântica."
+              placeholder={
+                editingSourceId
+                  ? 'Digite o conteúdo completo do artigo (o conteúdo anterior será substituído)'
+                  : 'Cole ou escreva o conteúdo. O sistema divide automaticamente em chunks otimizados para busca semântica.'
+              }
             />
             <p className="mt-1 text-[11px] text-on-surface-variant/50">
               {conteudo.length} chars · ~{Math.ceil(conteudo.length / 1600) || 1} chunk(s)
             </p>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {editingSourceId && (
+              <button
+                onClick={() => { resetForm(); setFormOpen(false) }}
+                className="flex items-center gap-2 rounded-xl border border-outline-variant/20 px-4 py-2.5 text-[13px] font-semibold text-on-surface-variant hover:bg-surface-container-low transition-colors"
+              >
+                Cancelar
+              </button>
+            )}
             <button
               onClick={handleSave}
               disabled={saving}
@@ -368,8 +420,8 @@ export default function ConhecimentoPage() {
             >
               {saving
                 ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <span className="material-symbols-outlined text-[16px]">save</span>}
-              Salvar e indexar
+                : <span className="material-symbols-outlined text-[16px]">{editingSourceId ? 'update' : 'save'}</span>}
+              {editingSourceId ? 'Atualizar artigo' : 'Salvar e indexar'}
             </button>
           </div>
         </div>
@@ -407,15 +459,25 @@ export default function ConhecimentoPage() {
                       <p className="text-[14px] font-semibold text-on-surface truncate">
                         {entry.titulo ?? 'Sem título'}
                       </p>
-                      <button
-                        onClick={() => handleDelete(entry.sourceId, entry.titulo)}
-                        disabled={deletingId === entry.sourceId}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center rounded-lg px-2 py-1 text-[11px] font-medium text-error hover:bg-error/8 disabled:opacity-40"
-                      >
-                        {deletingId === entry.sourceId
-                          ? <Loader2 className="h-3 w-3 animate-spin" />
-                          : <span className="material-symbols-outlined text-[14px]">delete</span>}
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openEdit(entry)}
+                          className="flex items-center rounded-lg px-2 py-1 text-[11px] font-medium text-on-surface-variant hover:bg-primary/8 hover:text-primary"
+                          title="Editar artigo"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(entry.sourceId, entry.titulo)}
+                          disabled={deletingId === entry.sourceId}
+                          className="flex items-center rounded-lg px-2 py-1 text-[11px] font-medium text-error hover:bg-error/8 disabled:opacity-40"
+                          title="Remover artigo"
+                        >
+                          {deletingId === entry.sourceId
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <span className="material-symbols-outlined text-[14px]">delete</span>}
+                        </button>
+                      </div>
                     </div>
                     <p className="mt-1 text-[12px] text-on-surface-variant/70 line-clamp-2">{entry.preview}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-3">

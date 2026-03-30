@@ -2,7 +2,17 @@
 
 // Variáveis críticas de segurança — falha rápida se ausentes em produção
 if (process.env.NODE_ENV === 'production') {
-  const REQUIRED = ['AUTH_SECRET', 'DATABASE_URL'] as const
+  const REQUIRED = [
+    'AUTH_SECRET',
+    'DATABASE_URL',
+    'ENCRYPTION_KEY',           // criptografia de API keys no banco
+    'STORAGE_ENDPOINT',         // R2/S3 — uploads de documentos
+    'STORAGE_BUCKET_NAME',
+    'STORAGE_ACCESS_KEY_ID',
+    'STORAGE_SECRET_ACCESS_KEY',
+    'STORAGE_PUBLIC_URL',
+    'CRON_SECRET',              // protege endpoints de cron contra invocação externa
+  ] as const
   const faltando = REQUIRED.filter(k => !process.env[k])
   if (faltando.length > 0) {
     console.error(`[startup] ERRO CRÍTICO: variáveis de ambiente obrigatórias ausentes: ${faltando.join(', ')}`)

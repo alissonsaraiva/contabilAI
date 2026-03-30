@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { getOrCreateConversaSession, getHistorico } from '@/lib/ai/conversa'
 import { notificarEscalacaoPortal } from '@/lib/notificacoes'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -54,6 +55,15 @@ export async function POST(req: Request) {
       ultimaMensagem: ultimaMsg as string,
       motivoIA:       motivo ?? 'Cliente solicitou atendimento humano pelo portal.',
     },
+  })
+
+  // Indexa no RAG
+  indexarAsync('escalacao', {
+    id:        escalacao.id,
+    clienteId,
+    canal:     'portal',
+    motivoIA:  escalacao.motivoIA,
+    criadoEm:  escalacao.criadoEm,
   })
 
   // Notifica equipe CRM
