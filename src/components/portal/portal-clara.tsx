@@ -198,7 +198,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       {/* ── Botão flutuante ── */}
       <button
         onClick={toggleOpen}
-        className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg hover:bg-primary/90 transition-all active:scale-95 md:bottom-6 md:right-6"
+        className="fixed bottom-[72px] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg hover:bg-primary/90 transition-all active:scale-95 md:bottom-6 md:right-6"
         aria-label={`Falar com ${nomeIa}`}
       >
         <span
@@ -219,7 +219,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
 
       {/* ── Painel de chat ── */}
       {open && (
-        <div className="fixed bottom-36 right-4 z-50 flex h-[480px] w-[340px] flex-col overflow-hidden rounded-[20px] border border-outline-variant/15 bg-card shadow-2xl md:bottom-24 md:right-6 md:w-[380px]">
+        <div className="fixed bottom-[152px] left-3 right-3 z-50 flex h-[min(480px,calc(100dvh-180px))] flex-col overflow-hidden rounded-[20px] border border-outline-variant/15 bg-card shadow-2xl md:bottom-24 md:left-auto md:right-6 md:w-[380px]">
           {/* Header */}
           <div className="flex items-center gap-3 border-b border-outline-variant/10 bg-primary/5 px-4 py-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20">

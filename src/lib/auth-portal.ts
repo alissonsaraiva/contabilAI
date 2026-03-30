@@ -53,9 +53,12 @@ const portalAuth = NextAuth({
     }),
 
     // Google OAuth — apenas titulares (clientes) — redirect URI: /api/portal/auth/callback/google
+    // checks: ['state'] — desabilita PKCE para evitar falha cross-domain quando AUTH_URL
+    // difere do domínio de onde o login foi iniciado (cookie de code verifier não viaja entre domínios).
     Google({
       clientId:     process.env.GOOGLE_CLIENT_ID     ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+      checks:       ['state'],
     }),
   ],
 

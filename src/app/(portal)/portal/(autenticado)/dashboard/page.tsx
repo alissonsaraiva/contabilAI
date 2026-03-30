@@ -168,7 +168,7 @@ export default async function PortalDashboardPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
 
         {/* ── COLUNA ESQUERDA ── */}
-        <div className="flex flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-5">
 
           {/* Obrigações fiscais */}
           <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
@@ -341,7 +341,7 @@ export default async function PortalDashboardPage() {
         </div>
 
         {/* ── COLUNA DIREITA ── */}
-        <div className="flex flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-5">
 
           {/* Info do cliente */}
           <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-5">
@@ -367,7 +367,7 @@ export default async function PortalDashboardPage() {
               {empresa?.razaoSocial && (
                 <div>
                   <dt className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Razão social</dt>
-                  <dd className="mt-0.5 text-[13px] font-medium text-on-surface">{empresa.razaoSocial}</dd>
+                  <dd className="mt-0.5 truncate text-[13px] font-medium text-on-surface" title={empresa.razaoSocial}>{empresa.razaoSocial}</dd>
                 </div>
               )}
               {regime && (
