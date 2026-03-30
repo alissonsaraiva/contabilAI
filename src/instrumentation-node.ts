@@ -71,7 +71,7 @@ async function checkAiHealth() {
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.openaiApiKey}` },
-          body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'ok?' }], max_tokens: 5 }),
+          body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'ok?' }], max_completion_tokens: 5 }),
           signal: AbortSignal.timeout(10_000),
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)

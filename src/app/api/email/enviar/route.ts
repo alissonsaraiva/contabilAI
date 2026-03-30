@@ -16,7 +16,7 @@ const schema = z.object({
   anexos: z.array(z.object({
     documentoId: z.string().uuid().optional(),  // documento existente
     nome:        z.string(),
-    url:         z.string().url(),
+    url:         z.string().min(1),
     mimeType:    z.string().optional(),
   })).optional(),
 })
@@ -27,7 +27,11 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const parsed = schema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  if (!parsed.success) {
+    const fields = parsed.error.flatten().fieldErrors
+    const msg = Object.entries(fields).map(([k, v]) => `${k}: ${v?.join(', ')}`).join('; ')
+    return NextResponse.json({ error: msg || 'Dados inválidos' }, { status: 400 })
+  }
 
   const { clienteId, leadId, para, assunto, corpo, interacaoOrigemId, anexos } = parsed.data
   const usuarioId = (session.user as any).id as string | undefined
@@ -47,7 +51,9 @@ export async function POST(req: Request) {
   })
 
   if (!resultado.ok) {
-    return NextResponse.json({ error: resultado.erro }, { status: 500 })
+    const errMsg = resultado.erro ?? 'Erro ao enviar e-mail'
+    try { const Sentry = await import('@sentry/nextjs'); Sentry.captureMessage(errMsg, 'error') } catch {}
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 
   // Se foi uma resposta a um email recebido, marca a interação origem como respondida

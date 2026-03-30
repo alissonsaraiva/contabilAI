@@ -125,6 +125,7 @@ export async function sendEmail(opts: SendEmailOpts): Promise<SendEmailResult> {
     }
     return await sendViaSmtp(opts)
   } catch (err) {
+    try { const Sentry = await import('@sentry/nextjs'); Sentry.captureException(err) } catch {}
     return { ok: false, erro: err instanceof Error ? err.message : String(err) }
   }
 }
