@@ -20,7 +20,7 @@ export async function GET() {
     },
     orderBy: { publicadoEm: 'desc' },
     take:    10,
-    select: { id: true, titulo: true, conteudo: true, tipo: true, publicadoEm: true },
+    select: { id: true, titulo: true, conteudo: true, tipo: true, publicadoEm: true, anexoUrl: true, anexoNome: true },
   })
 
   return NextResponse.json(comunicados)

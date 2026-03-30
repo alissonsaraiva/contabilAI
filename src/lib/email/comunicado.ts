@@ -22,7 +22,7 @@ export async function enviarComunicadoPorEmail(
   // Busca o comunicado — verifica se ainda não foi enviado por email
   const comunicado = await prisma.comunicado.findUnique({
     where:  { id: comunicadoId },
-    select: { id: true, titulo: true, conteudo: true, publicado: true, emailEnviadoEm: true },
+    select: { id: true, titulo: true, conteudo: true, publicado: true, emailEnviadoEm: true, anexoUrl: true, anexoNome: true },
   })
 
   if (!comunicado || !comunicado.publicado || comunicado.emailEnviadoEm) return
@@ -39,6 +39,23 @@ export async function enviarComunicadoPorEmail(
   })
   const nomeEscritorio = escritorio?.nome ?? 'Escritório de Contabilidade'
 
+  // Monta corpo com link para o anexo (se houver)
+  const corpoComAnexo = comunicado.conteudo + (
+    comunicado.anexoUrl
+      ? `\n\n📎 <a href="${comunicado.anexoUrl}" style="color:#6366F1;font-weight:600;" target="_blank">${comunicado.anexoNome ?? 'Baixar anexo'}</a>`
+      : ''
+  )
+
+  const htmlCorpo = wrapEmailHtml(corpoComAnexo, {
+    nomeEscritorio,
+    assunto: comunicado.titulo,
+  })
+
+  // Prepara anexo para SMTP (Resend recebe só o link no corpo)
+  const anexos = comunicado.anexoUrl && comunicado.anexoNome
+    ? [{ nome: comunicado.anexoNome, url: comunicado.anexoUrl }]
+    : []
+
   // Busca clientes nos status selecionados com e-mail cadastrado
   const clientes = await prisma.cliente.findMany({
     where: {
@@ -48,11 +65,6 @@ export async function enviarComunicadoPorEmail(
     select: { id: true, nome: true, email: true },
   })
 
-  const htmlCorpo = wrapEmailHtml(comunicado.conteudo, {
-    nomeEscritorio,
-    assunto: comunicado.titulo,
-  })
-
   for (const cliente of clientes) {
     if (!cliente.email) continue
     try {
@@ -60,6 +72,7 @@ export async function enviarComunicadoPorEmail(
         para:    cliente.email,
         assunto: comunicado.titulo,
         corpo:   htmlCorpo,
+        anexos,
       })
     } catch {
       // Falha individual não interrompe os outros

@@ -384,6 +384,8 @@ model Comunicado {
   publicadoEm    DateTime?
   expiradoEm     DateTime?
   emailEnviadoEm DateTime?
+  anexoUrl       String?   // URL pública do arquivo no storage
+  anexoNome      String?   // nome original do arquivo
   criadoPorId    String?
   criadoEm       DateTime       @default(now())
   atualizadoEm   DateTime       @updatedAt

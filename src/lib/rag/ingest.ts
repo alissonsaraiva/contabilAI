@@ -707,6 +707,7 @@ type ComunicadoData = {
   publicado: boolean
   publicadoEm?: Date | null
   expiradoEm?: Date | null
+  anexoNome?: string | null
 }
 
 // Indexa comunicados publicados no canal 'geral' — visível para todas as IAs.
@@ -733,9 +734,10 @@ export async function indexarComunicado(comunicado: ComunicadoData): Promise<voi
     `Tipo: ${comunicado.tipo}`,
     publicadoStr ? `Publicado em: ${publicadoStr}` : '',
     expiracao    ? `Válido até: ${expiracao}` : '',
+    comunicado.anexoNome ? `Anexo disponível: ${comunicado.anexoNome}` : '',
     ``,
     comunicado.conteudo,
-  ].filter(v => v !== undefined && v !== null).join('\n')
+  ].filter(v => v !== undefined && v !== null && v !== '').join('\n')
 
   await indexar(linhas, {
     escopo:      'global',

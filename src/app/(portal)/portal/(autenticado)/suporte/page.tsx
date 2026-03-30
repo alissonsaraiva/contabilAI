@@ -50,7 +50,7 @@ export default async function PortalSuportePage() {
       },
       orderBy: { publicadoEm: 'desc' },
       take:    5,
-      select: { id: true, titulo: true, conteudo: true, tipo: true, publicadoEm: true },
+      select: { id: true, titulo: true, conteudo: true, tipo: true, publicadoEm: true, anexoUrl: true, anexoNome: true },
     }),
   ])
 
@@ -217,6 +217,17 @@ export default async function PortalSuportePage() {
                         </span>
                       </div>
                       <p className="text-[12px] text-on-surface-variant/80 leading-relaxed">{c.conteudo}</p>
+                      {c.anexoUrl && (
+                        <a
+                          href={c.anexoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-surface-container px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-surface-container-high transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">download</span>
+                          {c.anexoNome ?? 'Baixar anexo'}
+                        </a>
+                      )}
                       {c.publicadoEm && (
                         <p className="mt-1.5 text-[11px] text-on-surface-variant/50">
                           {new Date(c.publicadoEm).toLocaleDateString('pt-BR')}

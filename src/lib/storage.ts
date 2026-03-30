@@ -64,6 +64,7 @@ export const storageKeys = {
   documentoCliente: (clienteId: string, nome: string) => `clientes/${clienteId}/docs/${nome}`,
   documentoEmpresa: (empresaId: string, nome: string) => `empresas/${empresaId}/docs/${nome}`,
   contratoLead:     (leadId: string)                  => `contratos/${leadId}/contrato.pdf`,
-  logoEscritorio:   ()                                => `escritorio/logo`,
-  faviconEscritorio:()                                => `escritorio/favicon`,
+  logoEscritorio:    ()                                => `escritorio/logo`,
+  faviconEscritorio: ()                                => `escritorio/favicon`,
+  comunicadoAnexo:   (comunicadoId: string, nome: string) => `comunicados/${comunicadoId}/${nome}`,
 }
