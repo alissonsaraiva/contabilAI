@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { cn, getInitials } from '@/lib/utils'
 import {
@@ -114,16 +114,14 @@ function useNotificacoes() {
 
 export function CrmHeader({ user }: Props) {
   const pathname = usePathname()
-  const router = useRouter()
   const title = resolveTitle(pathname)
   const [mobileOpen, setMobileOpen] = useState(false)
   const aiDown = useAiHealthAlert()
   const { items: notificacoes, descartar, descartarTudo } = useNotificacoes()
   const [notifOpen, setNotifOpen] = useState(false)
 
-  function navegar(href: string) {
+  function fecharNotif() {
     setNotifOpen(false)
-    router.push(href)
   }
 
   return (
@@ -204,12 +202,13 @@ export function CrmHeader({ user }: Props) {
               ) : (
                 <div className="max-h-80 overflow-y-auto divide-y divide-outline-variant/10">
                   {notificacoes.map(n => (
-                    <div
+                    <Link
                       key={n.id}
+                      href={n.href}
                       className="group flex items-start gap-2 px-4 py-3 hover:bg-surface-container/50 cursor-pointer transition-colors"
                       onClick={() => {
                         if (n.podeDescartar) descartar(n.id)
-                        navegar(n.href)
+                        fecharNotif()
                       }}
                     >
                       {/* Ícone */}
@@ -241,7 +240,7 @@ export function CrmHeader({ user }: Props) {
                         </span>
                         {n.podeDescartar ? (
                           <button
-                            onClick={e => { e.stopPropagation(); descartar(n.id) }}
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); descartar(n.id) }}
                             className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded-full text-on-surface-variant/40 hover:bg-surface-container hover:text-on-surface transition-all"
                             title="Descartar"
                           >
@@ -251,7 +250,7 @@ export function CrmHeader({ user }: Props) {
                           <span className="material-symbols-outlined text-[13px] text-primary/50">arrow_forward</span>
                         )}
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}

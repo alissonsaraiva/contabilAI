@@ -79,5 +79,5 @@ export async function GET(_req: Request, { params }: Params) {
     },
   })
 
-  return NextResponse.json(documentos)
+  return NextResponse.json(documentos.map(d => ({ ...d, tamanho: d.tamanho != null ? Number(d.tamanho) : null })))
 }

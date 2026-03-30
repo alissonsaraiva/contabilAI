@@ -118,6 +118,7 @@ export async function GET(req: Request) {
     seen.add(d.id)
     return true
   }).sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+    .map(d => ({ ...d, tamanho: d.tamanho != null ? Number(d.tamanho) : null }))
 
   return NextResponse.json(todos)
 }

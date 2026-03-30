@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 type Documento = {
   id: string
@@ -82,12 +84,32 @@ function grupoPorAno(docs: Documento[]) {
   return [...mapa.entries()].sort((a, b) => b[0] - a[0])
 }
 
-export function DocumentosTabContent({ documentos, uploadSlot, empresaLink }: Props) {
+export function DocumentosTabContent({ documentos: documentosIniciais, uploadSlot, empresaLink }: Props) {
+  const router = useRouter()
+  const [documentos, setDocumentos] = useState(documentosIniciais)
   const [q,        setQ]        = useState('')
   const [categoria, setCategoria] = useState('')
   const [origem,   setOrigem]   = useState('')
   const [status,   setStatus]   = useState('')
   const [collapsedAnos, setCollapsedAnos] = useState<Set<number>>(new Set())
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null)
+  const [deletando, setDeletando] = useState(false)
+
+  async function handleDelete(id: string) {
+    setDeletando(true)
+    try {
+      const res = await fetch(`/api/crm/documentos/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      setDocumentos(prev => prev.filter(d => d.id !== id))
+      setConfirmandoId(null)
+      toast.success('Documento removido')
+      router.refresh()
+    } catch {
+      toast.error('Erro ao remover documento')
+    } finally {
+      setDeletando(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     const qLow = q.toLowerCase().trim()
@@ -252,6 +274,32 @@ export function DocumentosTabContent({ documentos, uploadSlot, empresaLink }: Pr
                           >
                             <span className="material-symbols-outlined text-[16px]">download</span>
                           </a>
+                          {confirmandoId === d.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleDelete(d.id)}
+                                disabled={deletando}
+                                className="flex h-7 items-center gap-1 rounded-lg bg-error/10 px-2 text-[11px] font-semibold text-error hover:bg-error/20 transition-colors disabled:opacity-50"
+                              >
+                                {deletando ? <span className="h-3 w-3 animate-spin rounded-full border border-error/30 border-t-error" /> : null}
+                                Confirmar
+                              </button>
+                              <button
+                                onClick={() => setConfirmandoId(null)}
+                                className="flex h-7 items-center rounded-lg px-2 text-[11px] text-on-surface-variant/50 hover:bg-surface-container transition-colors"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmandoId(d.id)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant/40 hover:bg-error/10 hover:text-error transition-colors"
+                              title="Remover documento"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     )
