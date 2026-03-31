@@ -13,7 +13,7 @@ import { getCapacidades } from '@/lib/ai/tools/registry'
 export async function GET() {
   const session = await auth()
   const tipo = (session?.user as Record<string, unknown>)?.tipo as string | undefined
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  if (!session || (tipo !== 'admin')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

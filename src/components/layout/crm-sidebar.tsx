@@ -93,7 +93,9 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pen
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-4 py-6 mt-2">
-        {NAV_GROUPS.map((group, gi) => (
+        {NAV_GROUPS.filter(group =>
+          user.tipo === 'admin' || group.label !== 'Configurações'
+        ).map((group, gi) => (
           <div key={gi} className={gi > 0 ? 'mt-5' : ''}>
             {group.label && (
               <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/30">

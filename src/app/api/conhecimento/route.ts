@@ -9,7 +9,7 @@ import { randomUUID } from 'crypto'
 export async function GET(req: Request) {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  if (!session || (tipo !== 'admin')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  if (!session || (tipo !== 'admin')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

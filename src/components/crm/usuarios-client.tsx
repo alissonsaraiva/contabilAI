@@ -242,9 +242,9 @@ export function UsuariosClient({ usuarios }: { usuarios: UsuarioRow[] }) {
         <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">Níveis de acesso</p>
         <div className="grid gap-3 sm:grid-cols-3">
           {[
-            { tipo: 'Admin',      desc: 'Acesso total: usuários, planos, configurações, todos os dados.',          badge: 'bg-error/10 text-error' },
-            { tipo: 'Contador',   desc: 'Acesso ao CRM completo: clientes, leads, tarefas, configurações.',        badge: 'bg-primary/10 text-primary' },
-            { tipo: 'Assistente', desc: 'Acesso limitado: tarefas e leads atribuídos a si.',                       badge: 'bg-surface-container text-on-surface-variant' },
+            { tipo: 'Admin',      desc: 'Acesso total: configurações, usuários, planos, IA e todos os dados do CRM.',  badge: 'bg-error/10 text-error' },
+            { tipo: 'Contador',   desc: 'Acesso operacional: clientes, leads, atendimentos, tarefas e comunicados. Sem acesso a configurações.', badge: 'bg-primary/10 text-primary' },
+            { tipo: 'Assistente', desc: 'Perfil reservado — acesso não habilitado nesta versão.',                       badge: 'bg-surface-container text-on-surface-variant' },
           ].map(n => (
             <div key={n.tipo} className="rounded-xl border border-outline-variant/15 bg-surface-container-low p-4">
               <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${n.badge} mb-2`}>

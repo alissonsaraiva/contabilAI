@@ -19,7 +19,7 @@ const patchSchema = z.object({
 export async function PATCH(req: Request, { params }: Params) {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  if (!session || (tipo !== 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

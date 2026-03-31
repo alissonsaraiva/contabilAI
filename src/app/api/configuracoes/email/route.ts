@@ -9,7 +9,7 @@ import { testarConexaoImap } from '@/lib/email/imap'
 export async function GET() {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  if (!session || (tipo !== 'admin')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -32,7 +32,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  if (!session || (tipo !== 'admin')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -70,7 +70,7 @@ export async function PUT(req: Request) {
 export async function POST() {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  if (!session || (tipo !== 'admin')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -82,7 +82,7 @@ export async function POST() {
 export async function PATCH() {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
-  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+  if (!session || (tipo !== 'admin')) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

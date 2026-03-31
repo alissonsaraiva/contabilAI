@@ -79,6 +79,10 @@ export default async function middleware(req: NextRequest) {
     if (token.precisaTrocarSenha && path !== '/crm/trocar-senha') {
       return NextResponse.redirect(new URL('/crm/trocar-senha', req.url))
     }
+    // Configurações: apenas admin
+    if (tipo !== 'admin' && path.startsWith('/crm/configuracoes')) {
+      return NextResponse.redirect(new URL('/crm/dashboard', req.url))
+    }
   }
 
   // ── Portal: clientes e sócios ───────────────────────────────────────────
