@@ -39,6 +39,13 @@ export type ClienteEditData = {
   cpf: string
   email: string
   telefone: string
+  whatsapp: string | null
+  rg: string | null
+  dataNascimento: string | null
+  estadoCivil: string | null
+  profissao: string | null
+  nacionalidade: string | null
+  tipoContribuinte: string
   planoTipo: PlanoTipo
   valorMensal: number
   vencimentoDia: number
@@ -46,9 +53,15 @@ export type ClienteEditData = {
   cnpj: string | null
   razaoSocial: string | null
   regime: Regime | null
+  cep: string | null
+  logradouro: string | null
+  numero: string | null
+  complemento: string | null
+  bairro: string | null
   cidade: string | null
   uf: string | null
   status: StatusCliente
+  observacoesInternas: string | null
 }
 
 type Props = { cliente: ClienteEditData; open: boolean; onClose: () => void }
@@ -61,6 +74,13 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
     nome: cliente.nome,
     email: cliente.email,
     telefone: cliente.telefone,
+    whatsapp: cliente.whatsapp ?? '',
+    rg: cliente.rg ?? '',
+    dataNascimento: cliente.dataNascimento ? cliente.dataNascimento.slice(0, 10) : '',
+    estadoCivil: cliente.estadoCivil ?? '',
+    profissao: cliente.profissao ?? '',
+    nacionalidade: cliente.nacionalidade ?? 'Brasileiro(a)',
+    tipoContribuinte: cliente.tipoContribuinte ?? 'pj',
     planoTipo: cliente.planoTipo,
     valorMensal: String(Number(cliente.valorMensal)),
     vencimentoDia: String(cliente.vencimentoDia),
@@ -68,8 +88,14 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
     cnpj: cliente.cnpj ?? '',
     razaoSocial: cliente.razaoSocial ?? '',
     regime: cliente.regime ?? '',
+    cep: cliente.cep ?? '',
+    logradouro: cliente.logradouro ?? '',
+    numero: cliente.numero ?? '',
+    complemento: cliente.complemento ?? '',
+    bairro: cliente.bairro ?? '',
     cidade: cliente.cidade ?? '',
     uf: cliente.uf ?? '',
+    observacoesInternas: cliente.observacoesInternas ?? '',
   })
 
   function set(field: string, value: string) {
@@ -98,18 +124,31 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nome: form.nome,
-          email: form.email,
-          telefone: form.telefone,
-          planoTipo: form.planoTipo,
-          valorMensal: Number(form.valorMensal),
-          vencimentoDia: Number(form.vencimentoDia),
-          formaPagamento: form.formaPagamento,
-          cnpj: form.cnpj || null,
-          razaoSocial: form.razaoSocial || null,
-          regime: form.regime || null,
-          cidade: form.cidade || null,
-          uf: form.uf || null,
+          nome:                form.nome,
+          email:               form.email,
+          telefone:            form.telefone,
+          whatsapp:            form.whatsapp || null,
+          rg:                  form.rg || null,
+          dataNascimento:      form.dataNascimento ? new Date(form.dataNascimento).toISOString() : null,
+          estadoCivil:         form.estadoCivil || null,
+          profissao:           form.profissao || null,
+          nacionalidade:       form.nacionalidade || null,
+          tipoContribuinte:    form.tipoContribuinte,
+          planoTipo:           form.planoTipo,
+          valorMensal:         Number(form.valorMensal),
+          vencimentoDia:       Number(form.vencimentoDia),
+          formaPagamento:      form.formaPagamento,
+          cnpj:                form.cnpj || null,
+          razaoSocial:         form.razaoSocial || null,
+          regime:              form.regime || null,
+          cep:                 form.cep || null,
+          logradouro:          form.logradouro || null,
+          numero:              form.numero || null,
+          complemento:         form.complemento || null,
+          bairro:              form.bairro || null,
+          cidade:              form.cidade || null,
+          uf:                  form.uf || null,
+          observacoesInternas: form.observacoesInternas || null,
         }),
       })
       if (!res.ok) throw new Error()
@@ -161,6 +200,60 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
               </div>
             </div>
 
+            <div>
+              <label className={LABEL}>WhatsApp</label>
+              <input className={INPUT} value={form.whatsapp} onChange={e => set('whatsapp', formatTelefone(e.target.value))} inputMode="tel" maxLength={15} placeholder="Número para envio de mensagens" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={LABEL}>RG</label>
+                <input className={INPUT} value={form.rg} onChange={e => set('rg', e.target.value)} />
+              </div>
+              <div>
+                <label className={LABEL}>Data de nascimento</label>
+                <input type="date" className={INPUT} value={form.dataNascimento} onChange={e => set('dataNascimento', e.target.value)} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={LABEL}>Estado civil</label>
+                <div className="relative">
+                  <select className={SELECT} value={form.estadoCivil} onChange={e => set('estadoCivil', e.target.value)}>
+                    <option value="">— Selecione —</option>
+                    <option value="solteiro">Solteiro(a)</option>
+                    <option value="casado">Casado(a)</option>
+                    <option value="divorciado">Divorciado(a)</option>
+                    <option value="viuvo">Viúvo(a)</option>
+                    <option value="uniao_estavel">União estável</option>
+                  </select>
+                  <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/50">expand_more</span>
+                </div>
+              </div>
+              <div>
+                <label className={LABEL}>Tipo de contribuinte</label>
+                <div className="relative">
+                  <select className={SELECT} value={form.tipoContribuinte} onChange={e => set('tipoContribuinte', e.target.value)}>
+                    <option value="pj">Pessoa Jurídica</option>
+                    <option value="pf">Pessoa Física</option>
+                  </select>
+                  <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/50">expand_more</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={LABEL}>Profissão</label>
+                <input className={INPUT} value={form.profissao} onChange={e => set('profissao', e.target.value)} />
+              </div>
+              <div>
+                <label className={LABEL}>Nacionalidade</label>
+                <input className={INPUT} value={form.nacionalidade} onChange={e => set('nacionalidade', e.target.value)} />
+              </div>
+            </div>
+
             <div className="space-y-1 pt-2 pb-0.5">
               <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Dados empresariais</p>
             </div>
@@ -203,8 +296,38 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
               <input className={INPUT} value={form.razaoSocial} onChange={e => set('razaoSocial', e.target.value)} />
             </div>
 
+            <div className="space-y-1 pt-2 pb-0.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Endereço</p>
+            </div>
+
             <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={LABEL}>CEP</label>
+                <input className={INPUT} value={form.cep} onChange={e => set('cep', e.target.value)} inputMode="numeric" maxLength={9} />
+              </div>
               <div className="col-span-2">
+                <label className={LABEL}>Logradouro</label>
+                <input className={INPUT} value={form.logradouro} onChange={e => set('logradouro', e.target.value)} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={LABEL}>Número</label>
+                <input className={INPUT} value={form.numero} onChange={e => set('numero', e.target.value)} />
+              </div>
+              <div className="col-span-2">
+                <label className={LABEL}>Complemento</label>
+                <input className={INPUT} value={form.complemento} onChange={e => set('complemento', e.target.value)} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-1">
+                <label className={LABEL}>Bairro</label>
+                <input className={INPUT} value={form.bairro} onChange={e => set('bairro', e.target.value)} />
+              </div>
+              <div className="col-span-1">
                 <label className={LABEL}>Cidade</label>
                 <input className={INPUT} value={form.cidade} onChange={e => set('cidade', e.target.value)} />
               </div>
@@ -249,6 +372,21 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
                 <input type="number" min="1" max="31" className={INPUT} value={form.vencimentoDia} onChange={e => set('vencimentoDia', e.target.value)} />
               </div>
             </div>
+
+            <div className="space-y-1 pt-2 pb-0.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Observações internas</p>
+            </div>
+
+            <div>
+              <textarea
+                className={`${INPUT} min-h-[80px] resize-none`}
+                value={form.observacoesInternas}
+                onChange={e => set('observacoesInternas', e.target.value)}
+                placeholder="Notas internas sobre o cliente (não visível ao cliente)"
+                rows={3}
+              />
+            </div>
+
           </div>
 
           {/* Footer */}

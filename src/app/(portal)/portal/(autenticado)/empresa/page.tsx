@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
 import { Card } from '@/components/ui/card'
-import { formatCNPJ } from '@/lib/utils'
+import { formatCNPJ, formatTelefone } from '@/lib/utils'
+import { PortalContatoEdit } from '@/components/portal/portal-contato-edit'
 
 const REGIME_LABELS: Record<string, string> = {
   MEI:             'MEI',
@@ -113,6 +114,12 @@ export default async function PortalEmpresaPage() {
           </div>
           <div>
             <InfoRow label="CPF" value={cliente.cpf} />
+            {cliente.rg && <InfoRow label="RG" value={cliente.rg} />}
+            {cliente.dataNascimento && (
+              <InfoRow label="Nascimento" value={new Date(cliente.dataNascimento).toLocaleDateString('pt-BR')} />
+            )}
+            {cliente.estadoCivil && <InfoRow label="Estado civil" value={cliente.estadoCivil} />}
+            {cliente.nacionalidade && <InfoRow label="Nacionalidade" value={cliente.nacionalidade} />}
             <InfoRow label="Profissão" value={cliente.profissao} />
             <InfoRow label="Regime" value={REGIME_LABELS['Autonomo']} />
           </div>
@@ -122,23 +129,45 @@ export default async function PortalEmpresaPage() {
       {/* Titular / Responsável (só PJ) */}
       {!isPF && (
         <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">person</span>
-            <h2 className="text-[14px] font-semibold text-on-surface">Titular / Responsável</h2>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">person</span>
+              <h2 className="text-[14px] font-semibold text-on-surface">Titular / Responsável</h2>
+            </div>
+            <PortalContatoEdit initial={{
+              email:       cliente.email,
+              estadoCivil: cliente.estadoCivil,
+              telefone:    cliente.telefone,
+              whatsapp:    cliente.whatsapp,
+              cep:         cliente.cep,
+              logradouro:  cliente.logradouro,
+              numero:      cliente.numero,
+              complemento: cliente.complemento,
+              bairro:      cliente.bairro,
+              cidade:      cliente.cidade,
+              uf:          cliente.uf,
+            }} />
           </div>
           <div>
             <InfoRow label="Nome" value={cliente.nome} />
             <InfoRow label="CPF" value={cliente.cpf} />
             <InfoRow label="E-mail" value={cliente.email} />
-            <InfoRow label="Telefone" value={cliente.telefone} />
-            {cliente.cep && (
+            <InfoRow label="Telefone" value={formatTelefone(cliente.telefone)} />
+            {cliente.whatsapp && <InfoRow label="WhatsApp" value={formatTelefone(cliente.whatsapp)} />}
+            {(cliente.logradouro || cliente.cidade) && (
               <InfoRow
                 label="Endereço"
-                value={[cliente.logradouro, cliente.numero, cliente.bairro, cliente.cidade, cliente.uf]
-                  .filter(Boolean)
-                  .join(', ')}
+                value={[
+                  cliente.logradouro,
+                  cliente.numero,
+                  cliente.complemento,
+                  cliente.bairro,
+                  cliente.cidade,
+                  cliente.uf,
+                ].filter(Boolean).join(', ')}
               />
             )}
+            {cliente.cep && <InfoRow label="CEP" value={cliente.cep} />}
           </div>
         </Card>
       )}
@@ -146,21 +175,43 @@ export default async function PortalEmpresaPage() {
       {/* PF: contato */}
       {isPF && (
         <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">contact_phone</span>
-            <h2 className="text-[14px] font-semibold text-on-surface">Contato</h2>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">contact_phone</span>
+              <h2 className="text-[14px] font-semibold text-on-surface">Contato</h2>
+            </div>
+            <PortalContatoEdit initial={{
+              email:       cliente.email,
+              estadoCivil: cliente.estadoCivil,
+              telefone:    cliente.telefone,
+              whatsapp:    cliente.whatsapp,
+              cep:         cliente.cep,
+              logradouro:  cliente.logradouro,
+              numero:      cliente.numero,
+              complemento: cliente.complemento,
+              bairro:      cliente.bairro,
+              cidade:      cliente.cidade,
+              uf:          cliente.uf,
+            }} />
           </div>
           <div>
             <InfoRow label="E-mail" value={cliente.email} />
-            <InfoRow label="Telefone" value={cliente.telefone} />
-            {cliente.cep && (
+            <InfoRow label="Telefone" value={formatTelefone(cliente.telefone)} />
+            {cliente.whatsapp && <InfoRow label="WhatsApp" value={formatTelefone(cliente.whatsapp)} />}
+            {(cliente.logradouro || cliente.cidade) && (
               <InfoRow
                 label="Endereço"
-                value={[cliente.logradouro, cliente.numero, cliente.bairro, cliente.cidade, cliente.uf]
-                  .filter(Boolean)
-                  .join(', ')}
+                value={[
+                  cliente.logradouro,
+                  cliente.numero,
+                  cliente.complemento,
+                  cliente.bairro,
+                  cliente.cidade,
+                  cliente.uf,
+                ].filter(Boolean).join(', ')}
               />
             )}
+            {cliente.cep && <InfoRow label="CEP" value={cliente.cep} />}
           </div>
         </Card>
       )}

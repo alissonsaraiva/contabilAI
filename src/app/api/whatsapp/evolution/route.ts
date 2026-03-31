@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import {
   createInstance, connectInstance, getConnectionState,
-  logoutInstance, deleteInstance, setWebhook,
+  logoutInstance, deleteInstance, setWebhook, sendText,
   type EvolutionConfig,
 } from '@/lib/evolution'
 
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   const session = await auth() as { user?: unknown } | null
   if (!isAdmin(session)) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-  const { action, webhookUrl } = await req.json() as { action: string; webhookUrl?: string }
+  const { action, webhookUrl, testNumber } = await req.json() as { action: string; webhookUrl?: string; testNumber?: string }
 
   const cfg = await getConfig()
   if (!cfg) return NextResponse.json({ error: 'Evolution API não configurada' }, { status: 400 })
@@ -71,6 +71,12 @@ export async function POST(req: Request) {
       case 'webhook':
         if (!webhookUrl) return NextResponse.json({ error: 'webhookUrl obrigatório' }, { status: 400 })
         return NextResponse.json(await setWebhook(cfg, webhookUrl))
+      case 'sendTest': {
+        if (!testNumber) return NextResponse.json({ error: 'testNumber obrigatório' }, { status: 400 })
+        const number = testNumber.replace(/\D/g, '')
+        const result = await sendText(cfg, `${number}@s.whatsapp.net`, '✅ Teste de conexão WhatsApp — AVOS funcionando corretamente!')
+        return NextResponse.json(result)
+      }
       default:
         return NextResponse.json({ error: 'action inválida' }, { status: 400 })
     }

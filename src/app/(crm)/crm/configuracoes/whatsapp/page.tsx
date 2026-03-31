@@ -42,6 +42,8 @@ export default function WhatsAppPage() {
   const [actionLoading, setActionLoading] = useState('')
   const [webhookCopied, setWebhookCopied] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
+  const [testNumber, setTestNumber] = useState('')
+  const [testLoading, setTestLoading] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const { register, handleSubmit, reset } = useForm<FormData>({
@@ -409,6 +411,56 @@ export default function WhatsAppPage() {
           Configurar webhook na instância
         </button>
         <p className="mt-2 text-[11px] text-on-surface-variant/50">Registra automaticamente este URL na instância Evolution API</p>
+      </div>
+
+      {/* Enviar mensagem de teste */}
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#25D366]/15">
+            <span className="material-symbols-outlined text-[18px] text-[#25D366]" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
+          </div>
+          <div>
+            <h3 className="text-[14px] font-semibold text-on-surface">Testar envio</h3>
+            <p className="text-[12px] text-on-surface-variant/80">Envia uma mensagem de teste para validar a conexão</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="tel"
+            className="flex-1 h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
+            placeholder="5511999999999 (com DDI)"
+            value={testNumber}
+            onChange={e => setTestNumber(e.target.value)}
+          />
+          <button
+            type="button"
+            disabled={testLoading || !testNumber || connState !== 'open'}
+            onClick={async () => {
+              setTestLoading(true)
+              try {
+                const res = await fetch('/api/whatsapp/evolution', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'sendTest', testNumber }),
+                })
+                const data = await res.json()
+                if (data.ok) toast.success('Mensagem enviada com sucesso!')
+                else toast.error(data.error ?? 'Erro ao enviar')
+              } catch {
+                toast.error('Erro ao enviar mensagem de teste')
+              } finally {
+                setTestLoading(false)
+              }
+            }}
+            className="flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#25D366]/90 transition-colors disabled:opacity-50"
+          >
+            {testLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">send</span>}
+            Enviar teste
+          </button>
+        </div>
+        {connState !== 'open' && (
+          <p className="mt-2 text-[11px] text-on-surface-variant/50">O WhatsApp precisa estar conectado para enviar o teste.</p>
+        )}
       </div>
 
       {/* Salvar tudo */}

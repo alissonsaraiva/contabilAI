@@ -9,6 +9,11 @@ const createSchema = z.object({
   cpf: z.string().min(11, 'CPF inválido'),
   email: z.string().email('E-mail inválido'),
   telefone: z.string().min(8, 'Telefone inválido'),
+  whatsapp: z.string().optional(),
+  rg: z.string().optional(),
+  dataNascimento: z.string().optional(),
+  estadoCivil: z.string().optional(),
+  nacionalidade: z.string().optional(),
   planoTipo: z.enum(['essencial', 'profissional', 'empresarial', 'startup']),
   valorMensal: z.coerce.number().positive('Valor inválido'),
   vencimentoDia: z.coerce.number().int().min(1).max(31),
@@ -18,8 +23,14 @@ const createSchema = z.object({
   regime: z.enum(['MEI', 'SimplesNacional', 'LucroPresumido', 'LucroReal', 'Autonomo']).optional(),
   tipoContribuinte: z.enum(['pj', 'pf']).optional().default('pj'),
   profissao: z.string().optional(),
+  cep: z.string().optional(),
+  logradouro: z.string().optional(),
+  numero: z.string().optional(),
+  complemento: z.string().optional(),
+  bairro: z.string().optional(),
   cidade: z.string().optional(),
   uf: z.string().max(2).optional(),
+  observacoesInternas: z.string().optional(),
 })
 
 export async function POST(req: Request) {
@@ -31,9 +42,11 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
   try {
+    const { dataNascimento, ...rest } = parsed.data
     const cliente = await prisma.cliente.create({
       data: {
-        ...parsed.data,
+        ...rest,
+        ...(dataNascimento ? { dataNascimento: new Date(dataNascimento) } : {}),
         responsavelId: (session.user as any).id,
       },
     })

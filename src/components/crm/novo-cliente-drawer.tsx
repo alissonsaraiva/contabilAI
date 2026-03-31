@@ -32,11 +32,24 @@ const FORMAS_PAGAMENTO = [
   { value: 'cartao', label: 'Cartão' },
 ]
 
+const ESTADO_CIVIL_OPTS = [
+  { value: 'solteiro', label: 'Solteiro(a)' },
+  { value: 'casado', label: 'Casado(a)' },
+  { value: 'divorciado', label: 'Divorciado(a)' },
+  { value: 'viuvo', label: 'Viúvo(a)' },
+  { value: 'uniao_estavel', label: 'União estável' },
+]
+
 const INIT = {
   nome: '',
   cpf: '',
   email: '',
   telefone: '',
+  whatsapp: '',
+  rg: '',
+  dataNascimento: '',
+  estadoCivil: '',
+  nacionalidade: '',
   planoTipo: 'essencial',
   valorMensal: '',
   vencimentoDia: '5',
@@ -46,8 +59,14 @@ const INIT = {
   cnpj: '',
   razaoSocial: '',
   regime: '',
+  cep: '',
+  logradouro: '',
+  numero: '',
+  complemento: '',
+  bairro: '',
   cidade: '',
   uf: '',
+  observacoesInternas: '',
 }
 
 export function NovoClienteDrawer() {
@@ -100,6 +119,11 @@ export function NovoClienteDrawer() {
           cpf: form.cpf.replace(/\D/g, ''),
           email: form.email,
           telefone: form.telefone,
+          whatsapp: form.whatsapp || undefined,
+          rg: form.rg || undefined,
+          dataNascimento: form.dataNascimento || undefined,
+          estadoCivil: form.estadoCivil || undefined,
+          nacionalidade: form.nacionalidade || undefined,
           planoTipo: form.planoTipo,
           valorMensal: Number(form.valorMensal),
           vencimentoDia: Number(form.vencimentoDia),
@@ -109,8 +133,14 @@ export function NovoClienteDrawer() {
           cnpj: form.tipoContribuinte === 'pj' ? (form.cnpj || undefined) : undefined,
           razaoSocial: form.tipoContribuinte === 'pj' ? (form.razaoSocial || undefined) : undefined,
           regime: form.regime || (form.tipoContribuinte === 'pf' ? 'Autonomo' : undefined),
+          cep: form.cep || undefined,
+          logradouro: form.logradouro || undefined,
+          numero: form.numero || undefined,
+          complemento: form.complemento || undefined,
+          bairro: form.bairro || undefined,
           cidade: form.cidade || undefined,
           uf: form.uf || undefined,
+          observacoesInternas: form.observacoesInternas || undefined,
         }),
       })
       if (res.status === 409) {
@@ -229,6 +259,63 @@ export function NovoClienteDrawer() {
               {erros.email && <p className="mt-1.5 text-xs font-medium text-error">{erros.email}</p>}
             </div>
 
+            <div>
+              <label className={LABEL}>WhatsApp</label>
+              <input
+                className={INPUT}
+                placeholder="(11) 99999-9999"
+                value={form.whatsapp}
+                onChange={e => set('whatsapp', formatTelefone(e.target.value))}
+                inputMode="tel"
+                maxLength={15}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={LABEL}>RG</label>
+                <input
+                  className={INPUT}
+                  placeholder="00.000.000-0"
+                  value={form.rg}
+                  onChange={e => set('rg', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={LABEL}>Data de nascimento</label>
+                <input
+                  type="date"
+                  className={INPUT}
+                  value={form.dataNascimento}
+                  onChange={e => set('dataNascimento', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={LABEL}>Estado civil</label>
+                <div className="relative">
+                  <select className={SELECT} value={form.estadoCivil} onChange={e => set('estadoCivil', e.target.value)}>
+                    <option value="">— Selecione —</option>
+                    {ESTADO_CIVIL_OPTS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/50">expand_more</span>
+                </div>
+              </div>
+              <div>
+                <label className={LABEL}>Nacionalidade</label>
+                <input
+                  className={INPUT}
+                  placeholder="Brasileira"
+                  value={form.nacionalidade}
+                  onChange={e => set('nacionalidade', e.target.value)}
+                />
+              </div>
+            </div>
+
             {/* Dados PJ */}
             {form.tipoContribuinte === 'pj' && (
               <>
@@ -299,8 +386,66 @@ export function NovoClienteDrawer() {
               </>
             )}
 
+            {/* Endereço */}
+            <div className="space-y-1 pt-2 pb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Endereço</p>
+            </div>
+
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
+                <label className={LABEL}>Logradouro</label>
+                <input
+                  className={INPUT}
+                  placeholder="Rua das Flores"
+                  value={form.logradouro}
+                  onChange={e => set('logradouro', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={LABEL}>Número</label>
+                <input
+                  className={INPUT}
+                  placeholder="123"
+                  value={form.numero}
+                  onChange={e => set('numero', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={LABEL}>Complemento</label>
+                <input
+                  className={INPUT}
+                  placeholder="Apto 4B"
+                  value={form.complemento}
+                  onChange={e => set('complemento', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={LABEL}>Bairro</label>
+                <input
+                  className={INPUT}
+                  placeholder="Centro"
+                  value={form.bairro}
+                  onChange={e => set('bairro', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={LABEL}>CEP</label>
+                <input
+                  className={INPUT}
+                  placeholder="00000-000"
+                  value={form.cep}
+                  onChange={e => set('cep', e.target.value)}
+                  inputMode="numeric"
+                  maxLength={9}
+                />
+              </div>
+              <div>
                 <label className={LABEL}>Cidade</label>
                 <input
                   className={INPUT}
@@ -377,6 +522,18 @@ export function NovoClienteDrawer() {
                   onChange={e => set('vencimentoDia', e.target.value)}
                 />
               </div>
+            </div>
+            {/* Observações internas */}
+            <div className="space-y-1 pt-2 pb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Observações internas</p>
+            </div>
+            <div>
+              <textarea
+                className={INPUT + ' h-24 resize-none py-3'}
+                placeholder="Notas internas sobre o cliente (não visível no portal)"
+                value={form.observacoesInternas}
+                onChange={e => set('observacoesInternas', e.target.value)}
+              />
             </div>
           </div>
 

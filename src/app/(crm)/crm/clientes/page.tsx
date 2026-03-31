@@ -52,6 +52,7 @@ export default async function ClientesPage({ searchParams }: Props) {
   const clientes = raw.map((c: typeof raw[number]) => ({
     ...c,
     valorMensal: Number(c.valorMensal),
+    dataNascimento: c.dataNascimento ? c.dataNascimento.toISOString() : null,
     cnpj: c.empresa?.cnpj ?? null,
     razaoSocial: c.empresa?.razaoSocial ?? null,
     regime: c.empresa?.regime ?? null,
