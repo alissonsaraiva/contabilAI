@@ -3,22 +3,35 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
+import { Suspense } from 'react'
 import { NovaOSDrawer } from '@/components/crm/nova-os-drawer'
+import { OrdensServicoSearchBar } from '@/components/crm/ordens-servico-search-bar'
+import { OrdensServicoPaginacao } from '@/components/crm/ordens-servico-paginacao'
 
 const PER_PAGE = 30
 
-type Props = { searchParams: Promise<{ page?: string; status?: string }> }
+type Props = {
+  searchParams: Promise<{
+    page?:       string
+    q?:          string
+    status?:     string
+    tipo?:       string
+    prioridade?: string
+  }>
+}
 
 const STATUS_OS: Record<string, { label: string; color: string; icon: string }> = {
-  aberta:              { label: 'Aberta',            color: 'text-blue-600 bg-blue-500/10',    icon: 'radio_button_unchecked' },
-  em_andamento:        { label: 'Em andamento',      color: 'text-primary bg-primary/10',      icon: 'autorenew' },
-  aguardando_cliente:  { label: 'Aguardando cliente',color: 'text-yellow-600 bg-yellow-500/10',icon: 'pending' },
-  resolvida:           { label: 'Resolvida',         color: 'text-green-status bg-green-status/10', icon: 'task_alt' },
+  aberta:              { label: 'Aberta',            color: 'text-blue-600 bg-blue-500/10',                    icon: 'radio_button_unchecked' },
+  em_andamento:        { label: 'Em andamento',      color: 'text-primary bg-primary/10',                      icon: 'autorenew' },
+  aguardando_cliente:  { label: 'Aguardando',        color: 'text-yellow-600 bg-yellow-500/10',                icon: 'pending' },
+  resolvida:           { label: 'Resolvida',         color: 'text-green-status bg-green-status/10',            icon: 'task_alt' },
   cancelada:           { label: 'Cancelada',         color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
 }
 
 const TIPO_OS: Record<string, string> = {
-  duvida: 'Dúvida', solicitacao: 'Solicitação', reclamacao: 'Reclamação', documento: 'Documento', outros: 'Outros',
+  duvida: 'Dúvida', solicitacao: 'Solicitação', reclamacao: 'Reclamação',
+  documento: 'Documento', emissao_documento: 'Emissão', correcao_documento: 'Correção',
+  solicitacao_documento: 'Solicitar doc.', tarefa_interna: 'Interna', outros: 'Outros',
 }
 
 const PRIORIDADE: Record<string, string> = {
@@ -45,13 +58,44 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
   const session = await auth()
   if (!session) redirect('/crm/login')
 
-  const sp     = await searchParams
-  const page   = Math.max(1, parseInt(sp.page ?? '1'))
-  const status = sp.status as string | undefined
-  const skip   = (page - 1) * PER_PAGE
+  const sp         = await searchParams
+  const page       = Math.max(1, parseInt(sp.page ?? '1'))
+  const q          = (sp.q ?? '').trim()
+  const status     = sp.status     as string | undefined
+  const tipo       = sp.tipo       as string | undefined
+  const prioridade = sp.prioridade as string | undefined
+  const skip       = (page - 1) * PER_PAGE
 
-  const where: any = {}
-  if (status) where.status = status
+  // ── Cláusula de busca textual ──────────────────────────────────────────────
+  // Se o termo começa com # ou é puramente numérico → busca por numero exato
+  // Caso contrário → OR em título, cliente.nome, empresa.razaoSocial/nomeFantasia
+  let searchWhere: any = {}
+  if (q) {
+    const numeroMatch = q.replace(/^#/, '').trim()
+    const isNumero    = /^\d+$/.test(numeroMatch)
+
+    if (isNumero) {
+      searchWhere = { numero: parseInt(numeroMatch, 10) }
+    } else {
+      searchWhere = {
+        OR: [
+          { titulo:  { contains: q, mode: 'insensitive' } },
+          { cliente: { nome:       { contains: q, mode: 'insensitive' } } },
+          { empresa: { razaoSocial: { contains: q, mode: 'insensitive' } } },
+          { empresa: { nomeFantasia: { contains: q, mode: 'insensitive' } } },
+        ],
+      }
+    }
+  }
+
+  const where: any = {
+    AND: [
+      searchWhere,
+      status     ? { status }     : {},
+      tipo       ? { tipo }       : {},
+      prioridade ? { prioridade } : {},
+    ],
+  }
 
   const [ordens, total, counts, clientes, avalStats, avalDist] = await Promise.all([
     prisma.ordemServico.findMany({
@@ -65,10 +109,8 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
       },
     }),
     prisma.ordemServico.count({ where }),
-    prisma.ordemServico.groupBy({
-      by:    ['status'],
-      _count: { status: true },
-    }),
+    // Contagens de status sempre sem filtros de busca (para os badges do search bar)
+    prisma.ordemServico.groupBy({ by: ['status'], _count: { status: true } }),
     prisma.cliente.findMany({
       where:   { status: 'ativo' },
       select:  { id: true, nome: true },
@@ -88,14 +130,16 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
   ])
 
   const totalPages      = Math.ceil(total / PER_PAGE)
-  const statusCounts    = Object.fromEntries(counts.map(c => [c.status, c._count.status]))
   const mediaAvaliacao  = avalStats._avg.avaliacaoNota
   const totalAvaliados  = avalStats._count.id
-  const totalResolvidas = statusCounts['resolvida'] ?? 0
+  const totalResolvidas = counts.find(c => c.status === 'resolvida')?._count.status ?? 0
   const distMap         = Object.fromEntries(avalDist.map(d => [d.avaliacaoNota ?? 0, d._count.id]))
+  const hasFilters      = !!(q || status || tipo || prioridade)
 
   return (
     <div className="space-y-6 p-6 md:p-8">
+
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-headline text-2xl font-semibold text-on-surface">Chamados</h1>
@@ -114,7 +158,6 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
         <Card className="border-outline-variant/15 bg-card/60 p-4 rounded-[16px] shadow-sm">
           <div className="flex flex-wrap items-center gap-6">
 
-            {/* Média */}
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/10">
                 <span className="material-symbols-outlined text-[20px] text-amber-500" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
@@ -128,7 +171,6 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
               </div>
             </div>
 
-            {/* Distribuição */}
             {totalAvaliados > 0 && (
               <div className="flex items-end gap-1">
                 {[5, 4, 3, 2, 1].map(n => {
@@ -138,10 +180,7 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
                     <div key={n} title={`${n}★: ${count}`} className="flex flex-col items-center gap-0.5">
                       <span className="text-[9px] font-semibold text-on-surface-variant/50">{count > 0 ? count : ''}</span>
                       <div className="relative w-4 h-8 rounded-sm bg-surface-container overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full rounded-sm bg-amber-400/70"
-                          style={{ height: `${pct}%` }}
-                        />
+                        <div className="absolute bottom-0 w-full rounded-sm bg-amber-400/70" style={{ height: `${pct}%` }} />
                       </div>
                       <span className="text-[9px] text-on-surface-variant/40">{n}★</span>
                     </div>
@@ -150,7 +189,6 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
               </div>
             )}
 
-            {/* Cobertura */}
             <div className="ml-auto text-right">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">Avaliados</p>
               <p className="text-[16px] font-bold text-on-surface leading-none">
@@ -167,33 +205,30 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
         </Card>
       )}
 
-      {/* Status counts */}
-      <div className="flex flex-wrap gap-2">
-        {[undefined, 'aberta', 'em_andamento', 'aguardando_cliente', 'resolvida', 'cancelada'].map(s => {
-          const count = s ? (statusCounts[s] ?? 0) : total
-          return (
-            <a
-              key={s ?? 'todos'}
-              href={s ? `?status=${s}` : '/crm/ordens-servico'}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold transition-colors ${
-                status === s || (!status && !s)
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-              }`}
-            >
-              {s ? STATUS_OS[s]?.label : 'Todos'}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${status === s || (!status && !s) ? 'bg-white/20 text-white' : 'bg-outline-variant/20 text-on-surface-variant'}`}>
-                {count}
-              </span>
-            </a>
-          )
-        })}
-      </div>
+      {/* Barra de busca e filtros */}
+      <Suspense>
+        <OrdensServicoSearchBar />
+      </Suspense>
 
+      {/* Resultado vazio */}
       {ordens.length === 0 ? (
         <Card className="border-outline-variant/15 bg-card/60 p-10 rounded-[16px] shadow-sm flex flex-col items-center gap-3 text-center">
-          <span className="material-symbols-outlined text-[40px] text-on-surface-variant/25">inbox</span>
-          <p className="text-[14px] font-medium text-on-surface-variant/60">Nenhum chamado encontrado.</p>
+          <span className="material-symbols-outlined text-[40px] text-on-surface-variant/25">
+            {hasFilters ? 'search_off' : 'inbox'}
+          </span>
+          <p className="text-[14px] font-medium text-on-surface-variant/60">
+            {hasFilters
+              ? 'Nenhum chamado encontrado para essa busca.'
+              : 'Nenhum chamado cadastrado.'}
+          </p>
+          {hasFilters && (
+            <Link
+              href="/crm/ordens-servico"
+              className="text-[13px] text-primary hover:underline"
+            >
+              Limpar filtros
+            </Link>
+          )}
         </Card>
       ) : (
         <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
@@ -201,7 +236,7 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-outline-variant/10">
-                  <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">#</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 w-[60px]">#</th>
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">Chamado</th>
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 hidden md:table-cell">Cliente / Empresa</th>
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 hidden md:table-cell">Tipo</th>
@@ -212,18 +247,18 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
               </thead>
               <tbody>
                 {ordens.map(o => {
-                  const s         = STATUS_OS[o.status] ?? STATUS_OS.aberta
+                  const s           = STATUS_OS[o.status] ?? STATUS_OS.aberta
                   const nomeEmpresa = o.empresa?.razaoSocial ?? o.empresa?.nomeFantasia ?? ''
                   const prioClass   = PRIORIDADE[o.prioridade] ?? 'text-on-surface-variant/50'
                   return (
                     <tr key={o.id} className="border-b border-outline-variant/10 hover:bg-surface-container/40 transition-colors">
-                      <td className="px-3 py-3.5 text-[12px] font-mono text-on-surface-variant/50 tabular-nums">#{o.numero}</td>
+                      <td className="px-4 py-3.5 text-[12px] font-mono text-on-surface-variant/50 tabular-nums">
+                        #{o.numero}
+                      </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
-                          <span className={`material-symbols-outlined text-[14px] ${prioClass}`} style={{ fontVariationSettings: "'FILL' 1" }}>circle</span>
-                          <div className="min-w-0">
-                            <p className="text-[13px] font-medium text-on-surface truncate max-w-[200px]">{o.titulo}</p>
-                          </div>
+                          <span className={`material-symbols-outlined text-[14px] shrink-0 ${prioClass}`} style={{ fontVariationSettings: "'FILL' 1" }}>circle</span>
+                          <p className="text-[13px] font-medium text-on-surface truncate max-w-[200px]">{o.titulo}</p>
                         </div>
                       </td>
                       <td className="px-5 py-3.5 hidden md:table-cell">
@@ -238,7 +273,7 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
                           {s.label}
                         </span>
                         {o.status === 'resolvida' && o.avaliacaoNota != null && (
-                          <StarsInline nota={o.avaliacaoNota} />
+                          <div className="mt-0.5"><StarsInline nota={o.avaliacaoNota} /></div>
                         )}
                       </td>
                       <td className="px-5 py-3.5 hidden lg:table-cell">
@@ -263,25 +298,18 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
         </Card>
       )}
 
+      {/* Paginação */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-on-surface-variant">Página {page} de {totalPages}</span>
-          <div className="flex gap-2">
-            {page > 1 && (
-              <a href={`?page=${page - 1}${status ? `&status=${status}` : ''}`}
-                className="rounded-lg border border-outline-variant px-3 py-1.5 text-on-surface hover:bg-surface-container transition-colors">
-                ← Anterior
-              </a>
-            )}
-            {page < totalPages && (
-              <a href={`?page=${page + 1}${status ? `&status=${status}` : ''}`}
-                className="rounded-lg border border-outline-variant px-3 py-1.5 text-on-surface hover:bg-surface-container transition-colors">
-                Próxima →
-              </a>
-            )}
-          </div>
-        </div>
+        <Suspense>
+          <OrdensServicoPaginacao
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            perPage={PER_PAGE}
+          />
+        </Suspense>
       )}
+
     </div>
   )
 }
