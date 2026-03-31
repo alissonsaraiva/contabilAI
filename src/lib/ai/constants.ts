@@ -15,4 +15,5 @@ export const PROVIDER_LABELS: Record<string, string> = {
   google:  'Google',
   groq:    'Groq',
   voyage:  'Voyage',
+  imap:    'IMAP / Email',
 }

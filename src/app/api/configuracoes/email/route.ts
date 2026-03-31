@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { encrypt, maskKey, isEncrypted } from '@/lib/crypto'
 import { testarConexaoSmtp } from '@/lib/email/send'
+import { testarConexaoImap } from '@/lib/email/imap'
 
 // GET — retorna config com senha mascarada
 export async function GET() {
@@ -65,7 +66,7 @@ export async function PUT(req: Request) {
   return NextResponse.json({ ok: true })
 }
 
-// POST /api/configuracoes/email/testar — verifica conexão SMTP
+// POST — testa conexão SMTP
 export async function POST() {
   const session = await auth()
   const tipo = (session?.user as any)?.tipo
@@ -74,5 +75,17 @@ export async function POST() {
   }
 
   const resultado = await testarConexaoSmtp()
+  return NextResponse.json(resultado)
+}
+
+// PATCH — testa conexão IMAP
+export async function PATCH() {
+  const session = await auth()
+  const tipo = (session?.user as any)?.tipo
+  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
+  const resultado = await testarConexaoImap()
   return NextResponse.json(resultado)
 }

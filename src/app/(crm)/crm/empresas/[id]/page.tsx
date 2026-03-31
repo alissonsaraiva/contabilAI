@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
+import { getAiConfig } from '@/lib/ai/config'
 import { formatCNPJ, formatCPF, formatBRL, formatDate, formatTelefone } from '@/lib/utils'
 import { PLANO_LABELS, PLANO_COLORS, FORMA_PAGAMENTO_LABELS } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -8,10 +9,14 @@ import Link from 'next/link'
 import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { EditarEmpresaButton } from '@/components/crm/editar-empresa-button'
 import { PortalLinkButton } from '@/components/crm/portal-link-button'
+import { PortalChatButton } from '@/components/crm/portal-chat-button'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
+import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { EmpresaDocumentoUpload } from '@/components/crm/empresa-documento-upload'
 import { SocioWhatsAppButton } from '@/components/crm/socio-whatsapp-button'
 import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
+import { ConversasIAList } from '@/components/crm/conversas-ia-list'
+import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -50,31 +55,48 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function EmpresaDetailPage({ params }: Props) {
   const { id } = await params
 
-  const empresa = await prisma.empresa.findUnique({
-    where: { id },
-    include: {
-      documentos: { where: { deletadoEm: null }, orderBy: { criadoEm: 'desc' } },
-      cliente: {
-        include: {
-          contratos: true,
-          responsavel: { select: { nome: true } },
+  const [aiConfig, empresa] = await Promise.all([
+    getAiConfig(),
+    prisma.empresa.findUnique({
+      where: { id },
+      include: {
+        documentos: { where: { deletadoEm: null }, orderBy: { criadoEm: 'desc' } },
+        cliente: {
+          include: {
+            contratos: true,
+            responsavel: { select: { nome: true } },
+          },
+        },
+        socios: true,
+        portalTokens: {
+          where: { expiresAt: { gt: new Date() } },
+          orderBy: { criadoEm: 'desc' },
         },
       },
-      socios: true,
-      portalTokens: {
-        where: { expiresAt: { gt: new Date() } },
-        orderBy: { criadoEm: 'desc' },
-      },
-    },
-  })
+    }),
+  ])
 
   if (!empresa) notFound()
 
   const cliente = empresa.cliente
   const socios  = empresa.socios
   const nomeDisplay = empresa.razaoSocial ?? empresa.nomeFantasia ?? '(sem nome)'
+  const nomeIaPortal = aiConfig.nomeAssistentes.portal ?? 'Assistente'
 
   const documentos = empresa.documentos
+
+  const conversas = cliente
+    ? await prisma.conversaIA.findMany({
+        where: {
+          OR: [
+            { clienteId: cliente.id },
+            ...(cliente.leadId ? [{ leadId: cliente.leadId }] : []),
+          ],
+        },
+        orderBy: { atualizadaEm: 'desc' },
+        include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
+      })
+    : []
 
   const tabs = [
     { value: 'visao-geral', label: 'Visão Geral',  count: null },
@@ -82,6 +104,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
     { value: 'socios',      label: 'Sócios',        count: socios.length },
     { value: 'documentos',  label: 'Documentos',    count: documentos.length },
     { value: 'portal',      label: 'Portal',        count: null },
+    { value: 'conversas',   label: 'Conversas IA',  count: conversas.length },
     { value: 'financeiro',  label: 'Financeiro',    count: null },
     { value: 'fiscal',      label: 'Fiscal',        count: null },
   ]
@@ -147,6 +170,14 @@ export default async function EmpresaDetailPage({ params }: Props) {
             {cliente && (
               <>
                 <WhatsAppDrawerButton clienteId={cliente.id} clienteNome={cliente.nome} />
+                {cliente.email && (
+                  <EnviarEmailDrawer
+                    clienteId={cliente.id}
+                    clienteEmail={cliente.email}
+                    clienteNome={cliente.nome}
+                  />
+                )}
+                <PortalChatButton clienteId={cliente.id} clienteNome={cliente.nome} status={cliente.status} nomeIa={nomeIaPortal} />
                 <PortalLinkButton clienteId={cliente.id} status={cliente.status} />
               </>
             )}
@@ -354,6 +385,24 @@ export default async function EmpresaDetailPage({ params }: Props) {
           </div>
         </TabsContent>
 
+        {/* ── Conversas IA ────────────────────────────────── */}
+        <TabsContent value="conversas" className="m-0 focus-visible:outline-none">
+          {!cliente ? (
+            <EmptyState icon="smart_toy" msg="Nenhum titular vinculado — sem conversas disponíveis" />
+          ) : (
+            <>
+              <div className="mb-5">
+                <p className="text-[13px] text-on-surface-variant">
+                  {conversas.length === 0
+                    ? 'Nenhuma conversa registrada nos últimos 90 dias'
+                    : `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · ${conversas.reduce((acc, c) => acc + c.mensagens.length, 0)} mensagens no total`}
+                </p>
+              </div>
+              <ConversasIAList conversas={conversas} />
+            </>
+          )}
+        </TabsContent>
+
         {/* ── Financeiro ──────────────────────────────────── */}
         <TabsContent value="financeiro" className="m-0 focus-visible:outline-none">
           <PlaceholderTab icon="payments" label="Financeiro" descricao="Honorários, faturas, inadimplência e histórico de pagamentos." />
@@ -364,6 +413,14 @@ export default async function EmpresaDetailPage({ params }: Props) {
           <PlaceholderTab icon="receipt_long" label="Fiscal" descricao="Obrigações fiscais, competências, DAS, DCTF, apurações e calendário tributário." />
         </TabsContent>
       </Tabs>
+
+      {cliente && (
+        <AssistenteContextSetter
+          clienteId={cliente.id}
+          leadId={cliente.leadId ?? undefined}
+          nomeCliente={cliente.nome}
+        />
+      )}
     </div>
   )
 }

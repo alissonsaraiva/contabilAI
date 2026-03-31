@@ -20,22 +20,50 @@ async function getImapConfig() {
     select: { emailRemetente: true, emailSenha: true, emailImapHost: true, emailImapPort: true },
   })
 
-  const usuario   = escritorio?.emailRemetente ?? process.env.EMAIL_REMETENTE
-  const senha     = escritorio?.emailSenha     ?? process.env.EMAIL_SENHA
-  const imapHost  = escritorio?.emailImapHost  ?? 'imap.hostinger.com'
-  const imapPort  = escritorio?.emailImapPort  ?? 993
+  // IMAP só está configurado se o host for explicitamente definido
+  // (evitar tentar conectar com default hardcoded quando só SMTP está ativo)
+  const imapHost = escritorio?.emailImapHost ?? process.env.EMAIL_IMAP_HOST ?? null
+  if (!imapHost) return null
 
-  if (!usuario || !senha) {
-    throw new Error('Email IMAP não configurado.')
-  }
+  const usuario  = escritorio?.emailRemetente ?? process.env.EMAIL_REMETENTE
+  const senha    = escritorio?.emailSenha     ?? process.env.EMAIL_SENHA
+  const imapPort = escritorio?.emailImapPort  ?? 993
+
+  if (!usuario || !senha) return null
 
   const senhaDecriptada = isEncrypted(senha) ? decrypt(senha) : senha
 
   return { usuario, senha: senhaDecriptada, imapHost, imapPort }
 }
 
+export async function testarConexaoImap(): Promise<{ ok: boolean; erro?: string }> {
+  const config = await getImapConfig()
+  if (!config) return { ok: false, erro: 'IMAP não configurado. Preencha o servidor IMAP e salve.' }
+
+  const { usuario, senha, imapHost, imapPort } = config
+  const client = new ImapFlow({
+    host:          imapHost,
+    port:          imapPort,
+    secure:        imapPort === 993,
+    auth:          { user: usuario, pass: senha },
+    logger:        false,
+    socketTimeout: 10_000,
+  })
+
+  try {
+    await client.connect()
+    await client.logout()
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, erro: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
-  const { usuario, senha, imapHost, imapPort } = await getImapConfig()
+  const config = await getImapConfig()
+  if (!config) return []  // IMAP não configurado — pula silenciosamente
+
+  const { usuario, senha, imapHost, imapPort } = config
 
   const client = new ImapFlow({
     host:          imapHost,

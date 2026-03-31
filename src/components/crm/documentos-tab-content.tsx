@@ -133,72 +133,67 @@ export function DocumentosTabContent({ documentos: documentosIniciais, uploadSlo
     })
   }
 
-  const INPUT  = 'h-9 w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] text-on-surface focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
+  const INPUT  = 'h-9 w-full rounded-[10px] border border-outline-variant/60 bg-surface-container px-3 text-[13px] text-on-surface focus:border-primary/70 focus:outline-none focus:ring-[3px] focus:ring-primary/15 placeholder:text-on-surface-variant/60'
   const SELECT = INPUT + ' appearance-none cursor-pointer pr-8'
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {empresaLink}
 
-      {/* Toolbar: upload + busca */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* Grupo 1 — envio */}
-        {uploadSlot && (
-          <>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/40">Enviar</span>
-              {uploadSlot}
-            </div>
-            <div className="hidden lg:block h-7 w-px bg-outline-variant/20 shrink-0" />
-          </>
-        )}
-
-        {/* Grupo 2 — filtros */}
-        <div className="flex flex-1 flex-wrap items-center gap-2 min-w-0">
-          <div className="flex-1 min-w-[180px] relative">
-            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[15px] text-on-surface-variant/40">search</span>
-            <input
-              className={INPUT + ' pl-8'}
-              placeholder="Buscar por nome ou tipo..."
-              value={q}
-              onChange={e => setQ(e.target.value)}
-            />
-          </div>
-          <div className="relative w-36">
-            <select className={SELECT} value={categoria} onChange={e => setCategoria(e.target.value)}>
-              <option value="">Categoria</option>
-              {Object.entries(CATEGORIAS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-on-surface-variant/40">expand_more</span>
-          </div>
-          <div className="relative w-32">
-            <select className={SELECT} value={origem} onChange={e => setOrigem(e.target.value)}>
-              <option value="">Origem</option>
-              <option value="crm">Escritório</option>
-              <option value="portal">Cliente</option>
-              <option value="integracao">Integração</option>
-            </select>
-            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-on-surface-variant/40">expand_more</span>
-          </div>
-          <div className="relative w-32">
-            <select className={SELECT} value={status} onChange={e => setStatus(e.target.value)}>
-              <option value="">Status</option>
-              <option value="pendente">Pendente</option>
-              <option value="aprovado">Aprovado</option>
-              <option value="rejeitado">Rejeitado</option>
-              <option value="enviado">Enviado</option>
-            </select>
-            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-on-surface-variant/40">expand_more</span>
-          </div>
-          {hasFilters && (
-            <button
-              onClick={() => { setQ(''); setCategoria(''); setOrigem(''); setStatus('') }}
-              className="text-[12px] font-semibold text-primary hover:opacity-80 whitespace-nowrap"
-            >
-              Limpar
-            </button>
-          )}
+      {/* Linha 1 — envio */}
+      {uploadSlot && (
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/70">Enviar documento</span>
+          <div className="h-px flex-1 bg-outline-variant/30" />
+          {uploadSlot}
         </div>
+      )}
+
+      {/* Linha 2 — filtros */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex-1 min-w-[200px] relative">
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[15px] text-on-surface-variant/60">search</span>
+          <input
+            className={INPUT + ' pl-8'}
+            placeholder="Buscar por nome ou tipo..."
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
+        </div>
+        <div className="relative w-36">
+          <select className={SELECT} value={categoria} onChange={e => setCategoria(e.target.value)}>
+            <option value="">Categoria</option>
+            {Object.entries(CATEGORIAS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-on-surface-variant/60">expand_more</span>
+        </div>
+        <div className="relative w-32">
+          <select className={SELECT} value={origem} onChange={e => setOrigem(e.target.value)}>
+            <option value="">Origem</option>
+            <option value="crm">Escritório</option>
+            <option value="portal">Cliente</option>
+            <option value="integracao">Integração</option>
+          </select>
+          <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-on-surface-variant/60">expand_more</span>
+        </div>
+        <div className="relative w-32">
+          <select className={SELECT} value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="">Status</option>
+            <option value="pendente">Pendente</option>
+            <option value="aprovado">Aprovado</option>
+            <option value="rejeitado">Rejeitado</option>
+            <option value="enviado">Enviado</option>
+          </select>
+          <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-on-surface-variant/60">expand_more</span>
+        </div>
+        {hasFilters && (
+          <button
+            onClick={() => { setQ(''); setCategoria(''); setOrigem(''); setStatus('') }}
+            className="text-[12px] font-semibold text-primary hover:opacity-80 whitespace-nowrap"
+          >
+            Limpar
+          </button>
+        )}
       </div>
 
       {/* Contagem */}

@@ -344,21 +344,22 @@ export async function searchHybrid(
     LIMIT $2`
 
   // ─── Busca por keyword (BM25 via tsvector) ────────────────────────────────
-  const kwIdx = idx
-  values.push(queryText)  // $kwIdx
+  // kwValues: $1=queryText, $2=limit, $3+=filterValues
+  // Não inclui `vec` ($1 do semanticQ) — evita "could not determine data type of parameter $1"
+  const kwValues: unknown[] = [queryText, 20, ...values.slice(2)]
   const keywordQ = `
     SELECT id, escopo, canal, tipo, titulo, conteudo, cliente_id, lead_id, metadata,
-           ts_rank(to_tsvector('portuguese', conteudo), plainto_tsquery('portuguese', $${kwIdx})) AS score
+           ts_rank(to_tsvector('portuguese', conteudo), plainto_tsquery('portuguese', $1)) AS score
     FROM vectors.embeddings
-    WHERE to_tsvector('portuguese', conteudo) @@ plainto_tsquery('portuguese', $${kwIdx})
+    WHERE to_tsvector('portuguese', conteudo) @@ plainto_tsquery('portuguese', $1)
       ${where}
     ORDER BY score DESC
     LIMIT $2`
 
   // ─── Executa em paralelo ──────────────────────────────────────────────────
   const [semanticRes, keywordRes] = await Promise.all([
-    db.query<{ id: string; escopo: EscopoRAG; canal: CanalRAG; tipo: TipoConhecimento; titulo: string | null; conteudo: string; score: number; cliente_id: string | null; lead_id: string | null; metadata: Record<string, unknown> | null }>(semanticQ, values.slice(0, kwIdx - 1)),
-    db.query<{ id: string; escopo: EscopoRAG; canal: CanalRAG; tipo: TipoConhecimento; titulo: string | null; conteudo: string; score: number; cliente_id: string | null; lead_id: string | null; metadata: Record<string, unknown> | null }>(keywordQ, values),
+    db.query<{ id: string; escopo: EscopoRAG; canal: CanalRAG; tipo: TipoConhecimento; titulo: string | null; conteudo: string; score: number; cliente_id: string | null; lead_id: string | null; metadata: Record<string, unknown> | null }>(semanticQ, values),
+    db.query<{ id: string; escopo: EscopoRAG; canal: CanalRAG; tipo: TipoConhecimento; titulo: string | null; conteudo: string; score: number; cliente_id: string | null; lead_id: string | null; metadata: Record<string, unknown> | null }>(keywordQ, kwValues),
   ])
 
   // ─── RRF: Reciprocal Rank Fusion ──────────────────────────────────────────

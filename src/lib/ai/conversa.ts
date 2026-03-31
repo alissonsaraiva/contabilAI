@@ -84,7 +84,19 @@ export async function getOrCreateConversaSession(
     select: { id: true },
   })
 
-  if (existente) return existente.id
+  if (existente) {
+    // Atualiza clienteId/leadId se a sessão foi criada antes da identidade ser resolvida
+    if (opts?.clienteId || opts?.leadId) {
+      prisma.conversaIA.update({
+        where: { id: existente.id },
+        data: {
+          clienteId: opts.clienteId ?? undefined,
+          leadId:    opts.leadId    ?? undefined,
+        },
+      }).catch(() => {})
+    }
+    return existente.id
+  }
 
   const nova = await prisma.conversaIA.create({
     data: {

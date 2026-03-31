@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         const { notificarIaOffline } = await import('@/lib/notificacoes')
         // Reutiliza notificação de sistema offline com prefixo identificador
         await notificarIaOffline(
-          'openai',  // provider placeholder — notificação chega como alerta de sistema
+          'imap',
           `[email/sync] IMAP indisponível há ${falhasConsecutivas} tentativas consecutivas. Último erro: ${mensagem}`,
         )
       } catch {

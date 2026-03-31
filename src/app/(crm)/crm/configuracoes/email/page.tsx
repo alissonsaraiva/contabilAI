@@ -25,8 +25,9 @@ const EMPTY: EmailConfig = {
 
 export default function EmailPage() {
   const [config, setConfig]     = useState<EmailConfig>(EMPTY)
-  const [saving, setSaving]     = useState(false)
-  const [testing, setTesting]   = useState(false)
+  const [saving, setSaving]         = useState(false)
+  const [testing, setTesting]       = useState(false)
+  const [testingImap, setTestingImap] = useState(false)
   const [senhaSalva, setSenhaSalva] = useState(false)
 
   useEffect(() => {
@@ -60,6 +61,20 @@ export default function EmailPage() {
       toast.error('Erro ao salvar')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleTestImap() {
+    setTestingImap(true)
+    try {
+      const res = await fetch('/api/configuracoes/email', { method: 'PATCH' })
+      const data = await res.json()
+      if (data.ok) toast.success('Conexão IMAP OK!')
+      else toast.error(`Erro IMAP: ${data.erro ?? 'Falha na conexão'}`)
+    } catch {
+      toast.error('Erro ao testar IMAP')
+    } finally {
+      setTestingImap(false)
     }
   }
 
@@ -176,7 +191,12 @@ export default function EmailPage() {
         <button onClick={handleTest} disabled={testing}
           className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60">
           {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">wifi_tethering</span>}
-          Testar conexão SMTP
+          Testar SMTP
+        </button>
+        <button onClick={handleTestImap} disabled={testingImap}
+          className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60">
+          {testingImap ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">inbox</span>}
+          Testar IMAP
         </button>
         <button onClick={handleSave} disabled={saving}
           className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center">
