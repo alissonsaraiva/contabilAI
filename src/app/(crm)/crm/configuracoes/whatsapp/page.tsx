@@ -309,7 +309,7 @@ export default function WhatsAppPage() {
 
         {/* Botões de ação */}
         <div className="flex flex-wrap gap-2">
-          {connState === 'unknown' || connState === 'close' ? (
+          {connState === 'unknown' || connState === 'close' || connState === 'connecting' ? (
             <>
               <button
                 type="button"
