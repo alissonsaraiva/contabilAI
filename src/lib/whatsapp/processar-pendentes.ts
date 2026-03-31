@@ -145,18 +145,73 @@ export async function processarMensagensPendentes(): Promise<{
         context = { escopo: 'cliente+global', clienteId: conversa.clienteId }
         const clienteRow = await prisma.cliente.findUnique({
           where:  { id: conversa.clienteId },
-          select: { nome: true, empresa: { select: { razaoSocial: true } } },
+          select: {
+            nome: true,
+            status: true,
+            empresa: { select: { razaoSocial: true } },
+            cobrancasAsaas: {
+              where:   { status: { in: ['PENDING', 'OVERDUE'] } },
+              orderBy: { vencimento: 'asc' as const },
+              take:    1,
+              select:  { valor: true, vencimento: true, status: true, pixCopiaECola: true, linkBoleto: true, atualizadoEm: true },
+            },
+          },
         }).catch(() => null)
         const nomeLabel = clienteRow?.empresa?.razaoSocial ?? clienteRow?.nome ?? ''
+
+        // Injeta contexto financeiro da cobrança Asaas:
+        //   - inadimplente: dados completos da cobrança vencida
+        //   - ativo com PENDING: dados da cobrança a vencer (pró-ativo)
+        let financeirSuffix = ''
+        const cob = clienteRow?.cobrancasAsaas?.[0]
+        if (clienteRow?.status === 'inadimplente') {
+          if (cob) {
+            const valorStr = Number(cob.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+            const vencStr  = new Date(cob.vencimento).toLocaleDateString('pt-BR')
+            const diasStr  = cob.vencimento < new Date()
+              ? ` (${Math.floor((Date.now() - new Date(cob.vencimento).getTime()) / 86400000)}d em atraso)`
+              : ''
+            // PIX Asaas expira em ~24h — alerta a IA para não confiar em dados muito antigos
+            const cobAtualizadaEm = (cob as any).atualizadoEm as Date | undefined
+            const pixPodeEstarExpirado = !cobAtualizadaEm
+              || (Date.now() - new Date(cobAtualizadaEm).getTime()) > 20 * 3600 * 1000  // > 20h
+            const pagStr = cob.pixCopiaECola && !pixPodeEstarExpirado
+              ? `PIX Copia e Cola: ${cob.pixCopiaECola}`
+              : cob.linkBoleto
+              ? `Link do boleto: ${cob.linkBoleto}`
+              : 'PIX/boleto pode estar expirado — use gerarSegundaViaAsaas para gerar nova via'
+            const avisoExpiry = cob.pixCopiaECola && pixPodeEstarExpirado
+              ? '\nATENÇÃO: o PIX armazenado pode estar expirado (>20h). Se o cliente disser que não funciona, use gerarSegundaViaAsaas imediatamente.'
+              : ''
+            financeirSuffix = `\n\nATENÇÃO — CLIENTE INADIMPLENTE: Cobrança em aberto de *${valorStr}* vencida em *${vencStr}*${diasStr}.\n${pagStr}${avisoExpiry}\nSe o cliente perguntar sobre boleto, PIX ou pagamento, responda com os dados acima. Se o cliente disser que já pagou, oriente que a confirmação pode levar alguns minutos e que o sistema atualiza automaticamente — caso persista, escale para um atendente humano com ##HUMANO##.`
+          } else {
+            financeirSuffix = '\n\nATENÇÃO — CLIENTE INADIMPLENTE: Sem cobrança Asaas registrada. Use gerarSegundaViaAsaas para criar nova cobrança se o cliente solicitar.'
+          }
+        } else if (clienteRow?.status === 'ativo' && cob) {
+          // Ativo com cobrança PENDING próxima — contexto pró-ativo
+          const valorStr = Number(cob.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          const vencStr  = new Date(cob.vencimento).toLocaleDateString('pt-BR')
+          const diasParaVenc = Math.ceil((new Date(cob.vencimento).getTime() - Date.now()) / 86400000)
+          const pagStr = cob.pixCopiaECola
+            ? `PIX Copia e Cola: ${cob.pixCopiaECola}`
+            : cob.linkBoleto
+            ? `Link do boleto: ${cob.linkBoleto}`
+            : 'Dados de pagamento indisponíveis — use buscarCobrancaAberta para obter'
+          financeirSuffix = `\n\nCONTEXTO FINANCEIRO: Cobrança de *${valorStr}* com vencimento em *${vencStr}*${diasParaVenc >= 0 ? ` (em ${diasParaVenc} dia(s))` : ' (vencida)'}.\n${pagStr}\nSe o cliente perguntar sobre boleto, PIX ou cobrança, responda com os dados acima.`
+        }
+
+        // Alias para compatibilidade com o restante do código
+        const inadimplenteSuffix = financeirSuffix
+
         // Sócio: adiciona identificação extra
         if (conversa.socioId) {
           const socioRow = await prisma.socio.findUnique({
             where:  { id: conversa.socioId },
             select: { nome: true },
           }).catch(() => null)
-          systemExtra = `CONTEXTO: SÓCIO DA EMPRESA${nomeLabel ? ` — ${nomeLabel}` : ''}${socioRow?.nome ? ` | Sócio: ${socioRow.nome}` : ''}\n\n${whatsappGuardrail}`
+          systemExtra = `CONTEXTO: SÓCIO DA EMPRESA${nomeLabel ? ` — ${nomeLabel}` : ''}${socioRow?.nome ? ` | Sócio: ${socioRow.nome}` : ''}${inadimplenteSuffix}\n\n${whatsappGuardrail}`
         } else {
-          systemExtra = `CONTEXTO: CLIENTE ATIVO${nomeLabel ? ` — ${nomeLabel}` : ''}\n\n${whatsappGuardrail}`
+          systemExtra = `CONTEXTO: CLIENTE${clienteRow?.status === 'inadimplente' ? ' INADIMPLENTE' : ' ATIVO'}${nomeLabel ? ` — ${nomeLabel}` : ''}${inadimplenteSuffix}\n\n${whatsappGuardrail}`
         }
       } else if (conversa.leadId) {
         context = { escopo: 'lead+global', leadId: conversa.leadId }

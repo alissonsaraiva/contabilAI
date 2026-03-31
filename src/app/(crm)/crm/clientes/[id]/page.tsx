@@ -26,6 +26,7 @@ import { EditarClienteButton } from '@/components/crm/editar-cliente-button'
 import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
+import { ClienteFinanceiroTab } from '@/components/crm/cliente-financeiro-tab'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -73,7 +74,6 @@ export default async function ClienteDetailPage({ params }: Props) {
         empresa: { include: { socios: true } },
         documentos: { where: { deletadoEm: null } },
         contratos: true,
-        tarefas: { orderBy: { criadoEm: 'desc' }, take: 10 },
         responsavel: { select: { nome: true } },
         statusHistorico: { orderBy: { criadoEm: 'desc' }, take: 20 },
       },
@@ -115,6 +115,7 @@ export default async function ClienteDetailPage({ params }: Props) {
 
   const tabs = [
     { value: 'dados', label: 'Dados', count: null },
+    { value: 'financeiro', label: 'Financeiro', count: null },
     { value: 'socios', label: 'Sócios', count: socios.length },
     { value: 'documentos', label: 'Documentos', count: documentos.length },
     { value: 'contratos', label: 'Contratos', count: contratos.length },
@@ -295,6 +296,16 @@ export default async function ClienteDetailPage({ params }: Props) {
               )}
             </InfoCard>
           </div>
+        </TabsContent>
+
+        {/* ── Financeiro ─────────────────────────────────── */}
+        <TabsContent value="financeiro" className="m-0 focus-visible:outline-none">
+          <ClienteFinanceiroTab
+            clienteId={cliente.id}
+            vencimentoDia={cliente.vencimentoDia}
+            formaPagamento={cliente.formaPagamento}
+            valorMensal={Number(cliente.valorMensal)}
+          />
         </TabsContent>
 
         {/* ── Sócios ─────────────────────────────────────── */}

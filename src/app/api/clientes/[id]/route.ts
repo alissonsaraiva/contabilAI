@@ -30,10 +30,6 @@ export async function GET(req: Request, { params }: Params) {
         select: { id: true, status: true, planoTipo: true, valorMensal: true, vencimentoDia: true, formaPagamento: true, assinadoEm: true, criadoEm: true },
         orderBy: { criadoEm: 'desc' },
       },
-      tarefas: {
-        select: { id: true, titulo: true, status: true, prioridade: true, prazo: true, criadoEm: true },
-        orderBy: { criadoEm: 'desc' },
-      },
       interacoes: {
         select: { id: true, tipo: true, titulo: true, conteudo: true, origem: true, criadoEm: true },
         orderBy: { criadoEm: 'desc' },

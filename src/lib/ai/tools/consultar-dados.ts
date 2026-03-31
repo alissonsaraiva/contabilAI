@@ -210,54 +210,6 @@ const consultarDadosTool: Tool = {
       }
     }
 
-    // ── Tarefas ─────────────────────────────────────────────────────────────
-
-    if (entidade === 'tarefas') {
-      const where: Record<string, unknown> = {}
-      if (filtros.status)        where.status       = filtros.status
-      if (filtros.responsavelId) where.responsavelId = filtros.responsavelId
-      if (criadoEmFiltro)        where.criadoEm     = criadoEmFiltro
-
-      if (agrupar === 'status') {
-        return agruparPor(
-          await prisma.tarefa.groupBy({ by: ['status'], where, _count: { id: true }, orderBy: { _count: { id: 'desc' } } }),
-          r => ({ chave: r.status, total: r._count.id }),
-          'status',
-        )
-      }
-      if (agrupar === 'responsavel') {
-        const rows = await prisma.tarefa.findMany({
-          where,
-          select: { responsavel: { select: { nome: true } } },
-        })
-        return agruparNome(rows.map(r => r.responsavel?.nome ?? 'Sem responsável'), 'responsável')
-      }
-      if (agrupar === 'mes') {
-        return await agruparPorMes('tarefa', where)
-      }
-
-      const rows = await prisma.tarefa.findMany({
-        where,
-        take: limite,
-        orderBy: { criadoEm: 'desc' },
-        select: {
-          id: true, titulo: true, status: true, prioridade: true,
-          prazo: true, criadoEm: true,
-          cliente:    { select: { nome: true } },
-          responsavel: { select: { nome: true } },
-        },
-      })
-      const total = await prisma.tarefa.count({ where })
-      const linhas = rows.map(r =>
-        `• ${r.titulo} | ${r.status} | prioridade: ${r.prioridade} | cliente: ${r.cliente?.nome ?? '-'} | resp: ${r.responsavel?.nome ?? '-'} | prazo: ${r.prazo ? fmtData(r.prazo) : 'sem prazo'}`
-      )
-      return {
-        sucesso: true,
-        dados:   rows,
-        resumo:  [`${total} tarefa(s) encontrada(s) (mostrando ${rows.length}):`, ...linhas].join('\n'),
-      }
-    }
-
     // ── Interações ──────────────────────────────────────────────────────────
 
     if (entidade === 'interacoes') {
@@ -351,7 +303,7 @@ async function agruparPorMes(
 
   if (tabela === 'cliente')   rows = await prisma.cliente.findMany({ where: where as never, select: { criadoEm: true } })
   if (tabela === 'lead')      rows = await prisma.lead.findMany({ where: where as never, select: { criadoEm: true } })
-  if (tabela === 'tarefa')    rows = await prisma.tarefa.findMany({ where: where as never, select: { criadoEm: true } })
+  // tarefa removida — mantido para retrocompatibilidade de filtros antigos
   if (tabela === 'interacao') rows = await prisma.interacao.findMany({ where: where as never, select: { criadoEm: true } })
 
   const contagem: Record<string, number> = {}

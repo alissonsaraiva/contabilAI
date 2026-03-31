@@ -231,6 +231,35 @@ export async function notificarEscalacaoPortal(clienteId: string, escalacaoId: s
 }
 
 /**
+ * Notifica a equipe quando um cliente entra em inadimplência via Asaas.
+ * Anti-spam: no máximo uma notificação por cliente a cada 10 minutos.
+ */
+export async function notificarClienteInadimplente(opts: {
+  clienteId: string
+  nomeCliente: string
+  valorVencido: number
+  vencimento: Date
+}): Promise<void> {
+  const chave = `inadimplente:${opts.clienteId}`
+  if (dentroDoCooldow(chave)) return
+  registrarCooldown(chave)
+
+  try {
+    const valor = opts.valorVencido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    const data  = opts.vencimento.toLocaleDateString('pt-BR')
+    const ids = await buscarEquipeAtendimento()
+    await criarParaTodos(ids, {
+      tipo:    'cliente_inadimplente',
+      titulo:  `Inadimplência: ${opts.nomeCliente}`,
+      mensagem: `Boleto de ${valor} venceu em ${data}.`,
+      url:     `/crm/clientes/${opts.clienteId}`,
+    })
+  } catch (err) {
+    console.error('[notificacoes] falha ao notificar cliente_inadimplente:', err)
+  }
+}
+
+/**
  * Notifica quando um email é recebido na caixa do escritório.
  * Anti-spam: no máximo uma notificação a cada 5 minutos (emails chegam em batch).
  */

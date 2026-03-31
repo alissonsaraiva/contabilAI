@@ -46,6 +46,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: 'Financeiro',
+    items: [
+      { href: '/crm/financeiro/inadimplentes', icon: '🔴', label: 'Inadimplentes' },
+    ],
+  },
+  {
     label: 'Inteligência',
     items: [
       { href: '/crm/relatorios', icon: '🧠', label: 'Relatórios IA' },

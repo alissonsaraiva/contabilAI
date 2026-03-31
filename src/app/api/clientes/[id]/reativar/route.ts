@@ -50,5 +50,10 @@ export async function POST(_req: Request, { params }: Params) {
   indexarAsync('cliente', atualizado)
   indexarAsync('statusHistorico', { ...historico, criadoEm: now })
 
+  // Recria subscription no Asaas (fire and forget)
+  import('@/lib/services/asaas-sync')
+    .then(({ reativarAsaas }) => reativarAsaas(id))
+    .catch(err => console.error('[reativar] Erro ao sincronizar Asaas:', err))
+
   return NextResponse.json({ ok: true, status: 'ativo' })
 }

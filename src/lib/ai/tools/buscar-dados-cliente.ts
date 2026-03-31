@@ -59,18 +59,21 @@ const buscarDadosClienteTool: Tool = {
     // Normaliza CPF/CNPJ removendo formatação antes de buscar
     const buscaNorm = busca ? busca.replace(/[.\-\/\s]/g, '') : undefined
 
+    const incluirCobranca = {
+      cobrancasAsaas: {
+        where:   { status: { in: ['PENDING', 'OVERDUE'] as import('@prisma/client').AsaasStatusCobranca[] } },
+        orderBy: { vencimento: 'asc' as const },
+        take:    1,
+        select:  { id: true, valor: true, vencimento: true, status: true, formaPagamento: true, pixCopiaECola: true, linkBoleto: true },
+      },
+    }
+
     const cliente = clienteId
       ? await prisma.cliente.findUnique({
           where: { id: clienteId },
           include: {
             empresa: true,
             responsavel: { select: { nome: true } },
-            tarefas: {
-              where: { status: { notIn: ['concluida', 'cancelada'] as any } },
-              select: { id: true, titulo: true, prazo: true, prioridade: true, status: true },
-              orderBy: { prazo: 'asc' },
-              take: 5,
-            },
             interacoes: {
               where: ctx.solicitanteAI === 'portal'
                 ? { tipo: { in: ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou', 'whatsapp_enviado'] } }
@@ -79,6 +82,7 @@ const buscarDadosClienteTool: Tool = {
               orderBy: { criadoEm: 'desc' },
               take: 5,
             },
+            ...incluirCobranca,
           },
         })
       : await prisma.cliente.findFirst({
@@ -99,12 +103,6 @@ const buscarDadosClienteTool: Tool = {
           include: {
             empresa: true,
             responsavel: { select: { nome: true } },
-            tarefas: {
-              where: { status: { notIn: ['concluida', 'cancelada'] as any } },
-              select: { id: true, titulo: true, prazo: true, prioridade: true, status: true },
-              orderBy: { prazo: 'asc' },
-              take: 5,
-            },
             interacoes: {
               where: ctx.solicitanteAI === 'portal'
                 ? { tipo: { in: ['email_enviado', 'email_recebido', 'documento_enviado', 'status_mudou', 'whatsapp_enviado'] } }
@@ -113,6 +111,7 @@ const buscarDadosClienteTool: Tool = {
               orderBy: { criadoEm: 'desc' },
               take: 5,
             },
+            ...incluirCobranca,
           },
         })
 
@@ -124,27 +123,45 @@ const buscarDadosClienteTool: Tool = {
       }
     }
 
+    const empresa = (cliente as any).empresa as { regime?: string; cnpj?: string; razaoSocial?: string } | null
+    const cobrancaAberta = (cliente as any).cobrancasAsaas?.[0] as {
+      id: string; valor: unknown; vencimento: Date; status: string;
+      formaPagamento: string; pixCopiaECola: string | null; linkBoleto: string | null
+    } | undefined
+
     const linhas: string[] = [
       `Cliente: ${cliente.nome}`,
       `Status: ${cliente.status}`,
       `Plano: ${cliente.planoTipo} — R$ ${cliente.valorMensal}/mês`,
-      `Regime: ${cliente.empresa?.regime ?? 'não informado'}`,
+      `Regime: ${empresa?.regime ?? 'não informado'}`,
       `Email: ${cliente.email}`,
       `Telefone: ${cliente.telefone}`,
-      ...(cliente.empresa?.cnpj ? [`CNPJ: ${cliente.empresa.cnpj}`] : []),
-      ...(cliente.empresa?.razaoSocial ? [`Razão social: ${cliente.empresa.razaoSocial}`] : []),
+      ...(empresa?.cnpj ? [`CNPJ: ${empresa.cnpj}`] : []),
+      ...(empresa?.razaoSocial ? [`Razão social: ${empresa.razaoSocial}`] : []),
       `Responsável: ${(cliente as any).responsavel?.nome ?? 'não atribuído'}`,
       `Vencimento: dia ${cliente.vencimentoDia}`,
       `Pagamento: ${cliente.formaPagamento}`,
     ]
 
-    const tarefas = (cliente as any).tarefas as Array<{ prioridade: string; titulo: string; prazo: Date | null }>
-    if (tarefas.length > 0) {
-      linhas.push('', `Tarefas em aberto (${tarefas.length}):`)
-      tarefas.forEach(t => {
-        const prazo = t.prazo ? ` — prazo: ${t.prazo.toLocaleDateString('pt-BR')}` : ''
-        linhas.push(`• [${t.prioridade}] ${t.titulo}${prazo}`)
-      })
+    // Situação financeira — inclui cobrança em aberto se existir
+    if (cobrancaAberta) {
+      const hoje       = new Date()
+      const valorStr   = Number(cobrancaAberta.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      const vencStr    = new Date(cobrancaAberta.vencimento).toLocaleDateString('pt-BR')
+      const diasAtraso = cobrancaAberta.vencimento < hoje
+        ? Math.floor((hoje.getTime() - new Date(cobrancaAberta.vencimento).getTime()) / 86400000)
+        : 0
+      linhas.push(
+        '',
+        `Cobrança em aberto: ${valorStr} — vencto ${vencStr}${diasAtraso > 0 ? ` (${diasAtraso}d em atraso)` : ''}`,
+        cobrancaAberta.pixCopiaECola
+          ? `PIX: ${cobrancaAberta.pixCopiaECola}`
+          : cobrancaAberta.linkBoleto
+          ? `Boleto: ${cobrancaAberta.linkBoleto}`
+          : 'Sem PIX/boleto registrado — gerar segunda via se necessário',
+      )
+    } else if (cliente.status === 'inadimplente') {
+      linhas.push('', 'Situação financeira: inadimplente — nenhuma cobrança Asaas registrada (cliente sem subscription?)')
     }
 
     const interacoes = (cliente as any).interacoes as Array<{ tipo: string; titulo: string | null; criadoEm: Date }>

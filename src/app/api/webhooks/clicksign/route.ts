@@ -152,6 +152,9 @@ export async function POST(req: Request) {
             enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })
           )
           .catch((err) => console.error('[clicksign webhook] Erro ao enviar boas-vindas:', err))
+        import('@/lib/services/asaas-sync')
+          .then(({ provisionarClienteAsaas }) => provisionarClienteAsaas(cliente!.id))
+          .catch((err) => console.error('[clicksign webhook] Erro ao provisionar Asaas:', err))
       }
     } catch (err) {
       console.error('[clicksign webhook] Erro ao converter lead em cliente:', err)

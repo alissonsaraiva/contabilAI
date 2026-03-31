@@ -26,19 +26,13 @@ const resumoDashboardTool: Tool = {
     hoje.setHours(0, 0, 0, 0)
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
 
-    const [totalClientes, inadimplentes, cancelamentosNoMes, leadsHoje, aguardandoAssinatura, tarefasVencendo, mrr, leadsAtivos] =
+    const [totalClientes, inadimplentes, cancelamentosNoMes, leadsHoje, aguardandoAssinatura, mrr, leadsAtivos] =
       await Promise.all([
         prisma.cliente.count({ where: { status: 'ativo' } }),
         prisma.cliente.count({ where: { status: 'inadimplente' } }),
         prisma.cliente.count({ where: { status: 'cancelado', atualizadoEm: { gte: inicioMes } } }).catch(() => 0),
         prisma.lead.count({ where: { criadoEm: { gte: hoje } } }),
         prisma.contrato.count({ where: { status: 'aguardando_assinatura' } }),
-        prisma.tarefa.count({
-          where: {
-            status:  { in: ['pendente', 'em_andamento'] },
-            prazo:   { lte: new Date(Date.now() + 24 * 60 * 60 * 1000) },
-          },
-        }),
         prisma.cliente.aggregate({
           where:  { status: 'ativo' },
           _sum:   { valorMensal: true },
@@ -59,7 +53,6 @@ const resumoDashboardTool: Tool = {
       `• Leads em andamento: ${leadsAtivos}`,
       `• Leads captados hoje: ${leadsHoje}`,
       `• Contratos aguardando assinatura: ${aguardandoAssinatura}`,
-      `• Tarefas vencendo em 24h: ${tarefasVencendo}`,
     ]
 
     return {
@@ -72,7 +65,6 @@ const resumoDashboardTool: Tool = {
         leadsAtivos,
         leadsHoje,
         aguardandoAssinatura,
-        tarefasVencendo,
       },
       resumo: linhasResumo.join('\n'),
     }

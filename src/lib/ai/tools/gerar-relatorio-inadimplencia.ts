@@ -55,6 +55,13 @@ const gerarRelatorioInadimplenciaTool: Tool = {
         status:        true,
         empresa:       { select: { razaoSocial: true } },
         responsavel:   { select: { nome: true } },
+        // Cobranças reais para calcular aging preciso
+        cobrancasAsaas: {
+          where:   { status: { in: ['PENDING', 'OVERDUE'] } },
+          orderBy: { vencimento: 'asc' },
+          take:    1,
+          select:  { vencimento: true, valor: true },
+        },
       },
       orderBy: { vencimentoDia: 'asc' },
     }).catch(() => [])
@@ -89,16 +96,25 @@ const gerarRelatorioInadimplenciaTool: Tool = {
     let totalEmAberto = 0
 
     for (const c of clientes) {
-      const diaVenc   = c.vencimentoDia ?? 10
-      // Clamp day to last day of month (prevents overflow: dia 31 em fevereiro → março)
-      const lastDay   = new Date(anoAtual, mesAtual + 1, 0).getDate()
-      const dataVenc  = new Date(anoAtual, mesAtual, Math.min(diaVenc, lastDay))
-      if (dataVenc > hoje) {
-        // Vencimento ainda não chegou neste mês — usa mês anterior
-        dataVenc.setMonth(dataVenc.getMonth() - 1)
+      // Usa a data real da cobrança Asaas quando disponível (aging preciso)
+      // Fallback: calcula estimativa com vencimentoDia quando não há cobrança registrada
+      const cobrancaAberta = (c as any).cobrancasAsaas?.[0]
+      let diasAtraso: number
+      if (cobrancaAberta?.vencimento) {
+        const venc = new Date(cobrancaAberta.vencimento)
+        diasAtraso = Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86400000))
+      } else {
+        const diaVenc  = c.vencimentoDia ?? 10
+        const lastDay  = new Date(anoAtual, mesAtual + 1, 0).getDate()
+        const dataVenc = new Date(anoAtual, mesAtual, Math.min(diaVenc, lastDay))
+        if (dataVenc > hoje) dataVenc.setMonth(dataVenc.getMonth() - 1)
+        diasAtraso = Math.max(0, Math.floor((hoje.getTime() - dataVenc.getTime()) / 86400000))
       }
-      const diasAtraso = Math.floor((hoje.getTime() - dataVenc.getTime()) / (1000 * 60 * 60 * 24))
-      const valor      = c.valorMensal ? `R$ ${Number(c.valorMensal).toFixed(2)}` : 'N/D'
+      // Usa o valor real da cobrança se disponível, senão o valorMensal cadastrado
+      const valorNum = cobrancaAberta?.valor
+        ? Number(cobrancaAberta.valor)
+        : (c.valorMensal ? Number(c.valorMensal) : 0)
+      const valor = valorNum ? `R$ ${valorNum.toFixed(2)}` : 'N/D'
       const entry: ClienteAging = {
         nome:        c.empresa?.razaoSocial ?? c.nome,
         plano:       c.planoTipo,
@@ -114,7 +130,7 @@ const gerarRelatorioInadimplenciaTool: Tool = {
       else if (diasAtraso <= 90)  aging.de61a90.push(entry)
       else                        aging.acima90.push(entry)
 
-      if (c.valorMensal) totalEmAberto += Number(c.valorMensal)
+      totalEmAberto += valorNum
     }
 
     const formatarLista = (lista: ClienteAging[]) =>

@@ -58,6 +58,11 @@ import './publicar-relatorio'
 import './gerar-relatorio-inadimplencia'
 import './verificar-status-contrato'
 
+// ─── Tools financeiras (Asaas / inadimplência) ───────────────────────────────
+import './buscar-cobranca-aberta'
+import './enviar-cobranca-inadimplente'
+import './gerar-segunda-via-asaas'
+
 // ─── Tools do portal do cliente ───────────────────────────────────────────────
 import './buscar-ordem-servico'
 import './listar-ordens-servico'

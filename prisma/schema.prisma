@@ -103,6 +103,14 @@ enum StatusMensagem {
   failed
 }
 
+enum AsaasStatusCobranca {
+  PENDING
+  RECEIVED
+  OVERDUE
+  REFUNDED
+  CANCELLED
+}
+
 model Usuario {
   id                 String      @id @default(uuid())
   nome               String
@@ -233,6 +241,12 @@ model Cliente {
 
   portalSessionId   String?         @unique
 
+  // Asaas — integração de cobranças
+  asaasCustomerId      String?   @unique
+  asaasSubscriptionId  String?   @unique
+  asaasStatus          String?   // "ACTIVE" | "INACTIVE" | "OVERDUE"
+  asaasUltimoSync      DateTime?
+
   documentos        Documento[]
   contratos         Contrato[]
   interacoes        Interacao[]
@@ -241,6 +255,7 @@ model Cliente {
   statusHistorico   ClienteStatusHistorico[]
   ordensServico     OrdemServico[]
   pushSubscriptions PushSubscription[]
+  cobrancasAsaas    CobrancaAsaas[]
 
   @@index([leadId], name: "cliente_leadId_partial")
   @@index([empresaId], name: "cliente_empresaId_partial")
@@ -580,6 +595,11 @@ model Escritorio {
   // "link_portal" = envia link autenticado do portal
   whatsappDocumentoEntrega String @default("direto")
 
+  // Asaas — integração de cobranças
+  asaasApiKey          String?  @db.Text   // encriptado (mesmo padrão das chaves AI)
+  asaasAmbiente        String?  @default("sandbox")  // "sandbox" | "production"
+  asaasWebhookToken    String?             // token para validar webhooks recebidos
+
   // WhatsApp AI — usa Evolution API para enviar respostas
   whatsappAiEnabled    Boolean? @default(false)
   whatsappAiFeature    String?  @default("onboarding")  // onboarding | crm | portal
@@ -764,6 +784,43 @@ model RelatorioAgente {
   @@index([tipo, criadoEm])
   @@index([criadoPorId, criadoEm])
   @@map("relatorios_agente")
+}
+
+model CobrancaAsaas {
+  id              String               @id @default(cuid())
+  asaasId         String               @unique    // payment.id retornado pelo Asaas
+  clienteId       String
+  cliente         Cliente              @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  valor           Decimal              @db.Decimal(10, 2)
+  vencimento      DateTime
+  status          AsaasStatusCobranca  @default(PENDING)
+  formaPagamento  FormaPagamento       // pix | boleto
+
+  // Boleto
+  linkBoleto      String?
+  codigoBarras    String?
+
+  // PIX
+  pixQrCode       String?              @db.Text   // base64 da imagem QR
+  pixCopiaECola   String?              @db.Text   // payload EMV
+
+  // Confirmação de pagamento
+  pagoEm          DateTime?
+  valorPago       Decimal?             @db.Decimal(10, 2)
+
+  // Controle de lembrete D-3
+  lembreteEnviado Boolean              @default(false)
+
+  criadoEm        DateTime             @default(now())
+  atualizadoEm    DateTime             @updatedAt
+
+  @@index([clienteId])
+  @@index([vencimento])
+  @@index([status])
+  @@index([clienteId, status])
+  @@index([status, vencimento, lembreteEnviado])
+  @@map("cobrancas_asaas")
 }
 
 model WebhookLog {

@@ -49,5 +49,10 @@ export async function POST(req: Request, { params }: Params) {
   indexarAsync('cliente', atualizado)
   indexarAsync('statusHistorico', { ...historico, criadoEm: now })
 
+  // Cancela subscription no Asaas (fire and forget)
+  import('@/lib/services/asaas-sync')
+    .then(({ suspenderAsaas }) => suspenderAsaas(id))
+    .catch(err => console.error('[cancelar] Erro ao sincronizar Asaas:', err))
+
   return NextResponse.json({ ok: true, status: 'cancelado' })
 }

@@ -19,6 +19,9 @@ const schema = z.object({
   zapiToken:           z.string().optional(),
   serproCpfToken:      z.string().optional(),
   serproCnpjToken:     z.string().optional(),
+  asaasApiKey:         z.string().optional(),
+  asaasAmbiente:       z.enum(['sandbox', 'producao']).optional(),
+  asaasWebhookToken:   z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -31,6 +34,8 @@ type Configured = {
   zapiToken:           boolean
   serproCpfToken:      boolean
   serproCnpjToken:     boolean
+  asaasApiKey:         boolean
+  asaasWebhookToken:   boolean
 }
 
 // ── Seção colapsável ────────────────────────────────────────────────────────
@@ -113,6 +118,7 @@ export default function IntegracoesPage() {
   const [configured, setConfigured] = useState<Configured>({
     zapsignToken: false, clicksignKey: false, clicksignHmacSecret: false,
     zapiInstanceId: false, zapiToken: false, serproCpfToken: false, serproCnpjToken: false,
+    asaasApiKey: false, asaasWebhookToken: false,
   })
 
   const { register, handleSubmit, reset, watch } = useForm<FormData>({
@@ -120,7 +126,8 @@ export default function IntegracoesPage() {
     defaultValues: { provedorAssinatura: 'zapsign' },
   })
 
-  const provedor = watch('provedorAssinatura')
+  const provedor      = watch('provedorAssinatura')
+  const asaasAmbiente = watch('asaasAmbiente')
 
   useEffect(() => {
     fetch('/api/escritorio')
@@ -129,8 +136,10 @@ export default function IntegracoesPage() {
         if (!data) return
         reset({
           provedorAssinatura: (data.provedorAssinatura as string) === 'clicksign' ? 'clicksign' : 'zapsign',
+          asaasAmbiente: (data.asaasAmbiente as string) === 'producao' ? 'producao' : 'sandbox',
           zapsignToken: '', clicksignKey: '', clicksignHmacSecret: '',
           zapiInstanceId: '', zapiToken: '', serproCpfToken: '', serproCnpjToken: '',
+          asaasApiKey: '', asaasWebhookToken: '',
         })
         setConfigured({
           zapsignToken:        !!data.zapsignToken,
@@ -140,6 +149,8 @@ export default function IntegracoesPage() {
           zapiToken:           !!data.zapiToken,
           serproCpfToken:      !!data.serproCpfToken,
           serproCnpjToken:     !!data.serproCnpjToken,
+          asaasApiKey:         !!data.asaasApiKey,
+          asaasWebhookToken:   !!data.asaasWebhookToken,
         })
       })
   }, [reset])
@@ -147,7 +158,10 @@ export default function IntegracoesPage() {
   async function onSubmit(data: FormData) {
     setLoading(true)
     try {
-      const payload: Record<string, unknown> = { provedorAssinatura: data.provedorAssinatura }
+      const payload: Record<string, unknown> = {
+        provedorAssinatura: data.provedorAssinatura,
+        asaasAmbiente:      data.asaasAmbiente ?? 'sandbox',
+      }
       if (data.zapsignToken)        payload.zapsignToken        = data.zapsignToken
       if (data.clicksignKey)        payload.clicksignKey        = data.clicksignKey
       if (data.clicksignHmacSecret) payload.clicksignHmacSecret = data.clicksignHmacSecret
@@ -155,6 +169,8 @@ export default function IntegracoesPage() {
       if (data.zapiToken)           payload.zapiToken           = data.zapiToken
       if (data.serproCpfToken)      payload.serproCpfToken      = data.serproCpfToken
       if (data.serproCnpjToken)     payload.serproCnpjToken     = data.serproCnpjToken
+      if (data.asaasApiKey)         payload.asaasApiKey         = data.asaasApiKey
+      if (data.asaasWebhookToken)   payload.asaasWebhookToken   = data.asaasWebhookToken
 
       const res = await fetch('/api/escritorio', {
         method: 'PUT',
@@ -171,6 +187,8 @@ export default function IntegracoesPage() {
         zapiToken:           prev.zapiToken           || !!data.zapiToken,
         serproCpfToken:      prev.serproCpfToken      || !!data.serproCpfToken,
         serproCnpjToken:     prev.serproCnpjToken     || !!data.serproCnpjToken,
+        asaasApiKey:         prev.asaasApiKey         || !!data.asaasApiKey,
+        asaasWebhookToken:   prev.asaasWebhookToken   || !!data.asaasWebhookToken,
       }))
       toast.success('Integrações salvas!')
     } catch {
@@ -186,6 +204,7 @@ export default function IntegracoesPage() {
     (provedor === 'clicksign' ? (configured.clicksignKey ? 1 : 0) + (configured.clicksignHmacSecret ? 1 : 0) : 0)
   const zapiCount    = (configured.zapiInstanceId ? 1 : 0) + (configured.zapiToken ? 1 : 0)
   const serproCount  = (configured.serproCpfToken ? 1 : 0) + (configured.serproCnpjToken ? 1 : 0)
+  const asaasCount   = (configured.asaasApiKey ? 1 : 0) + (configured.asaasWebhookToken ? 1 : 0)
 
   return (
     <div className="space-y-3">
@@ -268,6 +287,69 @@ export default function IntegracoesPage() {
             </div>
           </div>
         )}
+
+      </Section>
+
+      {/* ── Asaas (Cobranças) ─────────────────────────────────────────────── */}
+      <Section icon="payments" title="Asaas" subtitle="Gestão de cobranças, boletos e PIX recorrentes" configCount={asaasCount}>
+
+        {/* Ambiente */}
+        <div>
+          <label className="mb-2 block text-[13px] font-semibold text-on-surface-variant">Ambiente</label>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { value: 'sandbox',  label: 'Sandbox',  sub: 'Testes — sem cobranças reais' },
+              { value: 'producao', label: 'Produção', sub: 'Cobranças reais — use com cuidado' },
+            ].map(opt => (
+              <label
+                key={opt.value}
+                className={cn(
+                  'flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition-colors',
+                  asaasAmbiente === opt.value
+                    ? 'border-primary/50 bg-primary/5 ring-2 ring-primary/20'
+                    : 'border-outline-variant/20 hover:border-outline-variant/40',
+                )}
+              >
+                <input type="radio" value={opt.value} {...register('asaasAmbiente')} className="accent-primary" />
+                <div>
+                  <p className={cn('text-[13px] font-semibold', asaasAmbiente === opt.value ? 'text-primary' : 'text-on-surface')}>
+                    {opt.label}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant/70">{opt.sub}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* API Key */}
+        <div>
+          <FieldLabel label="API Key" configured={configured.asaasApiKey} />
+          <input
+            {...register('asaasApiKey')}
+            className={INPUT}
+            placeholder={configured.asaasApiKey ? 'Nova chave (deixe em branco para manter)' : '$aact_... (API Key do painel Asaas)'}
+            type="password" autoComplete="off"
+          />
+          <p className="mt-1 text-[11px] text-on-surface-variant/60">
+            Asaas → Minha Conta → Integrações → API Key
+          </p>
+        </div>
+
+        {/* Webhook Token */}
+        <div>
+          <FieldLabel label="Webhook Token" configured={configured.asaasWebhookToken} />
+          <input
+            {...register('asaasWebhookToken')}
+            className={INPUT}
+            placeholder={configured.asaasWebhookToken ? 'Novo token (deixe em branco para manter)' : 'Token secreto para validar eventos do webhook'}
+            type="password" autoComplete="off"
+          />
+          <p className="mt-1 text-[11px] text-on-surface-variant/60">
+            Defina um token secreto qualquer. Configure o mesmo no Asaas → Configurações → Notificações → Webhook.
+            URL: <span className="font-mono">https://seudominio/api/webhooks/asaas</span>
+          </p>
+        </div>
 
       </Section>
 
