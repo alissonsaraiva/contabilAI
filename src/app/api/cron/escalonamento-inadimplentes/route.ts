@@ -1,14 +1,16 @@
 /**
  * POST /api/cron/escalonamento-inadimplentes
  *
- * Cron diário que envia mensagens de escalonamento de cobrança para clientes inadimplentes.
- * Níveis baseados em dias desde o vencimento da cobrança:
- *   D+3  → mensagem gentil (lembrança amigável)
+ * Cron diário que envia mensagens de cobrança via WhatsApp para clientes inadimplentes.
+ * A Asaas já envia email no D+0 (PAYMENT_OVERDUE) e lembretes periódicos por email.
+ * Este cron complementa com WhatsApp nos momentos de maior urgência:
  *   D+7  → mensagem urgente (risco de suspensão)
  *   D+15 → reforço urgente
  *
- * Cada escalonamento é registrado como Interacao com titulo 'Cobrança {id} — D+3|D+7|D+15'
- * para evitar reenvios.
+ * O webhook PAYMENT_OVERDUE já envia o primeiro WhatsApp no D+0.
+ *
+ * Cada escalonamento é registrado como Interacao com titulo 'Cobrança {id} — urgente|reforco'
+ * para evitar reenvios (compatível com envio manual do CRM e tool da IA).
  *
  * Setup crontab (VPS):
  *   0 12 * * * curl -s -X POST https://dominio/api/cron/escalonamento-inadimplentes \
@@ -28,14 +30,11 @@ function montarMensagem(
   nome: string,
   valor: string,
   dataVenc: string,
-  nivel: 'D+3' | 'D+7' | 'D+15',
+  nivel: 'urgente' | 'reforco',
   pagamento: string,
   nomeEscritorio: string,
 ): string {
-  if (nivel === 'D+3') {
-    return `Olá, ${nome}! 😊\n\nPassamos para lembrar que há uma cobrança em aberto de *${valor}* com vencimento em *${dataVenc}*.\n\nPara regularizar:\n${pagamento}\n\nQualquer dúvida, estamos à disposição! 🙏\n— ${nomeEscritorio}`
-  }
-  if (nivel === 'D+7') {
+  if (nivel === 'urgente') {
     return `Olá, ${nome}. ⚠️\n\nA cobrança de *${valor}* (vencida em *${dataVenc}*) ainda não foi regularizada.\n\nPedimos que efetue o pagamento o quanto antes para evitar a suspensão dos serviços contábeis.\n\n${pagamento}\n\nEm caso de dificuldades, entre em contato conosco.\n— ${nomeEscritorio}`
   }
   return `${nome}, atenção. 🚨\n\nSua cobrança de *${valor}* permanece em aberto (vencimento: *${dataVenc}*).\n\nPara evitar impactos nos seus serviços, regularize agora:\n${pagamento}\n\nSe precisar negociar, entre em contato com urgência.\n— ${nomeEscritorio}`
@@ -114,14 +113,13 @@ export async function POST(req: Request) {
     // Calcula dias em atraso
     const vencimento  = new Date(cobranca.vencimento)
     const diasAtraso  = Math.floor((hoje.getTime() - vencimento.getTime()) / 86400000)
-    if (diasAtraso < 3) { ignorados++; continue }
+    if (diasAtraso < 7) { ignorados++; continue }
 
     // Determina o próximo nível a enviar, do mais antigo para o mais recente.
-    // Assim um cliente que entra com 20 dias de atraso recebe o mais severo ainda pendente,
-    // sem pular etapas que já foram enviadas manualmente pelo CRM ou pela IA.
-    type NivelKey = 'gentil' | 'urgente' | 'reforco'
+    // D+0 já foi tratado pelo webhook PAYMENT_OVERDUE (WhatsApp imediato).
+    // A Asaas cuida dos lembretes por email — aqui só WhatsApp nos momentos de maior urgência.
+    type NivelKey = 'urgente' | 'reforco'
     const escalonamentos: Array<{ minDias: number; key: NivelKey }> = [
-      { minDias:  3, key: 'gentil'  },
       { minDias:  7, key: 'urgente' },
       { minDias: 15, key: 'reforco' },
     ]
@@ -144,8 +142,7 @@ export async function POST(req: Request) {
 
     if (!nivelKey) { ignorados++; continue }
 
-    // Mapeia chave canônica → label D+ para a função de mensagem
-    const nivel = nivelKey === 'gentil' ? 'D+3' : nivelKey === 'urgente' ? 'D+7' : 'D+15'
+    const nivel = nivelKey
 
     // Resolve destino WhatsApp: sócio principal → cliente.whatsapp → cliente.telefone
     const socioP = (c as any).empresa?.socios?.[0]
