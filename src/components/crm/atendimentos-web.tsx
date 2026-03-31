@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { WhatsAppChatPanel } from './whatsapp-chat-panel'
@@ -113,6 +113,24 @@ export function AtendimentosWeb({
   const [filtro, setFiltro]         = useState<FilterTab>('todas')
   const [busca, setBusca]           = useState('')
   const router = useRouter()
+
+  // ── Auto-refresh da lista a cada 30s quando o tab está visível ───────────────
+  // router.refresh() re-executa os server components (page.tsx) mas preserva
+  // todo o estado React deste client component — chat aberto, filtro, busca.
+  useEffect(() => {
+    const tick = () => {
+      if (!document.hidden) router.refresh()
+    }
+    // Atualiza quando o tab volta a ficar visível (ex: operador volta de outra aba)
+    document.addEventListener('visibilitychange', tick)
+    // Polling de 30s para manter a lista sincronizada
+    const id = setInterval(tick, 30_000)
+    return () => {
+      document.removeEventListener('visibilitychange', tick)
+      clearInterval(id)
+    }
+  }, [router])
+  // ─────────────────────────────────────────────────────────────────────────────
 
   function handleSelect(c: ConversaWebItem) {
     if (c.canal === 'portal') {
