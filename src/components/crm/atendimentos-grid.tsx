@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatDateTime } from '@/lib/utils'
 import { WhatsAppDrawer } from './whatsapp-drawer'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
@@ -22,6 +23,10 @@ export type ConversaGridItem = {
 }
 
 type DrawerState = { apiPath: string; nome: string } | null
+
+type SelectAction =
+  | { canal: 'whatsapp'; apiPath: string; nome: string }
+  | { canal: 'portal'; clienteId: string; nome: string }
 
 const CANAL_ICON: Record<string, string> = {
   whatsapp:   'forum',
@@ -52,6 +57,7 @@ export function AtendimentosGrid({
 }) {
   const [drawer, setDrawer] = useState<DrawerState>(null)
   const [novaConversa, setNovaConversa] = useState(false)
+  const router = useRouter()
 
   function openDrawer(c: ConversaGridItem) {
     const apiPath = c.socioId
@@ -62,6 +68,27 @@ export function AtendimentosGrid({
     if (!apiPath) return
     const nome = c.cliente?.nome ?? c.remoteJid?.replace('@s.whatsapp.net', '') ?? 'Contato'
     setDrawer({ apiPath, nome })
+  }
+
+  async function handleNovaConversaSelect(action: SelectAction) {
+    setNovaConversa(false)
+    if (action.canal === 'whatsapp') {
+      setDrawer({ apiPath: action.apiPath, nome: action.nome })
+    } else {
+      // Portal: navega para a conversa portal mais recente do cliente
+      try {
+        const res = await fetch(`/api/crm/clientes/${action.clienteId}/portal-chat`)
+        const data = await res.json()
+        const conversas = data.conversas ?? []
+        if (conversas.length > 0) {
+          router.push(`/crm/atendimentos/conversa/${conversas[0].id}`)
+        } else {
+          alert(`${action.nome} ainda não tem conversa ativa pelo portal.`)
+        }
+      } catch {
+        alert('Erro ao buscar conversa do portal.')
+      }
+    }
   }
 
   return (
@@ -163,10 +190,7 @@ export function AtendimentosGrid({
       <NovaConversaSheet
         open={novaConversa}
         onClose={() => setNovaConversa(false)}
-        onSelect={(apiPath, nome) => {
-          setNovaConversa(false)
-          setDrawer({ apiPath, nome })
-        }}
+        onSelect={handleNovaConversaSelect}
       />
     </>
   )
@@ -289,7 +313,7 @@ function NovaConversaSheet({
 }: {
   open: boolean
   onClose: () => void
-  onSelect: (apiPath: string, nome: string) => void
+  onSelect: (action: SelectAction) => void
 }) {
   const [query, setQuery] = useState('')
   const [resultados, setResultados] = useState<Contato[]>([])
@@ -331,13 +355,15 @@ function NovaConversaSheet({
     }, 300)
   }, [])
 
-  function handleSelect(c: Contato) {
-    const phone = c.whatsapp || c.telefone
-    if (!phone) return
+  function handleWhatsApp(c: Contato) {
     const apiPath = c.tipo === 'socio'
       ? `/api/socios/${c.id}/whatsapp`
       : `/api/clientes/${c.id}/whatsapp`
-    onSelect(apiPath, c.nome)
+    onSelect({ canal: 'whatsapp', apiPath, nome: c.nome })
+  }
+
+  function handlePortal(c: Contato) {
+    onSelect({ canal: 'portal', clienteId: c.id, nome: c.nome })
   }
 
   return (
@@ -345,8 +371,8 @@ function NovaConversaSheet({
       <SheetContent side="right" className="flex w-full max-w-sm flex-col gap-0 p-0" showCloseButton={false}>
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-outline-variant/15 px-5 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#25D366]/15">
-            <span className="material-symbols-outlined text-[18px] text-[#25D366]"
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+            <span className="material-symbols-outlined text-[18px] text-primary"
               style={{ fontVariationSettings: "'FILL' 1" }}>add_comment</span>
           </div>
           <div className="flex-1">
@@ -382,47 +408,64 @@ function NovaConversaSheet({
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {query.length < 2 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <span className="material-symbols-outlined mb-3 text-[40px] text-on-surface-variant/20">
-                contacts
-              </span>
-              <p className="text-[13px] text-on-surface-variant/50">
-                Digite pelo menos 2 caracteres para buscar
-              </p>
+              <span className="material-symbols-outlined mb-3 text-[40px] text-on-surface-variant/20">contacts</span>
+              <p className="text-[13px] text-on-surface-variant/50">Digite pelo menos 2 caracteres para buscar</p>
             </div>
           ) : resultados.length === 0 && !buscando ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <span className="material-symbols-outlined mb-3 text-[40px] text-on-surface-variant/20">
-                person_search
-              </span>
-              <p className="text-[13px] text-on-surface-variant/50">
-                Nenhum contato encontrado com WhatsApp cadastrado
-              </p>
+              <span className="material-symbols-outlined mb-3 text-[40px] text-on-surface-variant/20">person_search</span>
+              <p className="text-[13px] text-on-surface-variant/50">Nenhum contato encontrado</p>
             </div>
           ) : (
-            <div className="space-y-1.5 pt-2">
+            <div className="space-y-2 pt-2">
               {resultados.map(c => {
-                const phone = c.whatsapp || c.telefone
+                const temWhatsApp = !!(c.whatsapp || c.telefone)
+                const temPortal   = c.tipo === 'cliente'
                 return (
-                  <button
+                  <div
                     key={`${c.tipo}-${c.id}`}
-                    onClick={() => handleSelect(c)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-outline-variant/10 bg-card p-3.5 text-left transition-colors hover:bg-surface-container"
+                    className="rounded-xl border border-outline-variant/10 bg-card p-3.5"
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#25D366]/10">
-                      <span className="material-symbols-outlined text-[18px] text-[#25D366]"
-                        style={{ fontVariationSettings: "'FILL' 1" }}>
-                        {c.tipo === 'socio' ? 'badge' : 'business'}
-                      </span>
+                    {/* Identidade */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-container">
+                        <span className="material-symbols-outlined text-[18px] text-on-surface-variant"
+                          style={{ fontVariationSettings: "'FILL' 1" }}>
+                          {c.tipo === 'socio' ? 'badge' : 'business'}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-[13px] font-semibold text-on-surface">{c.nome}</p>
+                        <p className="text-[11px] text-on-surface-variant/60">
+                          {c.subtitulo}{temWhatsApp ? ` · ${c.whatsapp || c.telefone}` : ''}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate text-[13px] font-semibold text-on-surface">{c.nome}</p>
-                      <p className="text-[11px] text-on-surface-variant/60">
-                        {c.subtitulo} · {phone}
-                      </p>
+                    {/* Canais */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleWhatsApp(c)}
+                        disabled={!temWhatsApp}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-semibold transition-colors
+                          enabled:bg-[#25D366]/10 enabled:text-[#25D366] enabled:hover:bg-[#25D366]/20
+                          disabled:bg-surface-container disabled:text-on-surface-variant/30 disabled:cursor-not-allowed"
+                      >
+                        <span className="material-symbols-outlined text-[15px]"
+                          style={{ fontVariationSettings: temWhatsApp ? "'FILL' 1" : "'FILL' 0" }}>chat_bubble</span>
+                        WhatsApp
+                      </button>
+                      {temPortal && (
+                        <button
+                          onClick={() => handlePortal(c)}
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-violet-500/10 px-3 py-2 text-[12px] font-semibold text-violet-500 transition-colors hover:bg-violet-500/20"
+                        >
+                          <span className="material-symbols-outlined text-[15px]"
+                            style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+                          Portal
+                        </button>
+                      )}
                     </div>
-                    <span className="material-symbols-outlined text-[16px] text-[#25D366] shrink-0"
-                      style={{ fontVariationSettings: "'FILL' 1" }}>chat_bubble</span>
-                  </button>
+                  </div>
                 )
               })}
             </div>

@@ -5,25 +5,6 @@ import ReactMarkdown from 'react-markdown'
 
 type Msg = { role: 'user' | 'assistant'; text: string }
 
-function newSessionId() {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-}
-
-function getOrCreatePortalSessionId(): string {
-  const storageKey = 'portal_clara_session'
-  try {
-    const stored = localStorage.getItem(storageKey)
-    if (stored) return stored
-    const fresh = newSessionId()
-    localStorage.setItem(storageKey, fresh)
-    return fresh
-  } catch {
-    return newSessionId()
-  }
-}
-
 export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const [open, setOpen]           = useState(false)
   const [msgs, setMsgs]           = useState<Msg[]>([])
@@ -32,33 +13,58 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const [escalando, setEscalando] = useState(false)
   const [escalada, setEscalada]   = useState(false)
   const [conversaId, setConversaId] = useState<string | null>(null)
-  const [unread, setUnread]         = useState(0)   // badge de não-lidas
+  const [unread, setUnread]         = useState(0)
 
-  const sessionIdRef      = useRef<string>('')
-  const historyLoadedRef  = useRef(false)
-  const bottomRef         = useRef<HTMLDivElement>(null)
-  const inputRef          = useRef<HTMLInputElement>(null)
-  const openRef           = useRef(open)
+  // sessionId canônico vem do servidor — garante histórico unificado entre browser/PWA/dispositivos
+  const [sessionId, setSessionId] = useState<string | null>(null)
 
-  // sessionId estável — persiste entre navegações via localStorage
-  if (!sessionIdRef.current) {
-    sessionIdRef.current = typeof window !== 'undefined'
-      ? getOrCreatePortalSessionId()
-      : newSessionId()
-  }
-  const sessionId = sessionIdRef.current
+  const historyLoadedRef = useRef(false)
+  const bottomRef        = useRef<HTMLDivElement>(null)
+  const inputRef         = useRef<HTMLInputElement>(null)
+  const openRef          = useRef(open)
 
   // Mantém openRef em sync para uso dentro do callback SSE
   useEffect(() => { openRef.current = open }, [open])
+
+  // ── Busca sessionId canônico do servidor ────────────────────────────────────
+  // localStorage é usado apenas como cache para evitar delay visual no próximo acesso
+  useEffect(() => {
+    const STORAGE_KEY = 'portal_clara_session'
+
+    // Carrega cache local imediatamente para performance (sessão da maioria dos acessos)
+    const cached = (() => {
+      try { return localStorage.getItem(STORAGE_KEY) } catch { return null }
+    })()
+    if (cached) setSessionId(cached)
+
+    // Sempre confirma com o servidor — fonte de verdade canônica
+    fetch('/api/portal/session')
+      .then(r => r.json())
+      .then(({ sessionId: sid }: { sessionId?: string }) => {
+        if (!sid) return
+        setSessionId(sid)
+        // Atualiza cache local com o valor canônico (sincroniza PWA ↔ browser na próxima abertura)
+        try { localStorage.setItem(STORAGE_KEY, sid) } catch {}
+      })
+      .catch(() => {
+        // Se o servidor falhar, usa cache local ou gera temporário
+        if (!cached) {
+          const fallback = typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+          setSessionId(fallback)
+        }
+      })
+  }, [])
 
   const greeting: Msg = {
     role: 'assistant',
     text: `Olá! Sou ${nomeIa}, da equipe do escritório. Posso ajudar com dúvidas sobre contabilidade, obrigações fiscais, seu plano e muito mais. Como posso te ajudar?`,
   }
 
-  // ── Carrega histórico no mount (não só ao abrir) ────────────────────────────
+  // ── Carrega histórico quando sessionId estiver disponível ───────────────────
   useEffect(() => {
-    if (historyLoadedRef.current) return
+    if (!sessionId || historyLoadedRef.current) return
     historyLoadedRef.current = true
     fetch(`/api/portal/chat?sessionId=${sessionId}`)
       .then(r => r.json())
@@ -76,9 +82,8 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   }, [sessionId])
 
   // ── SSE para receber mensagens do operador — ativo sempre que há conversaId ──
-  // Cobre: escalação humana E mensagens proativas enviadas pelo agente/operador CRM
   useEffect(() => {
-    if (!conversaId) return
+    if (!conversaId || !sessionId) return
 
     let retryCount = 0
     let retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -89,7 +94,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       const es = new EventSource(`/api/stream/portal/conversa?sessionId=${sessionId}`)
 
       es.onmessage = (e) => {
-        retryCount = 0 // reset backoff em mensagem bem-sucedida
+        retryCount = 0
         try {
           const data = JSON.parse(e.data) as { role: string; conteudo: string }
           if (data.role && data.conteudo) {
@@ -102,7 +107,6 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       es.onerror = () => {
         es.close()
         if (closed) return
-        // Backoff exponencial: 2s, 4s, 8s, 16s, max 30s
         const delay = Math.min(2000 * 2 ** retryCount, 30_000)
         retryCount++
         retryTimer = setTimeout(connect, delay)
@@ -130,17 +134,16 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
     }
   }, [open, msgs])
 
-  // ── Abrir/fechar — zera não-lidas ao abrir ──────────────────────────────────
   function toggleOpen() {
     setOpen(v => {
-      if (!v) setUnread(0)   // abrindo → zera badge
+      if (!v) setUnread(0)
       return !v
     })
   }
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
-    if (!text || loading) return
+    if (!text || loading || !sessionId) return
 
     setMsgs(m => [...m, { role: 'user', text }])
     setInput('')
@@ -158,7 +161,6 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       } else {
         const data = await res.json()
         if (data.conversaId) setConversaId(data.conversaId)
-        // IA detectou escalação automática ou conversa já estava pausada
         if (data.escalado || data.pausada) setEscalada(true)
         setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
       }
@@ -170,6 +172,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   }, [input, loading, sessionId])
 
   const handleEscalar = useCallback(async () => {
+    if (!sessionId) return
     setEscalando(true)
     try {
       const res = await fetch('/api/portal/escalacao', {
@@ -209,7 +212,6 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
           {open ? 'close' : 'support_agent'}
         </span>
 
-        {/* Badge de não-lidas — aparece só quando chat fechado e tem msgs novas */}
         {!open && unread > 0 && (
           <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF5C35] px-1 text-[10px] font-bold text-white shadow-sm animate-bounce">
             {unread > 9 ? '9+' : unread}
@@ -317,11 +319,11 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
                 placeholder={`Pergunte para ${nomeIa}…`}
                 className="flex-1 rounded-xl border border-outline-variant/25 bg-surface-container-low px-3.5 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:border-primary/50 focus:ring-[3px] focus:ring-primary/10 transition-all"
-                disabled={loading}
+                disabled={loading || !sessionId}
               />
               <button
                 onClick={handleSend}
-                disabled={loading || !input.trim()}
+                disabled={loading || !input.trim() || !sessionId}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
               >
                 <span className="material-symbols-outlined text-[18px]">send</span>

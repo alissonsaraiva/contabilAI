@@ -172,10 +172,17 @@ export async function processarMensagensPendentes(): Promise<{
         systemExtra = `CONTEXTO: PRIMEIRO CONTATO (não identificado)\n\n${whatsappGuardrail}`
       }
 
+      // Carrega histórico antes do agente para usar como contexto na classificação
+      const historico = await getHistorico(conversa.id)
+
       // Classifica intenção e executa agente se aplicável
       if (conversa.clienteId || conversa.leadId) {
         try {
-          const intencao = await classificarIntencao(textoAgregado)
+          const ultimaMsgIA = historico.filter(m => m.role === 'assistant').at(-1)?.content
+          const contextoClassificacao = ultimaMsgIA
+            ? `última resposta da assistente: "${typeof ultimaMsgIA === 'string' ? ultimaMsgIA.slice(0, 300) : ''}"`
+            : undefined
+          const intencao = await classificarIntencao(textoAgregado, contextoClassificacao, typeof ultimaMsgIA === 'string' ? ultimaMsgIA : undefined)
           if (intencao.tipo === 'acao' && intencao.instrucao) {
             const resultado = await executarAgente({
               instrucao: intencao.instrucao,
@@ -189,11 +196,10 @@ export async function processarMensagensPendentes(): Promise<{
               systemExtra += `\n\n--- DADOS CONSULTADOS ---\n${resultado.resposta}\n--- FIM ---\nUse esses dados na resposta. Seja natural e conversacional.`
             }
           }
-        } catch { /* agente falhou — continua com askAI normalmente */ }
+        } catch (err) {
+          console.error('[whatsapp/agente] Falha ao executar agente, conversa:', conversa.id, err)
+        }
       }
-
-      // Carrega histórico
-      const historico = await getHistorico(conversa.id)
 
       // ── Re-contexto pós-24h ───────────────────────────────────────────────
       // Se a sessão é nova (sem histórico), injeta resumo da conversa anterior

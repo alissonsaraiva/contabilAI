@@ -1,8 +1,9 @@
 /**
  * GET /api/crm/contatos?q=...
  *
- * Busca rápida de clientes e sócios com WhatsApp/telefone cadastrado.
- * Usado no drawer "Nova mensagem" da central de atendimentos.
+ * Busca rápida de clientes e sócios para o drawer "Nova mensagem".
+ * Clientes: suportam WhatsApp (se tiver número) e Portal (sempre).
+ * Sócios: suportam apenas WhatsApp.
  */
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
@@ -19,16 +20,10 @@ export async function GET(req: Request) {
   const [clientes, socios] = await Promise.all([
     prisma.cliente.findMany({
       where: {
-        AND: [
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          { OR: [{ whatsapp: { not: null as any } }, { telefone: { not: null as any } }] },
-          {
-            OR: [
-              { nome:  { contains: q, mode: 'insensitive' } },
-              { email: { contains: q, mode: 'insensitive' } },
-              { empresa: { is: { razaoSocial: { contains: q, mode: 'insensitive' } } } },
-            ],
-          },
+        OR: [
+          { nome:  { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { empresa: { is: { razaoSocial: { contains: q, mode: 'insensitive' } } } },
         ],
       },
       select: {
@@ -42,11 +37,7 @@ export async function GET(req: Request) {
     }),
     prisma.socio.findMany({
       where: {
-        AND: [
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          { OR: [{ whatsapp: { not: null as any } }, { telefone: { not: null as any } }] },
-          { nome: { contains: q, mode: 'insensitive' } },
-        ],
+        nome: { contains: q, mode: 'insensitive' },
       },
       select: {
         id:       true,
@@ -59,5 +50,8 @@ export async function GET(req: Request) {
     }),
   ])
 
-  return NextResponse.json({ clientes, socios })
+  // Sócios sem nenhum número de contato não aparecem
+  const sociosFiltrados = socios.filter(s => s.whatsapp || s.telefone)
+
+  return NextResponse.json({ clientes, socios: sociosFiltrados })
 }

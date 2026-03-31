@@ -30,7 +30,7 @@ const buscarDadosClienteTool: Tool = {
   },
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const clienteId = (input.clienteId as string | undefined) ?? ctx.clienteId
-    const busca     = input.busca as string | undefined
+    let busca       = input.busca as string | undefined
 
     if (!clienteId && !busca) {
       return {
@@ -41,7 +41,8 @@ const buscarDadosClienteTool: Tool = {
     }
 
     // Segurança: canais não-CRM (portal, whatsapp, onboarding) só podem consultar
-    // o cliente já vinculado ao contexto da sessão — nunca fazer busca textual global.
+    // o cliente vinculado ao contexto da sessão — busca textual é bloqueada para
+    // evitar vazamento de dados entre clientes.
     if (ctx.solicitanteAI !== 'crm') {
       if (!clienteId) {
         return {
@@ -50,8 +51,9 @@ const buscarDadosClienteTool: Tool = {
           resumo: 'Não foi possível buscar o cliente: contexto de cliente não identificado.',
         }
       }
-      // Força uso do clienteId do contexto — ignora qualquer busca textual
+      // Força lookup exclusivo por clienteId — ignora qualquer parâmetro de busca textual
       // que poderia retornar dados de outro cliente.
+      busca = undefined
     }
 
     // Normaliza CPF/CNPJ removendo formatação antes de buscar

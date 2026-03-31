@@ -35,7 +35,13 @@ Exemplos:
 - "gera um relatório de clientes" → {"tipo":"acao","instrucao":"Consultar dados de clientes e publicar relatório estruturado no painel usando publicarRelatorio"}
 - "relatório de inadimplentes" → {"tipo":"acao","instrucao":"Consultar clientes inadimplentes e publicar relatório no painel usando publicarRelatorio"}
 - "me dá um resumo geral do escritório" → {"tipo":"acao","instrucao":"Consultar métricas gerais e publicar relatório resumo no painel usando publicarRelatorio"}
-- "quero um relatório de funil" → {"tipo":"acao","instrucao":"Consultar funil de prospecção e publicar relatório no painel usando publicarRelatorio"}`
+- "quero um relatório de funil" → {"tipo":"acao","instrucao":"Consultar funil de prospecção e publicar relatório no painel usando publicarRelatorio"}
+
+IMPORTANTE: Quando o contexto indica que a assistente se ofereceu para fazer algo (verificar documentos, consultar dados, buscar informações), e o usuário confirma com frases curtas como "pode", "sim", "pode verificar", "ok", "vai lá", "pode fazer isso", classifique como "acao" repetindo a instrução da mensagem anterior da assistente.
+Exemplos com contexto:
+- Contexto: assistente disse "posso verificar seus documentos" → usuário: "pode" → {"tipo":"acao","instrucao":"Buscar documentos disponíveis do cliente"}
+- Contexto: assistente disse "posso verificar declaração de 2024" → usuário: "pode verificar" → {"tipo":"acao","instrucao":"Buscar documentos do cliente filtrado por categoria imposto_renda"}
+- Contexto: assistente disse "posso abrir um chamado" → usuário: "sim" → {"tipo":"acao","instrucao":"Criar ordem de serviço para o cliente"}`
 
 // ─── Fallback por keywords (quando nenhum provider disponível) ────────────────
 
@@ -50,10 +56,29 @@ const ACAO_KEYWORDS = [
   /\b(dados|informa[çc][õo]es?).*(cliente|lead|contrato)\b/i,
   /\b(relat[oó]rio|relat[oó]rios?)\b/i,
   /\b(gera[r]?|cria[r]?|monta[r]?|publica[r]?)\b.*\b(relat[oó]rio|resumo|an[aá]lise)\b/i,
+  /\b(documentos?|doc)\b/i,
+  /\b(boleto|nota\s*fiscal|contrato|comprovante)\b/i,
+  /\b(plano|mensalidade|vencimento|valor)\b/i,
+  /\b(status|situa[çc][ãa]o|como\s*est[áa])\b/i,
 ]
 
-function classificarPorKeyword(mensagem: string): Intencao {
+// Confirmações que indicam que o usuário está autorizando uma ação prometida pela IA
+const CONFIRMACAO_KEYWORDS = /^(pode|sim|pode\s+sim|pode\s+verificar|pode\s+fazer|pode\s+ir|ok|tá\s+bom|ta\s+bom|vai\s+lá|vai\s+la|claro|certo|ótimo|pode\s+ser|com\s+certeza|s[íi]|confirmo|confirma|por\s+favor|pf|plz|yes|go)[\s!.]*$/i
+
+function classificarPorKeyword(mensagem: string, ultimaMsgIA?: string): Intencao {
   const ehRelatorio = /\b(relat[oó]rio|gera[r]?.*resumo|monta[r]?.*relat|cria[r]?.*relat)\b/i.test(mensagem)
+
+  // Se mensagem é uma confirmação curta E a IA havia prometido buscar dados → ação
+  if (CONFIRMACAO_KEYWORDS.test(mensagem.trim()) && ultimaMsgIA) {
+    const iapromessaBusca = /\b(verificar|consultar|buscar|checar|ver|procurar|listar|mostrar)\b/i.test(ultimaMsgIA)
+    if (iapromessaBusca) {
+      return {
+        tipo: 'acao',
+        instrucao: `O usuário confirmou que deseja prosseguir. Baseado na última resposta da IA: "${ultimaMsgIA.slice(0, 200)}" — executar a verificação/consulta prometida.`,
+      }
+    }
+  }
+
   for (const re of ACAO_KEYWORDS) {
     if (re.test(mensagem)) {
       const instrucao = ehRelatorio
@@ -70,12 +95,13 @@ function classificarPorKeyword(mensagem: string): Intencao {
 export async function classificarIntencao(
   mensagem: string,
   contexto?: string,
+  ultimaMsgIA?: string,
 ): Promise<Intencao> {
   try {
     const config = await getAiConfig()
 
-    // Sem Anthropic → tenta fallback por keywords
-    if (!config.anthropicApiKey) return classificarPorKeyword(mensagem)
+    // Sem Anthropic → tenta fallback por keywords (com contexto da última msg da IA)
+    if (!config.anthropicApiKey) return classificarPorKeyword(mensagem, ultimaMsgIA)
 
     const provider = getProvider('claude')
     const prompt = contexto
@@ -96,6 +122,6 @@ export async function classificarIntencao(
     return parsed
   } catch {
     // Parse/rede falhou → tenta keywords antes de desistir
-    return classificarPorKeyword(mensagem)
+    return classificarPorKeyword(mensagem, ultimaMsgIA)
   }
 }

@@ -240,6 +240,8 @@ model Cliente {
   criadoEm            DateTime        @default(now())
   atualizadoEm        DateTime        @updatedAt
 
+  portalSessionId   String?         @unique
+
   documentos        Documento[]
   contratos         Contrato[]
   tarefas           Tarefa[]
@@ -280,8 +282,9 @@ model Socio {
   telefone     String?
   whatsapp     String?  // número WhatsApp dedicado (se diferente do telefone)
   principal    Boolean  @default(false)
-  portalAccess Boolean  @default(false)
-  criadoEm     DateTime @default(now())
+  portalAccess    Boolean  @default(false)
+  portalSessionId String?  @unique
+  criadoEm        DateTime @default(now())
 
   portalTokens PortalToken[]
   conversas    ConversaIA[]

@@ -93,7 +93,10 @@ export async function POST(req: Request) {
   // Para sócios, vincula conversa ao clienteId do titular; titulares usam o próprio id.
   // Se sócio sem empresa encontrada, bloqueia para evitar contexto de cliente indefinido.
   if (isSocio && !clienteTitular) {
-    return NextResponse.json({ error: 'Empresa não encontrada para este sócio.' }, { status: 403 })
+    console.warn('[portal/chat] Sócio sem cliente titular vinculado à empresa, socioId:', sessionUserId, 'empresaId:', empresaId)
+    return NextResponse.json({
+      reply: 'O cadastro da sua empresa ainda está sendo configurado pela equipe. Em breve você terá acesso completo ao chat. Se precisar de ajuda urgente, entre em contato diretamente com o escritório.',
+    })
   }
   const clienteIdParaConversa = isSocio ? clienteTitular!.id : sessionUserId
 
@@ -151,7 +154,7 @@ DADOS DA EMPRESA:
 - Localidade: ${clienteTitular?.cidade ?? ''}${clienteTitular?.uf ? '/' + clienteTitular.uf : ''}
 - Status financeiro: ${clienteTitular?.status === 'inadimplente' ? 'INADIMPLENTE — mensalidade em atraso' : clienteTitular?.status === 'suspenso' ? 'SUSPENSO' : clienteTitular?.status === 'cancelado' ? 'CANCELADO' : 'em dia'}
 
-ACESSO A DADOS: Você tem acesso em tempo real aos dados da empresa — documentos, histórico de interações, tarefas, planos disponíveis. Os dados já foram consultados automaticamente e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL". Use esses dados para responder diretamente.
+ACESSO A DADOS: Você tem acesso em tempo real aos dados da empresa — documentos, histórico de interações, tarefas, planos disponíveis. Os dados já foram consultados automaticamente e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL". Use esses dados para responder diretamente. NUNCA diga "vou verificar" ou "vou consultar" em tempo futuro — você JÁ TEM os dados disponíveis na sessão. Se os dados consultados estiverem disponíveis abaixo, use-os imediatamente na sua resposta.
 
 REGRAS DE ATENDIMENTO:
 - Responda perguntas sobre serviços contábeis, obrigações fiscais, abertura de empresa, simples nacional, MEI, etc.
@@ -188,7 +191,14 @@ REGRAS DE ATENDIMENTO:
   }
 
   // ── Classificação de intenção + agente (escopo portal — somente leitura) ────
-  const intencao = await classificarIntencao(message, `usuário: ${nomeUsuario}`)
+  // Passa a última mensagem da IA como contexto para identificar confirmações de ação
+  // Ex: Clara disse "posso verificar seus documentos?" → usuário diz "pode" → deve ser 'acao'
+  const ultimaMsgIA = historico.filter(m => m.role === 'assistant').at(-1)?.content
+  const contextoClassificacao = ultimaMsgIA
+    ? `usuário: ${nomeUsuario}\núltima resposta da assistente: "${typeof ultimaMsgIA === 'string' ? ultimaMsgIA.slice(0, 300) : ''}"`
+    : `usuário: ${nomeUsuario}`
+  const ultimaMsgIAStr = typeof ultimaMsgIA === 'string' ? ultimaMsgIA : undefined
+  const intencao = await classificarIntencao(message, contextoClassificacao, ultimaMsgIAStr)
 
   if (intencao.tipo === 'acao' && intencao.instrucao) {
     try {
@@ -206,6 +216,8 @@ ${resultado.resposta}
 --- FIM DOS DADOS REAIS ---
 Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigável. Não mencione "agente" ou "banco de dados".`
     } catch (err) {
+      console.error('[portal/chat] Falha ao executar agente, conversa:', conversaId, err)
+      systemExtra += `\n\nAVISO: Houve uma instabilidade ao consultar dados em tempo real. Se o usuário pediu informações específicas, informe que os sistemas estão com lentidão e peça para tentar novamente em instantes.`
       import('@/lib/notificacoes')
         .then(({ notificarAgenteFalhou }) =>
           notificarAgenteFalhou(err instanceof Error ? err.message : String(err))
@@ -244,8 +256,13 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
   const resposta  = escalInfo.escalado ? escalInfo.textoLimpo : respostaRaw
 
   if (escalInfo.escalado) {
-    // Cria escalação e pausa a conversa (fire-and-forget em paralelo)
-    Promise.all([
+    try {
+      // Pausa a conversa imediatamente (aguarda para garantir que a próxima msg seja bloqueada)
+      await prisma.conversaIA.update({
+        where: { id: conversaId },
+        data:  { pausadaEm: new Date() },
+      })
+      // Cria escalação e notifica em background (não bloqueia a resposta)
       prisma.escalacao.create({
         data: {
           canal:          'portal',
@@ -269,12 +286,10 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
             notificarEscalacaoPortal(clienteIdParaConversa, esc.id)
           )
           .catch(() => {})
-      }),
-      prisma.conversaIA.update({
-        where: { id: conversaId },
-        data:  { pausadaEm: new Date() },
-      }),
-    ]).catch(() => {})
+      }).catch(err => console.error('[portal/chat] Falha ao criar escalação:', err))
+    } catch (err) {
+      console.error('[portal/chat] Falha ao pausar conversa após escalação:', err)
+    }
   }
 
   addMensagens(conversaId, message, resposta)

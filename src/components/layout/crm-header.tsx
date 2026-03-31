@@ -21,18 +21,40 @@ type NavGroup = { label?: string; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    label: 'Comercial',
     items: [
-      { href: '/crm/dashboard', icon: 'dashboard', label: 'Dashboard' },
+      { href: '/crm/dashboard',  icon: 'dashboard',     label: 'Dashboard' },
+      { href: '/crm/prospeccao', icon: 'contact_phone', label: 'Prospecção' },
+      { href: '/crm/leads',      icon: 'rocket_launch', label: 'Onboarding' },
+      { href: '/crm/clientes',   icon: 'group',         label: 'Clientes' },
+      { href: '/crm/empresas',   icon: 'business',      label: 'Empresas' },
     ],
   },
   {
-    label: 'Comercial',
+    label: 'Atendimento',
     items: [
-      { href: '/crm/prospeccao',   icon: 'contact_phone', label: 'Prospecção' },
-      { href: '/crm/leads',        icon: 'rocket_launch',  label: 'Onboarding' },
-      { href: '/crm/clientes',     icon: 'group',          label: 'Clientes' },
-      { href: '/crm/atendimentos', icon: 'support_agent',  label: 'Atendimentos' },
-      { href: '/crm/tarefas',      icon: 'check_circle',   label: 'Tarefas' },
+      { href: '/crm/atendimentos',   icon: 'support_agent', label: 'Atendimentos' },
+      { href: '/crm/ordens-servico', icon: 'assignment',    label: 'Chamados' },
+      { href: '/crm/emails',         icon: 'mail',          label: 'E-mails' },
+      { href: '/crm/tarefas',        icon: 'check_circle',  label: 'Tarefas' },
+    ],
+  },
+  {
+    label: 'Comunicação',
+    items: [
+      { href: '/crm/comunicados', icon: 'campaign', label: 'Comunicados' },
+    ],
+  },
+  {
+    label: 'Inteligência',
+    items: [
+      { href: '/crm/relatorios', icon: 'psychology', label: 'Relatórios IA' },
+    ],
+  },
+  {
+    label: 'Configurações',
+    items: [
+      { href: '/crm/configuracoes', icon: 'settings', label: 'Configurações' },
     ],
   },
 ]
@@ -44,12 +66,24 @@ function resolveTitle(pathname: string): string {
   if (/^\/crm\/leads\/.+/.test(pathname)) return 'Detalhes do Lead'
   if (pathname === '/crm/clientes') return 'Clientes'
   if (/^\/crm\/clientes\/.+/.test(pathname)) return 'Detalhes do Cliente'
+  if (pathname === '/crm/empresas') return 'Empresas'
+  if (/^\/crm\/empresas\/.+/.test(pathname)) return 'Detalhes da Empresa'
+  if (pathname === '/crm/atendimentos') return 'Atendimentos'
+  if (pathname === '/crm/ordens-servico') return 'Chamados'
+  if (pathname === '/crm/emails') return 'E-mails'
   if (pathname === '/crm/tarefas') return 'Tarefas'
+  if (pathname === '/crm/comunicados') return 'Comunicados'
+  if (pathname === '/crm/relatorios') return 'Relatórios IA'
   if (pathname.startsWith('/crm/configuracoes')) return 'Configurações'
   return 'Avos'
 }
 
-type Props = { user: SessionUser }
+type Props = {
+  user: SessionUser
+  pendingEscalacoes?: number
+  pendingEmails?: number
+  pendingChamados?: number
+}
 
 function useAiHealthAlert() {
   const [anyDown, setAnyDown] = useState(false)
@@ -112,7 +146,7 @@ function useNotificacoes() {
   return { items, descartar, descartarTudo }
 }
 
-export function CrmHeader({ user }: Props) {
+export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pendingChamados = 0 }: Props) {
   const pathname = usePathname()
   const title = resolveTitle(pathname)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -309,7 +343,9 @@ export function CrmHeader({ user }: Props) {
 
           {/* Nav */}
           <nav className="flex-1 overflow-y-auto px-4 py-4">
-            {NAV_GROUPS.map((group, gi) => (
+            {NAV_GROUPS.filter(group =>
+              user.tipo === 'admin' || group.label !== 'Configurações'
+            ).map((group, gi) => (
               <div key={gi} className={gi > 0 ? 'mt-5' : ''}>
                 {group.label && (
                   <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/30">
@@ -319,6 +355,11 @@ export function CrmHeader({ user }: Props) {
                 <div className="space-y-0.5">
                   {group.items.map(({ href, icon, label }: NavItem) => {
                     const active = pathname === href || pathname.startsWith(href + '/')
+                    const badgeCount =
+                      href === '/crm/atendimentos' ? pendingEscalacoes :
+                      href === '/crm/emails'        ? pendingEmails :
+                      href === '/crm/ordens-servico'? pendingChamados : 0
+                    const showBadge = badgeCount > 0
                     return (
                       <Link
                         key={href}
@@ -338,6 +379,11 @@ export function CrmHeader({ user }: Props) {
                           {icon}
                         </span>
                         <span>{label}</span>
+                        {showBadge && !active && (
+                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
+                            {badgeCount > 9 ? '9+' : badgeCount}
+                          </span>
+                        )}
                         {active && (
                           <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(0,85,255,0.8)]" />
                         )}
