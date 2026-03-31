@@ -47,6 +47,8 @@ export async function testarConexaoImap(): Promise<{ ok: boolean; erro?: string 
     logger:        false,
     socketTimeout: 10_000,
   })
+  // Evita uncaughtException: ImapFlow emite 'error' via EventEmitter antes de rejeitar a Promise
+  client.on('error', () => {})
 
   try {
     await client.connect()
@@ -71,6 +73,8 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
     logger:        false,
     socketTimeout: 30_000,  // 30s — evita hang em servidor IMAP travado
   })
+  // Evita uncaughtException: ImapFlow emite 'error' via EventEmitter antes de rejeitar a Promise
+  client.on('error', () => {})
 
   const emails: EmailRecebido[] = []
 
