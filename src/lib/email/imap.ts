@@ -93,50 +93,58 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
         source: true,
       }, { uid: true })
 
-      for await (const msg of messages) {
-        try {
-          if (!msg.source) continue
-          const parsed = await simpleParser(msg.source)
-
-          const de          = parsed.from?.value?.[0]?.address ?? ''
-          const nomeRemetente = parsed.from?.value?.[0]?.name ?? de
-          const assunto     = parsed.subject ?? '(sem assunto)'
-          const textoRaw  = typeof parsed.text === 'string' ? parsed.text : ''
-          const htmlRaw   = typeof parsed.html === 'string' ? parsed.html : ''
-          const corpo     = (textoRaw || htmlRaw).slice(0, 5000)
-          const corpoHtml = typeof parsed.html === 'string' ? parsed.html : undefined
-          const dataEnvio   = parsed.date    ?? new Date()
-          const messageId   = parsed.messageId ?? `uid-${msg.uid}`
-
-          const anexos: EmailRecebido['anexos'] = []
-          for (const att of parsed.attachments ?? []) {
-            if (att.content && att.filename) {
-              anexos.push({
-                nome:     att.filename,
-                mimeType: att.contentType,
-                buffer:   att.content,
-              })
-            }
-          }
-
-          emails.push({ uid: msg.uid, messageId, de, nomeRemetente, assunto, corpo, corpoHtml, dataEnvio, anexos })
-
-          // Marca como lido somente após parsing bem-sucedido
-          // (mover para antes causaria perda silenciosa se processarEmailRecebido falhar)
+      try {
+        for await (const msg of messages) {
           try {
-            await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'])
-          } catch (flagErr) {
-            console.error('[imap] Falha ao marcar email como lido, uid:', msg.uid, flagErr)
+            if (!msg.source) continue
+            const parsed = await simpleParser(msg.source)
+
+            const de          = parsed.from?.value?.[0]?.address ?? ''
+            const nomeRemetente = parsed.from?.value?.[0]?.name ?? de
+            const assunto     = parsed.subject ?? '(sem assunto)'
+            const textoRaw  = typeof parsed.text === 'string' ? parsed.text : ''
+            const htmlRaw   = typeof parsed.html === 'string' ? parsed.html : ''
+            const corpo     = (textoRaw || htmlRaw).slice(0, 5000)
+            const corpoHtml = typeof parsed.html === 'string' ? parsed.html : undefined
+            const dataEnvio   = parsed.date    ?? new Date()
+            const messageId   = parsed.messageId ?? `uid-${msg.uid}`
+
+            const anexos: EmailRecebido['anexos'] = []
+            for (const att of parsed.attachments ?? []) {
+              if (att.content && att.filename) {
+                anexos.push({
+                  nome:     att.filename,
+                  mimeType: att.contentType,
+                  buffer:   att.content,
+                })
+              }
+            }
+
+            emails.push({ uid: msg.uid, messageId, de, nomeRemetente, assunto, corpo, corpoHtml, dataEnvio, anexos })
+
+            // Marca como lido somente após parsing bem-sucedido
+            // (mover para antes causaria perda silenciosa se processarEmailRecebido falhar)
+            try {
+              await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'])
+            } catch (flagErr) {
+              console.error('[imap] Falha ao marcar email como lido, uid:', msg.uid, flagErr)
+            }
+          } catch (parseErr) {
+            console.error('[imap] Email malformado ignorado, uid:', (msg as any)?.uid, parseErr)
           }
-        } catch (parseErr) {
-          console.error('[imap] Email malformado ignorado, uid:', (msg as any)?.uid, parseErr)
         }
+      } catch (iterErr: any) {
+        // "Connection not available" pode ocorrer quando o socket fecha após a última
+        // mensagem ser entregue (ex: socket timeout do servidor). Os emails já coletados
+        // em `emails` são válidos — apenas abortamos o fetch sem propagar o erro.
+        if (iterErr?.code !== 'NoConnection') throw iterErr
+        console.error('[imap] Conexão encerrada durante fetch, emails parciais:', emails.length)
       }
     } finally {
       lock.release()
     }
   } finally {
-    await client.logout()
+    try { await client.logout() } catch { /* conexão pode já estar fechada */ }
   }
 
   return emails

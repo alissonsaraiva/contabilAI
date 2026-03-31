@@ -58,16 +58,23 @@ export async function GET(_req: Request, { params }: Params) {
 
   const remoteJid = buildRemoteJid(phone)
 
-  const conversa = await prisma.conversaIA.findFirst({
-    where: { canal: 'whatsapp', remoteJid },
-    orderBy: { atualizadaEm: 'desc' },
+  // Busca todas as conversas WhatsApp do lead (por número atual OU por leadId)
+  const conversas = await prisma.conversaIA.findMany({
+    where: {
+      canal: 'whatsapp',
+      OR: [{ remoteJid }, { leadId: id }],
+    },
+    orderBy: { criadaEm: 'asc' },
     include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
   })
 
+  const conversaAtual = conversas.at(-1) ?? null
+  const mensagens = conversas.flatMap(c => c.mensagens)
+
   return NextResponse.json({
-    conversa: conversa ? { id: conversa.id, pausadaEm: conversa.pausadaEm } : null,
-    mensagens: conversa?.mensagens ?? [],
-    pausada: !!conversa?.pausadaEm,
+    conversa: conversaAtual ? { id: conversaAtual.id, pausadaEm: conversaAtual.pausadaEm } : null,
+    mensagens,
+    pausada: !!conversaAtual?.pausadaEm,
     remoteJid,
     telefone: phone,
   })
@@ -79,11 +86,13 @@ export async function POST(req: Request, { params }: Params) {
 
   const { id } = await params
   const body = await req.json()
-  const conteudo      = (body?.conteudo as string | undefined)?.trim() ?? ''
+  const conteudo      = (body?.conteudo      as string | undefined)?.trim() ?? ''
   const mediaUrl      = (body?.mediaUrl      as string | undefined) ?? null
   const mediaType     = (body?.mediaType     as string | undefined) ?? null
   const mediaFileName = (body?.mediaFileName as string | undefined) ?? null
   const mediaMimeType = (body?.mediaMimeType as string | undefined) ?? null
+  // pausarIA=false → envia como comunicado sem assumir controle (IA continua ativa)
+  const pausarIA = body?.pausarIA !== false
   if (!conteudo && !mediaUrl) return NextResponse.json({ error: 'Conteúdo ou arquivo obrigatório' }, { status: 400 })
 
   const lead = await prisma.lead.findUnique({
@@ -114,11 +123,13 @@ export async function POST(req: Request, { params }: Params) {
     })
   }
 
-  // Fase 1: pausa a IA e registra a interação (independente do resultado do envio)
+  // Fase 1: registra interação e pausa a IA se necessário (independente do resultado do envio)
   await prisma.$transaction([
     prisma.conversaIA.update({
       where: { id: conversa.id },
-      data: { pausadaEm: new Date(), pausadoPorId: session.user.id, atualizadaEm: new Date() },
+      data: pausarIA
+        ? { pausadaEm: new Date(), pausadoPorId: session.user.id, atualizadaEm: new Date() }
+        : { atualizadaEm: new Date() },
     }),
     prisma.interacao.create({
       data: {

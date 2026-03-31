@@ -5,6 +5,8 @@ const MAX_HISTORICO = 20
 
 // WhatsApp: conversa é considerada nova após 24h sem mensagem
 const SESSION_TIMEOUT_H = 24
+// Conversa pausada reutilizada por no máximo 7 dias — após isso, cria nova sessão
+const PAUSED_REUSE_DAYS = 7
 
 // Mensagens mais antigas que 90 dias são removidas do banco
 const RETENCAO_DIAS = 90
@@ -22,16 +24,18 @@ export async function getOrCreateConversaWhatsapp(
   remoteJid: string,
   opts?: { clienteId?: string; leadId?: string; socioId?: string },
 ): Promise<string> {
-  const cutoff = new Date(Date.now() - SESSION_TIMEOUT_H * 3600 * 1000)
+  const cutoff       = new Date(Date.now() - SESSION_TIMEOUT_H * 3600 * 1000)
+  const cutoffPaused = new Date(Date.now() - PAUSED_REUSE_DAYS * 24 * 3600 * 1000)
 
   const existente = await prisma.conversaIA.findFirst({
     where: {
       canal: 'whatsapp',
       remoteJid,
-      // Reutiliza sessão ativa (dentro do timeout) OU pausada (sem limite de tempo)
+      // Reutiliza sessão ativa (dentro de 24h) OU pausada (dentro de 7 dias)
+      // — limite de 7 dias evita reativar IA para conversas muito antigas
       OR: [
         { atualizadaEm: { gte: cutoff } },
-        { NOT: { pausadaEm: null } },
+        { pausadaEm: { not: null }, atualizadaEm: { gte: cutoffPaused } },
       ],
     },
     orderBy: { atualizadaEm: 'desc' },
@@ -146,20 +150,21 @@ export async function getHistorico(
 }
 
 /**
- * Persiste apenas a mensagem do usuário (quando a IA está pausada). Fire-and-forget.
+ * Persiste a mensagem do usuário quando a IA está pausada.
+ * Retorna Promise para que o chamador possa aguardar e detectar falhas.
+ * Atualiza também ultimaMensagemEm, usado para identificar "aguardando resposta".
  */
-export function addMensagemUsuario(conversaId: string, conteudo: string): void {
-  Promise.all([
+export async function addMensagemUsuario(conversaId: string, conteudo: string): Promise<void> {
+  const now = new Date()
+  await Promise.all([
     prisma.mensagemIA.create({
       data: { conversaId, role: 'user', conteudo, status: 'sent' },
     }),
     prisma.conversaIA.update({
       where: { id: conversaId },
-      data: { atualizadaEm: new Date() },
+      data: { atualizadaEm: now, ultimaMensagemEm: now },
     }),
-  ]).catch((err) => {
-    console.error('[conversa] Falha ao persistir mensagem do usuário, conversaId:', conversaId, err)
-  })
+  ])
 }
 
 /**

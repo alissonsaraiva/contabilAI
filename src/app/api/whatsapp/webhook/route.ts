@@ -297,13 +297,11 @@ export async function POST(req: Request) {
       select: { pausadaEm: true },
     })
     if (conversaRow?.pausadaEm) {
-      // Salva mensagem do cliente mas não aciona IA
-      addMensagemUsuario(conversaId, textSanitizado)
-      // Atualiza timestamps para o card aparecer no topo de Atendimentos
-      prisma.conversaIA.update({
-        where: { id: conversaId },
-        data:  { ultimaMensagemEm: new Date(), atualizadaEm: new Date() },
-      }).catch(() => {})
+      // Salva mensagem do cliente (aguarda — falha aqui retorna 500, Evolution fará retry)
+      // addMensagemUsuario também atualiza ultimaMensagemEm e atualizadaEm
+      await addMensagemUsuario(conversaId, textSanitizado)
+      // Notifica o WhatsApp Drawer do CRM (humano no controle) via SSE
+      emitWhatsAppRefresh(conversaId)
       // Notifica a equipe que o cliente respondeu enquanto IA está pausada
       import('@/lib/notificacoes')
         .then(({ notificarRespostaClientePausado }) =>
@@ -433,8 +431,6 @@ export async function POST(req: Request) {
 
     // ── Salva mensagem como pendente (debounce) ───────────────────────────────
     // O processamento real ocorre em /api/whatsapp/processar-pendentes (cron ~5s)
-    // Notifica o WhatsApp Drawer do CRM via SSE
-    emitWhatsAppRefresh(conversaId)
     await prisma.mensagemIA.create({
       data: {
         conversaId,
@@ -459,6 +455,8 @@ export async function POST(req: Request) {
       where: { id: conversaId },
       data:  { ultimaMensagemEm: new Date() },
     })
+    // Notifica o WhatsApp Drawer do CRM via SSE (após salvar no DB)
+    emitWhatsAppRefresh(conversaId)
   } catch (err) {
     console.error('[whatsapp/webhook] erro:', err)
   }

@@ -122,7 +122,7 @@ export async function POST(req: Request) {
   })
 
   if (conversaStatus?.pausadaEm) {
-    addMensagemUsuario(conversaId, message)
+    await addMensagemUsuario(conversaId, message)
     emitPortalUserMessage(conversaId)
     return NextResponse.json({
       reply:      'Sua mensagem foi recebida. Um especialista da equipe vai responder aqui em breve. 👆',

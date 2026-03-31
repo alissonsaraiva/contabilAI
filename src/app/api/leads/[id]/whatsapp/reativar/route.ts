@@ -38,10 +38,23 @@ export async function POST(_req: Request, { params }: Params) {
 
   const remoteJid = buildRemoteJid(phone)
 
-  await prisma.conversaIA.updateMany({
-    where: { canal: 'whatsapp', remoteJid, NOT: { pausadaEm: null } },
-    data: { pausadaEm: null, pausadoPorId: null },
+  // Reativa apenas a conversa mais recente (por remoteJid OU leadId)
+  const conversa = await prisma.conversaIA.findFirst({
+    where: {
+      canal: 'whatsapp',
+      OR: [{ remoteJid }, { leadId: id }],
+      NOT: { pausadaEm: null },
+    },
+    orderBy: { atualizadaEm: 'desc' },
+    select: { id: true },
   })
+
+  if (conversa) {
+    await prisma.conversaIA.update({
+      where: { id: conversa.id },
+      data: { pausadaEm: null, pausadoPorId: null },
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }

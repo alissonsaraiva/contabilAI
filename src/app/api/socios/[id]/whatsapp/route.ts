@@ -50,8 +50,12 @@ export async function GET(_req: Request, { params }: Params) {
 
   const remoteJid = buildRemoteJid(phone)
 
+  // Busca todas as conversas WhatsApp do sócio (por número atual OU por socioId)
   const conversas = await prisma.conversaIA.findMany({
-    where:   { canal: 'whatsapp', remoteJid },
+    where: {
+      canal: 'whatsapp',
+      OR: [{ remoteJid }, { socioId }],
+    },
     orderBy: { criadaEm: 'asc' },
     include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
   })
