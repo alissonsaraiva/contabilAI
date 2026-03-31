@@ -4,14 +4,13 @@
 //   - Planos e preços (canal: geral)
 //   - Todos os clientes ativos com sócios (canais: crm, portal, whatsapp)
 //   - Todos os leads ativos (canal: onboarding)
-//   - Tarefas vinculadas a clientes (canal: crm)
 //   - Escalações resolvidas (canal: crm)
 // Idempotente — pode ser rodado a qualquer momento para resincronizar.
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { indexarEscritorio, indexarPlanos, indexarLead, indexarCliente, indexarTarefa, indexarEscalacao } from '@/lib/rag/ingest'
+import { indexarEscritorio, indexarPlanos, indexarLead, indexarCliente, indexarEscalacao } from '@/lib/rag/ingest'
 
 export async function POST() {
   const session = await auth()
@@ -25,7 +24,6 @@ export async function POST() {
     planos: false,
     clientes: 0,
     leads: 0,
-    tarefas: 0,
     escalacoes: 0,
     erros: [] as string[],
   }
@@ -91,27 +89,7 @@ export async function POST() {
     resultado.erros.push(`leads: ${String(e)}`)
   }
 
-  // 5. Tarefas vinculadas a clientes (não canceladas)
-  try {
-    const tarefas = await prisma.tarefa.findMany({
-      where: {
-        clienteId: { not: null },
-        status: { not: 'cancelada' },
-      },
-    })
-    for (const t of tarefas) {
-      try {
-        await indexarTarefa(t)
-        resultado.tarefas++
-      } catch (e) {
-        resultado.erros.push(`tarefa:${t.id}: ${String(e)}`)
-      }
-    }
-  } catch (e) {
-    resultado.erros.push(`tarefas: ${String(e)}`)
-  }
-
-  // 6. Escalações resolvidas
+  // 5. Escalações resolvidas
   try {
     const escalacoes = await prisma.escalacao.findMany({
       where: { status: 'resolvida' },

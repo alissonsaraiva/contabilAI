@@ -76,14 +76,6 @@ enum Prioridade {
   urgente
 }
 
-enum StatusTarefa {
-  pendente
-  em_andamento
-  aguardando_cliente
-  concluida
-  cancelada
-}
-
 enum Canal {
   site
   whatsapp
@@ -126,7 +118,6 @@ model Usuario {
 
   leadsResponsavel    Lead[]        @relation("LeadResponsavel")
   clientesResponsavel Cliente[]     @relation("ClienteResponsavel")
-  tarefas             Tarefa[]      @relation("TarefaResponsavel")
   interacoes          Interacao[]
   notificacoes        Notificacao[]
 
@@ -244,7 +235,6 @@ model Cliente {
 
   documentos        Documento[]
   contratos         Contrato[]
-  tarefas           Tarefa[]
   interacoes        Interacao[]
   conversas         ConversaIA[]
   portalTokens      PortalToken[]
@@ -370,6 +360,7 @@ model Documento {
 
 model OrdemServico {
   id              String    @id @default(uuid())
+  numero          Int       @default(autoincrement()) @unique
   clienteId       String
   cliente         Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   empresaId       String?
@@ -395,6 +386,7 @@ model OrdemServico {
 
   @@index([clienteId, criadoEm])
   @@index([status, criadoEm])
+  @@index([numero])
   @@map("ordens_servico")
 }
 
@@ -445,24 +437,6 @@ model Contrato {
 
   @@index([clienteId, deletadoEm])
   @@map("contratos")
-}
-
-model Tarefa {
-  id            String       @id @default(uuid())
-  titulo        String
-  descricao     String?      @db.Text
-  clienteId     String?
-  cliente       Cliente?     @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  responsavelId String?
-  responsavel   Usuario?     @relation("TarefaResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
-  status        StatusTarefa @default(pendente)
-  prioridade    Prioridade   @default(media)
-  prazo         DateTime?
-  concluidaEm  DateTime?
-  criadoEm     DateTime     @default(now())
-  atualizadoEm DateTime     @updatedAt
-
-  @@map("tarefas")
 }
 
 model Interacao {

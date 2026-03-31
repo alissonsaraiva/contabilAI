@@ -15,15 +15,11 @@ import './buscar-dados-operador'
 import './resumir-funil'
 import './listar-leads-inativos'
 import './buscar-dados-cliente'
-import './listar-tarefas'
 import './buscar-historico'
 import './listar-planos'
 import './resumo-dashboard'
 
 // ─── Tools internas — Escrita CRM ─────────────────────────────────────────────
-// criar-tarefa e concluir-tarefa deprecadas — usar criarOrdemServico
-import './criar-tarefa'
-import './concluir-tarefa'
 import './criar-ordem-servico'
 import './registrar-interacao'
 import './atualizar-status-lead'
@@ -63,6 +59,7 @@ import './gerar-relatorio-inadimplencia'
 import './verificar-status-contrato'
 
 // ─── Tools do portal do cliente ───────────────────────────────────────────────
+import './buscar-ordem-servico'
 import './listar-ordens-servico'
 import './responder-ordem-servico'
 import './publicar-comunicado'

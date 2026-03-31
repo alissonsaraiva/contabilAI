@@ -460,56 +460,6 @@ export async function indexarContrato(data: ContratoIndexData): Promise<void> {
   }, keys)
 }
 
-// ─── Tarefa ──────────────────────────────────────────────────────────────────
-
-type TarefaData = {
-  id: string
-  titulo: string
-  descricao?: string | null
-  clienteId?: string | null
-  status: string
-  prioridade: string
-  prazo?: Date | null
-  concluidaEm?: Date | null
-}
-
-// Indexa tarefas vinculadas a clientes no canal CRM.
-// Tarefas sem clienteId não são indexadas (sem contexto relevante para as IAs).
-export async function indexarTarefa(tarefa: TarefaData): Promise<void> {
-  if (!tarefa.clienteId) return
-  if (tarefa.status === 'cancelada') {
-    // Remove do índice tarefas canceladas
-    import('@/lib/rag').then(({ deleteEmbeddings }) =>
-      deleteEmbeddings({ documentoId: `tarefa:${tarefa.id}` })
-    ).catch(err => console.error('[rag/ingest] erro ao remover tarefa cancelada:', err))
-    return
-  }
-
-  const keys = await getEmbeddingKeys()
-  if (!keys.openai && !keys.voyage) return
-
-  const prazoStr = tarefa.prazo ? tarefa.prazo.toLocaleDateString('pt-BR') : null
-  const concluidaStr = tarefa.concluidaEm ? tarefa.concluidaEm.toLocaleDateString('pt-BR') : null
-
-  const linhas = [
-    `Tarefa: ${tarefa.titulo}`,
-    `Status: ${tarefa.status}`,
-    `Prioridade: ${tarefa.prioridade}`,
-    prazoStr    ? `Prazo: ${prazoStr}` : '',
-    concluidaStr ? `Concluída em: ${concluidaStr}` : '',
-    tarefa.descricao ? `Descrição: ${tarefa.descricao}` : '',
-  ].filter(Boolean).join('\n')
-
-  await indexar(linhas, {
-    escopo: 'cliente',
-    canal: 'crm',
-    tipo: 'historico_crm',
-    clienteId: tarefa.clienteId,
-    titulo: tarefa.titulo,
-    documentoId: `tarefa:${tarefa.id}`,
-  }, keys)
-}
-
 // ─── Escalação ───────────────────────────────────────────────────────────────
 
 type EscalacaoData = {

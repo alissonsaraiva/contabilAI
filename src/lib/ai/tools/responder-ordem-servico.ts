@@ -14,6 +14,10 @@ const responderOrdemServicoTool: Tool = {
           type: 'string',
           description: 'ID da ordem de serviço (chamado) a ser respondida/atualizada.',
         },
+        numero: {
+          type: 'number',
+          description: 'Número sequencial do chamado (#42). Alternativa ao ordemId.',
+        },
         resposta: {
           type: 'string',
           description: 'Texto da resposta para o cliente. Opcional — pode apenas mudar o status sem resposta.',
@@ -24,7 +28,7 @@ const responderOrdemServicoTool: Tool = {
           description: 'Novo status do chamado.',
         },
       },
-      required: ['ordemId'],
+      required: [],
     },
   },
 
@@ -37,20 +41,26 @@ const responderOrdemServicoTool: Tool = {
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
     const parsed = z.object({
-      ordemId:  z.string().min(1).max(200),
+      ordemId:  z.string().min(1).max(200).optional(),
+      numero:   z.number().int().positive().optional(),
       resposta: z.string().min(1).max(5000).optional(),
       status:   z.string().max(50).optional(),
     }).safeParse(input)
     if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
-    const { ordemId, resposta, status } = parsed.data
+    const { ordemId, numero, resposta, status } = parsed.data
 
-    const existing = await prisma.ordemServico.findUnique({
-      where:   { id: ordemId },
+    if (!ordemId && numero === undefined) {
+      return { sucesso: false, erro: 'Informe ordemId ou numero.', resumo: 'Parâmetros insuficientes.' }
+    }
+
+    const existing = await prisma.ordemServico.findFirst({
+      where:   ordemId ? { id: ordemId } : { numero },
       include: { cliente: { select: { nome: true } } },
     })
 
     if (!existing) {
-      return { sucesso: false, dados: null, resumo: `Chamado ${ordemId} não encontrado.` }
+      const ref = numero !== undefined ? `#${numero}` : ordemId
+      return { sucesso: false, dados: null, resumo: `Chamado ${ref} não encontrado.` }
     }
 
     const updateData: any = {}
@@ -65,7 +75,7 @@ const responderOrdemServicoTool: Tool = {
     }
 
     const ordem = await prisma.ordemServico.update({
-      where: { id: ordemId },
+      where: { id: existing.id },
       data:  updateData,
     })
 
@@ -76,7 +86,7 @@ const responderOrdemServicoTool: Tool = {
     return {
       sucesso: true,
       dados:   ordem,
-      resumo:  `Chamado "${existing.titulo}" (cliente: ${existing.cliente.nome}) atualizado — ${partes.join(', ')}.`,
+      resumo:  `Chamado #${existing.numero} "${existing.titulo}" (cliente: ${existing.cliente.nome}) atualizado — ${partes.join(', ')}.`,
     }
   },
 }

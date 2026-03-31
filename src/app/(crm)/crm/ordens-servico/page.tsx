@@ -201,6 +201,7 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-outline-variant/10">
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">#</th>
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">Chamado</th>
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 hidden md:table-cell">Cliente / Empresa</th>
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 hidden md:table-cell">Tipo</th>
@@ -216,6 +217,7 @@ export default async function CrmOrdensServicoPage({ searchParams }: Props) {
                   const prioClass   = PRIORIDADE[o.prioridade] ?? 'text-on-surface-variant/50'
                   return (
                     <tr key={o.id} className="border-b border-outline-variant/10 hover:bg-surface-container/40 transition-colors">
+                      <td className="px-3 py-3.5 text-[12px] font-mono text-on-surface-variant/50 tabular-nums">#{o.numero}</td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
                           <span className={`material-symbols-outlined text-[14px] ${prioClass}`} style={{ fontVariationSettings: "'FILL' 1" }}>circle</span>

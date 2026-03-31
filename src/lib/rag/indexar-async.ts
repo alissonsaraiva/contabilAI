@@ -15,7 +15,6 @@ type TipoIndexacao =
   | 'cliente'
   | 'lead'
   | 'escalacao'
-  | 'tarefa'
   | 'contrato'
   | 'documento'
   | 'escritorio'
@@ -37,7 +36,6 @@ export function indexarAsync(tipo: TipoIndexacao, dados: unknown): void {
         case 'cliente':         return (mod as any).indexarCliente(dados)
         case 'lead':            return (mod as any).indexarLead(dados)
         case 'escalacao':       return (mod as any).indexarEscalacao?.(dados)
-        case 'tarefa':          return (mod as any).indexarTarefa?.(dados)
         case 'contrato':        return (mod as any).indexarContrato?.(dados)
         case 'documento':       return (mod as any).indexarDocumento?.(dados)
         case 'escritorio':      return (mod as any).indexarEscritorio?.(dados)

@@ -73,7 +73,7 @@ const listarOrdensServicoTool: Tool = {
 
     const linhas = ordens.map(o => {
       const empresa = o.empresa?.razaoSocial ?? o.empresa?.nomeFantasia ?? ''
-      return `- [${o.status.toUpperCase()}] "${o.titulo}" (${o.cliente.nome}${empresa ? ` / ${empresa}` : ''}) — ${o.tipo} — ${new Date(o.criadoEm).toLocaleDateString('pt-BR')}`
+      return `- #${o.numero} [${o.status.toUpperCase()}] "${o.titulo}" (${o.cliente.nome}${empresa ? ` / ${empresa}` : ''}) — ${o.tipo} — ${new Date(o.criadoEm).toLocaleDateString('pt-BR')}`
     })
 
     return {

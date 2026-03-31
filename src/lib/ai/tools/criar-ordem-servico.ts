@@ -94,8 +94,8 @@ const criarOrdemServicoTool: Tool = {
 
     return {
       sucesso: true,
-      dados:   { osId: os.id, clienteNome: cliente?.nome },
-      resumo:  `Chamado criado: "${titulo}" (${tipo}) para ${cliente?.nome ?? clienteId}. ID: ${os.id}. Visível no portal: ${visivelPortal}.`,
+      dados:   { osId: os.id, numero: os.numero, clienteNome: cliente?.nome },
+      resumo:  `Chamado #${os.numero} criado: "${titulo}" (${tipo}) para ${cliente?.nome ?? clienteId}. ID: ${os.id}. Visível no portal: ${visivelPortal}.`,
     }
   },
 }

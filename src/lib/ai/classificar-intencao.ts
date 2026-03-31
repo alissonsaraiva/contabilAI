@@ -27,8 +27,6 @@ Exemplos:
 - "como funciona o onboarding?" → {"tipo":"pergunta"}
 - "como estão as prospecções?" → {"tipo":"acao","instrucao":"Resumir funil de prospecção com quantidade de leads por etapa"}
 - "quantos clientes em inadimplência?" → {"tipo":"acao","instrucao":"Contar e listar clientes com status inadimplente"}
-- "cria uma tarefa pra ligar pro João amanhã" → {"tipo":"acao","instrucao":"Criar tarefa: ligar para o cliente João, prazo amanhã"}
-- "quais tarefas vencem hoje?" → {"tipo":"acao","instrucao":"Listar tarefas com prazo vencendo hoje"}
 - "tem algum lead parado há mais de 7 dias?" → {"tipo":"acao","instrucao":"Listar leads sem atividade há mais de 7 dias"}
 - "mostra os dados do cliente" → {"tipo":"acao","instrucao":"Buscar dados completos do cliente atual"}
 - "qual meu plano?" → {"tipo":"acao","instrucao":"Buscar dados do cliente incluindo plano e valor mensal"}
@@ -49,9 +47,7 @@ const ACAO_KEYWORDS = [
   /\b(quantos?|quantas?)\b/i,
   /\b(lista[rm]?|mostre?|exib[ae]|ver?|veja)\b/i,
   /\b(prospec[çc][õo]es?|funil|pipeline|leads?)\b/i,
-  /\b(tarefas?|atividades?|pendentes?|venc[eo])\b/i,
   /\b(clientes?|inadimpl|ativos?|cancelados?)\b/i,
-  /\b(cria[r]?|agendar?|adicionar?)\b.*\b(tarefa|atividade|lembrete)\b/i,
   /\b(resumo|panorama|vis[ãa]o geral|como est[ãa]o)\b/i,
   /\b(dados|informa[çc][õo]es?).*(cliente|lead|contrato)\b/i,
   /\b(relat[oó]rio|relat[oó]rios?)\b/i,

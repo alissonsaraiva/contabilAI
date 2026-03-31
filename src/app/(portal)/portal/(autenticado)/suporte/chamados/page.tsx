@@ -108,7 +108,7 @@ export default async function ChamadosPage({ searchParams }: Props) {
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-medium text-on-surface truncate">{o.titulo}</p>
                       <p className="text-[11px] text-on-surface-variant/60">
-                        {TIPO_OS[o.tipo] ?? o.tipo} · {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
+                        #{o.numero} · {TIPO_OS[o.tipo] ?? o.tipo} · {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>

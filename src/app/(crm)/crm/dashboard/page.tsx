@@ -54,7 +54,6 @@ async function getDashboardData() {
     clientesNovos,
     conversasHoje,
     chamadosAbertos,
-    tarefasPendentes,
     escalacoesPendentes,
     clientesRecentes,
     osRecentes,
@@ -66,7 +65,6 @@ async function getDashboardData() {
     prisma.cliente.count({ where: { status: 'ativo', criadoEm: { gte: trintaDiasAtras } } }),
     prisma.conversaIA.count({ where: { criadaEm: { gte: hoje } } }),
     prisma.ordemServico.count({ where: { status: { in: ['aberta', 'em_andamento', 'aguardando_cliente'] } } }),
-    prisma.tarefa.count({ where: { status: { in: ['pendente', 'em_andamento'] } } }),
     prisma.escalacao.findMany({
       where:   { status: 'pendente' },
       orderBy: { criadoEm: 'desc' },
@@ -101,7 +99,7 @@ async function getDashboardData() {
 
   return {
     clientesAtivos, clientesNovos,
-    conversasHoje, chamadosAbertos, tarefasPendentes, leadsHoje,
+    conversasHoje, chamadosAbertos, leadsHoje,
     escalacoesPendentes, clienteMap,
     clientesRecentes, osRecentes,
     taxaResolucaoIA, convHojeTotal, convHojePausadas,
@@ -144,7 +142,7 @@ export default async function DashboardPage() {
           {
             label: 'Leads hoje',
             value: d.leadsHoje,
-            sub:   `${d.tarefasPendentes} tarefas pendentes`,
+            sub:   'Novos onboardings',
             icon:  '🚀',
             color: 'bg-tertiary/8',
             href:  '/crm/leads',
