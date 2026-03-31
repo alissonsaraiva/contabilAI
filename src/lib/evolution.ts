@@ -239,10 +239,13 @@ export async function deleteInstance(cfg: EvolutionConfig) {
 // Configura webhook da instância
 export async function setWebhook(cfg: EvolutionConfig, webhookUrl: string) {
   return evo(cfg, 'POST', `/webhook/set/${cfg.instance}`, {
-    url:              webhookUrl,
-    webhook_by_events: false,
-    webhook_base64:   false,
-    events:           ['MESSAGES_UPSERT'],
+    webhook: {
+      enabled:           true,
+      url:               webhookUrl,
+      webhook_by_events: false,
+      webhook_base64:    false,
+      events:            ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+    },
   })
 }
 
