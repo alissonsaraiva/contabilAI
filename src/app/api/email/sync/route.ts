@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { buscarEmailsNovos } from '@/lib/email/imap'
 import { processarEmailRecebido } from '@/lib/email/processar'
+import { setImapSyncOk, setImapSyncErro, getImapSyncStatus } from '@/lib/email/imap-status'
 
 // Proteção por secret para chamadas do cron interno
 function autorizarCron(req: Request): boolean {
@@ -16,9 +17,6 @@ function autorizarCron(req: Request): boolean {
   return authHeader === `Bearer ${secret}`
 }
 
-// Contador de falhas consecutivas do IMAP (in-memory, por processo)
-// Notifica admins após MAX_FALHAS_CONSECUTIVAS falhas seguidas sem sucesso
-let falhasConsecutivas = 0
 const MAX_FALHAS_CONSECUTIVAS = 3
 
 export async function POST(req: Request) {
@@ -33,9 +31,6 @@ export async function POST(req: Request) {
   try {
     const emails = await buscarEmailsNovos()
 
-    // Sync bem-sucedido — zera contador de falhas
-    falhasConsecutivas = 0
-
     for (const email of emails) {
       try {
         const resultado = await processarEmailRecebido(email)
@@ -45,32 +40,39 @@ export async function POST(req: Request) {
         erros++
       }
     }
+
+    setImapSyncOk(processados, associados)
   } catch (err) {
     const mensagem = err instanceof Error ? err.message : 'Erro no IMAP'
-    falhasConsecutivas++
+    setImapSyncErro(mensagem)
 
-    // Alerta admins quando IMAP falha repetidamente — evita emails acumulando sem processamento
+    const { falhasConsecutivas } = getImapSyncStatus()
     if (falhasConsecutivas >= MAX_FALHAS_CONSECUTIVAS) {
       try {
         const { notificarIaOffline } = await import('@/lib/notificacoes')
-        // Reutiliza notificação de sistema offline com prefixo identificador
         await notificarIaOffline(
           'imap',
           `[email/sync] IMAP indisponível há ${falhasConsecutivas} tentativas consecutivas. Último erro: ${mensagem}`,
         )
       } catch {
-        // Notificação falhou — log como último recurso
         console.error(`[email/sync] ALERTA: IMAP falhou ${falhasConsecutivas}x consecutivas — ${mensagem}`)
       }
     }
 
-    return NextResponse.json({
-      ok:               false,
-      mensagem,
-      processados:      0,
-      falhasConsecutivas,
-    })
+    return NextResponse.json({ ok: false, mensagem, processados: 0, falhasConsecutivas })
   }
 
   return NextResponse.json({ ok: true, processados, associados, erros })
+}
+
+// GET — retorna status IMAP + SMTP (usado pela tela de configurações)
+export async function GET(req: Request) {
+  const { auth } = await import('@/lib/auth')
+  const session  = await auth()
+  const tipo     = (session?.user as any)?.tipo
+  if (!session || (tipo !== 'admin' && tipo !== 'contador')) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+  const { getSmtpStatus } = await import('@/lib/email/smtp-status')
+  return NextResponse.json({ imap: getImapSyncStatus(), smtp: getSmtpStatus() })
 }

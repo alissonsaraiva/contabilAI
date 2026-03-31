@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { setSmtpOk, setSmtpErro } from './smtp-status'
 
 export type Anexo = {
   nome: string
@@ -166,14 +167,17 @@ export async function sendEmail(opts: SendEmailOpts): Promise<SendEmailResult> {
   if (!emailRegex.test(opts.para)) {
     return { ok: false, erro: `Email inválido: ${opts.para}` }
   }
+  const provider = process.env.RESEND_API_KEY ? 'resend' : 'smtp'
   try {
-    if (process.env.RESEND_API_KEY) {
-      return await sendViaResend(opts)
-    }
-    return await sendViaSmtp(opts)
+    const result = provider === 'resend' ? await sendViaResend(opts) : await sendViaSmtp(opts)
+    if (result.ok) setSmtpOk(provider)
+    else setSmtpErro(result.erro, provider)
+    return result
   } catch (err) {
+    const erro = err instanceof Error ? err.message : String(err)
+    setSmtpErro(erro, provider)
     try { const Sentry = await import('@sentry/nextjs'); Sentry.captureException(err) } catch {}
-    return { ok: false, erro: err instanceof Error ? err.message : String(err) }
+    return { ok: false, erro }
   }
 }
 

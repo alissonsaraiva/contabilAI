@@ -255,16 +255,6 @@ export function CrmHeader({ user }: Props) {
                 </div>
               )}
 
-              {/* Footer */}
-              <div className="border-t border-outline-variant/10 px-4 py-2.5">
-                <Link
-                  href="/crm/atendimentos"
-                  onClick={() => setNotifOpen(false)}
-                  className="text-[11px] font-semibold text-primary hover:underline"
-                >
-                  Ver todos os atendimentos →
-                </Link>
-              </div>
             </DropdownMenuContent>
           </DropdownMenu>
           <button className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">

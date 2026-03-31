@@ -17,18 +17,43 @@ type EmailConfig = {
   emailImapPort:  string
 }
 
+type ImapStatus = {
+  status:             'nunca' | 'ok' | 'erro'
+  ultimaSync:         number | null
+  ultimoErro:         string | null
+  falhasConsecutivas: number
+  processados:        number
+  associados:         number
+}
+
+type SmtpStatus = {
+  status:      'nunca' | 'ok' | 'erro'
+  ultimoEnvio: number | null
+  ultimoErro:  string | null
+  provider:    'resend' | 'smtp' | null
+}
+
+type EmailHealth = { imap: ImapStatus; smtp: SmtpStatus }
+
 const EMPTY: EmailConfig = {
   emailRemetente: '', emailNome: '', emailSenha: '',
   emailSmtpHost: '', emailSmtpPort: '',
   emailImapHost: '', emailImapPort: '',
 }
 
+function StatusBadge({ status }: { status: 'nunca' | 'ok' | 'erro' }) {
+  if (status === 'ok')    return <span className="flex items-center gap-1 rounded-full bg-green-status/10 px-2.5 py-0.5 text-[11px] font-semibold text-green-status"><span className="h-1.5 w-1.5 rounded-full bg-green-status" />OK</span>
+  if (status === 'erro')  return <span className="flex items-center gap-1 rounded-full bg-error/10 px-2.5 py-0.5 text-[11px] font-semibold text-error"><span className="h-1.5 w-1.5 rounded-full bg-error" />Erro</span>
+  return <span className="flex items-center gap-1 rounded-full bg-surface-container px-2.5 py-0.5 text-[11px] font-semibold text-on-surface-variant"><span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/30" />Nunca usado</span>
+}
+
 export default function EmailPage() {
-  const [config, setConfig]     = useState<EmailConfig>(EMPTY)
-  const [saving, setSaving]         = useState(false)
-  const [testing, setTesting]       = useState(false)
+  const [config, setConfig]           = useState<EmailConfig>(EMPTY)
+  const [saving, setSaving]           = useState(false)
+  const [testing, setTesting]         = useState(false)
   const [testingImap, setTestingImap] = useState(false)
-  const [senhaSalva, setSenhaSalva] = useState(false)
+  const [senhaSalva, setSenhaSalva]   = useState(false)
+  const [emailHealth, setEmailHealth] = useState<EmailHealth | null>(null)
 
   useEffect(() => {
     fetch('/api/configuracoes/email')
@@ -39,6 +64,10 @@ export default function EmailPage() {
           if (data.emailSenha) setSenhaSalva(true)
         }
       })
+    fetch('/api/email/sync')
+      .then(r => r.json())
+      .then(data => setEmailHealth(data))
+      .catch(() => {})
   }, [])
 
   function set(field: keyof EmailConfig, value: string) {
@@ -186,6 +215,64 @@ export default function EmailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Saúde do e-mail ── */}
+      {emailHealth && (
+        <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+          <div className="flex items-center gap-3 border-b border-outline-variant/10 px-6 py-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+              <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>monitor_heart</span>
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-on-surface">Saúde do e-mail</h3>
+              <p className="text-[12px] text-on-surface-variant/80">Status dos serviços de envio e recebimento</p>
+            </div>
+          </div>
+          <div className="divide-y divide-outline-variant/10">
+            {/* SMTP / Resend */}
+            <div className="flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">outgoing_mail</span>
+                <div>
+                  <p className="text-[13px] font-medium text-on-surface">
+                    Envio ({emailHealth.smtp.provider === 'resend' ? 'Resend' : emailHealth.smtp.provider === 'smtp' ? 'SMTP' : '—'})
+                  </p>
+                  {emailHealth.smtp.ultimoEnvio && (
+                    <p className="text-[11px] text-on-surface-variant/60">
+                      Último envio: {new Date(emailHealth.smtp.ultimoEnvio).toLocaleString('pt-BR')}
+                    </p>
+                  )}
+                  {emailHealth.smtp.status === 'erro' && emailHealth.smtp.ultimoErro && (
+                    <p className="mt-0.5 text-[11px] text-error truncate max-w-xs">{emailHealth.smtp.ultimoErro}</p>
+                  )}
+                </div>
+              </div>
+              <StatusBadge status={emailHealth.smtp.status} />
+            </div>
+            {/* IMAP */}
+            <div className="flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">inbox</span>
+                <div>
+                  <p className="text-[13px] font-medium text-on-surface">Recebimento (IMAP)</p>
+                  {emailHealth.imap.ultimaSync && (
+                    <p className="text-[11px] text-on-surface-variant/60">
+                      Última sync: {new Date(emailHealth.imap.ultimaSync).toLocaleString('pt-BR')}
+                      {emailHealth.imap.status === 'ok' && ` · ${emailHealth.imap.processados} processado${emailHealth.imap.processados !== 1 ? 's' : ''}`}
+                    </p>
+                  )}
+                  {emailHealth.imap.status === 'erro' && (
+                    <p className="mt-0.5 text-[11px] text-error truncate max-w-xs">
+                      {emailHealth.imap.falhasConsecutivas}x consecutivas — {emailHealth.imap.ultimoErro}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <StatusBadge status={emailHealth.imap.status} />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-3">
         <button onClick={handleTest} disabled={testing}
