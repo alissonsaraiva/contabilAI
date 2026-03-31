@@ -86,6 +86,8 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
   const scrollContainerRef            = useRef<HTMLDivElement>(null)
   const isNearBottomRef               = useRef(true)
   const isFirstLoadRef                = useRef(true)
+  // Mantém a previewUrl atual acessível no cleanup sem depender de state
+  const arquivoPreviewRef             = useRef<string | null>(null)
 
   function onScroll() {
     const el = scrollContainerRef.current
@@ -114,6 +116,18 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
   useEffect(() => {
     carregar()
   }, [carregar])
+
+  // Mantém ref sincronizada com o arquivo atual para o cleanup
+  useEffect(() => {
+    arquivoPreviewRef.current = arquivo?.previewUrl ?? null
+  }, [arquivo])
+
+  // Revoga o object URL ao desmontar — evita leak se o componente fecha com arquivo pendente
+  useEffect(() => {
+    return () => {
+      if (arquivoPreviewRef.current) URL.revokeObjectURL(arquivoPreviewRef.current)
+    }
+  }, [])
 
   // SSE — recebe ping quando nova mensagem WhatsApp chega
   useEffect(() => {

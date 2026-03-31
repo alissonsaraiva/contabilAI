@@ -53,8 +53,10 @@ type Contato = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getApiPath(c: ConversaWebItem): string | null {
+  if (c.canal !== 'whatsapp') return null        // portal/onboarding não usam WhatsApp drawer
   if (c.socioId) return `/api/socios/${c.socioId}/whatsapp`
   if (c.cliente)  return `/api/clientes/${c.cliente.id}/whatsapp`
+  if (c.lead)     return `/api/leads/${c.lead.id}/whatsapp`
   return null
 }
 
