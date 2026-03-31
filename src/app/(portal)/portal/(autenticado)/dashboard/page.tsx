@@ -6,6 +6,7 @@ import { getAiConfig } from '@/lib/ai/config'
 import Link from 'next/link'
 import { formatBRL, cn } from '@/lib/utils'
 import { PLANO_LABELS } from '@/types'
+import { DocItem } from './doc-item'
 
 /* ─── helpers de status ─── */
 const STATUS_OS: Record<string, { label: string; color: string }> = {
@@ -226,33 +227,17 @@ export default async function PortalDashboardPage() {
               </div>
             ) : (
               <ul className="divide-y divide-outline-variant/8">
-                {documentos.map(d => {
-                  const ext = getExt(d.nome)
-                  return (
-                    <li key={d.id} className={d.visualizadoEm ? '' : 'bg-primary/[0.03]'}>
-                      <a
-                        href={`/api/portal/documentos/${d.id}/download`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-5 py-3 hover:bg-surface-container-lowest/40 transition-colors"
-                      >
-                        <span className={cn('shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide', extColor(ext))}>
-                          {ext}
-                        </span>
-                        <p className="flex-1 min-w-0 text-[13px] font-medium text-on-surface truncate">{d.nome}</p>
-                        {!d.visualizadoEm && (
-                          <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-                            Novo
-                          </span>
-                        )}
-                        <span className="shrink-0 text-[11px] text-on-surface-variant/50">
-                          {new Date(d.criadoEm).toLocaleDateString('pt-BR')}
-                        </span>
-                        <span className="material-symbols-outlined shrink-0 text-[16px] text-on-surface-variant/30">download</span>
-                      </a>
-                    </li>
-                  )
-                })}
+                {documentos.map(d => (
+                  <DocItem
+                    key={d.id}
+                    id={d.id}
+                    nome={d.nome}
+                    ext={getExt(d.nome)}
+                    criadoEm={new Date(d.criadoEm).toISOString()}
+                    visualizadoEm={d.visualizadoEm ? new Date(d.visualizadoEm).toISOString() : null}
+                    extColor={extColor(getExt(d.nome))}
+                  />
+                ))}
               </ul>
             )}
           </div>
