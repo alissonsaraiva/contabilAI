@@ -93,7 +93,7 @@ export default async function PortalDashboardPage() {
       where:   { clienteId, deletadoEm: null },
       orderBy: { criadoEm: 'desc' },
       take:    6,
-      select:  { id: true, nome: true, tipo: true, url: true, criadoEm: true, status: true },
+      select:  { id: true, nome: true, tipo: true, url: true, criadoEm: true, status: true, visualizadoEm: true },
     }),
     prisma.ordemServico.findMany({
       where:   { clienteId },
@@ -121,6 +121,7 @@ export default async function PortalDashboardPage() {
   const obrigacoes    = getObrigacoes(regime, cliente.tipoContribuinte)
   const chamadosAbertos = ordensRecentes.filter(o => o.status !== 'resolvida' && o.status !== 'cancelada').length
   const docsDisponiveis = documentos.length
+  const docsNovos       = documentos.filter(d => !d.visualizadoEm).length
 
   return (
     <div className="space-y-6">
@@ -207,6 +208,11 @@ export default async function PortalDashboardPage() {
               <div className="flex items-center gap-2.5">
                 <span className="text-[20px]">📄</span>
                 <h2 className="font-headline text-[14px] font-semibold text-on-surface">Documentos disponíveis</h2>
+                {docsNovos > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">
+                    {docsNovos}
+                  </span>
+                )}
               </div>
               <Link href="/portal/documentos" className="text-[12px] font-semibold text-primary hover:underline">
                 Ver todos →
@@ -223,7 +229,7 @@ export default async function PortalDashboardPage() {
                 {documentos.map(d => {
                   const ext = getExt(d.nome)
                   return (
-                    <li key={d.id}>
+                    <li key={d.id} className={d.visualizadoEm ? '' : 'bg-primary/[0.03]'}>
                       <a
                         href={`/api/portal/documentos/${d.id}/download`}
                         target="_blank"
@@ -234,6 +240,11 @@ export default async function PortalDashboardPage() {
                           {ext}
                         </span>
                         <p className="flex-1 min-w-0 text-[13px] font-medium text-on-surface truncate">{d.nome}</p>
+                        {!d.visualizadoEm && (
+                          <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                            Novo
+                          </span>
+                        )}
                         <span className="shrink-0 text-[11px] text-on-surface-variant/50">
                           {new Date(d.criadoEm).toLocaleDateString('pt-BR')}
                         </span>

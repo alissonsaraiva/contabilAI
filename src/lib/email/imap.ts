@@ -20,16 +20,14 @@ async function getImapConfig() {
     select: { emailRemetente: true, emailSenha: true, emailImapHost: true, emailImapPort: true },
   })
 
-  // IMAP só está configurado se o host for explicitamente definido
-  // (evitar tentar conectar com default hardcoded quando só SMTP está ativo)
-  const imapHost = escritorio?.emailImapHost ?? process.env.EMAIL_IMAP_HOST ?? null
-  if (!imapHost) return null
-
   const usuario  = escritorio?.emailRemetente ?? process.env.EMAIL_REMETENTE
   const senha    = escritorio?.emailSenha     ?? process.env.EMAIL_SENHA
-  const imapPort = escritorio?.emailImapPort  ?? 993
 
+  // Sem credenciais não há como conectar
   if (!usuario || !senha) return null
+
+  const imapHost = escritorio?.emailImapHost ?? process.env.EMAIL_IMAP_HOST ?? 'imap.hostinger.com'
+  const imapPort = escritorio?.emailImapPort  ?? 993
 
   const senhaDecriptada = isEncrypted(senha) ? decrypt(senha) : senha
 
