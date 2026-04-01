@@ -50,6 +50,45 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
 
   useEffect(() => { load() }, [load])
 
+  // SSE — recebe mensagens novas do cliente enquanto o operador está com a conversa aberta
+  // /api/stream/conversas/[id] escuta portal-user:{id} (cliente envia msg em conv pausada)
+  // e whatsapp:{id} (por completude). Chama load() para re-buscar as mensagens atualizadas.
+  // Reconecta automaticamente até 5x com backoff exponencial após erro.
+  useEffect(() => {
+    if (!conversaAberta || !open) return
+    let es: EventSource
+    let tentativas = 0
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let encerrado = false
+
+    function conectar() {
+      es = new EventSource(`/api/stream/conversas/${conversaAberta}`)
+      es.onmessage = () => { tentativas = 0; load() }
+      es.onerror   = () => {
+        es.close()
+        if (encerrado || tentativas >= 5) return
+        tentativas++
+        timeoutId = setTimeout(conectar, Math.min(1000 * 2 ** tentativas, 30_000))
+      }
+    }
+
+    conectar()
+    return () => {
+      encerrado = true
+      if (timeoutId) clearTimeout(timeoutId)
+      es.close()
+    }
+  }, [conversaAberta, open, load])
+
+  // Polling de 8s — fallback para múltiplos workers em produção (eventBus não cruza processos)
+  useEffect(() => {
+    if (!conversaAberta || !open) return
+    const id = setInterval(() => {
+      if (!document.hidden) load()
+    }, 8_000)
+    return () => clearInterval(id)
+  }, [conversaAberta, open, load])
+
   // Scroll para o final quando mensagens carregam
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

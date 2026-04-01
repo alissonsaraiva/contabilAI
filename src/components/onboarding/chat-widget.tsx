@@ -59,39 +59,66 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
     }
   }, [open, msgs])
 
-  // SSE quando escalado — substitui setTimeout recursivo de 4s
+  // SSE quando escalado + polling de 5s como fallback (eventBus pode não cruzar workers)
   useEffect(() => {
     if (!escalacaoId) return
 
-    const es = new EventSource(`/api/stream/escalacoes/${escalacaoId}?sessionId=${sessionId}`)
+    let encerrado = false
 
-    es.onmessage = (e) => {
+    function aplicarResolucao(data: { status: string; resposta?: string | null }) {
+      if (encerrado) return
+      if (data.status === 'resolvida' && data.resposta) {
+        setMsgs(m => [...m, { role: 'assistant', text: data.resposta! }])
+        setEscalacaoId(null)
+        setLoading(false)
+        encerrado = true
+      } else if (data.status === 'timeout') {
+        setMsgs(m => [...m, {
+          role: 'assistant',
+          text: 'Nossa equipe está ocupada no momento. Deixe seu contato que retornaremos assim que possível.',
+        }])
+        setEscalacaoId(null)
+        setLoading(false)
+        encerrado = true
+      }
+    }
+
+    // SSE — caminho rápido
+    let tentativas = 0
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let es: EventSource
+
+    function conectarSSE() {
+      if (encerrado) return
+      es = new EventSource(`/api/stream/escalacoes/${escalacaoId}?sessionId=${sessionId}`)
+      es.onmessage = (e) => {
+        try { aplicarResolucao(JSON.parse(e.data)) } catch {}
+        es.close()
+      }
+      es.onerror = () => {
+        es.close()
+        if (encerrado || tentativas >= 3) return
+        tentativas++
+        timeoutId = setTimeout(conectarSSE, Math.min(2000 * 2 ** tentativas, 15_000))
+      }
+    }
+    conectarSSE()
+
+    // Polling de 5s — fallback garantido
+    const pollId = setInterval(async () => {
+      if (encerrado) return
       try {
-        const data = JSON.parse(e.data) as { status: string; resposta?: string }
-        if (data.status === 'resolvida' && data.resposta) {
-          setMsgs(m => [...m, { role: 'assistant', text: data.resposta! }])
-          setEscalacaoId(null)
-          setLoading(false)
-        } else if (data.status === 'timeout') {
-          setMsgs(m => [...m, {
-            role: 'assistant',
-            text: 'Nossa equipe está ocupada no momento. Deixe seu contato que retornaremos assim que possível.',
-          }])
-          setEscalacaoId(null)
-          setLoading(false)
-        }
+        const res = await fetch(`/api/escalacoes/${escalacaoId}/poll?sessionId=${sessionId}`)
+        if (res.ok) aplicarResolucao(await res.json())
       } catch {}
-      es.close()
-    }
+    }, 5_000)
 
-    es.onerror = () => {
-      // Falha de rede — fecha e reabilita input
-      setEscalacaoId(null)
-      setLoading(false)
-      es.close()
+    return () => {
+      encerrado = true
+      if (timeoutId) clearTimeout(timeoutId)
+      clearInterval(pollId)
+      es?.close()
     }
-
-    return () => es.close()
   }, [escalacaoId, sessionId])
 
   async function handleSend() {

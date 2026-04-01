@@ -17,6 +17,8 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
 
   // sessionId canônico vem do servidor — garante histórico unificado entre browser/PWA/dispositivos
   const [sessionId, setSessionId] = useState<string | null>(null)
+  // Rastreia quantas mensagens do DB já foram carregadas — usado no polling
+  const lastPollCountRef = useRef(0)
 
   const historyLoadedRef = useRef(false)
   const bottomRef        = useRef<HTMLDivElement>(null)
@@ -72,6 +74,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         if (cid) setConversaId(cid)
         if (pausada) setEscalada(true)
         if (Array.isArray(mensagens) && mensagens.length > 0) {
+          lastPollCountRef.current = mensagens.length
           setMsgs(mensagens.map((m: { role: string; conteudo: string }) => ({
             role: m.role as 'user' | 'assistant',
             text: m.conteudo,
@@ -122,6 +125,30 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       if (retryTimer) clearTimeout(retryTimer)
       es?.close()
     }
+  }, [conversaId, sessionId])
+
+  // Polling de 8s — fallback para quando SSE não cruza workers em produção.
+  // Busca mensagens do DB e adiciona novas ao state se o count cresceu.
+  useEffect(() => {
+    if (!conversaId || !sessionId) return
+    const id = setInterval(async () => {
+      if (document.hidden) return
+      try {
+        const res = await fetch(`/api/portal/chat?sessionId=${sessionId}`)
+        if (!res.ok) return
+        const { mensagens } = await res.json() as { mensagens: { role: string; conteudo: string }[] }
+        if (!Array.isArray(mensagens) || mensagens.length <= lastPollCountRef.current) return
+        // Há mensagens novas — adiciona apenas as que ainda não estão no state
+        const novas = mensagens.slice(lastPollCountRef.current)
+        lastPollCountRef.current = mensagens.length
+        setMsgs(prev => [
+          ...prev,
+          ...novas.map(m => ({ role: m.role as 'user' | 'assistant', text: m.conteudo })),
+        ])
+        if (!openRef.current) setUnread(n => n + novas.length)
+      } catch {}
+    }, 8_000)
+    return () => clearInterval(id)
   }, [conversaId, sessionId])
 
   // Scroll / focus ao abrir o painel

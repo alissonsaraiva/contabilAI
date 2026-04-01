@@ -52,7 +52,11 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!entidadeTipo || !entidadeId) { toast.error('Entidade não identificada para upload'); return }
+    if (!entidadeTipo || !entidadeId) {
+      toast.error('Contato não identificado. Vincule a um cliente antes de fazer upload.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
     if (file.size > 25 * 1024 * 1024) { toast.error('Arquivo muito grande. O limite é 25 MB.'); return }
 
     setUploading(true)
@@ -188,36 +192,34 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
             onChange={handleFileChange}
           />
 
-          {/* Botões de anexo — só exibe se tiver entidade identificada */}
-          {(entidadeTipo && entidadeId) && (
-            <div className="flex shrink-0 gap-1">
-              {/* Upload novo arquivo */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 transition-all"
-                title="Fazer upload de arquivo"
-              >
-                {uploading ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
-                ) : (
-                  <span className="material-symbols-outlined text-[20px]">attach_file</span>
-                )}
-              </button>
+          {/* Botões de anexo */}
+          <div className="flex shrink-0 gap-1">
+            {/* Upload novo arquivo */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 transition-all"
+              title={entidadeTipo && entidadeId ? 'Fazer upload de arquivo' : 'Vincule o contato a um cliente para fazer upload'}
+            >
+              {uploading ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
+              ) : (
+                <span className="material-symbols-outlined text-[20px]">attach_file</span>
+              )}
+            </button>
 
-              {/* Arquivos do sistema */}
-              <button
-                type="button"
-                onClick={() => setPickerOpen(true)}
-                disabled={uploading}
-                className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 transition-all"
-                title="Arquivos do sistema"
-              >
-                <span className="material-symbols-outlined text-[20px]">folder_open</span>
-              </button>
-            </div>
-          )}
+            {/* Arquivos do sistema */}
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              disabled={uploading}
+              className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 transition-all"
+              title={entidadeTipo && entidadeId ? 'Arquivos do sistema' : 'Buscar documentos de um cliente'}
+            >
+              <span className="material-symbols-outlined text-[20px]">folder_open</span>
+            </button>
+          </div>
 
           <textarea
             ref={textareaRef}

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { AvosWordmark } from '@/components/avos-logo'
 import { PortalLoginForm } from './_login-form'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortalLoginPage() {
   const escritorio = await getEscritorioConfig()
   const nome = escritorio.nome

@@ -14,7 +14,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
 import { NovaInteracaoDrawer } from '@/components/crm/nova-interacao-drawer'
-import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
 import { PortalLinkButton } from '@/components/crm/portal-link-button'
@@ -84,20 +83,6 @@ export default async function ClienteDetailPage({ params }: Props) {
   const nomeIa       = aiConfig.nomeAssistentes.crm    ?? 'Assistente'
   const nomeIaPortal = aiConfig.nomeAssistentes.portal ?? 'Assistente'
 
-  // Conversas IA: pelo clienteId direto + pelo leadId de origem
-  const leadIds = cliente.leadId ? [cliente.leadId] : []
-  const conversas = await prisma.conversaIA.findMany({
-    where: {
-      OR: [
-        { clienteId: id },
-        ...(leadIds.length > 0 ? [{ leadId: { in: leadIds } }] : []),
-      ],
-    },
-    orderBy: { atualizadaEm: 'desc' },
-    include: {
-      mensagens: { orderBy: { criadaEm: 'asc' } },
-    },
-  })
 
   const socios: NonNullable<typeof cliente.empresa>['socios'] = cliente.empresa?.socios ?? []
   const contratos  = cliente.contratos
@@ -120,7 +105,6 @@ export default async function ClienteDetailPage({ params }: Props) {
     { value: 'documentos', label: 'Documentos', count: documentos.length },
     { value: 'contratos', label: 'Contratos', count: contratos.length },
     { value: 'historico', label: 'Interações', count: null },
-    { value: 'conversas', label: 'Conversas IA', count: conversas.length },
   ]
 
   return (
@@ -467,18 +451,6 @@ export default async function ClienteDetailPage({ params }: Props) {
               ))}
             </div>
           )}
-        </TabsContent>
-
-        {/* ── Conversas IA ───────────────────────────────── */}
-        <TabsContent value="conversas" className="m-0 focus-visible:outline-none">
-          <div className="mb-5">
-            <p className="text-[13px] text-on-surface-variant">
-              {conversas.length === 0
-                ? 'Nenhuma conversa registrada nos últimos 90 dias'
-                : `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · ${conversas.reduce((acc: number, c: { mensagens: unknown[] }) => acc + c.mensagens.length, 0)} mensagens no total`}
-            </p>
-          </div>
-          <ConversasIAList conversas={conversas} />
         </TabsContent>
 
         {/* ── Histórico ──────────────────────────────────── */}

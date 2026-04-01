@@ -111,7 +111,9 @@ export default function ConfiguracoesIAPage() {
   const [allModels, setAllModels] = useState<AllModels>(FALLBACK_MODELS)
   const [modelsLoading, setModelsLoading] = useState(false)
   // Collapse state: key = providerField, value = collapsed?
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(SUB_IAS.map(ia => [ia.providerField, true]))
+  )
   const toggleCollapse = useCallback((key: string) =>
     setCollapsed(prev => ({ ...prev, [key]: !prev[key] })), [])
 

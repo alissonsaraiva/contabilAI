@@ -53,10 +53,13 @@ export function EmailsGmail({
   const [aba, setAba]                 = useState<Aba>('recebidos')
   const [busca, setBusca]             = useState('')
   const [painel, setPainel]           = useState<PainelDireito>({ tipo: 'vazio' })
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [bulkLoading, setBulkLoading]   = useState(false)
 
-  // Sincroniza seleção quando muda de aba
+  // Limpa seleção e painel ao mudar de aba
   useEffect(() => {
     if (painel.tipo === 'email') setPainel({ tipo: 'vazio' })
+    setSelecionados(new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba])
 
@@ -105,7 +108,57 @@ export function EmailsGmail({
     toast.success('E-mail enviado!')
   }
 
+  function toggleSelecionado(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setSelecionados(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleTodos() {
+    setSelecionados(prev =>
+      prev.size === lista.length ? new Set() : new Set(lista.map(e => e.id))
+    )
+  }
+
+  async function bulkAction(action: 'dispensar' | 'excluir') {
+    const ids = Array.from(selecionados)
+    if (!ids.length) return
+    setBulkLoading(true)
+    try {
+      const res = await fetch('/api/email/inbox/bulk', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ids, action }),
+      })
+      if (!res.ok) { toast.error('Erro ao executar ação'); return }
+
+      if (action === 'dispensar') {
+        const agora = new Date().toISOString()
+        const movidos = recebidos.filter(e => ids.includes(e.id)).map(e => ({ ...e, respondidoEm: agora }))
+        setRecebidos(prev => prev.filter(e => !ids.includes(e.id)))
+        setRespondidos(prev => [...movidos, ...prev])
+        toast.success(`${ids.length} e-mail(s) marcados como tratados`)
+      } else {
+        // excluir: remove da lista atual
+        if (aba === 'recebidos')   setRecebidos(prev => prev.filter(e => !ids.includes(e.id)))
+        if (aba === 'respondidos') setRespondidos(prev => prev.filter(e => !ids.includes(e.id)))
+        if (aba === 'enviados')    setEnviados(prev => prev.filter(e => !ids.includes(e.id)))
+        toast.success(`${ids.length} e-mail(s) excluídos`)
+      }
+
+      setSelecionados(new Set())
+      if (painel.tipo === 'email' && ids.includes(painel.email.id)) setPainel({ tipo: 'vazio' })
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   const emailSelecionadoId = painel.tipo === 'email' ? painel.email.id : null
+  const todosSelecionados   = selecionados.size > 0 && selecionados.size === lista.length
+  const algumaSelecao       = selecionados.size > 0
 
   return (
     <div className="flex h-[calc(100vh-80px)] overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
@@ -173,6 +226,58 @@ export function EmailsGmail({
           </div>
         </div>
 
+        {/* Toolbar bulk — aparece quando há seleção */}
+        {algumaSelecao && (
+          <div className="flex items-center gap-2 border-b border-outline-variant/10 bg-primary/5 px-3 py-2">
+            <input
+              type="checkbox"
+              checked={todosSelecionados}
+              onChange={toggleTodos}
+              className="h-3.5 w-3.5 accent-primary cursor-pointer"
+            />
+            <span className="flex-1 text-[11px] font-semibold text-primary">
+              {selecionados.size} selecionado{selecionados.size !== 1 ? 's' : ''}
+            </span>
+            {aba === 'recebidos' && (
+              <button
+                onClick={() => bulkAction('dispensar')}
+                disabled={bulkLoading}
+                className="flex items-center gap-1 rounded-lg border border-outline-variant/25 bg-card px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant hover:bg-green-500/10 hover:text-green-600 hover:border-green-500/30 transition-colors disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                Tratar
+              </button>
+            )}
+            <button
+              onClick={() => bulkAction('excluir')}
+              disabled={bulkLoading}
+              className="flex items-center gap-1 rounded-lg border border-outline-variant/25 bg-card px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant hover:bg-error/10 hover:text-error hover:border-error/30 transition-colors disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[13px]">delete</span>
+              Excluir
+            </button>
+            <button
+              onClick={() => setSelecionados(new Set())}
+              className="rounded-lg p-1 text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
+            >
+              <span className="material-symbols-outlined text-[14px]">close</span>
+            </button>
+          </div>
+        )}
+
+        {/* Cabeçalho de seleção geral (quando nada selecionado ainda) */}
+        {!algumaSelecao && lista.length > 0 && (
+          <div className="flex items-center gap-2 border-b border-outline-variant/5 px-4 py-1.5">
+            <input
+              type="checkbox"
+              checked={false}
+              onChange={toggleTodos}
+              className="h-3.5 w-3.5 accent-primary cursor-pointer opacity-30 hover:opacity-80"
+            />
+            <span className="text-[10px] text-on-surface-variant/30">Selecionar todos</span>
+          </div>
+        )}
+
         {/* Lista */}
         <div className="flex-1 overflow-y-auto">
           {lista.length === 0 ? (
@@ -192,7 +297,9 @@ export function EmailsGmail({
                 email={email}
                 aba={aba}
                 selecionado={email.id === emailSelecionadoId}
-                onClick={() => abrirEmail(email)}
+                marcado={selecionados.has(email.id)}
+                onToggle={(e) => toggleSelecionado(email.id, e)}
+                onClick={() => { if (!selecionados.size) abrirEmail(email) }}
               />
             ))
           )}
@@ -238,8 +345,13 @@ export function EmailsGmail({
 
 // ─── Row compacto da lista ────────────────────────────────────────────────────
 
-function EmailRow({ email, aba, selecionado, onClick }: {
-  email: EmailItem; aba: Aba; selecionado: boolean; onClick: () => void
+function EmailRow({ email, aba, selecionado, marcado, onToggle, onClick }: {
+  email:     EmailItem
+  aba:       Aba
+  selecionado: boolean
+  marcado:   boolean
+  onToggle:  (e: React.MouseEvent) => void
+  onClick:   () => void
 }) {
   const isEnviado    = email.tipo === 'email_enviado'
   const remetente    = isEnviado
@@ -253,14 +365,30 @@ function EmailRow({ email, aba, selecionado, onClick }: {
     <button
       onClick={onClick}
       className={`group flex w-full flex-col gap-1 border-b border-outline-variant/8 px-4 py-3 text-left transition-all ${
-        selecionado
-          ? 'bg-primary/8 border-l-2 border-l-primary'
-          : 'hover:bg-surface-container-low/60'
+        marcado
+          ? 'bg-primary/6 border-l-2 border-l-primary'
+          : selecionado
+            ? 'bg-primary/8 border-l-2 border-l-primary'
+            : 'hover:bg-surface-container-low/60'
       }`}
     >
       <div className="flex items-center gap-2">
-        {naoLido && (
-          <div className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+        {/* Checkbox — visível no hover ou quando marcado */}
+        <span
+          onClick={onToggle}
+          className={`shrink-0 transition-opacity ${marcado ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+          style={{ lineHeight: 0 }}
+        >
+          <input
+            type="checkbox"
+            checked={marcado}
+            onChange={() => {/* controlado pelo onClick */}}
+            className="h-3.5 w-3.5 accent-primary cursor-pointer"
+          />
+        </span>
+        {/* Dot não lido — oculto quando o checkbox está visível */}
+        {naoLido && !marcado && (
+          <div className="h-2 w-2 shrink-0 rounded-full bg-primary group-hover:hidden" />
         )}
         <span className={`flex-1 truncate text-[12px] ${naoLido ? 'font-bold text-on-surface' : 'font-medium text-on-surface/80'}`}>
           {remetente}

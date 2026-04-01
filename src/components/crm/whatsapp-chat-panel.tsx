@@ -157,6 +157,17 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
     }
   }, [conversaId, carregar])
 
+  // Polling de 8s — fallback para quando o SSE falha (ex: múltiplos workers em produção
+  // fazem o eventBus não cruzar processos). Garante que novas mensagens aparecem
+  // em até 8s mesmo sem SSE funcional, sem sobrecarregar o servidor.
+  useEffect(() => {
+    if (!conversaId) return
+    const id = setInterval(() => {
+      if (!document.hidden) carregar()
+    }, 8_000)
+    return () => clearInterval(id)
+  }, [conversaId, carregar])
+
   // Scroll automático ao fundo
   useEffect(() => {
     if (mensagens.length === 0) return

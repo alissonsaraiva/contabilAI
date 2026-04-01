@@ -99,6 +99,17 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
     sugestao = await gerarSugestao(email, clienteId, leadId)
   }
 
+  // Deduplicação: evita salvar o mesmo email múltiplas vezes se o flag IMAP falhou
+  if (email.messageId && !email.messageId.startsWith('uid-')) {
+    const jaExiste = await prisma.interacao.findFirst({
+      where: { metadados: { path: ['messageId'], equals: email.messageId } },
+      select: { id: true },
+    })
+    if (jaExiste) {
+      return { interacaoId: jaExiste.id, clienteId, leadId, associado, sugestao: null, documentosId: [] }
+    }
+  }
+
   // Registra interação via service (inclui RAG automático)
   const interacaoId = await registrarInteracao({
     tipo:      'email_recebido',

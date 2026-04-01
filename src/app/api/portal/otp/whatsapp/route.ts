@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { criarTokenPortal, criarTokenPortalSocio } from '@/lib/portal/tokens'
 import { sendText, type EvolutionConfig } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { rateLimit, getClientIp, tooManyRequests } from '@/lib/rate-limit'
 
 function buildRemoteJid(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -31,6 +32,11 @@ async function getEvolutionConfig(): Promise<EvolutionConfig | null> {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 3 envios por email a cada 5 minutos (evita spam de mensagens WA)
+  const ip = getClientIp(req)
+  const rl = rateLimit(`otp-whatsapp:${ip}`, 3, 5 * 60_000)
+  if (!rl.allowed) return tooManyRequests(rl.retryAfterMs)
+
   const body = await req.json().catch(() => null)
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : null
 
@@ -47,6 +53,7 @@ export async function POST(req: NextRequest) {
   if (cliente) {
     if (cliente.status === 'suspenso')  return NextResponse.json({ error: 'conta_suspensa' },  { status: 403 })
     if (cliente.status === 'cancelado') return NextResponse.json({ error: 'conta_cancelada' }, { status: 403 })
+    if (cliente.status !== 'ativo' && cliente.status !== 'inadimplente') return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
     if (!cliente.empresaId)             return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
 
     const phone = cliente.whatsapp || cliente.telefone
