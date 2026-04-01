@@ -241,7 +241,7 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
                       href={n.href}
                       className="group flex items-start gap-2 px-4 py-3 hover:bg-surface-container/50 cursor-pointer transition-colors"
                       onClick={() => {
-                        if (n.podeDescartar) descartar(n.id)
+                        descartar(n.id)
                         fecharNotif()
                       }}
                     >
