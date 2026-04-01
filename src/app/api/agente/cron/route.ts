@@ -11,6 +11,7 @@
  *             -H "Authorization: Bearer $CRON_SECRET" > /dev/null 2>&1
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { executarAgente } from '@/lib/ai/agent'
@@ -131,6 +132,7 @@ export async function POST(req: Request) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[cron] erro ao disparar agendamento "${ag.descricao}":`, msg)
+      Sentry.captureException(err, { tags: { module: 'cron-agente' }, extra: { agendamentoId: ag.id, descricao: ag.descricao } })
       resultados.push({ id: ag.id, descricao: ag.descricao, sucesso: false, erro: msg })
       notificarAgenteFalhou(`Agendamento "${ag.descricao}" falhou: ${msg}`).catch((notifErr: unknown) =>
         console.error('[cron] erro ao notificar agente_falhou:', { agendamentoId: ag.id, notifErr }),

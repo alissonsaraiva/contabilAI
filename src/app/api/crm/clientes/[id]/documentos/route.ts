@@ -8,6 +8,7 @@
  *   categoria  CategoriaDocumento  (opcional)
  *   empresaId  string   (opcional — para PJ, vincula também à empresa)
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -63,6 +64,7 @@ export async function POST(req: Request, { params }: Params) {
     })
   } catch (err) {
     console.error('[crm/clientes/documentos] falha ao salvar documento:', err)
+    Sentry.captureException(err, { tags: { module: 'crm-documentos', operation: 'criar-documento' }, extra: { clienteId } })
     return NextResponse.json({ error: 'Falha ao enviar o documento. Tente novamente.' }, { status: 502 })
   }
 

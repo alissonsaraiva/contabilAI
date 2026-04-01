@@ -1,6 +1,7 @@
 /**
  * POST /api/crm/notas-fiscais/[id]/reemitir — reemite nota rejeitada
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { reemitirNotaFiscal } from '@/lib/services/notas-fiscais'
@@ -45,6 +46,7 @@ export async function POST(
     return NextResponse.json(resultado)
   } catch (err) {
     logger.error('api-crm-reemitir-nfse', { id, err })
+    Sentry.captureException(err, { tags: { module: 'crm-nfse', operation: 'reemitir' }, extra: { id } })
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 }

@@ -10,6 +10,8 @@
  *   indexarAsync('escalacao', { id, canal, motivoIA, ... })
  */
 
+import * as Sentry from '@sentry/nextjs'
+
 type TipoIndexacao =
   | 'interacao'
   | 'cliente'
@@ -53,5 +55,6 @@ export function indexarAsync(tipo: TipoIndexacao, dados: unknown): void {
     .catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[rag/indexar-async] falha ao indexar:', { tipo, msg })
+      Sentry.captureException(err, { tags: { module: 'rag-indexar-async', tipo } })
     })
 }

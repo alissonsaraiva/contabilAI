@@ -12,6 +12,7 @@
  *   PAYMENT_DELETED   → cancela cobrança local
  *   PAYMENT_REFUNDED  → marca como reembolsado
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sincronizarCobrancas } from '@/lib/services/asaas-sync'
@@ -415,6 +416,7 @@ export async function POST(req: Request) {
               }
             } catch (err) {
               console.error('[Asaas webhook] Não foi possível enriquecer cobrança para WA:', err)
+              Sentry.captureException(err, { tags: { module: 'webhook-asaas', operation: 'enriquecer-cobranca' }, extra: { paymentId } })
             }
           }
 
@@ -453,7 +455,10 @@ export async function POST(req: Request) {
                   conteudo:  mensagem,
                 },
               }))
-          }).catch(err => console.error('[Asaas webhook] Erro ao enviar WhatsApp inadimplência:', err))
+          }).catch(err => {
+            console.error('[Asaas webhook] Erro ao enviar WhatsApp inadimplência:', err)
+            Sentry.captureException(err, { tags: { module: 'webhook-asaas', operation: 'whatsapp-inadimplencia' }, extra: { paymentId } })
+          })
         }
       }
     }

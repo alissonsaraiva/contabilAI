@@ -13,6 +13,8 @@ export type ToolContext = {
    * Quando presente, use-o para scopar dados da empresa.
    */
   empresaId?: string
+  /** ID da conversa ativa — necessário para tools que acessam mensagens da sessão (ex: anexarDocumentoChat) */
+  conversaId?: string
   /** Qual IA está solicitando a execução — usado para auditoria */
   solicitanteAI: string  // 'crm' | 'whatsapp' | 'portal' | 'onboarding'
   /** ID do usuário autenticado que acionou o agente (somente canal CRM) */

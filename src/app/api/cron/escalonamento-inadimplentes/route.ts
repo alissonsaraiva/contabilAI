@@ -16,6 +16,7 @@
  *   0 12 * * * curl -s -X POST https://dominio/api/cron/escalonamento-inadimplentes \
  *     -H "Authorization: Bearer $CRON_SECRET" > /dev/null 2>&1
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
@@ -181,6 +182,7 @@ export async function POST(req: Request) {
       const msg = err instanceof Error ? err.message : String(err)
       erros.push(`${c.nome}: ${msg}`)
       console.error('[escalonamento-inadimplentes] Erro ao enviar para', c.nome, msg)
+      Sentry.captureException(err, { tags: { module: 'cron-escalonamento-inadimplentes' }, extra: { clienteId: c.id, clienteNome: c.nome } })
     }
   }
 

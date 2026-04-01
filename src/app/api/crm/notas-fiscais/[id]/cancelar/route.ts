@@ -1,6 +1,7 @@
 /**
  * POST /api/crm/notas-fiscais/[id]/cancelar
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { cancelarNotaFiscal } from '@/lib/services/notas-fiscais'
@@ -38,6 +39,7 @@ export async function POST(
     return NextResponse.json({ sucesso: true })
   } catch (err) {
     logger.error('api-crm-cancelar-nfse', { id, err })
+    Sentry.captureException(err, { tags: { module: 'crm-nfse', operation: 'cancelar' }, extra: { id } })
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 }

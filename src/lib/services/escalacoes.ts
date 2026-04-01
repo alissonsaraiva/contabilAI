@@ -5,6 +5,7 @@
  * Garante: criação consistente + notificação CRM + indexação RAG.
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import type { CanalEscalacao } from '@prisma/client'
@@ -42,9 +43,10 @@ export async function criarEscalacao(input: CriarEscalacaoInput): Promise<string
     .then(({ notificarEscalacaoPortal }) =>
       notificarEscalacaoPortal(input.clienteId ?? '', escalacao.id)
     )
-    .catch((err: unknown) =>
-      console.error('[escalacoes] erro ao notificar escalacao_portal:', { escalacaoId: escalacao.id, err }),
-    )
+    .catch((err: unknown) => {
+      console.error('[escalacoes] erro ao notificar escalacao_portal:', { escalacaoId: escalacao.id, err })
+      Sentry.captureException(err, { tags: { module: 'escalacoes', operation: 'notificar-portal' }, extra: { escalacaoId: escalacao.id } })
+    })
 
   // Indexa no RAG
   indexarAsync('escalacao', {

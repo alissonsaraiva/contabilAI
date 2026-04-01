@@ -4,6 +4,7 @@
  * URL: https://seudominio/api/webhooks/zapsign
  * Evento: doc_signed (quando todos assinam, status = "signed")
  */
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { indexarAsync } from '@/lib/rag/indexar-async'
@@ -156,6 +157,7 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       console.error('[zapsign webhook] Erro ao converter lead em cliente:', err)
+      Sentry.captureException(err, { tags: { module: 'webhook-zapsign', operation: 'lead-to-cliente' } })
     }
   }
   // ─────────────────────────────────────────────────────────────────────────

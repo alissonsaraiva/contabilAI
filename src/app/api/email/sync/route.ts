@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { buscarEmailsNovos } from '@/lib/email/imap'
 import { processarEmailRecebido } from '@/lib/email/processar'
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
     setImapSyncOk(processados, associados)
   } catch (err) {
     const mensagem = err instanceof Error ? err.message : 'Erro no IMAP'
+    Sentry.captureException(err, { tags: { module: 'email-sync', operation: 'buscar-emails' } })
     setImapSyncErro(mensagem)
 
     const { falhasConsecutivas } = getImapSyncStatus()

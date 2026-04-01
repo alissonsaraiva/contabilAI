@@ -9,6 +9,7 @@
  *   suspenderAsaas           — cancela subscription no Asaas
  *   reativarAsaas            — cria nova subscription (após reativação)
  */
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import {
   asaasCreateCustomer,
@@ -82,6 +83,7 @@ async function enriquecerPagamento(
     }
   } catch (err) {
     console.error(`[asaas-sync] Erro ao enriquecer pagamento ${payment.id}:`, err)
+    Sentry.captureException(err, { tags: { module: 'asaas-sync', operation: 'enriquecer-pagamento' }, extra: { paymentId: payment.id } })
   }
   return {}
 }
@@ -288,6 +290,7 @@ export async function suspenderAsaas(clienteId: string): Promise<void> {
     })
   } catch (err) {
     console.error(`[asaas-sync] Erro ao suspender subscription do cliente ${clienteId}:`, err)
+    Sentry.captureException(err, { tags: { module: 'asaas-sync', operation: 'suspender-subscription' }, extra: { clienteId } })
   }
 }
 
@@ -388,6 +391,7 @@ export async function gerarSegundaVia(cobrancaId: string): Promise<{
     }
   } catch (err) {
     console.error('[asaas-sync] Erro ao buscar detalhes da segunda via:', err)
+    Sentry.captureException(err, { tags: { module: 'asaas-sync', operation: 'detalhes-segunda-via' }, extra: { cobrancaId: cobranca.id } })
   }
 
   // Salva nova cobrança no banco

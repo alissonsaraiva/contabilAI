@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { registrarAgenteExecutou } from '@/lib/historico'
 import { getAiConfig } from './config'
@@ -297,7 +298,10 @@ export async function executarAgente(task: AgenteTask): Promise<AgenteResultado>
             })
           }
         })
-        .catch(err => console.error('[agent] falha ao salvar auditoria:', err))
+        .catch(err => {
+          console.error('[agent] falha ao salvar auditoria:', err)
+          Sentry.captureException(err, { tags: { module: 'agent', operation: 'auditoria' }, extra: { tool: toolCall.name } })
+        })
 
       // Histórico central — fire-and-forget
       registrarAgenteExecutou({

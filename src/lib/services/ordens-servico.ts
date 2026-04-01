@@ -14,6 +14,7 @@
  *   - Futuramente: tool resolverOrdemServico (quando canal crm+arquivo fizer sentido)
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { criarDocumento } from '@/lib/services/documentos'
 import { enviarEmailComHistorico } from '@/lib/email/com-historico'
@@ -194,7 +195,8 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
             metadados: { osId: input.osId, documentoId: result.documentoId, phone },
           })
         }
-      } catch {
+      } catch (err) {
+        Sentry.captureException(err, { tags: { module: 'ordens-servico', operation: 'whatsapp-entrega' }, extra: { osId: input.osId } })
         result.whatsappOk = false
       }
     }
@@ -235,7 +237,9 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
           })
         }
       }
-    } catch { /* ignora erros nos adicionais */ }
+    } catch (err) {
+      Sentry.captureException(err, { tags: { module: 'ordens-servico', operation: 'whatsapp-adicionais' }, extra: { osId: input.osId } })
+    }
   }
 
   // 6. Registra interação de resolução no histórico

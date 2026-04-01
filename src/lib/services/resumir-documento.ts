@@ -11,6 +11,7 @@
  * resumirDocumentoAsync() é o wrapper fire-and-forget para uso em criarDocumento().
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { prisma }                     from '@/lib/prisma'
 import { getAiConfig }                from '@/lib/ai/config'
 import { completeWithFallback }       from '@/lib/ai/providers/fallback'
@@ -115,6 +116,7 @@ export async function resumirDocumento(documentoId: string): Promise<string | nu
     return resumo
   } catch (err) {
     console.error('[resumir-documento] erro ao gerar resumo:', err)
+    Sentry.captureException(err, { tags: { module: 'resumir-documento' }, extra: { documentoId } })
     const msg = err instanceof Error ? err.message : String(err)
     // Incrementa tentativas e marca como falhou
     const updated = await prisma.documento.update({

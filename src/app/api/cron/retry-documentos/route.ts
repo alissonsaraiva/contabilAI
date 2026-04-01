@@ -10,6 +10,7 @@
  *     -H "Authorization: Bearer $CRON_SECRET" > /dev/null 2>&1
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse }               from 'next/server'
 import { prisma }                     from '@/lib/prisma'
 import { resumirDocumento }           from '@/lib/services/resumir-documento'
@@ -75,6 +76,7 @@ export async function POST(req: Request) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[retry-documentos] erro geral:', msg)
+    Sentry.captureException(err, { tags: { module: 'cron-retry-documentos' } })
     return NextResponse.json({ ok: false, erro: msg }, { status: 500 })
   }
 }

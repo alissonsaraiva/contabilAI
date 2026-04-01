@@ -2,6 +2,7 @@
  * GET  /api/crm/notas-fiscais  — lista notas fiscais (filtros: clienteId, status, mes)
  * POST /api/crm/notas-fiscais  — emite nova NFS-e
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -104,6 +105,7 @@ export async function POST(req: Request) {
     return NextResponse.json(resultado, { status: 201 })
   } catch (err) {
     logger.error('api-crm-notas-fiscais-post', { err })
+    Sentry.captureException(err, { tags: { module: 'crm-nfse', operation: 'emitir' } })
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 }

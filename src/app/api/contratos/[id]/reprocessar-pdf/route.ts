@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { decrypt, isEncrypted } from '@/lib/crypto'
@@ -82,6 +83,7 @@ export async function POST(_req: Request, { params }: Params) {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
+    Sentry.captureException(err, { tags: { module: 'contratos-reprocessar-pdf', operation: provedor as string }, extra: { contratoId: id } })
     return NextResponse.json({ error: `Erro ao buscar PDF: ${msg}` }, { status: 502 })
   }
 

@@ -7,9 +7,13 @@
  *   3. Registra uma interação no banco para auditoria
  *   4. Retorna o contexto enriquecido para o systemExtra
  *
+ * O cadastro efetivo do documento no CRM é feito pela tool `anexarDocumentoChat`
+ * após confirmação explícita do cliente — não acontece automaticamente.
+ *
  * Chamado por processar-pendentes.ts antes do askAI principal.
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { askAI } from '@/lib/ai/ask'
 import type { AIMessageContentPart } from '@/lib/ai/providers/types'
@@ -46,11 +50,11 @@ Conteúdo recebido:`
  * Retorna contexto enriquecido para injetar no systemExtra do askAI.
  */
 export async function roterarDocumentoWhatsapp(opts: {
-  conteudo:         string
+  conteudo:          string
   mediaContentParts?: AIMessageContentPart[] | null
-  clienteId?:       string
-  leadId?:          string
-  conversaId:       string
+  clienteId?:        string
+  leadId?:           string
+  conversaId:        string
 }): Promise<DocumentoWhatsApp> {
   const { conteudo, mediaContentParts, clienteId, leadId, conversaId } = opts
 
@@ -98,12 +102,12 @@ export async function roterarDocumentoWhatsapp(opts: {
       .join('\n')
 
     const contextoIA = [
-      `--- DOCUMENTO RECEBIDO VIA WHATSAPP ---`,
+      `--- DOCUMENTO RECEBIDO ---`,
       `Tipo identificado: ${json.tipo} (confiança: ${json.confianca})`,
       camposFormatados ? `Campos extraídos:\n${camposFormatados}` : null,
       `--- FIM ---`,
-      `Confirme o recebimento com o cliente informando o que foi identificado.`,
-      json.confianca === 'baixa' ? `Se houver dúvida sobre o tipo do documento, pergunte ao cliente.` : null,
+      `Informe ao cliente o tipo de documento identificado e pergunte se deseja que ele seja cadastrado no sistema (aba de documentos do escritório). Se confirmar, use a ferramenta \`anexarDocumentoChat\` passando o tipo identificado.`,
+      json.confianca === 'baixa' ? `Se houver dúvida sobre o tipo do documento, pergunte ao cliente antes de oferecer o cadastro.` : null,
     ].filter(Boolean).join('\n')
 
     // Registra interação de documento recebido (fire-and-forget)
@@ -133,9 +137,10 @@ export async function roterarDocumentoWhatsapp(opts: {
           conteudo:  interacao.conteudo,
           criadoEm:  interacao.criadoEm,
         })
-      }).catch((err: unknown) =>
-        console.error('[action-router] erro ao registrar interação de documento WhatsApp:', { clienteId, leadId, err }),
-      )
+      }).catch((err: unknown) => {
+        console.error('[action-router] erro ao registrar interação de documento WhatsApp:', { clienteId, leadId, err })
+        Sentry.captureException(err, { tags: { module: 'action-router', operation: 'registrar-interacao' }, extra: { clienteId, leadId } })
+      })
     }
 
     return {

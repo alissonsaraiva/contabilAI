@@ -27,7 +27,7 @@ const listarComunicadosTool: Tool = {
     label: 'Listar comunicados',
     descricao: 'Lista os comunicados publicados pelo escritório para o portal do cliente.',
     categoria: 'Portal',
-    canais: ['portal', 'crm'],
+    canais: ['crm', 'whatsapp', 'portal'],
   },
 
   async execute(input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {

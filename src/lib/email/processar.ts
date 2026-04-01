@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { criarDocumento } from '@/lib/services/documentos'
 import { registrarInteracao } from '@/lib/services/interacoes'
@@ -89,6 +90,7 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
       }
     } catch (err) {
       console.error('[email/processar] falha ao processar anexo:', anexo.nome, err)
+      Sentry.captureException(err, { tags: { module: 'email-processar', operation: 'processar-anexo' }, extra: { nomeAnexo: anexo.nome } })
     }
   }
 

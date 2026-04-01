@@ -4,6 +4,7 @@
  * URL: https://seudominio/api/webhooks/clicksign
  * Evento: document:auto_closed (todos assinaram e documento fechado automaticamente)
  */
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'node:crypto'
@@ -158,6 +159,7 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       console.error('[clicksign webhook] Erro ao converter lead em cliente:', err)
+      Sentry.captureException(err, { tags: { module: 'webhook-clicksign', operation: 'lead-to-cliente' } })
     }
   }
 

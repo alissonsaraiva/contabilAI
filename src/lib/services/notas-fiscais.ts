@@ -8,6 +8,7 @@
  *   4. onNotaRejeitada()   → notifica equipe com diagnóstico
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { prisma } from '@/lib/prisma'
@@ -475,21 +476,24 @@ export async function processarWebhookSpedy(payload: SpedyWebhookPayload): Promi
 
   // Ações pós-status
   if (statusMapeado === 'autorizada') {
-    await onNotaAutorizada(notaAtualizada).catch(err =>
+    await onNotaAutorizada(notaAtualizada).catch(err => {
       logger.error('spedy-pos-autorizacao-falhou', { notaId: nota.id, err })
-    )
+      Sentry.captureException(err, { tags: { module: 'nfse-service', operation: 'pos-autorizacao' }, extra: { notaId: nota.id } })
+    })
   }
 
   if (statusMapeado === 'rejeitada') {
-    await onNotaRejeitada(notaAtualizada).catch(err =>
+    await onNotaRejeitada(notaAtualizada).catch(err => {
       logger.error('spedy-pos-rejeicao-falhou', { notaId: nota.id, err })
-    )
+      Sentry.captureException(err, { tags: { module: 'nfse-service', operation: 'pos-rejeicao' }, extra: { notaId: nota.id } })
+    })
   }
 
   if (statusMapeado === 'cancelada') {
-    await onNotaCancelada(notaAtualizada).catch(err =>
+    await onNotaCancelada(notaAtualizada).catch(err => {
       logger.error('spedy-pos-cancelamento-falhou', { notaId: nota.id, err })
-    )
+      Sentry.captureException(err, { tags: { module: 'nfse-service', operation: 'pos-cancelamento' }, extra: { notaId: nota.id } })
+    })
   }
 }
 
@@ -779,6 +783,7 @@ export async function cancelarNotaFiscal(
 
   } catch (err) {
     logger.error('spedy-cancelamento-falhou', { notaId: nota.id, err })
+    Sentry.captureException(err, { tags: { module: 'nfse-service', operation: 'cancelar' }, extra: { notaId: nota.id } })
     const msg = err instanceof SpedyError ? err.message : 'Erro ao cancelar na Spedy'
     return { sucesso: false, detalhe: msg }
   }
@@ -923,6 +928,7 @@ async function indexarNotaFiscalRag(
     await indexarRag(nota, clienteNome)
   } catch (err) {
     logger.warn('nfse-rag-import-falhou', { notaId: nota.id, err })
+    Sentry.captureException(err, { tags: { module: 'nfse-service', operation: 'rag-indexar' }, extra: { notaId: nota.id } })
   }
 }
 

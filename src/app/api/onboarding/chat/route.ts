@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { askAI, detectarEscalacao } from '@/lib/ai/ask'
@@ -115,6 +116,7 @@ export async function POST(req: Request) {
         }
       } catch (err) {
         console.error('[onboarding/chat] erro ao criar escalação pausada:', err)
+        Sentry.captureException(err, { tags: { module: 'onboarding-chat', operation: 'escalacao-pausada' }, extra: { conversaId, leadId } })
       }
       // Salva mensagem do usuário no histórico
       if (conversaId) {
@@ -235,6 +237,7 @@ export async function POST(req: Request) {
   } catch (aiErr) {
     const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
     console.error('[onboarding/chat] IA indisponível:', aiErrMsg)
+    Sentry.captureException(aiErr, { tags: { module: 'onboarding-chat', operation: 'askAI' }, extra: { conversaId, leadId } })
     // Cria escalação para o CRM atender o lead manualmente
     let escalacaoId: string | undefined
     try {
@@ -259,6 +262,7 @@ export async function POST(req: Request) {
       })
     } catch (err) {
       console.error('[onboarding/chat] erro ao criar escalação de falha IA:', err)
+      Sentry.captureException(err, { tags: { module: 'onboarding-chat', operation: 'escalacao-falha-ia' }, extra: { conversaId, leadId } })
     }
     // Notifica equipe no sino do CRM
     import('@/lib/notificacoes')
@@ -305,6 +309,7 @@ export async function POST(req: Request) {
       })
     } catch (err) {
       console.error('[onboarding/chat] erro ao criar escalação:', err)
+      Sentry.captureException(err, { tags: { module: 'onboarding-chat', operation: 'escalacao-humano' }, extra: { conversaId, leadId } })
     }
 
     if (conversaId) addMensagens(conversaId, message, escalInfo.textoLimpo)

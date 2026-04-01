@@ -75,6 +75,7 @@ import './listar-comunicados'
 import './listar-documentos-pendentes'
 import './aprovar-documento'
 import './resumir-documento'
+import './anexar-documento-chat'
 
 // ─── Tools de email ───────────────────────────────────────────────────────────
 import './classificar-email'

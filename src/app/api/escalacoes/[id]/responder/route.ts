@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
@@ -79,6 +80,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       reformulado = result.text?.trim() || null
     } catch (err) {
       console.error('[escalacoes/responder] erro ao reformular com IA:', err)
+      Sentry.captureException(err, { tags: { module: 'escalacoes-responder', operation: 'reformular-ia' } })
     }
 
     if (!reformulado) {

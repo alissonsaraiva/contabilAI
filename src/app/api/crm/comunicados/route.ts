@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -85,6 +86,7 @@ export async function POST(req: Request) {
       // Falha no upload — desfaz o comunicado para evitar registro sem anexo
       await prisma.comunicado.delete({ where: { id: comunicado.id } }).catch(() => {})
       console.error('[comunicados] falha no upload do anexo:', err)
+      Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'upload-anexo' }, extra: { comunicadoId: comunicado.id } })
       return NextResponse.json({ error: 'Falha ao enviar o anexo. Tente novamente.' }, { status: 502 })
     }
   } else if (anexoUrlSistema && anexoNomeSistema) {
@@ -101,9 +103,10 @@ export async function POST(req: Request) {
   if (comunicado.publicado) {
     indexarAsync('comunicado', comunicado)
     if (enviarEmail) {
-      enviarComunicadoPorEmail(comunicado.id).catch((err: unknown) =>
-        console.error('[crm/comunicados] erro ao enviar comunicado por email:', { comunicadoId: comunicado.id, err }),
-      )
+      enviarComunicadoPorEmail(comunicado.id).catch((err: unknown) => {
+        console.error('[crm/comunicados] erro ao enviar comunicado por email:', { comunicadoId: comunicado.id, err })
+        Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'enviar-email' }, extra: { comunicadoId: comunicado.id } })
+      })
     }
     // Push broadcast para todos os clientes ativos (fire-and-forget)
     prisma.cliente.findMany({

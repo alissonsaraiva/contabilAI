@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { processarEmailRecebido } from '@/lib/email/processar'
 import type { EmailRecebido } from '@/lib/email/imap'
@@ -84,6 +85,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ...resultado })
   } catch (err) {
     console.error('[email/inbound] Erro ao processar:', err)
+    Sentry.captureException(err, { tags: { module: 'email-inbound', operation: 'processar-email' } })
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 }

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { criarDocumento } from '@/lib/services/documentos'
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
     })
   } catch (err) {
     console.error('[portal/documentos/upload] falha ao salvar documento:', err)
+    Sentry.captureException(err, { tags: { module: 'portal-documentos-upload', operation: 'criarDocumento' }, extra: { clienteId } })
     return NextResponse.json({ error: 'Falha ao enviar o documento. Tente novamente.' }, { status: 502 })
   }
 

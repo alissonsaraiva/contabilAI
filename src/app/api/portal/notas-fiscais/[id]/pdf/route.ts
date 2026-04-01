@@ -2,6 +2,7 @@
  * GET /api/portal/notas-fiscais/[id]/pdf — proxy autenticado para PDF da Spedy
  * Necessário porque o cliente não tem acesso direto à API Spedy
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
@@ -70,6 +71,7 @@ export async function GET(
     })
   } catch (err) {
     logger.error('portal-nfse-pdf-falhou', { notaId: nota.id, err })
+    Sentry.captureException(err, { tags: { module: 'portal-nfse', operation: 'pdf' }, extra: { notaId: nota.id } })
     return NextResponse.json({ error: 'Erro ao obter PDF' }, { status: 500 })
   }
 }

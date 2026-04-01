@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { auth } from '@/lib/auth'
 import { getUploadUrl, storageKeys } from '@/lib/storage'
 import { NextResponse } from 'next/server'
@@ -56,6 +57,7 @@ export async function POST(req: Request) {
     uploadUrl = await getUploadUrl(key, contentType)
   } catch (err) {
     console.error('[upload] falha ao gerar URL assinada:', err)
+    Sentry.captureException(err, { tags: { module: 'upload', operation: 'getUploadUrl' }, extra: { key, contentType } })
     return NextResponse.json({ error: 'Serviço de storage indisponível. Tente novamente.' }, { status: 502 })
   }
 

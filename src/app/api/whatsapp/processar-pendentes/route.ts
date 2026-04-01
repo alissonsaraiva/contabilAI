@@ -12,6 +12,7 @@
  * Isso dispara 5x por minuto (a cada 12s). Para 4s de debounce é suficiente.
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { processarMensagensPendentes } from '@/lib/whatsapp/processar-pendentes'
 import '@/lib/ai/tools'
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[processar-pendentes] erro geral:', msg)
+    Sentry.captureException(err, { tags: { module: 'cron-processar-pendentes' } })
     return NextResponse.json({ ok: false, erro: msg }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 /**
  * POST /api/crm/notas-fiscais/[id]/entregar — envia PDF ao cliente
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { entregarNotaCliente } from '@/lib/services/notas-fiscais'
@@ -32,6 +33,7 @@ export async function POST(
     return NextResponse.json({ sucesso: true })
   } catch (err) {
     logger.error('api-crm-entregar-nfse', { id, canal, err })
+    Sentry.captureException(err, { tags: { module: 'crm-nfse', operation: 'entregar' }, extra: { id, canal } })
     const msg = err instanceof Error ? err.message : 'Erro interno'
     return NextResponse.json({ error: msg }, { status: 500 })
   }

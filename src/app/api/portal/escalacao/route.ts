@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
@@ -67,9 +68,10 @@ export async function POST(req: Request) {
   })
 
   // Notifica equipe CRM
-  notificarEscalacaoPortal(clienteId, escalacao.id).catch((err: unknown) =>
-    console.error('[portal/escalacao] erro ao notificar escalacao_portal:', { escalacaoId: escalacao.id, err }),
-  )
+  notificarEscalacaoPortal(clienteId, escalacao.id).catch((err: unknown) => {
+    console.error('[portal/escalacao] erro ao notificar escalacao_portal:', { escalacaoId: escalacao.id, err })
+    Sentry.captureException(err, { tags: { module: 'portal-escalacao', operation: 'notificar-portal' }, extra: { escalacaoId: escalacao.id, clienteId } })
+  })
 
   return NextResponse.json({ ok: true, escalacaoId: escalacao.id })
 }

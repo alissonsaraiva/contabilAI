@@ -1,6 +1,7 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
-import { askAI, detectarEscalacao, SYSTEM_NFSE_INSTRUCOES } from '@/lib/ai/ask'
+import { askAI, detectarEscalacao, SYSTEM_NFSE_INSTRUCOES_PORTAL } from '@/lib/ai/ask'
 import { getAiConfig } from '@/lib/ai/config'
 import { getOrCreateConversaSession, getHistorico, addMensagens, addMensagemUsuario } from '@/lib/ai/conversa'
 import { classificarIntencao } from '@/lib/ai/classificar-intencao'
@@ -87,7 +88,17 @@ export async function POST(req: Request) {
   // Busca dados do titular da empresa para contexto da IA
   const clienteTitular = await prisma.cliente.findUnique({
     where:  { empresaId },
-    select: { id: true, nome: true, planoTipo: true, valorMensal: true, vencimentoDia: true, cidade: true, uf: true, status: true, empresa: { select: { regime: true } } },
+    select: {
+      id: true, nome: true, planoTipo: true, valorMensal: true, vencimentoDia: true,
+      cidade: true, uf: true, status: true,
+      empresa: { select: { regime: true } },
+      cobrancasAsaas: {
+        where:   { status: { in: ['PENDING', 'OVERDUE'] } },
+        orderBy: { vencimento: 'asc' as const },
+        take:    1,
+        select:  { valor: true, vencimento: true, status: true, pixCopiaECola: true, linkBoleto: true, atualizadoEm: true },
+      },
+    },
   })
 
   // Para sócios, vincula conversa ao clienteId do titular; titulares usam o próprio id.
@@ -165,7 +176,7 @@ REGRAS DE ATENDIMENTO:
 
   // NFS-e: injeta instruções de emissão quando o escritório tem Spedy configurado
   if (escritorio?.spedyApiKey) {
-    systemExtra += `\n\n${SYSTEM_NFSE_INSTRUCOES}`
+    systemExtra += `\n\n${SYSTEM_NFSE_INSTRUCOES_PORTAL}`
   }
 
   // RISCO-3: Injeta dados do sócio no systemExtra quando aplicável
@@ -178,6 +189,45 @@ REGRAS DE ATENDIMENTO:
       dadosSocio.participacao != null ? `- Participação na empresa: ${dadosSocio.participacao}%` : null,
     ].filter(Boolean).join('\n')
     systemExtra += `\n\n${linhasSocio}`
+  }
+
+  // ── Contexto financeiro Asaas detalhado ─────────────────────────────────────
+  // Injeta dados da cobrança em aberto (PIX, boleto) para que a IA possa
+  // responder diretamente sobre pagamentos sem depender de tool call.
+  if (clienteTitular) {
+    const cob = clienteTitular.cobrancasAsaas?.[0]
+    if (clienteTitular.status === 'inadimplente') {
+      if (cob) {
+        const valorStr = Number(cob.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        const vencStr  = new Date(cob.vencimento).toLocaleDateString('pt-BR')
+        const diasStr  = cob.vencimento < new Date()
+          ? ` (${Math.floor((Date.now() - new Date(cob.vencimento).getTime()) / 86400000)}d em atraso)`
+          : ''
+        const pixPodeEstarExpirado = !cob.atualizadoEm
+          || (Date.now() - new Date(cob.atualizadoEm).getTime()) > 20 * 3600 * 1000
+        const pagStr = cob.pixCopiaECola && !pixPodeEstarExpirado
+          ? `PIX Copia e Cola: ${cob.pixCopiaECola}`
+          : cob.linkBoleto
+          ? `Link do boleto: ${cob.linkBoleto}`
+          : 'PIX/boleto pode estar expirado — use gerarSegundaViaAsaas para gerar nova via'
+        const avisoExpiry = cob.pixCopiaECola && pixPodeEstarExpirado
+          ? '\nATENÇÃO: o PIX armazenado pode estar expirado (>20h). Se o cliente disser que não funciona, use gerarSegundaViaAsaas imediatamente.'
+          : ''
+        systemExtra += `\n\nATENÇÃO — CLIENTE INADIMPLENTE: Cobrança em aberto de *${valorStr}* vencida em *${vencStr}*${diasStr}.\n${pagStr}${avisoExpiry}\nSe o cliente perguntar sobre boleto, PIX ou pagamento, responda com os dados acima. Se disser que já pagou, oriente que a confirmação pode levar alguns minutos — caso persista, escale com ##HUMANO##.`
+      } else {
+        systemExtra += `\n\nATENÇÃO — CLIENTE INADIMPLENTE: Sem cobrança Asaas registrada. Use gerarSegundaViaAsaas para criar nova cobrança se o cliente solicitar.`
+      }
+    } else if (clienteTitular.status === 'ativo' && cob) {
+      const valorStr     = Number(cob.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      const vencStr      = new Date(cob.vencimento).toLocaleDateString('pt-BR')
+      const diasParaVenc = Math.ceil((new Date(cob.vencimento).getTime() - Date.now()) / 86400000)
+      const pagStr = cob.pixCopiaECola
+        ? `PIX Copia e Cola: ${cob.pixCopiaECola}`
+        : cob.linkBoleto
+        ? `Link do boleto: ${cob.linkBoleto}`
+        : 'Dados de pagamento indisponíveis — use buscarCobrancaAberta para obter'
+      systemExtra += `\n\nCONTEXTO FINANCEIRO: Cobrança de *${valorStr}* com vencimento em *${vencStr}*${diasParaVenc >= 0 ? ` (em ${diasParaVenc} dia(s))` : ' (vencida)'}.\n${pagStr}\nSe o cliente perguntar sobre boleto, PIX ou cobrança, responda com os dados acima.`
+    }
   }
 
   // FALHA-1/RISCO-2: Injeta escalações abertas deste cliente no contexto da IA
@@ -213,6 +263,7 @@ REGRAS DE ATENDIMENTO:
           clienteId:     clienteIdParaConversa,
           empresaId,
           solicitanteAI: 'portal',
+          conversaId,
         },
       })
 
@@ -222,6 +273,7 @@ ${resultado.resposta}
 Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigável. Não mencione "agente" ou "banco de dados".`
     } catch (err) {
       console.error('[portal/chat] Falha ao executar agente, conversa:', conversaId, err)
+      Sentry.captureException(err, { tags: { module: 'portal-chat', operation: 'agent' }, extra: { conversaId, clienteId: clienteIdParaConversa } })
       systemExtra += `\n\nAVISO: Houve uma instabilidade ao consultar dados em tempo real. Se o usuário pediu informações específicas, informe que os sistemas estão com lentidão e peça para tentar novamente em instantes.`
       import('@/lib/notificacoes')
         .then(({ notificarAgenteFalhou }) =>
@@ -252,6 +304,7 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
   } catch (aiErr) {
     const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
     console.error('[portal/chat] IA indisponível:', aiErrMsg)
+    Sentry.captureException(aiErr, { tags: { module: 'portal-chat', operation: 'askAI' }, extra: { conversaId, clienteId: clienteIdParaConversa } })
     import('@/lib/notificacoes')
       .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
       .catch((notifErr: unknown) =>
@@ -297,9 +350,13 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
           .catch((notifErr: unknown) =>
             console.error('[portal/chat] erro ao notificar escalacao_portal:', { escalacaoId: esc.id, notifErr }),
           )
-      }).catch(err => console.error('[portal/chat] Falha ao criar escalação:', err))
+      }).catch(err => {
+        console.error('[portal/chat] Falha ao criar escalação:', err)
+        Sentry.captureException(err, { tags: { module: 'portal-chat', operation: 'criar-escalacao' }, extra: { conversaId, clienteId: clienteIdParaConversa } })
+      })
     } catch (err) {
       console.error('[portal/chat] Falha ao pausar conversa após escalação:', err)
+      Sentry.captureException(err, { tags: { module: 'portal-chat', operation: 'pausar-conversa' }, extra: { conversaId, clienteId: clienteIdParaConversa } })
     }
   }
 

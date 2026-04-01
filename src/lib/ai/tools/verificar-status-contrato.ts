@@ -36,7 +36,7 @@ const verificarStatusContratoTool: Tool = {
     label: 'Verificar status do contrato',
     descricao: 'Consulta o status do contrato (enviado, assinado, pendente) e retorna o link de assinatura quando disponível.',
     categoria: 'Contratos',
-    canais: ['crm', 'portal'],
+    canais: ['crm', 'whatsapp', 'portal'],
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {

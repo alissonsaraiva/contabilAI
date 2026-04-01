@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
@@ -55,9 +56,10 @@ export async function PATCH(req: Request, { params }: Params) {
     nomeNovo   !== anterior?.nomeFantasia
 
   if (cnpjNovo && dadosMudaram) {
-    sincronizarEmpresaNaSpedy(empresa.id).catch(err =>
+    sincronizarEmpresaNaSpedy(empresa.id).catch(err => {
       logger.error('empresa-patch-spedy-sync-falhou', { empresaId: empresa.id, err })
-    )
+      Sentry.captureException(err, { tags: { module: 'crm-empresas', operation: 'spedy-sync' }, extra: { empresaId: empresa.id } })
+    })
   }
 
   return NextResponse.json(empresa)

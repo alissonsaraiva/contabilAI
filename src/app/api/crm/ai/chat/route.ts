@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
@@ -256,6 +257,7 @@ ${resultado.resposta}
 Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, conversacional e objetivo. Não mencione que consultou um "agente" ou "banco de dados" — apenas apresente as informações como se fossem seu conhecimento atual.`
     } catch (err) {
       // Agente falhou — notifica o admin via central de notificações, não o operador no chat
+      Sentry.captureException(err, { tags: { module: 'crm-chat', operation: 'agent' }, extra: { clienteId, leadId } })
       const { notificarAgenteFalhou } = await import('@/lib/notificacoes')
       notificarAgenteFalhou(err instanceof Error ? err.message : String(err)).catch((notifErr: unknown) =>
         console.error('[crm/ai/chat] erro ao notificar agente_falhou (agente):', notifErr),
@@ -282,6 +284,7 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, convers
   } catch (aiErr) {
     const aiErrMsg = (aiErr as Error).message ?? String(aiErr)
     console.error('[crm/ai/chat] IA indisponível:', aiErrMsg)
+    Sentry.captureException(aiErr, { tags: { module: 'crm-chat', operation: 'askAI' }, extra: { clienteId, leadId } })
     import('@/lib/notificacoes')
       .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
       .catch((notifErr: unknown) =>

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
@@ -77,6 +78,7 @@ export async function POST(
       }
     } catch (err) {
       console.error('[conversas/mensagem] erro ao entregar via escalação:', err)
+      Sentry.captureException(err, { tags: { module: 'conversas-mensagem', operation: 'escalacao-onboarding' }, extra: { conversaId: id } })
     }
     return NextResponse.json({ ok: true })
   }

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { embedText, searchSimilar, searchHybrid } from '@/lib/rag'
 import type { SearchOpts, SearchResult } from '@/lib/rag'
 import type { TipoConhecimento, CanalRAG } from '@/lib/rag/types'
@@ -134,10 +135,9 @@ Use ##HUMANO## apenas quando realmente necessário — não para dúvidas simple
 
 // ─── Instruções condicionais: NFS-e via Spedy ────────────────────────────────
 // Injetadas APENAS quando o escritório tem Spedy configurado.
-// Usar em: WhatsApp, Portal e CRM — com variantes distintas.
+// Variantes: WhatsApp (SYSTEM_NFSE_INSTRUCOES_WHATSAPP), Portal (SYSTEM_NFSE_INSTRUCOES_PORTAL), CRM (SYSTEM_NFSE_INSTRUCOES_CRM)
 
-/** Para WhatsApp e Portal (cliente como solicitante) */
-export const SYSTEM_NFSE_INSTRUCOES = `## Emissão de Nota Fiscal de Serviço (NFS-e)
+const NFSE_BASE = `## Emissão de Nota Fiscal de Serviço (NFS-e)
 
 O escritório oferece emissão de NFS-e diretamente pelo assistente. Você pode solicitar emissão, consultar e reenviar notas por aqui.
 
@@ -163,12 +163,26 @@ O escritório oferece emissão de NFS-e diretamente pelo assistente. Você pode 
 ### Consulta de notas
 - Use \`consultarNotasFiscais\` para responder perguntas como "qual minha última nota?", "emitiu nota em janeiro?", "preciso do número da nota".
 
-### Reenvio
-- Se o cliente pedir para reenviar a nota, use \`enviarNotaFiscalCliente\`. No portal, oriente a baixar o PDF diretamente.
-
 ### Se não conseguir emitir
 - Se \`verificarConfiguracaoNfse\` retornar que o cliente não está habilitado, explique os motivos e abra um chamado via \`criarOrdemServico\` com tipo \`emissao_documento\` com todos os dados coletados.
 - Se a emissão falhar, abra automaticamente um chamado via \`criarOrdemServico\` incluindo todos os dados e o motivo do erro — nunca deixe o cliente sem resposta.`
+
+/** Para WhatsApp (cliente como solicitante via WhatsApp) */
+export const SYSTEM_NFSE_INSTRUCOES_WHATSAPP = NFSE_BASE + `
+
+### Reenvio
+- Se o cliente pedir para reenviar a nota, use \`enviarNotaFiscalCliente\` com canal \`whatsapp\` para reenviar o PDF/XML por aqui, ou \`email\` se o cliente pedir por e-mail.`
+
+/** Para Portal (cliente como solicitante via portal web) */
+export const SYSTEM_NFSE_INSTRUCOES_PORTAL = NFSE_BASE + `
+
+### Reenvio / Download
+- As notas autorizadas ficam disponíveis na seção "Notas Fiscais" do portal para download de PDF e XML.
+- Se o cliente pedir para reenviar, oriente a baixar diretamente pelo portal. Se preferir receber por e-mail, use \`enviarNotaFiscalCliente\` com canal \`email\`.
+- Não use canal \`whatsapp\` no reenvio — o cliente está no portal e pode baixar aqui mesmo.`
+
+/** @deprecated Use SYSTEM_NFSE_INSTRUCOES_WHATSAPP ou SYSTEM_NFSE_INSTRUCOES_PORTAL */
+export const SYSTEM_NFSE_INSTRUCOES = SYSTEM_NFSE_INSTRUCOES_WHATSAPP
 
 /** Para CRM (operador como solicitante) */
 export const SYSTEM_NFSE_INSTRUCOES_CRM = `## Emissão de Nota Fiscal de Serviço (NFS-e) — Modo Operador
@@ -285,6 +299,7 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
       }
     } catch (err) {
       console.error('[askAI] erro ao atualizar health do provider de embedding:', err)
+      Sentry.captureException(err, { tags: { module: 'ask-ai', operation: 'health-update' } })
     }
   }
 

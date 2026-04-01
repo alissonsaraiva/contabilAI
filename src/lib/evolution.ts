@@ -1,5 +1,6 @@
 // Cliente para Evolution API (open-source WhatsApp API)
 // Docs: https://doc.evolution-api.com
+import * as Sentry from '@sentry/nextjs'
 
 export type EvolutionConfig = {
   baseUrl: string
@@ -61,6 +62,11 @@ function circuitFailure(): void {
     circuit.state    = 'open'
     circuit.openedAt = Date.now()
     console.error('[evolution] circuit breaker aberto após', circuit.failures, 'falhas consecutivas')
+    Sentry.captureMessage('Evolution API circuit breaker aberto', {
+      level: 'error',
+      tags:  { module: 'evolution', operation: 'circuit-breaker' },
+      extra: { failures: circuit.failures },
+    })
   }
 }
 

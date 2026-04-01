@@ -5,6 +5,7 @@
  *   modo 'sincronizar' → cria ou atualiza empresa na Spedy via conta Owner
  *   modo 'conectar'    → recebe apiKey própria do cliente e salva
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -104,6 +105,7 @@ export async function POST(
       return NextResponse.json({ sucesso: true, acao: resultado.acao })
     } catch (err) {
       logger.error('api-spedy-sincronizar-empresa', { clienteId: id, err })
+      Sentry.captureException(err, { tags: { module: 'crm-spedy', operation: 'sincronizar-empresa' }, extra: { clienteId: id } })
       const msg = err instanceof Error ? err.message : 'Erro ao sincronizar empresa na Spedy'
       return NextResponse.json({ error: msg }, { status: 422 })
     }

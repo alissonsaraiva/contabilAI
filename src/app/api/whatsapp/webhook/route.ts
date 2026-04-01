@@ -2,12 +2,13 @@ import { prisma } from '@/lib/prisma'
 import { emitWhatsAppRefresh } from '@/lib/event-bus'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import type { EvolutionConfig } from '@/lib/evolution'
+import * as Sentry from '@sentry/nextjs'
 import {
   getOrCreateConversaWhatsapp,
   getHistorico,
 } from '@/lib/ai/conversa'
 import { sendHumanLike } from '@/lib/whatsapp/human-like'
-import { downloadMedia, detectMediaType, extractMediaCaption, extractMimeType, extractPdfText } from '@/lib/whatsapp/media'
+import { downloadMedia, downloadMediaDirect, detectMediaType, extractMediaCaption, extractMimeType, extractPdfText } from '@/lib/whatsapp/media'
 import { transcribeAudio } from '@/lib/ai/transcribe'
 import type { AIMessageContentPart } from '@/lib/ai/providers/types'
 import { indexarAsync } from '@/lib/rag/indexar-async'
@@ -490,6 +491,7 @@ export async function POST(req: Request) {
       } else if (mediaType === 'image') {
         try {
           const media = await downloadMedia(cfg, { key, message: msg! })
+            ?? await downloadMediaDirect(msg as Record<string, unknown>)
           if (media) {
             const base64 = media.buffer.toString('base64')
             mediaContentParts = [
@@ -517,6 +519,7 @@ export async function POST(req: Request) {
       } else if (mediaType === 'document') {
         try {
           const media = await downloadMedia(cfg, { key, message: msg! })
+            ?? await downloadMediaDirect(msg as Record<string, unknown>)
           if (media) {
             savedMediaBuffer   = media.buffer
             savedMediaMimeType = media.mimeType
@@ -612,6 +615,7 @@ export async function POST(req: Request) {
     lastResponse.set(remoteJid, Date.now())
   } catch (err) {
     console.error('[whatsapp/webhook] erro:', err)
+    Sentry.captureException(err, { tags: { module: 'whatsapp-webhook' } })
   }
 
   return new Response('ok', { status: 200 })

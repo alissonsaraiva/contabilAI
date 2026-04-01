@@ -12,6 +12,7 @@
  *   invoice.canceled       → idem
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { prisma } from '@/lib/prisma'
@@ -62,13 +63,14 @@ export async function POST(
 
   // 3. Responde 200 imediatamente — processamento em background
   // (Spedy exige resposta rápida para não marcar webhook como falho)
-  const processamento = processarWebhookSpedy(payload).catch(err =>
+  const processamento = processarWebhookSpedy(payload).catch(err => {
     logger.error('spedy-webhook-processamento-falhou', {
       event:   payload.event,
       spedyId: payload.data?.id,
       err,
     })
-  )
+    Sentry.captureException(err, { tags: { module: 'webhook-spedy', event: payload.event }, extra: { spedyId: payload.data?.id } })
+  })
 
   // Aguarda apenas 1s para dar chance ao processamento sem bloquear
   await Promise.race([

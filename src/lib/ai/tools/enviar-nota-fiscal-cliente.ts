@@ -35,11 +35,18 @@ const enviarNotaFiscalClienteTool: Tool = {
     canais: ['crm', 'whatsapp', 'portal'],
   },
 
-  async execute(input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {
+  async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
+    // Quando chamado pelo portal e nenhum canal foi especificado, default para 'portal'
+    // (o cliente já está no portal e pode baixar direto — não precisa enviar via WhatsApp)
+    const inputComDefault = {
+      ...input,
+      canal: input.canal ?? (ctx.solicitanteAI === 'portal' ? 'portal' : undefined),
+    }
+
     const parsed = z.object({
       notaFiscalId: z.string().min(1),
       canal:        z.enum(['whatsapp', 'email', 'portal']),
-    }).safeParse(input)
+    }).safeParse(inputComDefault)
 
     if (!parsed.success) {
       const issue = parsed.error.issues[0]

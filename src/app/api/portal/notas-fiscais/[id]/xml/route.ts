@@ -1,6 +1,7 @@
 /**
  * GET /api/portal/notas-fiscais/[id]/xml — proxy autenticado para XML da Spedy
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
@@ -69,6 +70,7 @@ export async function GET(
     })
   } catch (err) {
     logger.error('portal-nfse-xml-falhou', { notaId: nota.id, err })
+    Sentry.captureException(err, { tags: { module: 'portal-nfse', operation: 'xml' }, extra: { notaId: nota.id } })
     return NextResponse.json({ error: 'Erro ao obter XML' }, { status: 500 })
   }
 }

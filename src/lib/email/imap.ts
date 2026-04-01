@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { prisma } from '@/lib/prisma'
@@ -137,7 +138,10 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
         // "Connection not available" pode ocorrer quando o socket fecha após a última
         // mensagem ser entregue (ex: socket timeout do servidor). Os emails já coletados
         // em `emails` são válidos — apenas abortamos o fetch sem propagar o erro.
-        if (iterErr?.code !== 'NoConnection') throw iterErr
+        if (iterErr?.code !== 'NoConnection') {
+          Sentry.captureException(iterErr, { tags: { module: 'email-imap', operation: 'fetch-messages' } })
+          throw iterErr
+        }
         console.error('[imap] Conexão encerrada durante fetch, emails parciais:', emails.length)
       }
     } finally {

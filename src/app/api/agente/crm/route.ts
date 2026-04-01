@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { executarAgente } from '@/lib/ai/agent'
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
     return NextResponse.json(resultado)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro interno'
+    Sentry.captureException(err, { tags: { module: 'agente-crm', operation: 'executarAgente' } })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
