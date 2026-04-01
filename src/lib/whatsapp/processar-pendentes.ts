@@ -124,6 +124,7 @@ export async function processarMensagensPendentes(): Promise<{
       // (webhook salva placeholder quando a Evolution API está lenta no momento do recebimento)
       let mediaContentParts: AIMessageContentPart[] | null = null
       const textos: string[] = []
+      let textoExtraidoPdf: string | null = null  // texto do PDF — só para a IA, não para exibição
 
       for (let i = msgs.length - 1; i >= 0; i--) {
         const m = msgs[i]
@@ -155,10 +156,13 @@ export async function processarMensagensPendentes(): Promise<{
               if (media.mimeType.includes('pdf')) {
                 const pdfText = await extractPdfText(media.buffer)
                 if (pdfText) {
-                  const textoDoc = `[Documento recebido: ${media.fileName ?? 'arquivo'}]\n\n${pdfText.slice(0, 3000)}`
-                  updateData.conteudo = textoDoc
+                  // Armazena só o label curto como conteudo (visível no CRM)
+                  // O texto extraído vai para a IA via systemExtra — não para a conversa
+                  const textoLabel = `[Documento recebido: ${media.fileName ?? 'arquivo'}]`
+                  updateData.conteudo = textoLabel
                   await prisma.mensagemIA.update({ where: { id: m.id }, data: updateData })
-                  textos.unshift(textoDoc)
+                  textos.unshift(textoLabel)
+                  textoExtraidoPdf = pdfText.slice(0, 3000)
                   continue
                 }
               }
@@ -485,6 +489,12 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
         if (roteado.classificado) {
           systemExtra += `\n\n${roteado.contextoIA}`
         }
+      }
+
+      // Injeta conteúdo extraído do PDF no contexto da IA (não na conversa visível)
+      if (textoExtraidoPdf) {
+        systemExtra += `\n\n--- CONTEÚDO DO DOCUMENTO ---\n${textoExtraidoPdf}\n--- FIM DO DOCUMENTO ---`
+        systemExtra += `\n\nREGRA — RESPOSTA A DOCUMENTO: Use o conteúdo acima APENAS para classificar e registrar internamente. NÃO resuma, NÃO liste valores, NÃO descreva o conteúdo do documento na resposta. Responda apenas confirmando o recebimento, informando que vai anexar no sistema e no portal do cliente, e perguntando se o cliente deseja mais alguma coisa.`
       }
 
       // Chama IA

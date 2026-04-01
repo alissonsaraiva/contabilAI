@@ -103,9 +103,20 @@ const anexarDocumentoChatTool: Tool = {
     const fileName    = mensagem.mediaFileName ?? `documento_${Date.now()}.bin`
     const canal       = solicitanteAI === 'portal' ? 'portal' : 'whatsapp'
 
+    // Busca empresaId do cliente para vincular também à empresa (PJ)
+    let empresaId: string | undefined
+    if (clienteId) {
+      const cliente = await prisma.cliente.findUnique({
+        where:  { id: clienteId },
+        select: { empresaId: true },
+      }).catch(() => null)
+      empresaId = cliente?.empresaId ?? undefined
+    }
+
     try {
       const doc = await criarDocumento({
         clienteId,
+        empresaId,
         leadId,
         arquivo: {
           buffer:   mensagem.mediaBuffer as Buffer,

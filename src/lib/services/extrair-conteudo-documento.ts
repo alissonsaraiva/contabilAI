@@ -9,7 +9,11 @@
  *   text/plain   → leitura direta do buffer ou fetch da URL
  *   text/csv     → leitura direta (limitada a 6k chars)
  *   outros       → null (não processável pela IA)
+ *
+ * NOTA: URLs do R2 (STORAGE_PUBLIC_URL) requerem URL assinada — resolverBuffer
+ * gera automaticamente via getDownloadUrl antes de fazer fetch.
  */
+import { getDownloadUrl } from '@/lib/storage'
 
 export type ConteudoExtraido =
   | { tipo: 'texto';  texto: string }
@@ -88,10 +92,24 @@ async function resolverBuffer(buffer?: Buffer, url?: string): Promise<Buffer | n
   if (buffer) return buffer
   if (!url) return null
   try {
+    let fetchUrl = url
+
+    // R2 não é público — gerar URL assinada quando a URL pertence ao bucket
+    const publicBase = (process.env.STORAGE_PUBLIC_URL ?? '').replace(/\/$/, '')
+    if (publicBase && url.startsWith(publicBase)) {
+      const key = url.slice(publicBase.length + 1)
+      try {
+        fetchUrl = await getDownloadUrl(key, 120)
+      } catch (err) {
+        console.warn('[extrairConteudo] resolverBuffer falha ao gerar URL assinada:', key, err)
+        return null
+      }
+    }
+
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 15_000)
     try {
-      const res = await fetch(url, { signal: controller.signal })
+      const res = await fetch(fetchUrl, { signal: controller.signal })
       if (!res.ok) {
         console.warn('[extrairConteudo] resolverBuffer HTTP', res.status, url.slice(0, 100))
         return null

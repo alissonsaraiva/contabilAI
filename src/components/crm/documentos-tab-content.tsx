@@ -294,7 +294,7 @@ export function DocumentosTabContent({ documentos: documentosIniciais, uploadSlo
                             </span>
                           )}
                           <a
-                            href={d.url}
+                            href={`/api/crm/documentos/${d.id}/download`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-primary transition-colors"

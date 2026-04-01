@@ -104,10 +104,9 @@ export async function roterarDocumentoWhatsapp(opts: {
     const contextoIA = [
       `--- DOCUMENTO RECEBIDO ---`,
       `Tipo identificado: ${json.tipo} (confiança: ${json.confianca})`,
-      camposFormatados ? `Campos extraídos:\n${camposFormatados}` : null,
+      camposFormatados ? `Campos extraídos (uso interno — NÃO mencionar ao cliente):\n${camposFormatados}` : null,
       `--- FIM ---`,
-      `Informe ao cliente o tipo de documento identificado e pergunte se deseja que ele seja cadastrado no sistema (aba de documentos do escritório). Se confirmar, use a ferramenta \`anexarDocumentoChat\` passando o tipo identificado.`,
-      json.confianca === 'baixa' ? `Se houver dúvida sobre o tipo do documento, pergunte ao cliente antes de oferecer o cadastro.` : null,
+      `Confirme ao cliente que o documento foi recebido e que será anexado no sistema e disponibilizado no portal do cliente. NÃO resuma, NÃO liste valores ou campos extraídos, NÃO descreva o conteúdo. Apenas confirme o recebimento e pergunte se o cliente deseja mais alguma coisa. Se confirmar o cadastro, use a ferramenta \`anexarDocumentoChat\` passando o tipo identificado.`,
     ].filter(Boolean).join('\n')
 
     // Registra interação de documento recebido (fire-and-forget)
