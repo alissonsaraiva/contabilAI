@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { WhatsAppChatPanel } from './whatsapp-chat-panel'
+import { PortalConversaPanel } from './portal-conversa-panel'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -30,10 +31,9 @@ export type EscalacaoWebItem = {
   status: string
 }
 
-type SelectedConversation = {
-  apiPath: string
-  nome: string
-}
+type SelectedConversation =
+  | { type: 'whatsapp'; apiPath: string; nome: string }
+  | { type: 'portal';   conversaId: string; nome: string }
 
 type FilterTab = 'todas' | 'urgentes' | 'voce' | 'ia'
 
@@ -134,12 +134,12 @@ export function AtendimentosWeb({
 
   function handleSelect(c: ConversaWebItem) {
     if (c.canal === 'portal') {
-      router.push(`/crm/atendimentos/conversa/${c.id}`)
+      setSelected({ type: 'portal', conversaId: c.id, nome: getNome(c) })
       return
     }
-    const apiPath = getApiPath(c)
-    if (!apiPath) return
-    setSelected({ apiPath, nome: getNome(c) })
+    // WhatsApp: usa apiPath da entidade vinculada; sem entidade, cai no endpoint por conversaId
+    const apiPath = getApiPath(c) ?? `/api/conversas/${c.id}`
+    setSelected({ type: 'whatsapp', apiPath, nome: getNome(c) })
   }
 
   function filterByBusca(list: ConversaWebItem[]) {
@@ -159,18 +159,19 @@ export function AtendimentosWeb({
   async function handleNovaConversaSelect(action: SelectAction) {
     setNovaConversa(false)
     if (action.canal === 'whatsapp') {
-      setSelected({ apiPath: action.apiPath, nome: action.nome })
+      setSelected({ type: 'whatsapp', apiPath: action.apiPath, nome: action.nome })
     } else {
       try {
         const res  = await fetch(`/api/crm/clientes/${action.clienteId}/portal-chat`)
         const data = await res.json()
         const conversas = data.conversas ?? []
         if (conversas.length > 0) {
-          router.push(`/crm/atendimentos/conversa/${conversas[0].id}`)
+          setSelected({ type: 'portal', conversaId: conversas[0].id, nome: action.nome })
         } else {
           alert(`${action.nome} ainda não tem conversa ativa pelo portal.`)
         }
-      } catch {
+      } catch (err: unknown) {
+        console.error('[atendimentos-web] erro ao buscar conversa portal:', { clienteId: action.clienteId, err })
         alert('Erro ao buscar conversa do portal.')
       }
     }
@@ -351,12 +352,21 @@ export function AtendimentosWeb({
       {/* ─── Painel direito ────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden bg-surface-container-low">
         {selected ? (
-          <WhatsAppChatPanel
-            key={selected.apiPath}
-            apiPath={selected.apiPath}
-            nomeExibido={selected.nome}
-            onClose={() => setSelected(null)}
-          />
+          selected.type === 'portal' ? (
+            <PortalConversaPanel
+              key={selected.conversaId}
+              conversaId={selected.conversaId}
+              nomeExibido={selected.nome}
+              onClose={() => setSelected(null)}
+            />
+          ) : (
+            <WhatsAppChatPanel
+              key={selected.apiPath}
+              apiPath={selected.apiPath}
+              nomeExibido={selected.nome}
+              onClose={() => setSelected(null)}
+            />
+          )
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-card shadow-sm">
@@ -428,7 +438,11 @@ function ConversaSection({
           key={c.id}
           c={c}
           urgente={urgente}
-          isSelected={selected?.apiPath === getApiPath(c)}
+          isSelected={
+            c.canal === 'portal'
+              ? selected?.type === 'portal' && selected.conversaId === c.id
+              : selected?.type === 'whatsapp' && selected.apiPath === (getApiPath(c) ?? `/api/conversas/${c.id}`)
+          }
           onSelect={onSelect}
         />
       ))}

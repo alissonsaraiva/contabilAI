@@ -33,22 +33,26 @@ export default async function AtendimentosPage() {
     prisma.interacao.count({ where: { tipo: 'email_recebido', respondidoEm: null } }).catch(() => 0),
   ])
 
-  // Deduplica: por cliente, lead ou sócio, mantém apenas a conversa mais recente
+  // Deduplica: por cliente+canal, lead+canal ou sócio+canal — permite que o mesmo cliente
+  // apareça com WhatsApp e Portal simultaneamente (cada canal é tratado como conversa distinta)
   const seenCliente = new Set<string>()
   const seenLead    = new Set<string>()
   const seenSocio   = new Set<string>()
   const conversas   = todasConversas.filter(c => {
     if (c.socioId) {
-      if (seenSocio.has(c.socioId)) return false
-      seenSocio.add(c.socioId); return true
+      const key = `${c.socioId}:${c.canal}`
+      if (seenSocio.has(key)) return false
+      seenSocio.add(key); return true
     }
     if (c.clienteId) {
-      if (seenCliente.has(c.clienteId)) return false
-      seenCliente.add(c.clienteId); return true
+      const key = `${c.clienteId}:${c.canal}`
+      if (seenCliente.has(key)) return false
+      seenCliente.add(key); return true
     }
     if (c.leadId) {
-      if (seenLead.has(c.leadId)) return false
-      seenLead.add(c.leadId); return true
+      const key = `${c.leadId}:${c.canal}`
+      if (seenLead.has(key)) return false
+      seenLead.add(key); return true
     }
     return true
   })

@@ -20,17 +20,31 @@ export type HistoricoMsg = { role: 'user' | 'assistant'; content: string }
  * Cria uma nova conversa se não houver registro ou se a última mensagem
  * tiver mais de SESSION_TIMEOUT_H horas.
  */
+// Gera variantes de JID para cobrir migração 12→13 dígitos de celulares BR
+function remoteJidVariants(remoteJid: string): string[] {
+  const digits = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '')
+  const variants = [remoteJid]
+  if (digits.length === 12 && digits.startsWith('55')) {
+    variants.push(`${digits.slice(0, 4)}9${digits.slice(4)}@s.whatsapp.net`)
+  }
+  if (digits.length === 13 && digits.startsWith('55') && digits[4] === '9') {
+    variants.push(`${digits.slice(0, 4)}${digits.slice(5)}@s.whatsapp.net`)
+  }
+  return variants
+}
+
 export async function getOrCreateConversaWhatsapp(
   remoteJid: string,
   opts?: { clienteId?: string; leadId?: string; socioId?: string },
 ): Promise<string> {
   const cutoff       = new Date(Date.now() - SESSION_TIMEOUT_H * 3600 * 1000)
   const cutoffPaused = new Date(Date.now() - PAUSED_REUSE_DAYS * 24 * 3600 * 1000)
+  const jidVariants  = remoteJidVariants(remoteJid)
 
   const existente = await prisma.conversaIA.findFirst({
     where: {
-      canal: 'whatsapp',
-      remoteJid,
+      canal:     'whatsapp',
+      remoteJid: { in: jidVariants },
       // Reutiliza sessão ativa (dentro de 24h) OU pausada (dentro de 7 dias)
       // — limite de 7 dias evita reativar IA para conversas muito antigas
       OR: [

@@ -60,14 +60,28 @@ const phoneCache = new Map<string, {
 }>()
 
 // Normaliza número de telefone para busca — retorna variantes
+// Cobre: com/sem código do país, com/sem 9º dígito (celulares BR)
 function normalizarPhone(remoteJid: string): string[] {
   const digits = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '')
   const variants = new Set<string>([
     digits,
-    digits.length > 2 ? digits.slice(2) : '',   // sem 55
-    digits.length > 4 ? digits.slice(4) : '',   // sem 55+DDD
-    digits.length > 3 ? digits.slice(3) : '',   // sem 55+DDD (DDDs antigos 2 dígitos)
+    digits.length > 2 ? digits.slice(2) : '',  // sem 55
+    digits.length > 4 ? digits.slice(4) : '',  // sem 55+DDD
+    digits.length > 3 ? digits.slice(3) : '',  // sem 55+DDD (DDDs antigos)
   ])
+  // Celulares brasileiros: migração de 8→9 dígitos após o DDD
+  // 12 dígitos (55+DDD+8d) → também tenta com 9 (55+DDD+9+8d = 13d)
+  if (digits.length === 12 && digits.startsWith('55')) {
+    const com9 = digits.slice(0, 4) + '9' + digits.slice(4)
+    variants.add(com9)
+    variants.add(com9.slice(2)) // sem 55
+  }
+  // 13 dígitos (55+DDD+9+8d) → também tenta sem 9 (55+DDD+8d = 12d)
+  if (digits.length === 13 && digits.startsWith('55') && digits[4] === '9') {
+    const sem9 = digits.slice(0, 4) + digits.slice(5)
+    variants.add(sem9)
+    variants.add(sem9.slice(2)) // sem 55
+  }
   return [...variants].filter(v => v.length >= 8)
 }
 
@@ -358,8 +372,28 @@ export async function POST(req: Request) {
       return new Response('paused', { status: 200 })
     }
 
-    // IA desabilitada — mensagem já foi salva se estava pausada; para conversas ativas, descarta
-    if (!aiEnabled) return new Response('ai disabled', { status: 200 })
+    // IA desabilitada — salva a mensagem para manter histórico visível no CRM
+    if (!aiEnabled) {
+      prisma.mensagemIA.create({
+        data: {
+          conversaId,
+          role:             'user',
+          conteudo:         textSanitizado || (mediaType ? `[${mediaType}]` : '[mensagem]'),
+          status:           'sent',
+          aiProcessado:     true,
+          whatsappMsgData:  { key, message: msg } as object,
+        },
+      }).catch((err: unknown) =>
+        console.error('[whatsapp/webhook] erro ao salvar mensagem (ai disabled):', { conversaId, remoteJid, err }),
+      )
+      prisma.conversaIA.update({
+        where: { id: conversaId },
+        data:  { atualizadaEm: new Date(), ultimaMensagemEm: new Date() },
+      }).catch((err: unknown) =>
+        console.error('[whatsapp/webhook] erro ao atualizar conversaIA (ai disabled):', { conversaId, remoteJid, err }),
+      )
+      return new Response('ai disabled', { status: 200 })
+    }
 
     // Carrega histórico persistido
     const historico = await getHistorico(conversaId)
