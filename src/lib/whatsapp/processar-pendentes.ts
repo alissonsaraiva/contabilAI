@@ -50,9 +50,10 @@ export async function processarMensagensPendentes(): Promise<{
       pausadaEm: { not: null, lt: umaHoraAtras },
     },
     data: { pausadaEm: null, pausadoPorId: null },
-  }).catch((err: unknown) =>
-    console.error('[processar-pendentes] erro no auto-resume de conversas pausadas:', err),
-  )
+  }).catch((err: unknown) => {
+    console.error('[processar-pendentes] erro no auto-resume de conversas pausadas:', err)
+    Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'auto-resume' } })
+  })
 
   // Busca conversas WhatsApp com mensagens não processadas cuja última msg chegou há >5s
   const conversas = await prisma.conversaIA.findMany({
@@ -173,7 +174,8 @@ export async function processarMensagensPendentes(): Promise<{
           }
         }
 
-        if (m.conteudo && m.conteudo !== '[áudio]') textos.unshift(m.conteudo)
+        // Filtra placeholders de áudio que falharam no download — não passar literal à IA
+        if (m.conteudo && m.conteudo !== '[áudio]' && m.conteudo !== '[audio]') textos.unshift(m.conteudo)
       }
 
       const textoAgregado = textos.join('\n')
@@ -185,6 +187,32 @@ export async function processarMensagensPendentes(): Promise<{
       const textoParaIA = temDocumentoFalho
         ? textoAgregado.replace(/\[document\]\n?|\n?\[document\]/g, '').trim()
         : textoAgregado
+
+      // Áudio que falhou no download: não chamar a IA (responderia com base no contexto anterior).
+      // Envia mensagem canned pedindo que envie por texto.
+      if (textoAgregado === '[audio]' && !mediaContentParts) {
+        // Alerta Sentry — placeholder chegou no cron; regressão no webhook
+        Sentry.captureMessage('Placeholder [audio] chegou no cron — download falhou silenciosamente', {
+          level: 'warning',
+          tags:  { module: 'processar-pendentes', operation: 'audio-placeholder' },
+          extra: { conversaId: conversa.id, remoteJid: conversa.remoteJid },
+        })
+        const cannedAudio = 'Não consegui ouvir seu áudio. Pode enviar sua mensagem por texto?'
+        try {
+          await sendHumanLike(cfg, conversa.remoteJid ?? '', cannedAudio)
+          await prisma.mensagemIA.create({
+            data: { conversaId: conversa.id, role: 'assistant', conteudo: cannedAudio, status: 'sent' },
+          })
+          await prisma.mensagemIA.updateMany({
+            where:  { conversaId: conversa.id, status: 'pending' },
+            data:   { status: 'sent', aiProcessado: true },
+          })
+        } catch (err) {
+          console.error('[processar-pendentes] erro ao enviar canned response de áudio falho:', { conversaId: conversa.id, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'canned-audio' }, extra: { conversaId: conversa.id } })
+        }
+        continue
+      }
 
       // Documento sem conteúdo extraível: não chamar a IA (responderia bobagem).
       // Envia mensagem canned ao cliente e cria escalação para revisão humana.
@@ -200,9 +228,10 @@ export async function processarMensagensPendentes(): Promise<{
               status:       'sent',
               aiProcessado: true,
             },
-          }).catch((err: unknown) =>
-            console.error('[processar-pendentes] erro ao salvar canned response no DB:', { conversaId: conversa.id, err }),
-          )
+          }).catch((err: unknown) => {
+            console.error('[processar-pendentes] erro ao salvar canned response no DB:', { conversaId: conversa.id, err })
+            Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'salvar-canned-response' }, extra: { conversaId: conversa.id } })
+          })
           const historico = await getHistorico(conversa.id)
           // Verifica se já existe escalação aberta para esta conversa
           const escalacaoExistente = await prisma.escalacao.findFirst({
@@ -222,9 +251,10 @@ export async function processarMensagensPendentes(): Promise<{
                 ultimaMensagem: '[Documento recebido — não foi possível processar automaticamente]',
                 motivoIA:       novoMotivo,
               },
-            }).catch((err: unknown) =>
-              console.error('[processar-pendentes] erro ao atualizar escalação existente:', { conversaId: conversa.id, err }),
-            )
+            }).catch((err: unknown) => {
+              console.error('[processar-pendentes] erro ao atualizar escalação existente:', { conversaId: conversa.id, err })
+              Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'atualizar-escalacao-existente' }, extra: { conversaId: conversa.id } })
+            })
           } else {
             await prisma.escalacao.create({
               data: {
@@ -243,9 +273,10 @@ export async function processarMensagensPendentes(): Promise<{
                 id: esc.id, clienteId: esc.clienteId, leadId: esc.leadId,
                 canal: 'whatsapp', motivoIA: esc.motivoIA, criadoEm: esc.criadoEm,
               })
-            }).catch((err: unknown) =>
-              console.error('[processar-pendentes] erro ao indexar escalação por documento não processado:', { conversaId: conversa.id, err }),
-            )
+            }).catch((err: unknown) => {
+              console.error('[processar-pendentes] erro ao indexar escalação por documento não processado:', { conversaId: conversa.id, err })
+              Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'indexar-escalacao-documento' }, extra: { conversaId: conversa.id } })
+            })
           }
           await prisma.conversaIA.update({
             where: { id: conversa.id },
@@ -253,15 +284,17 @@ export async function processarMensagensPendentes(): Promise<{
           })
         } catch (err) {
           console.error('[processar-pendentes] erro ao escalar documento não processado:', { conversaId: conversa.id, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'escalar-documento' }, extra: { conversaId: conversa.id } })
         }
         // Marca as mensagens como processadas SEM deletar — preserva o [document] visível na conversa
         // (o usuário humano ainda pode clicar e tentar baixar via proxy)
         await prisma.mensagemIA.updateMany({
           where: { id: { in: msgs.map(m => m.id) } },
           data:  { aiProcessado: true, status: 'sent' },
-        }).catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao marcar msgs de documento como processadas:', { conversaId: conversa.id, err }),
-        )
+        }).catch((err: unknown) => {
+          console.error('[processar-pendentes] erro ao marcar msgs de documento como processadas:', { conversaId: conversa.id, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'marcar-msgs-documento-processadas' }, extra: { conversaId: conversa.id } })
+        })
         conversasProcessadas++
         continue
       }
@@ -285,10 +318,11 @@ export async function processarMensagensPendentes(): Promise<{
             ultimaMensagem: textoParaIA.slice(0, 500) || '[mídia enviada]',
             motivoIA:       novoMotivo ?? undefined,
           },
-        }).catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao atualizar histórico de escalação aberta:', { conversaId: conversa.id, err }),
-        )
-        // Garante que a conversa permanece pausada
+        }).catch((err: unknown) => {
+          console.error('[processar-pendentes] erro ao atualizar histórico de escalação aberta:', { conversaId: conversa.id, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'atualizar-historico-escalacao' }, extra: { conversaId: conversa.id } })
+        })
+        // Garante que a conversa permanece pausada — falha silenciosa aceitável (escalação já criada)
         await prisma.conversaIA.update({
           where: { id: conversa.id },
           data:  { pausadaEm: new Date() },
@@ -296,9 +330,10 @@ export async function processarMensagensPendentes(): Promise<{
         await prisma.mensagemIA.updateMany({
           where: { id: { in: msgs.map(m => m.id) } },
           data:  { aiProcessado: true },
-        }).catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao marcar msgs como processadas (escalação aberta):', { conversaId: conversa.id, err }),
-        )
+        }).catch((err: unknown) => {
+          console.error('[processar-pendentes] erro ao marcar msgs como processadas (escalação aberta):', { conversaId: conversa.id, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'marcar-msgs-processadas-escalacao' }, extra: { conversaId: conversa.id } })
+        })
         conversasProcessadas++
         continue
       }
@@ -424,6 +459,7 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
           }
         } catch (err) {
           console.error('[whatsapp/agente] Falha ao executar agente, conversa:', conversa.id, err)
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'executar-agente' }, extra: { conversaId: conversa.id } })
         }
       }
 
@@ -510,6 +546,10 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
 
       let resposta = result.resposta
 
+      // Remove notações internas que não devem aparecer para o cliente
+      // Ex: [Documento: arquivo.pdf] gerado pelo agente ao confirmar envio
+      resposta = resposta.replace(/\[Documento:\s*[^\]]+\]/gi, '').replace(/\n{3,}/g, '\n\n').trim()
+
       // Detecta ##LEAD##
       if (!conversa.clienteId && !conversa.leadId && resposta.includes('##LEAD##')) {
         resposta = resposta.replace(/##LEAD##\s*/g, '').trimStart()
@@ -523,11 +563,8 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
             data:  { leadId: novoLead.id },
           })
         } catch (err) {
-          console.error('[processar-pendentes] erro ao criar lead via ##LEAD##:', {
-            remoteJid,
-            conversaId: conversa.id,
-            err,
-          })
+          console.error('[processar-pendentes] erro ao criar lead via ##LEAD##:', { remoteJid, conversaId: conversa.id, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'criar-lead-hashtag' }, extra: { conversaId: conversa.id, remoteJid } })
         }
       }
 
@@ -555,12 +592,10 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
             motivoIA:  esc.motivoIA,
             criadoEm:  esc.criadoEm,
           })
-        }).catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao indexar escalação no RAG:', {
-            conversaId: conversa.id,
-            err,
-          }),
-        )
+        }).catch((err: unknown) => {
+          console.error('[processar-pendentes] erro ao indexar escalação no RAG:', { conversaId: conversa.id, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'indexar-escalacao-rag' }, extra: { conversaId: conversa.id } })
+        })
         await prisma.conversaIA.update({
           where: { id: conversa.id },
           data:  { pausadaEm: new Date() },
@@ -579,12 +614,14 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
         // Isso evita duplicatas visíveis na conversa.
         await prisma.mensagemIA.deleteMany({
           where: { id: { in: msgs.map(m => m.id) } },
-        }).catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao deletar msgs pending originais:', { conversaId: conversa.id, err }),
-        )
-        atualizarStatusMensagem(mensagemId, 'sent').catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao atualizar status para sent:', { mensagemId, err }),
-        )
+        }).catch((err: unknown) => {
+          console.error('[processar-pendentes] erro ao deletar msgs pending originais:', { conversaId: conversa.id, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'deletar-msgs-pending' }, extra: { conversaId: conversa.id } })
+        })
+        atualizarStatusMensagem(mensagemId, 'sent').catch((err: unknown) => {
+          console.error('[processar-pendentes] erro ao atualizar status para sent:', { mensagemId, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'atualizar-status-sent' }, extra: { mensagemId } })
+        })
       } else {
         Sentry.captureMessage('WhatsApp sendHumanLike falhou após retries', {
           level: 'error',
@@ -594,9 +631,10 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
         atualizarStatusMensagem(mensagemId, 'failed', {
           tentativas: sendResult.attempts,
           erroEnvio:  sendResult.error,
-        }).catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao atualizar status para failed:', { mensagemId, err }),
-        )
+        }).catch((err: unknown) => {
+          console.error('[processar-pendentes] erro ao atualizar status para failed:', { mensagemId, err })
+          Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'atualizar-status-failed' }, extra: { mensagemId } })
+        })
       }
 
       conversasProcessadas++

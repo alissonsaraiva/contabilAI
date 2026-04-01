@@ -76,9 +76,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Falha ao enviar o documento. Tente novamente.' }, { status: 502 })
   }
 
-  notificarDocumentoEnviado({ clienteId, nomeArquivo: file.name }).catch((err: unknown) =>
-    console.error('[portal/documentos/upload] erro ao notificar documento_enviado:', { clienteId, err }),
-  )
+  notificarDocumentoEnviado({ clienteId, nomeArquivo: file.name }).catch((err: unknown) => {
+    console.error('[portal/documentos/upload] erro ao notificar documento_enviado:', { clienteId, err })
+    Sentry.captureException(err, { tags: { module: 'portal-documentos-upload', operation: 'notificar' }, extra: { clienteId } })
+  })
 
   return NextResponse.json(documento)
 }

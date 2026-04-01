@@ -202,10 +202,11 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
 }
 
 // Detecta tipo de mídia a partir da mensagem WhatsApp
-export function detectMediaType(msg: Record<string, unknown>): 'audio' | 'image' | 'document' | null {
+export function detectMediaType(msg: Record<string, unknown>): 'audio' | 'image' | 'document' | 'sticker' | null {
   if (msg.audioMessage || msg.pttMessage) return 'audio'
   if (msg.imageMessage) return 'image'
   if (msg.documentMessage || msg.documentWithCaptionMessage) return 'document'
+  if (msg.stickerMessage) return 'sticker'
   return null
 }
 

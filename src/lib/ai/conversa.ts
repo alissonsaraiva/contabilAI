@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 
 // Número máximo de mensagens enviadas para a IA como contexto
@@ -66,9 +67,10 @@ export async function getOrCreateConversaWhatsapp(
           leadId:    opts.leadId    ?? undefined,
           socioId:   opts.socioId   ?? undefined,
         },
-      }).catch((err: unknown) =>
-        console.error('[conversa] erro ao atualizar identidade (whatsapp):', { conversaId: existente.id, err }),
-      )
+      }).catch((err: unknown) => {
+        console.error('[conversa] erro ao atualizar identidade (whatsapp):', { conversaId: existente.id, err })
+        Sentry.captureException(err, { tags: { module: 'conversa', operation: 'atualizar-identidade-whatsapp' }, extra: { conversaId: existente.id } })
+      })
     }
     return existente.id
   }
@@ -113,9 +115,10 @@ export async function getOrCreateConversaSession(
           clienteId: opts.clienteId ?? undefined,
           leadId:    opts.leadId    ?? undefined,
         },
-      }).catch((err: unknown) =>
-        console.error('[conversa] erro ao atualizar identidade (session):', { conversaId: existente.id, err }),
-      )
+      }).catch((err: unknown) => {
+        console.error('[conversa] erro ao atualizar identidade (session):', { conversaId: existente.id, err })
+        Sentry.captureException(err, { tags: { module: 'conversa', operation: 'atualizar-identidade-session' }, extra: { conversaId: existente.id } })
+      })
     }
     return existente.id
   }
@@ -143,9 +146,10 @@ export function atualizarIdentidadeConversa(
   prisma.conversaIA.update({
     where: { id: conversaId },
     data: { clienteId: opts.clienteId, leadId: opts.leadId },
-  }).catch((err: unknown) =>
-    console.error('[conversa] erro ao atualizar identidade:', { conversaId, err }),
-  )
+  }).catch((err: unknown) => {
+    console.error('[conversa] erro ao atualizar identidade:', { conversaId, err })
+    Sentry.captureException(err, { tags: { module: 'conversa', operation: 'atualizar-identidade' }, extra: { conversaId } })
+  })
 }
 
 // ─── Mensagens ────────────────────────────────────────────────────────────────
@@ -231,6 +235,7 @@ export async function atualizarStatusMensagem(
     },
   }).catch((err) => {
     console.error('[conversa] Falha ao atualizar status da mensagem:', mensagemId, err)
+    Sentry.captureException(err, { tags: { module: 'conversa', operation: 'atualizar-status-mensagem' }, extra: { mensagemId, status } })
   })
 }
 
@@ -310,5 +315,8 @@ function limparConversasAntigas(): void {
   const limite = new Date(Date.now() - RETENCAO_DIAS * 24 * 3600 * 1000)
   prisma.conversaIA.deleteMany({
     where: { atualizadaEm: { lt: limite } },
-  }).catch(() => {})
+  }).catch((err: unknown) => {
+    console.warn('[conversa] falha ao limpar conversas antigas:', err)
+    Sentry.captureException(err, { tags: { module: 'conversa', operation: 'limpar-conversas-antigas' } })
+  })
 }

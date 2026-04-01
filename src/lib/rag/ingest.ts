@@ -1039,7 +1039,9 @@ export async function indexarAgendamento(ag: AgendamentoData): Promise<void> {
   if (!ag.ativo) {
     import('@/lib/rag').then(({ deleteEmbeddings }) =>
       deleteEmbeddings({ documentoId })
-    ).catch(() => {})
+    ).catch((err: unknown) => {
+      console.warn('[ingest] falha ao deletar embeddings de agendamento inativo:', { documentoId, err })
+    })
     return
   }
 

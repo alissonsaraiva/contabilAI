@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { chunkText, embedTexts, storeEmbeddings, listKnowledge } from '@/lib/rag'
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
     return NextResponse.json(entries)
   } catch (err) {
     console.error('[conhecimento] GET error:', err)
+    Sentry.captureException(err, { tags: { module: 'conhecimento-api', operation: 'list' } })
     return NextResponse.json({ error: 'Erro ao conectar ao banco de vetores. Verifique VECTORS_DATABASE_URL e rode a migration.' }, { status: 503 })
   }
 }
@@ -73,6 +75,7 @@ export async function POST(req: Request) {
     await storeEmbeddings(rows, embeddings)
   } catch (err: any) {
     console.error('[conhecimento] POST embed/store error:', err)
+    Sentry.captureException(err, { tags: { module: 'conhecimento-api', operation: 'embed-store' }, extra: { titulo: body.titulo, canal: body.canal, tipo: body.tipo } })
     return NextResponse.json(
       { error: err?.message ?? 'Erro ao gerar embeddings ou salvar no banco de vetores' },
       { status: 502 }

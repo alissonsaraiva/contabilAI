@@ -14,6 +14,7 @@
  * gera automaticamente via getDownloadUrl antes de fazer fetch.
  */
 import { getDownloadUrl } from '@/lib/storage'
+import * as Sentry from '@sentry/nextjs'
 
 export type ConteudoExtraido =
   | { tipo: 'texto';  texto: string }
@@ -58,7 +59,9 @@ export async function extrairConteudoDocumento(
       const result = await pdfParse(buf)
       const texto = result.text.trim().slice(0, MAX_TEXTO_CHARS)
       return texto ? { tipo: 'texto', texto } : null
-    } catch {
+    } catch (err) {
+      console.warn('[extrairConteudo] falha ao parsear PDF:', input.nome, err)
+      Sentry.captureException(err, { tags: { module: 'extrair-conteudo', operation: 'parse-pdf' }, extra: { nome: input.nome } })
       return null
     }
   }
@@ -101,7 +104,8 @@ async function resolverBuffer(buffer?: Buffer, url?: string): Promise<Buffer | n
       try {
         fetchUrl = await getDownloadUrl(key, 120)
       } catch (err) {
-        console.warn('[extrairConteudo] resolverBuffer falha ao gerar URL assinada:', key, err)
+        console.error('[extrairConteudo] resolverBuffer falha ao gerar URL assinada:', key, err)
+        Sentry.captureException(err, { tags: { module: 'extrair-conteudo', operation: 'signed-url' }, extra: { key } })
         return null
       }
     }
@@ -111,7 +115,9 @@ async function resolverBuffer(buffer?: Buffer, url?: string): Promise<Buffer | n
     try {
       const res = await fetch(fetchUrl, { signal: controller.signal })
       if (!res.ok) {
-        console.warn('[extrairConteudo] resolverBuffer HTTP', res.status, url.slice(0, 100))
+        const err = new Error(`[extrairConteudo] resolverBuffer HTTP ${res.status}: ${url.slice(0, 100)}`)
+        console.error(err.message)
+        Sentry.captureException(err, { tags: { module: 'extrair-conteudo', operation: 'fetch-buffer' }, extra: { status: res.status, url: url.slice(0, 120) } })
         return null
       }
       const data = await res.arrayBuffer()

@@ -135,7 +135,9 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
     await prisma.documento.update({
       where: { id: input.documentoExistente.id },
       data:  { ordemServicoId: input.osId },
-    }).catch(() => {})  // ignora se já tiver outra OS vinculada
+    }).catch((err: unknown) => {
+      console.warn('[ordens-servico] falha ao vincular documento à OS (pode já estar vinculado):', { osId: input.osId, documentoId: input.documentoExistente?.id, err })
+    })
   }
 
   // 4. Envia por e-mail
@@ -218,14 +220,20 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
           const digits    = dest.telefone.replace(/\D/g, '')
           const jid       = `${digits.startsWith('55') ? digits : `55${digits}`}@s.whatsapp.net`
           if (input.canais.whatsapp.mensagem) {
-            await sendText(cfg, jid, input.canais.whatsapp.mensagem).catch(() => {})
+            await sendText(cfg, jid, input.canais.whatsapp.mensagem).catch((err: unknown) => {
+              console.error('[ordens-servico] falha ao enviar WhatsApp para destinatário adicional:', { jid, osId: input.osId, err })
+              Sentry.captureException(err, { tags: { module: 'ordens-servico', operation: 'whatsapp-adicional-texto' }, extra: { osId: input.osId, jid } })
+            })
           }
           if (documentoUrl && documentoNome) {
             const entregaAd = await prepararEntregaWhatsApp(
               { id: result.documentoId ?? '', nome: documentoNome, url: documentoUrl, mimeType: documentoMime ?? null, tipo: os.titulo },
               { mensagem: undefined },
             )
-            await sendMedia(cfg, jid, entregaAd.sendMediaParams).catch(() => {})
+            await sendMedia(cfg, jid, entregaAd.sendMediaParams).catch((err: unknown) => {
+              console.error('[ordens-servico] falha ao enviar mídia WhatsApp para destinatário adicional:', { jid, osId: input.osId, err })
+              Sentry.captureException(err, { tags: { module: 'ordens-servico', operation: 'whatsapp-adicional-midia' }, extra: { osId: input.osId, jid, documentoId: result.documentoId } })
+            })
           }
           await registrarInteracao({
             tipo:      'whatsapp_enviado',
@@ -264,7 +272,10 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
     title: 'Chamado respondido',
     body:  `Seu chamado "${os.titulo}" foi respondido. Acesse o portal para ver a resposta.`,
     url:   '/portal/suporte',
-  }).catch(() => {})
+  }).catch((err: unknown) => {
+    console.warn('[ordens-servico] falha ao enviar push notification:', { clienteId: os.clienteId, osId: input.osId, err })
+    Sentry.captureException(err, { tags: { module: 'ordens-servico', operation: 'push-notification' }, extra: { clienteId: os.clienteId, osId: input.osId } })
+  })
 
   return result
 }

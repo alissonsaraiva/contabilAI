@@ -206,6 +206,9 @@ export async function POST(req: Request) {
   // Detecta tipo de mídia (áudio, imagem, documento)
   const mediaType = msg ? detectMediaType(msg) : null
 
+  // Stickers/GIFs — ignora silenciosamente (reação visual, não requer resposta da IA)
+  if (mediaType === 'sticker') return new Response('sticker_ignored', { status: 200 })
+
   // Se não há texto nem mídia reconhecida, ignora
   if (!textRaw && !mediaType) return new Response('no text', { status: 200 })
 
@@ -426,16 +429,42 @@ export async function POST(req: Request) {
       if (mediaType === 'audio') {
         if (groqApiKey) {
           try {
+            // Tenta Evolution API; fallback para CDN direto (cobre addressingMode: 'lid')
             const media = await downloadMedia(cfg, { key, message: msg! })
+              ?? await downloadMediaDirect(msg as Record<string, unknown>)
             if (media) {
               const transcript = await transcribeAudio(media.buffer, media.mimeType || mimeType, groqApiKey)
               if (transcript) {
                 textoFinal = transcript
                 console.log('[whatsapp/webhook] áudio transcrito:', transcript.slice(0, 80))
+              } else {
+                // Groq retornou vazio sem exceção (áudio ininteligível, silêncio, etc.)
+                console.warn('[whatsapp/webhook] transcrição retornou vazio para áudio:', remoteJid)
+                Sentry.captureMessage('Groq Whisper retornou transcrição vazia', {
+                  level: 'warning',
+                  tags:  { module: 'whatsapp-webhook', operation: 'transcricao-audio' },
+                  extra: { remoteJid, conversaId, mimeType },
+                })
+                await sendHumanLike(cfg, remoteJid, 'Não consegui entender seu áudio. Pode enviar por texto?')
+                return new Response('transcript_empty', { status: 200 })
               }
+            } else {
+              // Ambos os métodos de download falharam — informa o cliente imediatamente
+              console.warn('[whatsapp/webhook] download de áudio falhou (Evolution + CDN):', remoteJid)
+              Sentry.captureMessage('Download de áudio falhou — Evolution e CDN retornaram null', {
+                level: 'error',
+                tags:  { module: 'whatsapp-webhook', operation: 'download-audio' },
+                extra: { remoteJid, conversaId },
+              })
+              await sendHumanLike(cfg, remoteJid, 'Não consegui ouvir seu áudio. Pode enviar por texto?')
+              return new Response('audio_download_null', { status: 200 })
             }
           } catch (err) {
             console.error('[whatsapp/webhook] erro ao transcrever áudio:', err)
+            Sentry.captureException(err, {
+              tags:  { module: 'whatsapp-webhook', operation: 'transcricao-audio' },
+              extra: { remoteJid, conversaId, mimeType },
+            })
             await sendHumanLike(cfg, remoteJid, 'Desculpe, não consegui processar o áudio. Pode digitar sua mensagem?')
             prisma.mensagemIA.create({
               data: { conversaId, role: 'user', conteudo: '[áudio]', status: 'sent', whatsappMsgData: { key, message: msg } as object },

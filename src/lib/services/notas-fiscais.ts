@@ -199,6 +199,7 @@ export async function sincronizarEmpresaNaSpedy(empresaId: string): Promise<{
 
   } catch (err) {
     logger.error('spedy-sincronizar-empresa-falhou', { empresaId, err })
+    Sentry.captureException(err, { tags: { module: 'nfse-service', operation: 'sincronizar-empresa' }, extra: { empresaId } })
     const detalhe = err instanceof Error ? err.message : 'Erro ao sincronizar com a Spedy'
     return { sucesso: false, acao: 'noop', detalhe }
   }
@@ -404,6 +405,7 @@ export async function emitirNotaFiscal(input: EmitirNotaInput): Promise<EmitirNo
 
   } catch (err) {
     logger.error('spedy-emissao-falhou', { notaId: notaLocal.id, err })
+    Sentry.captureException(err, { tags: { module: 'nfse-service', operation: 'emitir' }, extra: { notaId: notaLocal.id, clienteId, integrationId } })
 
     const msg = err instanceof SpedyError ? err.message : 'Erro interno ao comunicar com a Spedy'
     const motivo: EmitirNotaErro['motivo'] = err instanceof SpedyError ? 'erro_spedy' : 'erro_interno'

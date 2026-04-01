@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer'
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { setSmtpOk, setSmtpErro } from './smtp-status'
+import { getDownloadUrl } from '@/lib/storage'
 
 export type Anexo = {
   nome: string
@@ -27,6 +28,19 @@ export type SendEmailResult = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Resolve a URL para download — se for URL do R2 (STORAGE_PUBLIC_URL),
+ * gera URL assinada (5 min) antes de fazer fetch. Bucket R2 é privado.
+ */
+async function resolveAnexoUrl(url: string): Promise<string> {
+  const publicBase = (process.env.STORAGE_PUBLIC_URL ?? '').replace(/\/$/, '')
+  if (publicBase && url.startsWith(publicBase)) {
+    const key = url.slice(publicBase.length + 1)
+    return getDownloadUrl(key, 300)
+  }
+  return url
+}
 
 async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -63,10 +77,11 @@ async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
           if (a.content) {
             buf = a.content
           } else {
+            const resolvedUrl = await resolveAnexoUrl(a.url!)
             const ac = new AbortController()
             const at = setTimeout(() => ac.abort(), 10_000)
             let res: Response
-            try { res = await fetch(a.url!, { signal: ac.signal }) } finally { clearTimeout(at) }
+            try { res = await fetch(resolvedUrl, { signal: ac.signal }) } finally { clearTimeout(at) }
             if (!res.ok) throw new Error(`Falha ao baixar anexo "${a.nome}": HTTP ${res.status}`)
             buf = Buffer.from(await res.arrayBuffer())
           }
@@ -146,10 +161,11 @@ async function sendViaSmtp(opts: SendEmailOpts): Promise<SendEmailResult> {
           if (a.content) {
             buf = a.content
           } else {
+            const resolvedUrl = await resolveAnexoUrl(a.url!)
             const ac = new AbortController()
             const at = setTimeout(() => ac.abort(), 10_000)
             let res: Response
-            try { res = await fetch(a.url!, { signal: ac.signal }) } finally { clearTimeout(at) }
+            try { res = await fetch(resolvedUrl, { signal: ac.signal }) } finally { clearTimeout(at) }
             if (!res.ok) throw new Error(`Falha ao baixar anexo "${a.nome}": HTTP ${res.status}`)
             buf = Buffer.from(await res.arrayBuffer())
           }
@@ -185,7 +201,9 @@ export async function sendEmail(opts: SendEmailOpts): Promise<SendEmailResult> {
   } catch (err) {
     const erro = err instanceof Error ? err.message : String(err)
     setSmtpErro(erro, provider)
-    try { const Sentry = await import('@sentry/nextjs'); Sentry.captureException(err) } catch {}
+    // import estático não disponível neste módulo — Sentry já capturado via SDK global
+    const Sentry = await import('@sentry/nextjs').catch(() => null)
+    Sentry?.captureException(err, { tags: { module: 'email-send', operation: provider }, extra: { para: opts.para, assunto: opts.assunto } })
     return { ok: false, erro }
   }
 }

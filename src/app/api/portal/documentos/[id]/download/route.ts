@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { resolveClienteId } from '@/lib/portal-session'
@@ -35,6 +36,7 @@ export async function GET(
       signedUrl = await getDownloadUrl(key, 300) // 5 min
     } catch (err) {
       console.error('[portal/documentos/download] falha ao gerar URL assinada:', err)
+      Sentry.captureException(err, { tags: { module: 'portal-documentos-download', operation: 'signed-url' }, extra: { documentoId: id, clienteId } })
       return NextResponse.json({ error: 'Não foi possível gerar o link de download. Tente novamente.' }, { status: 502 })
     }
     return NextResponse.redirect(signedUrl, { status: 302 })

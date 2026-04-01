@@ -15,6 +15,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { getDownloadUrl } from '@/lib/storage'
 
 export type DocumentoParaEntrega = {
   id:       string
@@ -81,18 +82,31 @@ function inferirMediaType(mimeType: string | null): ResultadoEntrega['sendMediaP
   return 'document'
 }
 
-function buildEntregaDireta(
+/**
+ * Gera URL acessível para a Evolution API fazer fetch.
+ * R2 é privado — URLs públicas retornam 400. Usamos URL assinada (10 min).
+ */
+async function resolverMediaUrl(url: string): Promise<string> {
+  const publicBase = (process.env.STORAGE_PUBLIC_URL ?? '').replace(/\/$/, '')
+  if (publicBase && url.startsWith(publicBase)) {
+    const key = url.slice(publicBase.length + 1)
+    return getDownloadUrl(key, 600) // 10 min — tempo suficiente para Evolution processar
+  }
+  return url
+}
+
+async function buildEntregaDireta(
   doc: DocumentoParaEntrega,
   opcoes: EntregaWhatsAppOpcoes,
   estrategia: string,
-): ResultadoEntrega {
+): Promise<ResultadoEntrega> {
   return {
     sendMediaParams: {
       mediatype: inferirMediaType(doc.mimeType),
       mimetype:  doc.mimeType ?? 'application/octet-stream',
       fileName:  doc.nome,
       caption:   opcoes.mensagem,
-      mediaUrl:  doc.url,
+      mediaUrl:  await resolverMediaUrl(doc.url),
     },
     estrategia,
   }
