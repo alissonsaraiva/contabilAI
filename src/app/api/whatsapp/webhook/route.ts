@@ -5,7 +5,6 @@ import type { EvolutionConfig } from '@/lib/evolution'
 import {
   getOrCreateConversaWhatsapp,
   getHistorico,
-  addMensagemUsuario,
 } from '@/lib/ai/conversa'
 import { sendHumanLike } from '@/lib/whatsapp/human-like'
 import { downloadMedia, detectMediaType, extractMediaCaption, extractMimeType, extractPdfText } from '@/lib/whatsapp/media'
@@ -93,48 +92,43 @@ async function buscarPorTelefone(phone: string): Promise<{
   const variants = normalizarPhone(phone)
   if (!variants.length) return {}
 
+  // Usa SQL bruto com regexp_replace para ignorar formatação (parênteses, hífens, espaços)
+  // nos campos de telefone/whatsapp armazenados no banco (ex: "(85) 98118-6338" → "85981186338")
+
   // 1. Busca titular (cliente direto)
-  const cliente = await prisma.cliente.findFirst({
-    where: {
-      OR: variants.flatMap(v => [
-        { whatsapp: { contains: v } },
-        { telefone: { contains: v } },
-      ]),
-    },
-    select: { id: true },
-  })
-  if (cliente) return { clienteId: cliente.id }
+  const clienteRows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM clientes
+    WHERE regexp_replace(COALESCE(telefone, ''), '[^0-9]', '', 'g') = ANY(${variants})
+       OR regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g') = ANY(${variants})
+    LIMIT 1
+  `
+  if (clienteRows.length > 0) return { clienteId: clienteRows[0].id }
 
   // 2. Busca sócio — associado a uma empresa que tem cliente vinculado
-  const socio = await prisma.socio.findFirst({
-    where: {
-      OR: variants.flatMap(v => [
-        { whatsapp: { contains: v } },
-        { telefone: { contains: v } },
-      ]),
-    },
-    select: {
-      id: true,
-      empresa: { select: { cliente: { select: { id: true } } } },
-    },
-  })
-  if (socio) {
+  const socioRows = await prisma.$queryRaw<{ id: string; clienteId: string | null }[]>`
+    SELECT s.id, e."clienteId"
+    FROM socios s
+    LEFT JOIN empresas e ON e.id = s."empresaId"
+    WHERE regexp_replace(COALESCE(s.telefone, ''), '[^0-9]', '', 'g') = ANY(${variants})
+       OR regexp_replace(COALESCE(s.whatsapp, ''), '[^0-9]', '', 'g') = ANY(${variants})
+    LIMIT 1
+  `
+  if (socioRows.length > 0) {
     return {
-      socioId:   socio.id,
-      clienteId: socio.empresa.cliente?.id,
+      socioId:   socioRows[0].id,
+      clienteId: socioRows[0].clienteId ?? undefined,
     }
   }
 
   // 3. Busca lead
-  const lead = await prisma.lead.findFirst({
-    where: {
-      OR: variants.map(v => ({ contatoEntrada: { contains: v } })),
-      status: { notIn: ['cancelado', 'expirado', 'assinado'] },
-    },
-    orderBy: { criadoEm: 'desc' },
-    select: { id: true },
-  })
-  if (lead) return { leadId: lead.id }
+  const leadRows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM leads
+    WHERE regexp_replace(COALESCE("contatoEntrada", ''), '[^0-9]', '', 'g') = ANY(${variants})
+      AND status NOT IN ('cancelado', 'expirado', 'assinado')
+    ORDER BY "criadoEm" DESC
+    LIMIT 1
+  `
+  if (leadRows.length > 0) return { leadId: leadRows[0].id }
 
   return {}
 }
@@ -316,8 +310,24 @@ export async function POST(req: Request) {
     })
     if (conversaRow?.pausadaEm) {
       // Salva mensagem do cliente (aguarda — falha aqui retorna 500, Evolution fará retry)
-      // addMensagemUsuario também atualiza ultimaMensagemEm e atualizadaEm
-      await addMensagemUsuario(conversaId, textSanitizado)
+      // Inclui whatsappMsgData para permitir re-fetch de mídia via proxy /api/whatsapp/media/[id]
+      const conteudoPausado = textSanitizado || (mediaType ? `[${mediaType}]` : '[mensagem]')
+      const now = new Date()
+      await Promise.all([
+        prisma.mensagemIA.create({
+          data: {
+            conversaId,
+            role:            'user',
+            conteudo:        conteudoPausado,
+            status:          'sent',
+            ...(msg && { whatsappMsgData: { key, message: msg } as object }),
+          },
+        }),
+        prisma.conversaIA.update({
+          where: { id: conversaId },
+          data:  { atualizadaEm: now, ultimaMensagemEm: now },
+        }),
+      ])
       // Notifica o WhatsApp Drawer do CRM (humano no controle) via SSE
       emitWhatsAppRefresh(conversaId)
       // Confirmação de recebimento para o cliente (só no paused — na conversa ativa a IA responde)
@@ -356,19 +366,6 @@ export async function POST(req: Request) {
           }
         })()
       }
-      // Notifica a equipe que o cliente respondeu enquanto IA está pausada
-      import('@/lib/notificacoes')
-        .then(({ notificarRespostaClientePausado }) =>
-          notificarRespostaClientePausado({
-            conversaId,
-            clienteId: cached.clienteId,
-            leadId:    cached.leadId,
-            remoteJid,
-          })
-        )
-        .catch((err: unknown) =>
-          console.error('[whatsapp/webhook] erro ao notificar resposta_cliente_pausado:', { conversaId, err }),
-        )
       return new Response('paused', { status: 200 })
     }
 
@@ -611,8 +608,15 @@ function arquivarMidiaWhatsappAsync(input: ArquivarMidiaInput): void {
 
   const tipoLabel = input.tipoMidia === 'imagem' ? 'WhatsApp — Imagem' : 'WhatsApp — Documento'
 
-  buildContextoConversa(input.conversaId, 5)
-    .then(async (contexto) => {
+  // Busca empresaId do cliente para que o documento apareça também na ficha da empresa
+  const getEmpresaId = input.clienteId
+    ? prisma.cliente.findUnique({ where: { id: input.clienteId }, select: { empresaId: true } })
+        .then(c => c?.empresaId ?? undefined)
+        .catch(() => undefined)
+    : Promise.resolve(undefined)
+
+  Promise.all([buildContextoConversa(input.conversaId, 5), getEmpresaId])
+    .then(async ([contexto, empresaId]) => {
       let deveArquivar: boolean
       try {
         deveArquivar = await classificarDocumento({
@@ -631,6 +635,7 @@ function arquivarMidiaWhatsappAsync(input: ArquivarMidiaInput): void {
         return criarDocumento({
           clienteId: input.clienteId,
           leadId:    input.leadId,
+          empresaId,
           arquivo: {
             buffer:   input.media.buffer,
             nome:     input.media.fileName ?? 'arquivo',
@@ -649,6 +654,7 @@ function arquivarMidiaWhatsappAsync(input: ArquivarMidiaInput): void {
       return criarDocumento({
         clienteId: input.clienteId,
         leadId:    input.leadId,
+        empresaId,
         arquivo: {
           buffer:   input.media.buffer,
           nome:     input.media.fileName ?? 'arquivo',

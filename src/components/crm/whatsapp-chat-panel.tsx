@@ -14,6 +14,7 @@ type Mensagem = {
   mediaType?: string | null
   mediaFileName?: string | null
   mediaMimeType?: string | null
+  hasWhatsappMedia?: boolean
 }
 
 type ArquivoAnexo = {
@@ -321,14 +322,14 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container hover:text-on-surface"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container hover:text-on-surface"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
 
         {pausada ? (
-          <div className="flex items-center gap-2 pl-12">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-1 rounded-full bg-orange-status/10 px-2.5 py-1 text-[11px] font-semibold text-orange-status">
               <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>
                 support_agent
@@ -347,7 +348,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
             </button>
           </div>
         ) : (conversaId || mensagens.length > 0) ? (
-          <div className="flex items-center gap-2 pl-12">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-1 rounded-full bg-[#25D366]/10 px-2.5 py-1 text-[11px] font-semibold text-[#25D366]">
               <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>
                 smart_toy
@@ -415,19 +416,33 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
                 >
                   {m.conteudo === '[áudio]' ? (
                     <div className="flex flex-col gap-1">
-                      <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-8 w-44 rounded-md" />
+                      <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-8 w-full max-w-[11rem] rounded-md" />
                       <p className="text-[10px] text-on-surface-variant/50">Áudio não transcrito</p>
+                    </div>
+                  ) : m.hasWhatsappMedia && m.conteudo === '[image]' ? (
+                    <div className="flex flex-col gap-1.5">
+                      <img src={`/api/whatsapp/media/${m.id}`} alt="imagem" className="max-w-full rounded-xl object-cover" />
+                    </div>
+                  ) : m.hasWhatsappMedia ? (
+                    <div className="flex flex-col gap-1.5">
+                      <a href={`/api/whatsapp/media/${m.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 hover:bg-white/20 transition-colors">
+                        <span className="material-symbols-outlined text-[18px] shrink-0">attach_file</span>
+                        <span className="text-[12px] truncate max-w-[8rem] sm:max-w-[12rem]">
+                          {m.conteudo.startsWith('[') ? 'Arquivo do cliente' : m.conteudo}
+                        </span>
+                        <span className="material-symbols-outlined text-[14px] shrink-0 opacity-60">download</span>
+                      </a>
                     </div>
                   ) : m.mediaUrl && m.mediaType === 'image' ? (
                     <div className="flex flex-col gap-1.5">
-                      <img src={m.mediaUrl} alt={m.mediaFileName ?? 'imagem'} className="max-w-[220px] rounded-xl object-cover" />
+                      <img src={m.mediaUrl} alt={m.mediaFileName ?? 'imagem'} className="max-w-full rounded-xl object-cover" />
                       {m.conteudo && <p className="whitespace-pre-wrap text-[12px]">{m.conteudo}</p>}
                     </div>
                   ) : m.mediaUrl ? (
                     <div className="flex flex-col gap-1.5">
                       <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 hover:bg-white/20 transition-colors">
                         <span className="material-symbols-outlined text-[18px] shrink-0">attach_file</span>
-                        <span className="text-[12px] truncate max-w-[160px]">{m.mediaFileName ?? 'Arquivo'}</span>
+                        <span className="text-[12px] truncate max-w-[8rem] sm:max-w-[12rem]">{m.mediaFileName ?? 'Arquivo'}</span>
                         <span className="material-symbols-outlined text-[14px] shrink-0 opacity-60">download</span>
                       </a>
                       {m.conteudo && <p className="whitespace-pre-wrap text-[12px]">{m.conteudo}</p>}
@@ -494,7 +509,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:opacity-40"
               title="Anexar arquivo"
             >
               {uploading ? (
@@ -520,7 +535,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
                 type="button"
                 onClick={() => setNaoModoIA(v => !v)}
                 title={naoModoIA ? 'Modo comunicado: IA continua ativa' : 'Clique para enviar sem pausar a IA'}
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors ${
                   naoModoIA
                     ? 'border-[#25D366]/40 bg-[#25D366]/10 text-[#25D366]'
                     : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant/40 hover:text-on-surface-variant'
@@ -538,7 +553,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
             <button
               onClick={enviar}
               disabled={(!texto.trim() && !arquivo) || sending || uploading}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#25D366] text-white transition-colors hover:bg-[#1fb855] disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#25D366] text-white transition-colors hover:bg-[#1fb855] disabled:opacity-40"
             >
               {sending ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />

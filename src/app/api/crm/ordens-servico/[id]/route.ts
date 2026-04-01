@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolverOS } from '@/lib/services/ordens-servico'
-import { notificarOSResolvida } from '@/lib/notificacoes'
 import { sendPushToCliente } from '@/lib/push'
 import type { CategoriaDocumento } from '@prisma/client'
 
@@ -143,17 +142,8 @@ export async function PATCH(req: Request, { params }: Params) {
     data:  updateData,
   })
 
-  // Notifica equipe quando OS é resolvida (fire-and-forget)
+  // Push para o cliente no portal quando OS é resolvida
   if (body.status === 'resolvida' && existing.status !== 'resolvida') {
-    notificarOSResolvida({
-      osId:      id,
-      clienteId: existing.clienteId,
-      titulo:    existing.titulo,
-    }).catch((err: unknown) =>
-      console.error('[crm/ordens-servico] erro ao notificar os_resolvida:', { osId: id, err }),
-    )
-
-    // Push para o cliente no portal
     if (existing.clienteId) {
       sendPushToCliente(existing.clienteId, {
         title: 'Chamado respondido',

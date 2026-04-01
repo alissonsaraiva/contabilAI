@@ -46,10 +46,14 @@ export async function GET(
     return NextResponse.json({ error: 'Mídia não encontrada na Evolution' }, { status: 404 })
   }
 
+  const contentType = media.mimeType || 'application/octet-stream'
+  const isInline = contentType.startsWith('audio/') || contentType.startsWith('image/')
   return new Response(new Uint8Array(media.buffer), {
     headers: {
-      'Content-Type': media.mimeType || 'audio/ogg',
-      'Content-Disposition': 'inline',
+      'Content-Type': contentType,
+      'Content-Disposition': isInline
+        ? 'inline'
+        : `attachment; filename="${media.fileName ?? 'arquivo'}"`,
       'Cache-Control': 'private, max-age=3600',
     },
   })

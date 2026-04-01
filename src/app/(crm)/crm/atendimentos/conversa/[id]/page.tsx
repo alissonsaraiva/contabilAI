@@ -41,12 +41,12 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
       <div className="flex items-start gap-4 px-1 pb-4">
         <Link
           href="/crm/atendimentos"
-          className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-on-surface transition-colors"
+          className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-on-surface transition-colors"
         >
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-light tracking-tight text-on-surface">{nomeExibido}</h1>
+          <h1 className="text-xl sm:text-2xl font-light tracking-tight text-on-surface">{nomeExibido}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[12px] text-on-surface-variant/60">
             <span className="flex items-center gap-1">
               <span className="material-symbols-outlined text-[14px]">forum</span>
@@ -66,7 +66,7 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
         {destino && (
           <Link
             href={destino.href}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-surface-container px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-surface-container px-3 py-2 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
           >
             <span className="material-symbols-outlined text-[14px]">open_in_new</span>
             {destino.label}
@@ -93,19 +93,33 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
               >
                 {m.conteudo === '[áudio]' ? (
                   <div className="flex flex-col gap-1.5">
-                    <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-9 w-48 rounded-lg" />
+                    <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-9 w-full max-w-[12rem] rounded-lg" />
                     <p className="text-[10px] text-on-surface-variant/50">Áudio não transcrito</p>
+                  </div>
+                ) : m.whatsappMsgData && !m.mediaUrl && m.conteudo === '[image]' ? (
+                  <div className="flex flex-col gap-1.5">
+                    <img src={`/api/whatsapp/media/${m.id}`} alt="imagem" className="max-w-full rounded-xl object-cover" />
+                  </div>
+                ) : m.whatsappMsgData && !m.mediaUrl ? (
+                  <div className="flex flex-col gap-1.5">
+                    <a href={`/api/whatsapp/media/${m.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 hover:bg-surface-container transition-colors">
+                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>
+                      <span className="text-[12px] truncate max-w-[9rem] sm:max-w-[200px]">
+                        {m.conteudo.startsWith('[') ? 'Arquivo do cliente' : m.conteudo}
+                      </span>
+                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 shrink-0">download</span>
+                    </a>
                   </div>
                 ) : m.mediaUrl && m.mediaType === 'image' ? (
                   <div className="flex flex-col gap-1.5">
-                    <img src={m.mediaUrl} alt={m.mediaFileName ?? 'imagem'} className="max-w-[260px] rounded-xl object-cover" />
+                    <img src={m.mediaUrl} alt={m.mediaFileName ?? 'imagem'} className="max-w-full rounded-xl object-cover" />
                     {m.conteudo && <p className="whitespace-pre-wrap text-[13px]">{m.conteudo}</p>}
                   </div>
                 ) : m.mediaUrl ? (
                   <div className="flex flex-col gap-1.5">
                     <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 hover:bg-surface-container transition-colors">
                       <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>
-                      <span className="text-[12px] truncate max-w-[200px]">{m.mediaFileName ?? 'Arquivo'}</span>
+                      <span className="text-[12px] truncate max-w-[9rem] sm:max-w-[200px]">{m.mediaFileName ?? 'Arquivo'}</span>
                       <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 shrink-0">download</span>
                     </a>
                     {m.conteudo && <p className="whitespace-pre-wrap text-[13px]">{m.conteudo}</p>}

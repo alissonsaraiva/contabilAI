@@ -118,7 +118,7 @@ export function AtendimentosGrid({
             <span className="rounded-full bg-error/10 px-2 py-0.5 text-[11px] font-bold text-error">
               {aguardandoResposta.length}
             </span>
-            <span className="text-[11px] text-on-surface-variant/50">Cliente respondeu — IA pausada</span>
+            <span className="hidden sm:inline text-[11px] text-on-surface-variant/50">Cliente respondeu — IA pausada</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {aguardandoResposta.map(c => (
@@ -140,7 +140,7 @@ export function AtendimentosGrid({
             <span className="rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-bold text-on-surface-variant">
               {emAtendimentoHumano.length}
             </span>
-            <span className="text-[11px] text-on-surface-variant/50">IA pausada — aguarda sua mensagem</span>
+            <span className="hidden sm:inline text-[11px] text-on-surface-variant/50">IA pausada — aguarda sua mensagem</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {emAtendimentoHumano.map(c => (
@@ -161,7 +161,7 @@ export function AtendimentosGrid({
           <span className="rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-bold text-on-surface-variant">
             {ativasIA.length}
           </span>
-          <span className="text-[11px] text-on-surface-variant/50">(últimas 24h)</span>
+          <span className="hidden sm:inline text-[11px] text-on-surface-variant/50">(últimas 24h)</span>
         </div>
         {ativasIA.length === 0 ? (
           <p className="rounded-[14px] border border-outline-variant/15 bg-card px-6 py-8 text-center text-[13px] text-on-surface-variant/50">
@@ -275,7 +275,7 @@ function ConversaCard({
         {podeWhatsApp && (
           <button
             onClick={e => { e.preventDefault(); onOpenDrawer() }}
-            className="flex items-center gap-1.5 rounded-lg bg-[#25D366]/10 px-3 py-1.5 text-[11px] font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/20"
+            className="flex items-center gap-1.5 rounded-lg bg-[#25D366]/10 px-3 py-2 text-[11px] font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/20"
           >
             <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>
               chat_bubble
@@ -381,7 +381,7 @@ function NovaConversaSheet({
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>

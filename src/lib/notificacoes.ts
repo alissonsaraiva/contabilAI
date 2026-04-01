@@ -112,74 +112,6 @@ export async function notificarAgenteFalhou(erro: string): Promise<void> {
   }
 }
 
-/**
- * Notifica a equipe quando o cliente responde a uma conversa que está com IA pausada
- * (humano no controle) — o operador precisa saber para não deixar o cliente esperando.
- * Anti-spam: no máximo uma notificação por conversa a cada 10 minutos.
- */
-export async function notificarRespostaClientePausado(opts: {
-  conversaId: string
-  clienteId?: string | null
-  leadId?: string | null
-  remoteJid?: string | null
-}): Promise<void> {
-  const chave = `resposta_pausado:${opts.conversaId}`
-  if (dentroDoCooldow(chave)) return
-  registrarCooldown(chave)
-
-  try {
-    let nome = opts.remoteJid?.replace('@s.whatsapp.net', '') ?? 'Contato'
-    if (opts.clienteId) {
-      const c = await prisma.cliente.findUnique({
-        where:  { id: opts.clienteId },
-        select: { nome: true, empresa: { select: { razaoSocial: true } } },
-      })
-      nome = c?.empresa?.razaoSocial ?? c?.nome ?? nome
-    } else if (opts.leadId) {
-      const l = await prisma.lead.findUnique({
-        where:  { id: opts.leadId },
-        select: { dadosJson: true, contatoEntrada: true },
-      })
-      const dados = (l?.dadosJson ?? {}) as Record<string, string>
-      nome = dados['Nome completo'] ?? dados['Razão Social'] ?? l?.contatoEntrada ?? nome
-    }
-
-    const ids = await buscarEquipeAtendimento()
-    await criarParaTodos(ids, {
-      tipo:    'resposta_cliente',
-      titulo:  `${nome} respondeu`,
-      mensagem: 'Mensagem recebida enquanto IA está pausada. Aguarda sua resposta.',
-      url:     `/crm/atendimentos/conversa/${opts.conversaId}`,
-    })
-  } catch (err) {
-    console.error('[notificacoes] falha ao notificar resposta_cliente_pausado:', err)
-  }
-}
-
-/**
- * Notifica a equipe quando uma OS é resolvida — o cliente não é notificado por push,
- * mas a equipe precisa confirmar que a resposta chegou ao cliente pelo canal correto.
- */
-export async function notificarOSResolvida(opts: {
-  osId: string
-  clienteId?: string | null
-  titulo: string
-}): Promise<void> {
-  try {
-    const nome = opts.clienteId
-      ? (await prisma.cliente.findUnique({ where: { id: opts.clienteId }, select: { nome: true } }))?.nome ?? 'Cliente'
-      : 'Cliente'
-    const ids = await buscarEquipeAtendimento()
-    await criarParaTodos(ids, {
-      tipo:    'os_resolvida',
-      titulo:  `OS resolvida: ${opts.titulo.slice(0, 60)}`,
-      mensagem: `${nome} pode verificar a resposta no portal.`,
-      url:     `/crm/ordens-servico/${opts.osId}`,
-    })
-  } catch (err) {
-    console.error('[notificacoes] falha ao notificar os_resolvida:', err)
-  }
-}
 
 /**
  * Notifica a equipe quando um cliente envia um documento pelo portal.
@@ -259,35 +191,6 @@ export async function notificarClienteInadimplente(opts: {
   }
 }
 
-/**
- * Notifica quando um email é recebido na caixa do escritório.
- * Anti-spam: no máximo uma notificação a cada 5 minutos (emails chegam em batch).
- */
-export async function notificarEmailRecebido({
-  de,
-  assunto,
-  interacaoId,
-}: {
-  de: string
-  assunto: string
-  interacaoId: string
-}): Promise<void> {
-  const chave = `email_recebido:${de.toLowerCase()}`
-  if (dentroDoCooldow(chave)) return
-  registrarCooldown(chave)
-
-  try {
-    const ids = await buscarEquipeAtendimento()
-    await criarParaTodos(ids, {
-      tipo:    'email_recebido',
-      titulo:  `E-mail recebido: ${assunto.slice(0, 60)}`,
-      mensagem: `De: ${de}`,
-      url:     `/crm/emails`,
-    })
-  } catch (err) {
-    console.error('[notificacoes] falha ao criar notificação email_recebido:', err)
-  }
-}
 
 /**
  * Notifica a equipe quando o processamento IA de um documento falha definitivamente

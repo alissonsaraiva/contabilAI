@@ -179,8 +179,8 @@ export function AtendimentosWeb({
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* ─── Painel esquerdo ───────────────────────────────────────────────── */}
-      <div className="flex w-80 shrink-0 flex-col overflow-hidden border-r border-outline-variant/15 bg-card">
+      {/* ─── Painel esquerdo — full width no mobile, 320px fixo no desktop ── */}
+      <div className={`flex shrink-0 flex-col overflow-hidden border-r border-outline-variant/15 bg-card w-full lg:w-80 ${selected ? 'hidden lg:flex' : 'flex'}`}>
 
         {/* Header do painel */}
         <div className="flex items-center gap-2 border-b border-outline-variant/15 px-4 py-3">
@@ -231,7 +231,7 @@ export function AtendimentosWeb({
               onChange={e => setBusca(e.target.value)}
             />
             {busca && (
-              <button onClick={() => setBusca('')} className="text-on-surface-variant/40 hover:text-on-surface-variant transition-colors">
+              <button onClick={() => setBusca('')} className="flex h-6 w-6 items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant transition-colors">
                 <span className="material-symbols-outlined text-[14px]">close</span>
               </button>
             )}
@@ -244,7 +244,7 @@ export function AtendimentosWeb({
             <button
               key={tab}
               onClick={() => setFiltro(tab)}
-              className={`relative flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[11px] font-semibold transition-colors ${
+              className={`relative flex flex-1 items-center justify-center gap-1 rounded-md py-2 text-[11px] font-semibold transition-colors ${
                 filtro === tab
                   ? 'bg-primary/10 text-primary'
                   : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container'
@@ -349,8 +349,8 @@ export function AtendimentosWeb({
         </div>
       </div>
 
-      {/* ─── Painel direito ────────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-surface-container-low">
+      {/* ─── Painel direito — oculto no mobile até conversa ser selecionada ── */}
+      <div className={`flex-col overflow-hidden bg-surface-container-low ${selected ? 'flex flex-1' : 'hidden lg:flex lg:flex-1'}`}>
         {selected ? (
           selected.type === 'portal' ? (
             <PortalConversaPanel
@@ -380,7 +380,7 @@ export function AtendimentosWeb({
             <div>
               <p className="text-[14px] font-medium text-on-surface-variant/60">Nenhuma conversa selecionada</p>
               <p className="mt-1 text-[12px] text-on-surface-variant/30">
-                Clique em uma conversa à esquerda para abrir o chat
+                Selecione uma conversa para abrir o chat
               </p>
             </div>
             <button
@@ -600,7 +600,7 @@ function NovaConversaSheet({
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>

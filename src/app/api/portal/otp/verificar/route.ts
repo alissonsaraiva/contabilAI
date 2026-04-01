@@ -21,32 +21,37 @@ export async function POST(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl.retryAfterMs)
 
   const body = await req.json().catch(() => null)
-  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : null
-  const otp   = typeof body?.otp   === 'string' ? body.otp.trim() : null
+  const email    = typeof body?.email    === 'string' ? body.email.trim().toLowerCase() : null
+  const telefone = typeof body?.telefone === 'string' ? body.telefone.replace(/\D/g, '') : null
+  const otp      = typeof body?.otp      === 'string' ? body.otp.trim() : null
 
-  if (!email || !otp) {
+  if ((!email && !telefone) || !otp) {
     return NextResponse.json({ error: 'parametros_invalidos' }, { status: 400 })
   }
 
-  // Validação básica de formato de email
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  // Validação básica quando email fornecido
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'codigo_invalido' }, { status: 400 })
   }
 
   const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
 
-  // Tenta cliente (titular) — busca token pelo clienteId E otpHash para garantir vínculo correto
-  const cliente = await prisma.cliente.findUnique({
-    where:  { email },
-    select: { id: true, nome: true, email: true, status: true, empresaId: true },
-  })
+  const clienteSelect = { id: true, nome: true, email: true, status: true, empresaId: true } as const
+  const socioSelect   = { id: true, nome: true, email: true, empresaId: true } as const
+
+  // ── Resolve cliente ──────────────────────────────────────────────────────────
+  const cliente = email
+    ? await prisma.cliente.findUnique({ where: { email }, select: clienteSelect })
+    : await prisma.cliente.findFirst({
+        where: { OR: [{ whatsapp: { contains: telefone! } }, { telefone: { contains: telefone! } }] },
+        select: clienteSelect,
+      })
 
   if (cliente) {
     if (cliente.status !== 'ativo' && cliente.status !== 'inadimplente') {
       return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
     }
 
-    // Busca token mais recente não usado para este cliente específico
     const record = await prisma.portalToken.findFirst({
       where:   { clienteId: cliente.id, usedAt: null },
       orderBy: { criadoEm: 'desc' },
@@ -66,11 +71,16 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Tenta sócio com acesso — busca token pelo socioId E mais recente não usado
-  const socio = await prisma.socio.findFirst({
-    where:  { email, portalAccess: true },
-    select: { id: true, nome: true, email: true, empresaId: true },
-  })
+  // ── Resolve sócio ────────────────────────────────────────────────────────────
+  const socio = email
+    ? await prisma.socio.findFirst({ where: { email, portalAccess: true }, select: socioSelect })
+    : await prisma.socio.findFirst({
+        where: {
+          portalAccess: true,
+          OR: [{ whatsapp: { contains: telefone! } }, { telefone: { contains: telefone! } }],
+        },
+        select: socioSelect,
+      })
 
   if (socio) {
     if (!socio.email) return NextResponse.json({ error: 'codigo_invalido' }, { status: 400 })

@@ -249,13 +249,13 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
         <div className="mt-2 flex items-center gap-3 px-1">
           <button
             onClick={devolverIA}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-primary/90 active:scale-[0.98] transition-all"
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-primary/90 active:scale-[0.98] transition-all"
           >
             <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
             Devolver para IA
           </button>
           <p className="text-[10px] text-on-surface-variant/40">
-            Você está no controle · IA pausada · Shift+Enter para nova linha
+            Você está no controle · IA pausada<span className="hidden sm:inline"> · Shift+Enter para nova linha</span>
           </p>
         </div>
       </div>

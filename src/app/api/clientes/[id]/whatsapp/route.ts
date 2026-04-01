@@ -56,8 +56,12 @@ export async function GET(_req: Request, { params }: Params) {
   // Conversa mais recente determina o estado de pausa
   const conversaAtual = conversas.at(-1) ?? null
 
-  // Consolida todas as mensagens de todas as sessões em ordem cronológica
-  const mensagens = conversas.flatMap(c => c.mensagens)
+  // Consolida todas as mensagens em ordem cronológica
+  // hasWhatsappMedia: mensagem tem mídia no proxy (whatsappMsgData) mas não em mediaUrl direto
+  const mensagens = conversas.flatMap(c => c.mensagens).map(({ whatsappMsgData, ...m }) => ({
+    ...m,
+    hasWhatsappMedia: !!whatsappMsgData && !m.mediaUrl,
+  }))
 
   return NextResponse.json({
     conversa: conversaAtual ? { id: conversaAtual.id, pausadaEm: conversaAtual.pausadaEm } : null,

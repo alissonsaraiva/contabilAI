@@ -32,25 +32,22 @@ async function getEvolutionConfig(): Promise<EvolutionConfig | null> {
 }
 
 export async function POST(req: NextRequest) {
-  // Rate limit: 3 envios por email a cada 5 minutos (evita spam de mensagens WA)
+  // Rate limit: 3 envios por IP a cada 5 minutos (evita spam de mensagens WA)
   const ip = getClientIp(req)
   const rl = rateLimit(`otp-whatsapp:${ip}`, 3, 5 * 60_000)
   if (!rl.allowed) return tooManyRequests(rl.retryAfterMs)
 
   const body = await req.json().catch(() => null)
-  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : null
+  const email    = typeof body?.email    === 'string' ? body.email.trim().toLowerCase() : null
+  const telefone = typeof body?.telefone === 'string' ? body.telefone.replace(/\D/g, '') : null
 
-  if (!email) {
-    return NextResponse.json({ error: 'email_invalido' }, { status: 400 })
+  if (!email && (!telefone || telefone.length < 8)) {
+    return NextResponse.json({ error: 'parametros_invalidos' }, { status: 400 })
   }
 
-  // Tenta titular
-  const cliente = await prisma.cliente.findUnique({
-    where:  { email },
-    select: { id: true, nome: true, status: true, empresaId: true, whatsapp: true, telefone: true },
-  })
-
-  if (cliente) {
+  async function enviarOtpCliente(cliente: {
+    id: string; nome: string; status: string; empresaId: string | null; whatsapp: string | null; telefone: string | null
+  }): Promise<NextResponse> {
     if (cliente.status === 'suspenso')  return NextResponse.json({ error: 'conta_suspensa' },  { status: 403 })
     if (cliente.status === 'cancelado') return NextResponse.json({ error: 'conta_cancelada' }, { status: 403 })
     if (cliente.status !== 'ativo' && cliente.status !== 'inadimplente') return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
@@ -63,22 +60,16 @@ export async function POST(req: NextRequest) {
     if (!cfg) return NextResponse.json({ error: 'whatsapp_indisponivel' }, { status: 503 })
 
     const { otp } = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000)
-
     const result = await sendText(cfg, buildRemoteJid(phone),
       `🔐 *Código de acesso ao Portal*\n\n*${otp}*\n\nVálido por 10 minutos. Não compartilhe com ninguém.`,
     )
-
     if (!result.ok) return NextResponse.json({ error: 'whatsapp_falhou' }, { status: 503 })
     return NextResponse.json({ ok: true })
   }
 
-  // Tenta sócio
-  const socio = await prisma.socio.findFirst({
-    where:  { email, portalAccess: true },
-    select: { id: true, nome: true, empresaId: true, whatsapp: true, telefone: true },
-  })
-
-  if (socio) {
+  async function enviarOtpSocio(socio: {
+    id: string; nome: string; empresaId: string; whatsapp: string | null; telefone: string | null
+  }): Promise<NextResponse> {
     const phone = socio.whatsapp || socio.telefone
     if (!phone) return NextResponse.json({ error: 'whatsapp_nao_cadastrado' }, { status: 400 })
 
@@ -86,15 +77,39 @@ export async function POST(req: NextRequest) {
     if (!cfg) return NextResponse.json({ error: 'whatsapp_indisponivel' }, { status: 503 })
 
     const { otp } = await criarTokenPortalSocio(socio.id, socio.empresaId, 30 * 60 * 1000)
-
     const result = await sendText(cfg, buildRemoteJid(phone),
       `🔐 *Código de acesso ao Portal*\n\n*${otp}*\n\nVálido por 10 minutos. Não compartilhe com ninguém.`,
     )
-
     if (!result.ok) return NextResponse.json({ error: 'whatsapp_falhou' }, { status: 503 })
     return NextResponse.json({ ok: true })
   }
 
-  // Genérico para não revelar se email existe
+  const clienteSelect = { id: true, nome: true, status: true, empresaId: true, whatsapp: true, telefone: true } as const
+  const socioSelect   = { id: true, nome: true, empresaId: true, whatsapp: true, telefone: true } as const
+
+  // ── Busca por telefone ───────────────────────────────────────────────────────
+  if (telefone) {
+    const clientePorTel = await prisma.cliente.findFirst({
+      where: { OR: [{ whatsapp: { contains: telefone } }, { telefone: { contains: telefone } }] },
+      select: clienteSelect,
+    })
+    if (clientePorTel) return enviarOtpCliente(clientePorTel)
+
+    const socioPorTel = await prisma.socio.findFirst({
+      where: { portalAccess: true, OR: [{ whatsapp: { contains: telefone } }, { telefone: { contains: telefone } }] },
+      select: socioSelect,
+    })
+    if (socioPorTel) return enviarOtpSocio(socioPorTel)
+
+    return NextResponse.json({ error: 'whatsapp_nao_cadastrado' }, { status: 404 })
+  }
+
+  // ── Busca por email (compatibilidade) ────────────────────────────────────────
+  const cliente = await prisma.cliente.findUnique({ where: { email: email! }, select: clienteSelect })
+  if (cliente) return enviarOtpCliente(cliente)
+
+  const socio = await prisma.socio.findFirst({ where: { email: email!, portalAccess: true }, select: socioSelect })
+  if (socio) return enviarOtpSocio(socio)
+
   return NextResponse.json({ error: 'email_nao_cadastrado' }, { status: 404 })
 }

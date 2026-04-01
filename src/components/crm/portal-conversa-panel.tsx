@@ -170,7 +170,7 @@ export function PortalConversaPanel({
         </div>
         <button
           onClick={onClose}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container"
         >
           <span className="material-symbols-outlined text-[20px]">close</span>
         </button>
@@ -216,7 +216,7 @@ export function PortalConversaPanel({
             <button
               onClick={enviar}
               disabled={!texto.trim() || sending}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white transition-colors hover:bg-violet-600 disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white transition-colors hover:bg-violet-600 disabled:opacity-40"
             >
               <span
                 className="material-symbols-outlined text-[18px]"
