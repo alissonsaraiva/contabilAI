@@ -100,7 +100,7 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
                   <div className="flex flex-col gap-1.5">
                     <img src={`/api/whatsapp/media/${m.id}`} alt="imagem" className="max-w-full rounded-xl object-cover" />
                   </div>
-                ) : m.whatsappMsgData && !m.mediaUrl ? (
+                ) : m.whatsappMsgData && !m.mediaUrl && m.conteudo.startsWith('[') && m.conteudo.endsWith(']') ? (
                   <div className="flex flex-col gap-1.5">
                     <a href={`/api/whatsapp/media/${m.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 hover:bg-surface-container transition-colors">
                       <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>

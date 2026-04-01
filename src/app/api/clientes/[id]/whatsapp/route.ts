@@ -60,7 +60,7 @@ export async function GET(_req: Request, { params }: Params) {
   // hasWhatsappMedia: mensagem tem mídia no proxy (whatsappMsgData) mas não em mediaUrl direto
   const mensagens = conversas.flatMap(c => c.mensagens).map(({ whatsappMsgData, ...m }) => ({
     ...m,
-    hasWhatsappMedia: !!whatsappMsgData && !m.mediaUrl,
+    hasWhatsappMedia: !!whatsappMsgData && !m.mediaUrl && m.conteudo.startsWith('[') && m.conteudo.endsWith(']'),
   }))
 
   return NextResponse.json({

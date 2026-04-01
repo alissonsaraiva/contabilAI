@@ -370,25 +370,29 @@ export async function POST(req: Request) {
     }
 
     // IA desabilitada — salva a mensagem para manter histórico visível no CRM
+    // Await obrigatório: fire-and-forget em serverless pode perder a operação antes do processo terminar
     if (!aiEnabled) {
-      prisma.mensagemIA.create({
-        data: {
-          conversaId,
-          role:             'user',
-          conteudo:         textSanitizado || (mediaType ? `[${mediaType}]` : '[mensagem]'),
-          status:           'sent',
-          aiProcessado:     true,
-          whatsappMsgData:  { key, message: msg } as object,
-        },
-      }).catch((err: unknown) =>
-        console.error('[whatsapp/webhook] erro ao salvar mensagem (ai disabled):', { conversaId, remoteJid, err }),
-      )
-      prisma.conversaIA.update({
-        where: { id: conversaId },
-        data:  { atualizadaEm: new Date(), ultimaMensagemEm: new Date() },
-      }).catch((err: unknown) =>
-        console.error('[whatsapp/webhook] erro ao atualizar conversaIA (ai disabled):', { conversaId, remoteJid, err }),
-      )
+      const agora = new Date()
+      await Promise.all([
+        prisma.mensagemIA.create({
+          data: {
+            conversaId,
+            role:             'user',
+            conteudo:         textSanitizado || (mediaType ? `[${mediaType}]` : '[mensagem]'),
+            status:           'sent',
+            aiProcessado:     true,
+            whatsappMsgData:  { key, message: msg } as object,
+          },
+        }).catch((err: unknown) =>
+          console.error('[whatsapp/webhook] erro ao salvar mensagem (ai disabled):', { conversaId, remoteJid, err }),
+        ),
+        prisma.conversaIA.update({
+          where: { id: conversaId },
+          data:  { atualizadaEm: agora, ultimaMensagemEm: agora },
+        }).catch((err: unknown) =>
+          console.error('[whatsapp/webhook] erro ao atualizar conversaIA (ai disabled):', { conversaId, remoteJid, err }),
+        ),
+      ])
       return new Response('ai disabled', { status: 200 })
     }
 
@@ -539,10 +543,15 @@ export async function POST(req: Request) {
       }
     }
 
-    // Se não conseguiu extrair conteúdo algum, responde pedindo texto
+    // Se havia mídia mas não conseguiu baixar/processar: salva como placeholder
+    // O cron fará retry do download. Só rejeita se não há mídia E não há texto.
     if (!textoFinal && !mediaContentParts) {
-      await sendHumanLike(cfg, remoteJid, 'Desculpe, não consegui processar essa mensagem. Pode enviar por texto?')
-      return new Response('no_content', { status: 200 })
+      if (mediaType) {
+        textoFinal = `[${mediaType}]`
+      } else {
+        await sendHumanLike(cfg, remoteJid, 'Desculpe, não consegui processar essa mensagem. Pode enviar por texto?')
+        return new Response('no_content', { status: 200 })
+      }
     }
 
     // ── Salva mensagem como pendente (debounce) ───────────────────────────────

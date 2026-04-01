@@ -1,5 +1,17 @@
 // Código exclusivo para o runtime Node.js — importado condicionalmente em instrumentation.ts
 
+// Em produção, Next.js pode suprimir stdout em pipelines não-TTY.
+// Redireciona console.log para stderr para garantir que todos os logs apareçam
+// no docker logs / systemd journal independentemente do buffering de stdout.
+if (process.env.NODE_ENV === 'production') {
+  const _origLog  = console.log.bind(console)
+  const _origInfo = console.info.bind(console)
+  console.log  = (...args: unknown[]) => { process.stderr.write('[LOG] '  + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') + '\n') }
+  console.info = (...args: unknown[]) => { process.stderr.write('[INFO] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') + '\n') }
+  void _origLog  // mantém referência para evitar tree-shake
+  void _origInfo
+}
+
 // Variáveis críticas de segurança — falha rápida se ausentes em produção
 if (process.env.NODE_ENV === 'production') {
   const REQUIRED = [

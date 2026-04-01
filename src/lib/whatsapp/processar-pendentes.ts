@@ -22,6 +22,7 @@ import {
   atualizarStatusMensagem,
 } from '@/lib/ai/conversa'
 import { roterarDocumentoWhatsapp } from '@/lib/whatsapp/action-router'
+import { downloadMedia, extractPdfText } from '@/lib/whatsapp/media'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import { sendHumanLike } from '@/lib/whatsapp/human-like'
 import { classificarIntencao } from '@/lib/ai/classificar-intencao'
@@ -117,20 +118,86 @@ export async function processarMensagensPendentes(): Promise<{
       // Marca como processadas APÓS a IA responder com sucesso (ver abaixo)
 
       // Agrega textos e pega o último mediaContent disponível
-      const textos = msgs.map(m => m.conteudo).filter(t => t && t !== '[áudio]')
-      const textoAgregado = textos.join('\n')
-
-      // Pega mediaContent do último msg que tiver (imagem/documento)
+      // Tenta re-baixar documentos/imagens que chegaram como placeholder [document]/[image]
+      // (webhook salva placeholder quando a Evolution API está lenta no momento do recebimento)
       let mediaContentParts: AIMessageContentPart[] | null = null
+      const textos: string[] = []
+
       for (let i = msgs.length - 1; i >= 0; i--) {
-        const data = msgs[i].whatsappMsgData as any
+        const m = msgs[i]
+        const data = m.whatsappMsgData as Record<string, unknown> | null
+
         if (data?.mediaContentParts) {
-          mediaContentParts = data.mediaContentParts
-          break
+          if (!mediaContentParts) mediaContentParts = data.mediaContentParts as AIMessageContentPart[]
         }
+
+        // Tenta retry de download para placeholders de documento
+        if (m.conteudo === '[document]' && data && !mediaContentParts) {
+          try {
+            const media = await downloadMedia(cfg, data)
+            if (media?.mimeType.includes('pdf')) {
+              const pdfText = await extractPdfText(media.buffer)
+              if (pdfText) {
+                const textoDoc = `[Documento recebido: ${media.fileName ?? 'arquivo'}]\n\n${pdfText.slice(0, 3000)}`
+                await prisma.mensagemIA.update({ where: { id: m.id }, data: { conteudo: textoDoc } })
+                textos.unshift(textoDoc)
+                continue
+              }
+            }
+          } catch {
+            // retry falhou — usa placeholder mesmo
+          }
+        }
+
+        if (m.conteudo && m.conteudo !== '[áudio]') textos.push(m.conteudo)
       }
 
+      const textoAgregado = textos.join('\n')
+
       if (!textoAgregado && !mediaContentParts) continue
+
+      // Documento sem conteúdo extraível: não chamar a IA (responderia bobagem).
+      // Envia mensagem canned ao cliente e cria escalação para revisão humana.
+      if (textoAgregado === '[document]' && !mediaContentParts) {
+        try {
+          await sendHumanLike(cfg, conversa.remoteJid ?? '', 'Recebi seu documento! Nossa equipe irá analisá-lo em breve e retornará em contato.')
+          const historico = await getHistorico(conversa.id)
+          await prisma.escalacao.create({
+            data: {
+              canal:          'whatsapp',
+              status:         'pendente',
+              clienteId:      conversa.clienteId ?? null,
+              leadId:         conversa.leadId    ?? null,
+              remoteJid:      conversa.remoteJid ?? '',
+              conversaIAId:   conversa.id,
+              historico:      historico as object[],
+              ultimaMensagem: '[Documento recebido — não foi possível processar automaticamente]',
+              motivoIA:       'Falha no download do documento via Evolution API após retry no cron',
+            },
+          }).then(esc => {
+            indexarAsync('escalacao', {
+              id: esc.id, clienteId: esc.clienteId, leadId: esc.leadId,
+              canal: 'whatsapp', motivoIA: esc.motivoIA, criadoEm: esc.criadoEm,
+            })
+          }).catch((err: unknown) =>
+            console.error('[processar-pendentes] erro ao indexar escalação por documento não processado:', { conversaId: conversa.id, err }),
+          )
+          await prisma.conversaIA.update({
+            where: { id: conversa.id },
+            data:  { pausadaEm: new Date() },
+          })
+        } catch (err) {
+          console.error('[processar-pendentes] erro ao escalar documento não processado:', { conversaId: conversa.id, err })
+        }
+        // Remove as mensagens pending sem processar pela IA
+        await prisma.mensagemIA.deleteMany({
+          where: { id: { in: msgs.map(m => m.id) } },
+        }).catch((err: unknown) =>
+          console.error('[processar-pendentes] erro ao deletar msgs pending de documento não processado:', { conversaId: conversa.id, err }),
+        )
+        conversasProcessadas++
+        continue
+      }
 
       // Reconstrói o contexto do contato
       const remoteJid = conversa.remoteJid ?? ''
@@ -361,12 +428,12 @@ export async function processarMensagensPendentes(): Promise<{
       const sendResult = await sendHumanLike(cfg, remoteJid, resposta)
 
       if (sendResult.ok) {
-        // Marca como processadas após a IA responder com sucesso (evita mensagens perdidas por crash)
-        await prisma.mensagemIA.updateMany({
+        // Remove as mensagens pending originais — addMensagens já criou a cópia canônica com status=sent.
+        // Isso evita duplicatas visíveis na conversa.
+        await prisma.mensagemIA.deleteMany({
           where: { id: { in: msgs.map(m => m.id) } },
-          data:  { aiProcessado: true },
         }).catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao marcar aiProcessado:', { conversaId: conversa.id, err }),
+          console.error('[processar-pendentes] erro ao deletar msgs pending originais:', { conversaId: conversa.id, err }),
         )
         atualizarStatusMensagem(mensagemId, 'sent').catch((err: unknown) =>
           console.error('[processar-pendentes] erro ao atualizar status para sent:', { mensagemId, err }),
