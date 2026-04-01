@@ -40,12 +40,22 @@ export async function POST(req: NextRequest) {
   const socioSelect   = { id: true, nome: true, email: true, empresaId: true } as const
 
   // ── Resolve cliente ──────────────────────────────────────────────────────────
+  let clienteId: string | null = null
+  if (!email && telefone) {
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM clientes
+      WHERE regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g') = ${telefone}
+         OR regexp_replace(COALESCE(telefone, ''), '[^0-9]', '', 'g') = ${telefone}
+      LIMIT 1
+    `
+    clienteId = rows[0]?.id ?? null
+  }
+
   const cliente = email
     ? await prisma.cliente.findUnique({ where: { email }, select: clienteSelect })
-    : await prisma.cliente.findFirst({
-        where: { OR: [{ whatsapp: { contains: telefone! } }, { telefone: { contains: telefone! } }] },
-        select: clienteSelect,
-      })
+    : clienteId
+      ? await prisma.cliente.findUnique({ where: { id: clienteId }, select: clienteSelect })
+      : null
 
   if (cliente) {
     if (cliente.status !== 'ativo' && cliente.status !== 'inadimplente') {
@@ -72,15 +82,25 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Resolve sócio ────────────────────────────────────────────────────────────
+  let socioId: string | null = null
+  if (!email && telefone) {
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM socios
+      WHERE "portalAccess" = true
+        AND (
+          regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g') = ${telefone}
+          OR regexp_replace(COALESCE(telefone, ''), '[^0-9]', '', 'g') = ${telefone}
+        )
+      LIMIT 1
+    `
+    socioId = rows[0]?.id ?? null
+  }
+
   const socio = email
     ? await prisma.socio.findFirst({ where: { email, portalAccess: true }, select: socioSelect })
-    : await prisma.socio.findFirst({
-        where: {
-          portalAccess: true,
-          OR: [{ whatsapp: { contains: telefone! } }, { telefone: { contains: telefone! } }],
-        },
-        select: socioSelect,
-      })
+    : socioId
+      ? await prisma.socio.findUnique({ where: { id: socioId }, select: socioSelect })
+      : null
 
   if (socio) {
     if (!socio.email) return NextResponse.json({ error: 'codigo_invalido' }, { status: 400 })

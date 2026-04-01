@@ -88,18 +88,32 @@ export async function POST(req: NextRequest) {
   const socioSelect   = { id: true, nome: true, empresaId: true, whatsapp: true, telefone: true } as const
 
   // ── Busca por telefone ───────────────────────────────────────────────────────
+  // Usa regexp_replace para ignorar formatação (parênteses, hífens, espaços) no banco
   if (telefone) {
-    const clientePorTel = await prisma.cliente.findFirst({
-      where: { OR: [{ whatsapp: { contains: telefone } }, { telefone: { contains: telefone } }] },
-      select: clienteSelect,
-    })
-    if (clientePorTel) return enviarOtpCliente(clientePorTel)
+    const clienteRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM clientes
+      WHERE regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g') = ${telefone}
+         OR regexp_replace(COALESCE(telefone, ''), '[^0-9]', '', 'g') = ${telefone}
+      LIMIT 1
+    `
+    if (clienteRows.length > 0) {
+      const clientePorTel = await prisma.cliente.findUnique({ where: { id: clienteRows[0].id }, select: clienteSelect })
+      if (clientePorTel) return enviarOtpCliente(clientePorTel)
+    }
 
-    const socioPorTel = await prisma.socio.findFirst({
-      where: { portalAccess: true, OR: [{ whatsapp: { contains: telefone } }, { telefone: { contains: telefone } }] },
-      select: socioSelect,
-    })
-    if (socioPorTel) return enviarOtpSocio(socioPorTel)
+    const socioRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM socios
+      WHERE "portalAccess" = true
+        AND (
+          regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g') = ${telefone}
+          OR regexp_replace(COALESCE(telefone, ''), '[^0-9]', '', 'g') = ${telefone}
+        )
+      LIMIT 1
+    `
+    if (socioRows.length > 0) {
+      const socioPorTel = await prisma.socio.findUnique({ where: { id: socioRows[0].id }, select: socioSelect })
+      if (socioPorTel) return enviarOtpSocio(socioPorTel)
+    }
 
     return NextResponse.json({ error: 'whatsapp_nao_cadastrado' }, { status: 404 })
   }
