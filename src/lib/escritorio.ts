@@ -26,6 +26,17 @@ const FALLBACK = {
       diasDocumentosAntecedencia: 5,
       vencimentosDias: [5, 10, 15, 20],
       pixDescontoPercent: 5.0,
+      // Spedy — NFS-e
+      spedyApiKey:            null as string | null,
+      spedyAmbiente:          'sandbox' as string | null,
+      spedyWebhookId:         null as string | null,
+      spedyIssAliquota:       null as unknown,
+      spedyIssWithheld:       false as boolean | null,
+      spedyFederalServiceCode: null as string | null,
+      spedyCityServiceCode:   null as string | null,
+      spedyTaxationType:      null as string | null,
+      spedyEnviarAoAutorizar: true as boolean | null,
+      spedyEnviarCanalPadrao: 'whatsapp' as string | null,
 }
 
 export const getEscritorioConfig = cache(async () => {
@@ -61,6 +72,16 @@ export const getEscritorioConfig = cache(async () => {
       diasDocumentosAntecedencia: 5,
       vencimentosDias: [5, 10, 15, 20],
       pixDescontoPercent: 5.0,
+      spedyApiKey:            null as string | null,
+      spedyAmbiente:          'sandbox' as string | null,
+      spedyWebhookId:         null as string | null,
+      spedyIssAliquota:       null as unknown,
+      spedyIssWithheld:       false as boolean | null,
+      spedyFederalServiceCode: null as string | null,
+      spedyCityServiceCode:   null as string | null,
+      spedyTaxationType:      null as string | null,
+      spedyEnviarAoAutorizar: true as boolean | null,
+      spedyEnviarCanalPadrao: 'whatsapp' as string | null,
     }
   }
   return escritorio

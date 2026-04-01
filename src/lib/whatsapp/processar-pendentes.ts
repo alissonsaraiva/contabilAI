@@ -13,7 +13,7 @@
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import type { EvolutionConfig } from '@/lib/evolution'
-import { askAI, detectarEscalacao } from '@/lib/ai/ask'
+import { askAI, detectarEscalacao, SYSTEM_NFSE_INSTRUCOES } from '@/lib/ai/ask'
 import type { AskContext } from '@/lib/ai/ask'
 import {
   getHistorico,
@@ -29,7 +29,7 @@ import { classificarIntencao } from '@/lib/ai/classificar-intencao'
 import { executarAgente } from '@/lib/ai/agent'
 import type { AIMessageContentPart } from '@/lib/ai/providers/types'
 
-const DEBOUNCE_MS  = 5000  // aguarda 5s após última mensagem antes de processar
+const DEBOUNCE_MS  = 30000  // aguarda 30s após última mensagem antes de processar (contexto completo)
 const LOCK_TIMEOUT = 30000 // considera trava expirada após 30s (reinício inesperado)
 
 // Lock in-memory para evitar duplo processamento simultâneo por conversaId
@@ -84,6 +84,7 @@ export async function processarMensagensPendentes(): Promise<{
       evolutionInstance: true,
       whatsappAiEnabled: true,
       whatsappAiFeature: true,
+      spedyApiKey:       true,
     },
   })
 
@@ -136,14 +137,25 @@ export async function processarMensagensPendentes(): Promise<{
         if (m.conteudo === '[document]' && data && !mediaContentParts) {
           try {
             const media = await downloadMedia(cfg, { key: data.key, message: data.message })
-            if (media?.mimeType.includes('pdf')) {
-              const pdfText = await extractPdfText(media.buffer)
-              if (pdfText) {
-                const textoDoc = `[Documento recebido: ${media.fileName ?? 'arquivo'}]\n\n${pdfText.slice(0, 3000)}`
-                await prisma.mensagemIA.update({ where: { id: m.id }, data: { conteudo: textoDoc } })
-                textos.unshift(textoDoc)
-                continue
+            if (media) {
+              // Persiste buffer independente de extração — garante que o proxy sirva sem re-fetch
+              const updateData: Record<string, unknown> = {
+                mediaBuffer:   media.buffer,
+                mediaMimeType: media.mimeType,
+                mediaFileName: media.fileName ?? null,
+                mediaType:     'document',
               }
+              if (media.mimeType.includes('pdf')) {
+                const pdfText = await extractPdfText(media.buffer)
+                if (pdfText) {
+                  const textoDoc = `[Documento recebido: ${media.fileName ?? 'arquivo'}]\n\n${pdfText.slice(0, 3000)}`
+                  updateData.conteudo = textoDoc
+                  await prisma.mensagemIA.update({ where: { id: m.id }, data: updateData })
+                  textos.unshift(textoDoc)
+                  continue
+                }
+              }
+              await prisma.mensagemIA.update({ where: { id: m.id }, data: updateData }).catch(() => null)
             }
           } catch {
             // retry falhou — usa placeholder mesmo
@@ -160,8 +172,21 @@ export async function processarMensagensPendentes(): Promise<{
       // Documento sem conteúdo extraível: não chamar a IA (responderia bobagem).
       // Envia mensagem canned ao cliente e cria escalação para revisão humana.
       if (textoAgregado === '[document]' && !mediaContentParts) {
+        const cannedResponse = 'Recebi seu documento! Nossa equipe irá analisá-lo em breve e retornará em contato.'
         try {
-          await sendHumanLike(cfg, conversa.remoteJid ?? '', 'Recebi seu documento! Nossa equipe irá analisá-lo em breve e retornará em contato.')
+          await sendHumanLike(cfg, conversa.remoteJid ?? '', cannedResponse)
+          // Salva a resposta canned no histórico para aparecer no CRM
+          await prisma.mensagemIA.create({
+            data: {
+              conversaId:   conversa.id,
+              role:         'assistant',
+              conteudo:     cannedResponse,
+              status:       'sent',
+              aiProcessado: true,
+            },
+          }).catch((err: unknown) =>
+            console.error('[processar-pendentes] erro ao salvar canned response no DB:', { conversaId: conversa.id, err }),
+          )
           const historico = await getHistorico(conversa.id)
           await prisma.escalacao.create({
             data: {
@@ -323,6 +348,11 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
         } catch (err) {
           console.error('[whatsapp/agente] Falha ao executar agente, conversa:', conversa.id, err)
         }
+      }
+
+      // NFS-e: injeta instruções quando Spedy está configurado e é cliente identificado
+      if (row.spedyApiKey && conversa.clienteId) {
+        systemExtra += `\n\n${SYSTEM_NFSE_INSTRUCOES}`
       }
 
       // ── Re-contexto pós-24h ───────────────────────────────────────────────

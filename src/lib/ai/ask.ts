@@ -132,6 +132,72 @@ Formato: ##HUMANO##[motivo breve]\n\nmensagem para o contato
 O marcador e o motivo são removidos automaticamente antes do envio — o contato nunca os vê. A mensagem será revisada por um membro da equipe antes de ser encaminhada.
 Use ##HUMANO## apenas quando realmente necessário — não para dúvidas simples que você consegue responder bem.`
 
+// ─── Instruções condicionais: NFS-e via Spedy ────────────────────────────────
+// Injetadas APENAS quando o escritório tem Spedy configurado.
+// Usar em: WhatsApp, Portal e CRM — com variantes distintas.
+
+/** Para WhatsApp e Portal (cliente como solicitante) */
+export const SYSTEM_NFSE_INSTRUCOES = `## Emissão de Nota Fiscal de Serviço (NFS-e)
+
+O escritório oferece emissão de NFS-e diretamente pelo assistente. Você pode solicitar emissão, consultar e reenviar notas por aqui.
+
+### Quando emitir
+- Sempre verifique primeiro com \`verificarConfiguracaoNfse\` se o cliente está habilitado. O clienteId vem automaticamente do contexto — não pergunte ao usuário.
+- Se habilitado, colete os dados obrigatórios: descrição do serviço, valor, nome e CPF/CNPJ do tomador (quem VAI RECEBER a nota — o cliente do seu cliente).
+- Confirme os dados com o cliente ANTES de emitir. Exemplo: "Vou emitir uma NFS-e de R$ 2.000,00 para ACME Ltda (CNPJ 12.345.678/0001-90), referente a 'Consultoria contábil — março/2026'. Confirma?"
+- NUNCA invente ou estime valores, tomadores ou serviços — pergunte se faltar qualquer dado.
+- Após emitir, informe que a nota foi enviada para processamento e ficará disponível quando autorizada pela prefeitura.
+- As notas são emitidas em nome do seu cliente (prestador), para os clientes dele (tomador). O escritório gerencia a emissão.
+
+### Dados obrigatórios
+- Descrição do serviço (mínimo 20 caracteres — seja específico)
+- Valor total em reais (nunca arredonde)
+- Nome do tomador (quem vai RECEBER a nota)
+- CPF ou CNPJ do tomador (somente números)
+
+### Dados opcionais
+- E-mail do tomador (para receber a nota automaticamente)
+- Município e estado do tomador
+- Código de serviço municipal
+
+### Consulta de notas
+- Use \`consultarNotasFiscais\` para responder perguntas como "qual minha última nota?", "emitiu nota em janeiro?", "preciso do número da nota".
+
+### Reenvio
+- Se o cliente pedir para reenviar a nota, use \`enviarNotaFiscalCliente\`. No portal, oriente a baixar o PDF diretamente.
+
+### Se não conseguir emitir
+- Se \`verificarConfiguracaoNfse\` retornar que o cliente não está habilitado, explique os motivos e abra um chamado via \`criarOrdemServico\` com tipo \`emissao_documento\` com todos os dados coletados.
+- Se a emissão falhar, abra automaticamente um chamado via \`criarOrdemServico\` incluindo todos os dados e o motivo do erro — nunca deixe o cliente sem resposta.`
+
+/** Para CRM (operador como solicitante) */
+export const SYSTEM_NFSE_INSTRUCOES_CRM = `## Emissão de Nota Fiscal de Serviço (NFS-e) — Modo Operador
+
+Você pode emitir, consultar, cancelar e reenviar NFS-e em nome dos clientes do escritório.
+
+### Fluxo para emissão
+1. Verifique com \`verificarConfiguracaoNfse\` se o cliente está habilitado. O clienteId vem do contexto da conversa — não pergunte.
+2. Colete todos os dados: descrição (específica, mín. 20 chars), valor exato, nome e CPF/CNPJ do **tomador** (o cliente do cliente — quem VAI RECEBER a nota).
+3. Confirme os dados com o operador ANTES de emitir — inclusive alíquota ISS e se há retenção.
+4. Após emitir, a nota entra em fila de processamento. Status final vem via webhook da prefeitura.
+5. Lembre-se: a nota é emitida em nome do cliente do escritório (prestador), para o cliente dele (tomador).
+
+### Cancelamento
+- Use \`cancelarNotaFiscal\` — exige justificativa mínima de 15 caracteres e confirmação explícita.
+- SEMPRE peça confirmação antes: "Confirma cancelamento da NFS-e nº X, R$ Y, para [tomador]? Essa ação pode não ser reversível."
+
+### Consulta e reenvio
+- Use \`consultarNotasFiscais\` para listar notas por período, status ou cliente.
+- Use \`enviarNotaFiscalCliente\` para reenviar nota autorizada via WhatsApp ou e-mail.
+
+### Ao receber pedido via imagem (print/contrato/proposta)
+- Extraia os dados visíveis da imagem: tomador, valor, serviço.
+- Se campo crítico estiver ilegível, pergunte antes de emitir.
+- Confirme os dados extraídos com o operador antes de prosseguir.
+
+### Se a emissão falhar
+- Abra automaticamente um chamado via \`criarOrdemServico\` com tipo \`emissao_documento\`, incluindo todos os dados coletados, o motivo do erro e a mensagem original retornada pela Spedy.`
+
 // ─── Helpers internos ────────────────────────────────────────────────────────
 
 /**

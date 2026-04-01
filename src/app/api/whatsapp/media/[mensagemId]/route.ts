@@ -17,10 +17,30 @@ export async function GET(
 
   const mensagem = await prisma.mensagemIA.findUnique({
     where: { id: mensagemId },
-    select: { whatsappMsgData: true },
+    select: { whatsappMsgData: true, mediaBuffer: true, mediaMimeType: true, mediaFileName: true },
   })
 
-  if (!mensagem?.whatsappMsgData) {
+  if (!mensagem) {
+    return NextResponse.json({ error: 'Mídia não disponível' }, { status: 404 })
+  }
+
+  // Serve do buffer persistido no banco (caminho principal — sem dependência da Evolution)
+  if (mensagem.mediaBuffer) {
+    const contentType = mensagem.mediaMimeType || 'application/octet-stream'
+    const isInline = contentType.startsWith('audio/') || contentType.startsWith('image/')
+    return new Response(new Uint8Array(mensagem.mediaBuffer), {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': isInline
+          ? 'inline'
+          : `attachment; filename="${mensagem.mediaFileName ?? 'arquivo'}"`,
+        'Cache-Control': 'private, max-age=86400',
+      },
+    })
+  }
+
+  // Fallback: tenta re-fetch na Evolution (funciona apenas nos primeiros minutos após recebimento)
+  if (!mensagem.whatsappMsgData) {
     return NextResponse.json({ error: 'Mídia não disponível' }, { status: 404 })
   }
 
@@ -49,6 +69,16 @@ export async function GET(
     return NextResponse.json({ error: 'Mídia não encontrada na Evolution' }, { status: 404 })
   }
 
+  // Persiste buffer para futuras requisições (backfill de mensagens antigas)
+  prisma.mensagemIA.update({
+    where: { id: mensagemId },
+    data: {
+      mediaBuffer:   media.buffer as unknown as Uint8Array<ArrayBuffer>,
+      mediaMimeType: media.mimeType,
+      mediaFileName: media.fileName ?? null,
+    },
+  }).catch(() => null)
+
   const contentType = media.mimeType || 'application/octet-stream'
   const isInline = contentType.startsWith('audio/') || contentType.startsWith('image/')
   return new Response(new Uint8Array(media.buffer), {
@@ -57,7 +87,7 @@ export async function GET(
       'Content-Disposition': isInline
         ? 'inline'
         : `attachment; filename="${media.fileName ?? 'arquivo'}"`,
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': 'private, max-age=86400',
     },
   })
 }

@@ -82,10 +82,17 @@ import './classificar-email'
 // ─── Tools de comunicação segmentada ─────────────────────────────────────────
 import './enviar-comunicado-segmentado'
 
+// ─── Tools de Nota Fiscal (NFS-e via Spedy) ───────────────────────────────────
+import './verificar-configuracao-nfse'
+import './emitir-nota-fiscal'
+import './reemitir-nota-fiscal'
+import './consultar-notas-fiscais'
+import './cancelar-nota-fiscal'
+import './enviar-nota-fiscal-cliente'
+
 // ─── Tools externas ───────────────────────────────────────────────────────────
 import './buscar-cnpj-externo'
 // import './buscar-boleto'
-// import './emitir-nfe'
 
 export * from './registry'
 export * from './types'

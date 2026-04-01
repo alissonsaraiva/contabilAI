@@ -111,6 +111,16 @@ enum AsaasStatusCobranca {
   CANCELLED
 }
 
+enum StatusNotaFiscal {
+  rascunho      // criada localmente, ainda não enviada
+  enviando      // POST feito, aguardando Spedy enfileirar
+  processando   // enqueued na Spedy — aguardando prefeitura
+  autorizada    // autorizada pela prefeitura
+  rejeitada     // rejeitada (ver erroCodigo/erroMensagem)
+  cancelada     // cancelada com sucesso
+  erro_interno  // falha de infra (não chegou à prefeitura)
+}
+
 model Usuario {
   id                 String      @id @default(uuid())
   nome               String
@@ -188,11 +198,26 @@ model Empresa {
   criadoEm     DateTime      @default(now())
   atualizadoEm DateTime      @updatedAt
 
+  // Spedy NFS-e — credenciais por empresa (cliente é o prestador)
+  spedyCompanyId          String?   @unique  // UUID da empresa na Spedy
+  spedyApiKey             String?   @db.Text // encrypted — chave da empresa secundária
+  spedyConfigurado        Boolean   @default(false)
+  spedyConfiguradoEm      DateTime?
+  // Overrides fiscais opcionais (sobrescrevem defaults do Escritorio)
+  spedyFederalServiceCode String?   // código LC 116/03 ex: "1.07"
+  spedyCityServiceCode    String?   // código municipal
+  spedyIssAliquota        Decimal?  @db.Decimal(5, 4) // ex: 0.0500 = 5%
+  spedyIssWithheld        Boolean?  // null = usar default do Escritorio
+  spedyTaxationType       String?   // null = usar default do Escritorio
+  // Configuração fiscal por cliente (JSON livre para overrides específicos)
+  spedyConfigFiscal       Json?
+
   cliente       Cliente?
   socios        Socio[]
   portalTokens  PortalToken[]
   ordensServico OrdemServico[]
   documentos    Documento[]
+  notasFiscais  NotaFiscal[]
 
   @@index([cnpj], name: "empresa_cnpj_partial")
   @@map("empresas")
@@ -256,6 +281,7 @@ model Cliente {
   ordensServico     OrdemServico[]
   pushSubscriptions PushSubscription[]
   cobrancasAsaas    CobrancaAsaas[]
+  notasFiscais      NotaFiscal[]
 
   @@index([leadId], name: "cliente_leadId_partial")
   @@index([empresaId], name: "cliente_empresaId_partial")
@@ -402,7 +428,8 @@ model OrdemServico {
   criadoEm        DateTime  @default(now())
   atualizadoEm    DateTime  @updatedAt
 
-  documentos Documento[]
+  documentos   Documento[]
+  notasFiscais NotaFiscal[]
 
   @@index([clienteId, criadoEm])
   @@index([status, criadoEm])
@@ -607,6 +634,22 @@ model Escritorio {
   asaasAmbiente        String?  @default("sandbox")  // "sandbox" | "production"
   asaasWebhookToken    String?             // token para validar webhooks recebidos
 
+  // Spedy NFS-e — conta Owner do escritório (gerencia empresas secundárias dos clientes)
+  spedyApiKey             String?  @db.Text   // encrypted — Owner key
+  spedyAmbiente           String?  @default("sandbox") // "sandbox" | "producao"
+  spedyWebhookId          String?             // UUID do webhook registrado na Spedy
+  // Defaults fiscais (usados quando a Empresa do cliente não tem override)
+  spedyFederalServiceCode String?             // código LC 116/03 padrão ex: "1.07"
+  spedyCityServiceCode    String?             // código municipal padrão
+  spedyIssAliquota        Decimal? @db.Decimal(5, 4)  // ex: 0.0500 = 5%
+  spedyTaxationType       String?  @default("taxationInMunicipality")
+  spedyIssWithheld        Boolean  @default(false)
+  // Automações
+  spedyAutoEmitirOS       Boolean  @default(false) // auto-emitir ao resolver OS
+  spedyEnviarAoAutorizar  Boolean  @default(true)  // enviar PDF ao cliente após autorização
+  spedyEnviarCanalPadrao  String?  @default("whatsapp") // "whatsapp" | "email" | "portal"
+  spedyDescricaoTemplate  String?  @db.Text        // template com variáveis {{os.numero}} etc.
+
   // WhatsApp AI — usa Evolution API para enviar respostas
   whatsappAiEnabled    Boolean? @default(false)
   whatsappAiFeature    String?  @default("onboarding")  // onboarding | crm | portal
@@ -663,6 +706,7 @@ model MensagemIA {
   erroEnvio         String?        @db.Text
   aiProcessado      Boolean        @default(true)  // false = aguardando processamento (debounce WhatsApp)
   whatsappMsgData   Json?          // payload { key, message } para re-fetch de mídia na Evolution
+  mediaBuffer       Bytes?         // conteúdo binário da mídia recebida via WhatsApp (evita re-fetch após expiração da URL)
   // Mídia enviada pelo operador via chat CRM
   mediaUrl          String?        // URL pública do arquivo (S3)
   mediaType         String?        // 'image' | 'document' | 'audio'
@@ -791,6 +835,84 @@ model RelatorioAgente {
   @@index([tipo, criadoEm])
   @@index([criadoPorId, criadoEm])
   @@map("relatorios_agente")
+}
+
+model NotaFiscal {
+  id             String           @id @default(uuid())
+  clienteId      String
+  cliente        Cliente          @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  empresaId      String?
+  empresa        Empresa?         @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  ordemServicoId String?
+  ordemServico   OrdemServico?    @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  emitidaPorId   String?          // usuarioId — null = agente/automático
+
+  // IDs Spedy
+  spedyId        String?          @unique  // UUID retornado pela Spedy
+  integrationId  String?          @unique  // nosso ID enviado (ordemServicoId ou gerado)
+
+  // Status
+  status         StatusNotaFiscal @default(rascunho)
+  numero         Int?             // atribuído pela prefeitura ao autorizar
+  rpsNumero      Int?
+  rpsSerie       String?
+
+  // Dados fiscais — o que foi enviado à Spedy
+  descricao      String           @db.Text
+  valorTotal     Decimal          @db.Decimal(10, 2)
+  issRetido      Boolean          @default(false)
+  issAliquota    Decimal?         @db.Decimal(5, 4)
+  issValor       Decimal?         @db.Decimal(10, 2)
+  pisAliquota    Decimal?         @db.Decimal(5, 4)
+  pisValor       Decimal?         @db.Decimal(10, 2)
+  cofinsAliquota Decimal?         @db.Decimal(5, 4)
+  cofinsValor    Decimal?         @db.Decimal(10, 2)
+  irAliquota     Decimal?         @db.Decimal(5, 4)
+  irValor        Decimal?         @db.Decimal(10, 2)
+  valorLiquido   Decimal?         @db.Decimal(10, 2)
+
+  // Código fiscal utilizado
+  federalServiceCode String?
+  cityServiceCode    String?
+  taxationType       String?
+
+  // Tomador (quem está recebendo a nota do cliente)
+  tomadorNome        String?
+  tomadorCpfCnpj     String?
+  tomadorEmail       String?
+  tomadorMunicipio   String?
+  tomadorEstado      String?
+
+  // Autorização
+  xmlUrl         String?
+  pdfUrl         String?
+  chaveAcesso    String?
+  protocolo      String?
+  autorizadaEm   DateTime?
+
+  // Cancelamento
+  canceladaEm                   DateTime?
+  cancelamentoJustificativa     String?
+
+  // Rastreamento de erros
+  erroCodigo     String?
+  erroMensagem   String?          @db.Text
+  tentativas     Int              @default(0)
+
+  // Entrega ao cliente
+  enviadaClienteEm    DateTime?
+  enviadaClienteCanal String?   // "whatsapp" | "email" | "portal"
+
+  criadoEm       DateTime         @default(now())
+  atualizadoEm   DateTime         @updatedAt
+
+  @@index([clienteId, criadoEm])
+  @@index([empresaId, criadoEm])
+  @@index([status, criadoEm])
+  @@index([ordemServicoId])
+  @@index([spedyId])
+  @@index([clienteId, status])
+  @@map("notas_fiscais")
 }
 
 model CobrancaAsaas {

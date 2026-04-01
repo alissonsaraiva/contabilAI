@@ -26,6 +26,7 @@ import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ClienteFinanceiroTab } from '@/components/crm/cliente-financeiro-tab'
+import { NotasFiscaisTabContent } from '@/components/crm/notas-fiscais-tab'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -65,7 +66,7 @@ const DOC_STATUS_COLORS: Record<string, string> = {
 
 export default async function ClienteDetailPage({ params }: Props) {
   const { id } = await params
-  const [aiConfig, cliente] = await Promise.all([
+  const [aiConfig, cliente, escritorio] = await Promise.all([
     getAiConfig(),
     prisma.cliente.findUnique({
       where: { id },
@@ -77,6 +78,7 @@ export default async function ClienteDetailPage({ params }: Props) {
         statusHistorico: { orderBy: { criadoEm: 'desc' }, take: 20 },
       },
     }),
+    prisma.escritorio.findFirst({ select: { spedyApiKey: true } }),
   ])
 
   if (!cliente) notFound()
@@ -98,12 +100,16 @@ export default async function ClienteDetailPage({ params }: Props) {
   const documentos = [...cliente.documentos, ...empresaDocs]
     .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
 
+  const escritorioSpedyOk   = !!escritorio?.spedyApiKey
+  const spedyConfigurado    = !!cliente?.empresa?.spedyConfigurado
+
   const tabs = [
     { value: 'dados', label: 'Dados', count: null },
     { value: 'financeiro', label: 'Financeiro', count: null },
     { value: 'socios', label: 'Sócios', count: socios.length },
     { value: 'documentos', label: 'Documentos', count: documentos.length },
     { value: 'contratos', label: 'Contratos', count: contratos.length },
+    { value: 'nfse', label: 'Notas Fiscais', count: null },
     { value: 'historico', label: 'Interações', count: null },
   ]
 
@@ -491,6 +497,16 @@ export default async function ClienteDetailPage({ params }: Props) {
           </div>
           <HistoricoTimeline clienteId={cliente.id} nomeIa={nomeIa} />
         </TabsContent>
+
+        {/* ── Notas Fiscais ────────────────────────────────── */}
+        <TabsContent value="nfse" className="m-0 focus-visible:outline-none">
+          <NotasFiscaisTabContent
+            clienteId={cliente.id}
+            spedyConfigurado={spedyConfigurado}
+            escritorioSpedyOk={escritorioSpedyOk}
+          />
+        </TabsContent>
+
       </Tabs>
 
       <AssistenteContextSetter

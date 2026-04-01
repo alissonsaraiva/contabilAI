@@ -313,7 +313,7 @@ export async function POST(req: Request) {
       // Inclui whatsappMsgData para permitir re-fetch de mídia via proxy /api/whatsapp/media/[id]
       const conteudoPausado = textSanitizado || (mediaType ? `[${mediaType}]` : '[mensagem]')
       const now = new Date()
-      await Promise.all([
+      const [mensagemPausada] = await Promise.all([
         prisma.mensagemIA.create({
           data: {
             conversaId,
@@ -337,12 +337,24 @@ export async function POST(req: Request) {
             console.error('[whatsapp/webhook] erro ao enviar confirmação de mídia (conversa pausada):', { remoteJid, err }),
           )
       }
-      // Classifica e arquiva documento mesmo com humano no controle (fire-and-forget)
+      // Classifica, arquiva e persiste buffer (fire-and-forget)
       if (mediaType && msg && cfg) {
         ;(async () => {
           try {
             const media = await downloadMedia(cfg, { key, message: msg! })
             if (media) {
+              // Persiste buffer na mensagem para o proxy servir sem re-fetch da Evolution
+              await prisma.mensagemIA.update({
+                where: { id: mensagemPausada.id },
+                data: {
+                  mediaBuffer:   media.buffer as unknown as Uint8Array<ArrayBuffer>,
+                  mediaMimeType: media.mimeType,
+                  mediaFileName: media.fileName ?? null,
+                  mediaType:     mediaType === 'image' ? 'image' : 'document',
+                },
+              }).catch((err: unknown) =>
+                console.error('[whatsapp/webhook] erro ao salvar buffer de mídia pausada:', { conversaId, err }),
+              )
               const isPdf = mediaType === 'document' && media.mimeType.includes('pdf')
               const textoExtraido = isPdf ? (await extractPdfText(media.buffer)) || undefined : undefined
               const base64 = (!isPdf && media.buffer) ? media.buffer.toString('base64') : undefined
@@ -402,6 +414,9 @@ export async function POST(req: Request) {
     // ── Processa mídia (áudio, imagem, PDF) ──────────────────────────────────
     let textoFinal = textSanitizado
     let mediaContentParts: AIMessageContentPart[] | null = null
+    let savedMediaBuffer: Buffer | null = null
+    let savedMediaMimeType: string | null = null
+    let savedMediaFileName: string | null = null
 
     if (mediaType && cfg) {
       const caption = extractMediaCaption(msg!)
@@ -482,6 +497,9 @@ export async function POST(req: Request) {
               ...(caption ? [{ type: 'text' as const, text: caption }] : []),
             ]
             textoFinal = caption || '[imagem enviada]'
+            savedMediaBuffer   = media.buffer
+            savedMediaMimeType = media.mimeType
+            savedMediaFileName = media.fileName ?? null
             // Classificar + arquivar como documento (fire-and-forget)
             arquivarMidiaWhatsappAsync({
               media,
@@ -500,6 +518,9 @@ export async function POST(req: Request) {
         try {
           const media = await downloadMedia(cfg, { key, message: msg! })
           if (media) {
+            savedMediaBuffer   = media.buffer
+            savedMediaMimeType = media.mimeType
+            savedMediaFileName = media.fileName ?? null
             if (media.mimeType.includes('pdf')) {
               const pdfText = await extractPdfText(media.buffer)
               const fileName = media.fileName ?? 'documento'
@@ -563,6 +584,12 @@ export async function POST(req: Request) {
         conteudo:     textoFinal || '[mídia]',
         status:       'pending',
         aiProcessado: false,
+        ...(savedMediaBuffer && {
+          mediaBuffer:   savedMediaBuffer as unknown as Uint8Array<ArrayBuffer>,
+          mediaMimeType: savedMediaMimeType ?? undefined,
+          mediaFileName: savedMediaFileName ?? undefined,
+          mediaType:     mediaType === 'image' ? 'image' : 'document',
+        }),
         whatsappMsgData: {
           key,
           message:           msg,

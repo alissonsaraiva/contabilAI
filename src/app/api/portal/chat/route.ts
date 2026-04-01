@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
-import { askAI, detectarEscalacao } from '@/lib/ai/ask'
+import { askAI, detectarEscalacao, SYSTEM_NFSE_INSTRUCOES } from '@/lib/ai/ask'
 import { getAiConfig } from '@/lib/ai/config'
 import { getOrCreateConversaSession, getHistorico, addMensagens, addMensagemUsuario } from '@/lib/ai/conversa'
 import { classificarIntencao } from '@/lib/ai/classificar-intencao'
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
   const [conversaId, aiConfig, escritorio] = await Promise.all([
     getOrCreateConversaSession(sessionId, 'portal', { clienteId: clienteIdParaConversa }),
     getAiConfig(),
-    prisma.escritorio.findFirst({ select: { nome: true } }),
+    prisma.escritorio.findFirst({ select: { nome: true, spedyApiKey: true } }),
   ])
 
   // ── Guarda pausada ANTES de chamar a IA — se pausada, só salva msg do usuário ──
@@ -162,6 +162,11 @@ REGRAS DE ATENDIMENTO:
 - Seja cordial, objetivo e use linguagem simples. Evite jargões técnicos desnecessários.
 - NUNCA acesse dados de outras empresas — você atende SOMENTE esta empresa.
 - Se o usuário quiser falar com outro membro da equipe ou um especialista, use o botão disponível no chat para encaminhar.`
+
+  // NFS-e: injeta instruções de emissão quando o escritório tem Spedy configurado
+  if (escritorio?.spedyApiKey) {
+    systemExtra += `\n\n${SYSTEM_NFSE_INSTRUCOES}`
+  }
 
   // RISCO-3: Injeta dados do sócio no systemExtra quando aplicável
   if (isSocio && dadosSocio) {

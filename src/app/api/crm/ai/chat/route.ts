@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { askAI } from '@/lib/ai/ask'
+import { askAI, SYSTEM_NFSE_INSTRUCOES_CRM } from '@/lib/ai/ask'
 import { getAiConfig } from '@/lib/ai/config'
 import { getOrCreateConversaSession, getHistorico, addMensagens } from '@/lib/ai/conversa'
 import { rateLimit } from '@/lib/rate-limit'
@@ -74,9 +74,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Limite de mensagens atingido. Aguarde alguns minutos.' }, { status: 429 })
   }
 
-  const [conversaId, aiConfig] = await Promise.all([
+  const [conversaId, aiConfig, escritorioCRM] = await Promise.all([
     getOrCreateConversaSession(sessionId, 'crm', { clienteId, leadId }),
     getAiConfig(),
+    prisma.escritorio.findFirst({ select: { spedyApiKey: true } }),
   ])
   const historico  = await getHistorico(conversaId)
 
@@ -188,6 +189,11 @@ REGRAS OBRIGATÓRIAS:
 - Se a pergunta exigir dados que ainda não foram buscados, informe que pode buscá-los e peça confirmação — mas nunca transfira a responsabilidade de busca para o usuário`
 
   if (dadosContextoExtra) systemExtra += sanitizarDadosExternos(dadosContextoExtra)
+
+  // NFS-e: injeta instruções de emissão para operadores quando o escritório tem Spedy configurado
+  if (escritorioCRM?.spedyApiKey) {
+    systemExtra += `\n\n${SYSTEM_NFSE_INSTRUCOES_CRM}`
+  }
 
   const whereClause = clienteId
     ? { conversa: { clienteId } }

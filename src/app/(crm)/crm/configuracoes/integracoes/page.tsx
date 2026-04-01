@@ -22,6 +22,8 @@ const schema = z.object({
   asaasApiKey:         z.string().optional(),
   asaasAmbiente:       z.enum(['sandbox', 'producao']).optional(),
   asaasWebhookToken:   z.string().optional(),
+  spedyApiKey:         z.string().optional(),
+  spedyAmbiente:       z.enum(['sandbox', 'producao']).optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -36,6 +38,7 @@ type Configured = {
   serproCnpjToken:     boolean
   asaasApiKey:         boolean
   asaasWebhookToken:   boolean
+  spedyApiKey:         boolean
 }
 
 // ── Seção colapsável ────────────────────────────────────────────────────────
@@ -118,7 +121,7 @@ export default function IntegracoesPage() {
   const [configured, setConfigured] = useState<Configured>({
     zapsignToken: false, clicksignKey: false, clicksignHmacSecret: false,
     zapiInstanceId: false, zapiToken: false, serproCpfToken: false, serproCnpjToken: false,
-    asaasApiKey: false, asaasWebhookToken: false,
+    asaasApiKey: false, asaasWebhookToken: false, spedyApiKey: false,
   })
 
   const { register, handleSubmit, reset, watch } = useForm<FormData>({
@@ -126,8 +129,9 @@ export default function IntegracoesPage() {
     defaultValues: { provedorAssinatura: 'zapsign' },
   })
 
-  const provedor      = watch('provedorAssinatura')
-  const asaasAmbiente = watch('asaasAmbiente')
+  const provedor       = watch('provedorAssinatura')
+  const asaasAmbiente  = watch('asaasAmbiente')
+  const spedyAmbiente  = watch('spedyAmbiente')
 
   useEffect(() => {
     fetch('/api/escritorio')
@@ -136,10 +140,11 @@ export default function IntegracoesPage() {
         if (!data) return
         reset({
           provedorAssinatura: (data.provedorAssinatura as string) === 'clicksign' ? 'clicksign' : 'zapsign',
-          asaasAmbiente: (data.asaasAmbiente as string) === 'producao' ? 'producao' : 'sandbox',
+          asaasAmbiente:  (data.asaasAmbiente  as string) === 'producao' ? 'producao' : 'sandbox',
+          spedyAmbiente:  (data.spedyAmbiente  as string) === 'producao' ? 'producao' : 'sandbox',
           zapsignToken: '', clicksignKey: '', clicksignHmacSecret: '',
           zapiInstanceId: '', zapiToken: '', serproCpfToken: '', serproCnpjToken: '',
-          asaasApiKey: '', asaasWebhookToken: '',
+          asaasApiKey: '', asaasWebhookToken: '', spedyApiKey: '',
         })
         setConfigured({
           zapsignToken:        !!data.zapsignToken,
@@ -151,6 +156,7 @@ export default function IntegracoesPage() {
           serproCnpjToken:     !!data.serproCnpjToken,
           asaasApiKey:         !!data.asaasApiKey,
           asaasWebhookToken:   !!data.asaasWebhookToken,
+          spedyApiKey:         !!data.spedyApiKey,
         })
       })
   }, [reset])
@@ -161,6 +167,7 @@ export default function IntegracoesPage() {
       const payload: Record<string, unknown> = {
         provedorAssinatura: data.provedorAssinatura,
         asaasAmbiente:      data.asaasAmbiente ?? 'sandbox',
+        spedyAmbiente:      data.spedyAmbiente ?? 'sandbox',
       }
       if (data.zapsignToken)        payload.zapsignToken        = data.zapsignToken
       if (data.clicksignKey)        payload.clicksignKey        = data.clicksignKey
@@ -171,6 +178,7 @@ export default function IntegracoesPage() {
       if (data.serproCnpjToken)     payload.serproCnpjToken     = data.serproCnpjToken
       if (data.asaasApiKey)         payload.asaasApiKey         = data.asaasApiKey
       if (data.asaasWebhookToken)   payload.asaasWebhookToken   = data.asaasWebhookToken
+      if (data.spedyApiKey)         payload.spedyApiKey         = data.spedyApiKey
 
       const res = await fetch('/api/escritorio', {
         method: 'PUT',
@@ -189,6 +197,7 @@ export default function IntegracoesPage() {
         serproCnpjToken:     prev.serproCnpjToken     || !!data.serproCnpjToken,
         asaasApiKey:         prev.asaasApiKey         || !!data.asaasApiKey,
         asaasWebhookToken:   prev.asaasWebhookToken   || !!data.asaasWebhookToken,
+        spedyApiKey:         prev.spedyApiKey         || !!data.spedyApiKey,
       }))
       toast.success('Integrações salvas!')
     } catch {
@@ -199,6 +208,7 @@ export default function IntegracoesPage() {
   }
 
   // Contadores por seção para mostrar no header colapsado
+  const spedyCount     = configured.spedyApiKey ? 1 : 0
   const assinaturaCount =
     (provedor === 'zapsign'   ? (configured.zapsignToken ? 1 : 0) : 0) +
     (provedor === 'clicksign' ? (configured.clicksignKey ? 1 : 0) + (configured.clicksignHmacSecret ? 1 : 0) : 0)
@@ -371,6 +381,71 @@ export default function IntegracoesPage() {
             </div>
           ))}
         </div>
+      </Section>
+
+      {/* ── Spedy (NFS-e) ─────────────────────────────────────────────────── */}
+      <Section icon="receipt_long" title="Spedy — Nota Fiscal de Serviço" subtitle="Emissão de NFS-e automatizada para clientes via IA ou painel" configCount={spedyCount}>
+
+        {/* Ambiente */}
+        <div>
+          <label className="mb-2 block text-[13px] font-semibold text-on-surface-variant">Ambiente</label>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { value: 'sandbox',  label: 'Sandbox',  sub: 'Testes — notas não são registradas na prefeitura' },
+              { value: 'producao', label: 'Produção', sub: 'Emissão real — notas enviadas à prefeitura' },
+            ].map(opt => (
+              <label
+                key={opt.value}
+                className={cn(
+                  'flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition-colors',
+                  spedyAmbiente === opt.value
+                    ? 'border-primary/50 bg-primary/5 ring-2 ring-primary/20'
+                    : 'border-outline-variant/20 hover:border-outline-variant/40',
+                )}
+              >
+                <input type="radio" value={opt.value} {...register('spedyAmbiente')} className="accent-primary" />
+                <div>
+                  <p className={cn('text-[13px] font-semibold', spedyAmbiente === opt.value ? 'text-primary' : 'text-on-surface')}>
+                    {opt.label}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant/70">{opt.sub}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* API Key Owner */}
+        <div>
+          <FieldLabel label="API Key Owner (chave mestra)" configured={configured.spedyApiKey} />
+          <input
+            {...register('spedyApiKey')}
+            className={INPUT}
+            placeholder={configured.spedyApiKey ? 'Nova chave (deixe em branco para manter)' : 'sk_... (Owner API Key do painel Spedy)'}
+            type="password" autoComplete="off"
+          />
+          <p className="mt-1 text-[11px] text-on-surface-variant/60">
+            Painel Spedy → Configurações → Integrações → API Keys → Owner Key. Essa chave permite criar empresas secundárias para cada cliente.
+          </p>
+        </div>
+
+        {/* Informativo sobre o fluxo */}
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px] text-blue-500" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+            <p className="text-[12px] font-semibold text-blue-600">Como funciona</p>
+          </div>
+          <ul className="space-y-1 text-[11px] text-on-surface-variant/80">
+            <li>• A chave Owner permite gerenciar NFS-e de todos os clientes via uma única conta Spedy</li>
+            <li>• Cada cliente recebe uma empresa secundária com API Key própria (criada automaticamente pelo AVOS)</li>
+            <li>• A IA consegue emitir, consultar e cancelar notas diretamente pelo chat (WhatsApp, portal e CRM)</li>
+            <li>• O webhook de status é configurado automaticamente ao salvar a chave</li>
+          </ul>
+          <p className="text-[11px] text-on-surface-variant/60 pt-1">
+            Webhook URL: <span className="font-mono">https://seudominio/api/webhooks/spedy/[token]</span> — configurado automaticamente
+          </p>
+        </div>
+
       </Section>
 
       {/* ── Serpro ────────────────────────────────────────────────────────── */}
