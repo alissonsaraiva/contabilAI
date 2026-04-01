@@ -21,9 +21,10 @@ export async function GET(req: Request) {
   const pageSize = 20
   const mes      = searchParams.get('mes') // formato "2026-01"
 
+  // Mostra notas autorizadas e canceladas (cliente precisa ver o histórico completo)
   const where: Record<string, unknown> = {
     clienteId,
-    status: 'autorizada',  // portal mostra apenas notas autorizadas
+    status: { in: ['autorizada', 'cancelada'] },
   }
 
   if (mes && /^\d{4}-\d{2}$/.test(mes)) {

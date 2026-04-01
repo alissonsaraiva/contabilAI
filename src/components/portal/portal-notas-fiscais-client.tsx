@@ -24,6 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
   cancelada:   'Cancelada',
   processando: 'Processando',
   enviando:    'Enviando',
+  rejeitada:   'Rejeitada',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -31,6 +32,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelada:   'bg-gray-100 text-gray-500',
   processando: 'bg-blue-500/10 text-blue-600',
   enviando:    'bg-purple-500/10 text-purple-600',
+  rejeitada:   'bg-red-500/10 text-red-600',
 }
 
 const STATUS_ICONS: Record<string, string> = {
@@ -38,6 +40,7 @@ const STATUS_ICONS: Record<string, string> = {
   cancelada:   'remove_circle',
   processando: 'hourglass_empty',
   enviando:    'upload',
+  rejeitada:   'cancel',
 }
 
 type Props = { clienteId: string }
@@ -151,17 +154,27 @@ export function PortalNotasFiscaisClient({ clienteId }: Props) {
                     )}
                   </div>
 
-                  {/* Ação: baixar PDF */}
-                  {nota.status === 'autorizada' && nota.spedyId && (
-                    <a
-                      href={`/api/portal/notas-fiscais/${nota.id}/pdf`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex shrink-0 items-center gap-1.5 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] font-semibold text-on-surface transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">download</span>
-                      PDF
-                    </a>
+                  {/* Ações: baixar PDF e XML */}
+                  {nota.spedyId && (nota.status === 'autorizada' || nota.status === 'cancelada') && (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <a
+                        href={`/api/portal/notas-fiscais/${nota.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] font-semibold text-on-surface transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                        PDF
+                      </a>
+                      <a
+                        href={`/api/portal/notas-fiscais/${nota.id}/xml`}
+                        download
+                        className="flex items-center gap-1.5 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] font-semibold text-on-surface transition-colors hover:border-tertiary/30 hover:bg-tertiary/5 hover:text-tertiary"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">code</span>
+                        XML
+                      </a>
+                    </div>
                   )}
                 </div>
               </div>

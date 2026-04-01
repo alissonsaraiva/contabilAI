@@ -5,9 +5,8 @@ import { setSmtpOk, setSmtpErro } from './smtp-status'
 
 export type Anexo = {
   nome: string
-  url: string
   mimeType?: string
-}
+} & ({ url: string; content?: never } | { content: Buffer; url?: never })
 
 export type SendEmailOpts = {
   para: string
@@ -60,12 +59,17 @@ async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
   const attachments = opts.anexos && opts.anexos.length > 0
     ? await Promise.all(
         opts.anexos.map(async (a) => {
-          const ac = new AbortController()
-          const at = setTimeout(() => ac.abort(), 10_000)
-          let res: Response
-          try { res = await fetch(a.url, { signal: ac.signal }) } finally { clearTimeout(at) }
-          if (!res.ok) throw new Error(`Falha ao baixar anexo "${a.nome}": HTTP ${res.status}`)
-          const buf = Buffer.from(await res.arrayBuffer())
+          let buf: Buffer
+          if (a.content) {
+            buf = a.content
+          } else {
+            const ac = new AbortController()
+            const at = setTimeout(() => ac.abort(), 10_000)
+            let res: Response
+            try { res = await fetch(a.url!, { signal: ac.signal }) } finally { clearTimeout(at) }
+            if (!res.ok) throw new Error(`Falha ao baixar anexo "${a.nome}": HTTP ${res.status}`)
+            buf = Buffer.from(await res.arrayBuffer())
+          }
           return {
             filename:     a.nome,
             content:      buf.toString('base64'),
@@ -138,12 +142,17 @@ async function sendViaSmtp(opts: SendEmailOpts): Promise<SendEmailResult> {
   const attachments = opts.anexos
     ? await Promise.all(
         opts.anexos.map(async (a) => {
-          const ac = new AbortController()
-          const at = setTimeout(() => ac.abort(), 10_000)
-          let res: Response
-          try { res = await fetch(a.url, { signal: ac.signal }) } finally { clearTimeout(at) }
-          if (!res.ok) throw new Error(`Falha ao baixar anexo "${a.nome}": HTTP ${res.status}`)
-          const buf = Buffer.from(await res.arrayBuffer())
+          let buf: Buffer
+          if (a.content) {
+            buf = a.content
+          } else {
+            const ac = new AbortController()
+            const at = setTimeout(() => ac.abort(), 10_000)
+            let res: Response
+            try { res = await fetch(a.url!, { signal: ac.signal }) } finally { clearTimeout(at) }
+            if (!res.ok) throw new Error(`Falha ao baixar anexo "${a.nome}": HTTP ${res.status}`)
+            buf = Buffer.from(await res.arrayBuffer())
+          }
           return { filename: a.nome, content: buf, contentType: a.mimeType }
         })
       )

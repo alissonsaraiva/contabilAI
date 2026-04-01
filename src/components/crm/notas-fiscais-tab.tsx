@@ -329,17 +329,29 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
 
                   {/* Ações */}
                   <div className="flex items-center gap-1 shrink-0">
-                    {nota.status === 'autorizada' && nota.spedyId && (
+                    {nota.spedyId && (nota.status === 'autorizada' || nota.status === 'cancelada') && (
                       <>
                         <a
                           href={`/api/crm/notas-fiscais/${nota.id}/pdf`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Baixar PDF"
+                          title={nota.status === 'cancelada' ? 'Baixar PDF de cancelamento' : 'Baixar PDF'}
                           className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
                         >
                           <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
                         </a>
+                        <a
+                          href={`/api/crm/notas-fiscais/${nota.id}/xml`}
+                          download
+                          title={nota.status === 'cancelada' ? 'Baixar XML de cancelamento' : 'Baixar XML'}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-tertiary"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">code</span>
+                        </a>
+                      </>
+                    )}
+                    {nota.status === 'autorizada' && nota.spedyId && (
+                      <>
                         <button
                           title="Enviar via WhatsApp"
                           onClick={() => entregar(nota.id, 'whatsapp')}

@@ -7,10 +7,10 @@ const enviarNotaFiscalClienteTool: Tool = {
   definition: {
     name: 'enviarNotaFiscalCliente',
     description:
-      'Envia/reentrega uma NFS-e autorizada ao cliente via WhatsApp ou e-mail. ' +
-      'Use quando o cliente pedir "me manda a nota", "não recebi a nota", "pode reenviar o PDF?", "envia no meu e-mail". ' +
+      'Envia/reentrega uma NFS-e autorizada ao cliente via WhatsApp ou e-mail, com PDF e XML anexados. ' +
+      'Use quando o cliente pedir "me manda a nota", "não recebi a nota", "pode reenviar o PDF?", "preciso do XML", "envia no meu e-mail". ' +
       'Só funciona para notas com status "autorizada". ' +
-      'Se o canal for "portal", oriente o cliente a acessar o portal para baixar.',
+      'Se o canal for "portal", oriente o cliente a acessar o portal onde pode baixar PDF e XML individualmente.',
     inputSchema: {
       type: 'object',
       properties: {

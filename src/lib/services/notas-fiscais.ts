@@ -15,7 +15,7 @@ import { encrypt, decrypt, isEncrypted } from '@/lib/crypto'
 import { getSpedyClienteClient, getSpedyOwnerClient, SpedyError, type EmissaoNfseInput, type SpedyWebhookPayload } from '@/lib/spedy'
 import { registrarInteracao } from '@/lib/services/interacoes'
 import { logger } from '@/lib/logger'
-import { sendText } from '@/lib/evolution'
+import { sendText, sendMedia } from '@/lib/evolution'
 import type { EvolutionConfig } from '@/lib/evolution'
 import type { StatusNotaFiscal } from '@prisma/client'
 
@@ -485,6 +485,29 @@ export async function processarWebhookSpedy(payload: SpedyWebhookPayload): Promi
       logger.error('spedy-pos-rejeicao-falhou', { notaId: nota.id, err })
     )
   }
+
+  if (statusMapeado === 'cancelada') {
+    await onNotaCancelada(notaAtualizada).catch(err =>
+      logger.error('spedy-pos-cancelamento-falhou', { notaId: nota.id, err })
+    )
+  }
+}
+
+// ─── Pós-cancelamento (via webhook — cancelamentos externos ao sistema) ────────
+
+async function onNotaCancelada(nota: { id: string; clienteId: string; numero: number | null; valorTotal: unknown; cancelamentoJustificativa: string | null }): Promise<void> {
+  const numero = nota.numero ? `nº ${nota.numero}` : `(${nota.id.slice(0, 8)})`
+
+  // Registra interação caso ainda não tenha sido registrada (cancelamento via webhook externo)
+  await registrarInteracao({
+    clienteId: nota.clienteId,
+    tipo:      'nota_fiscal_cancelada',
+    origem:    'sistema',
+    titulo:    `NFS-e ${numero} cancelada (via Spedy)`,
+    conteudo:  `Nota Fiscal cancelada via Spedy. Valor: R$ ${Number(nota.valorTotal).toFixed(2)}. ${nota.cancelamentoJustificativa ? `Justificativa: ${nota.cancelamentoJustificativa}` : ''}`.trim(),
+    metadados: { notaFiscalId: nota.id },
+    escritorioEvento: true,
+  }).catch(err => logger.warn('nfse-webhook-cancelamento-interacao-falhou', { notaId: nota.id, err }))
 }
 
 // ─── Pós-autorização ──────────────────────────────────────────────────────────
@@ -583,6 +606,34 @@ export async function entregarNotaCliente(
   const mesAno   = format(dataAuth, 'MMMM/yyyy', { locale: ptBR })
   const numero   = nota.numero ? `nº ${nota.numero}` : ''
 
+  // Busca PDF e XML da Spedy (necessário para envio por WhatsApp e e-mail)
+  const empresa = nota.empresa
+  let pdfBuffer: Buffer | null = null
+  let xmlBuffer: Buffer | null = null
+
+  if (empresa?.spedyApiKey) {
+    const spedyClient = getSpedyClienteClient({
+      spedyApiKey:   empresa.spedyApiKey,
+      spedyAmbiente: config.spedyAmbiente,
+    })
+    const [pdfRes, xmlRes] = await Promise.allSettled([
+      fetch(spedyClient.pdfUrl(nota.spedyId!)),
+      fetch(spedyClient.xmlUrl(nota.spedyId!)),
+    ])
+    if (pdfRes.status === 'fulfilled' && pdfRes.value.ok) {
+      pdfBuffer = Buffer.from(await pdfRes.value.arrayBuffer())
+    } else {
+      logger.warn('nfse-entrega-pdf-indisponivel', { notaId: nota.id })
+    }
+    if (xmlRes.status === 'fulfilled' && xmlRes.value.ok) {
+      xmlBuffer = Buffer.from(await xmlRes.value.arrayBuffer())
+    } else {
+      logger.warn('nfse-entrega-xml-indisponivel', { notaId: nota.id })
+    }
+  }
+
+  const nomeArquivo = nota.numero ? `NFS-e-${nota.numero}` : 'NFS-e'
+
   if (canal === 'whatsapp') {
     const whatsapp = nota.cliente.whatsapp ?? nota.cliente.telefone
     if (!whatsapp) {
@@ -605,27 +656,51 @@ export async function entregarNotaCliente(
       instance: config.evolutionInstance,
     }
 
-    const remoteJid = whatsapp.replace(/\D/g, '') + '@s.whatsapp.net'
-    const tomadorInfo = nota.tomadorNome ? ` emitida para *${nota.tomadorNome}*` : ''
+    const remoteJid    = whatsapp.replace(/\D/g, '') + '@s.whatsapp.net'
+    const tomadorInfo  = nota.tomadorNome ? ` emitida para *${nota.tomadorNome}*` : ''
     const descricaoInfo = nota.descricao ? `\n📋 Serviço: ${nota.descricao}` : ''
-    const texto = `✅ *NFS-e autorizada!*\n\nOlá, ${nota.cliente.nome.split(' ')[0]}! Sua Nota Fiscal de Serviço ${numero}${tomadorInfo} foi autorizada pela prefeitura.${descricaoInfo}\n\n💰 Valor: R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}\n\nO PDF está disponível no portal do cliente.`
+    const texto = `✅ *NFS-e autorizada!*\n\nOlá, ${nota.cliente.nome.split(' ')[0]}! Sua Nota Fiscal de Serviço ${numero}${tomadorInfo} foi autorizada pela prefeitura.${descricaoInfo}\n\n💰 Valor: R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`
 
     await sendText(evoCfg, remoteJid, texto)
 
+    if (pdfBuffer) {
+      await sendMedia(evoCfg, remoteJid, {
+        mediatype:   'document',
+        mimetype:    'application/pdf',
+        fileName:    `${nomeArquivo}.pdf`,
+        caption:     `📄 PDF da ${nomeArquivo}`,
+        mediaBase64: pdfBuffer.toString('base64'),
+      })
+    }
+    if (xmlBuffer) {
+      await sendMedia(evoCfg, remoteJid, {
+        mediatype:   'document',
+        mimetype:    'application/xml',
+        fileName:    `${nomeArquivo}.xml`,
+        caption:     `🗂️ XML da ${nomeArquivo} (para importação em sistemas contábeis)`,
+        mediaBase64: xmlBuffer.toString('base64'),
+      })
+    }
+
   } else if (canal === 'email') {
-    // Importa dinamicamente para não criar dependência circular em casos simples
     const { sendEmail } = await import('@/lib/email/send')
     if (nota.cliente.email) {
-      const tomadorParteEmail = nota.tomadorNome ? ` emitida para <b>${nota.tomadorNome}</b>` : ''
+      const tomadorParteEmail  = nota.tomadorNome ? ` emitida para <b>${nota.tomadorNome}</b>` : ''
       const descricaoParteEmail = nota.descricao ? `<p><b>Serviço:</b> ${nota.descricao}</p>` : ''
+      const anexos = [
+        pdfBuffer && { nome: `${nomeArquivo}.pdf`, content: pdfBuffer, mimeType: 'application/pdf' },
+        xmlBuffer && { nome: `${nomeArquivo}.xml`, content: xmlBuffer, mimeType: 'application/xml' },
+      ].filter(Boolean) as { nome: string; content: Buffer; mimeType: string }[]
+
       await sendEmail({
         para:    nota.cliente.email,
         assunto: `NFS-e ${numero} autorizada — ${mesAno}`,
-        corpo:   `<p>Olá, ${nota.cliente.nome.split(' ')[0]}!</p><p>Sua Nota Fiscal de Serviço ${numero}${tomadorParteEmail} foi <b>autorizada</b> pela prefeitura.</p>${descricaoParteEmail}<p><b>Valor:</b> R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}</p><p>Acesse o portal para baixar o PDF.</p>`,
+        corpo:   `<p>Olá, ${nota.cliente.nome.split(' ')[0]}!</p><p>Sua Nota Fiscal de Serviço ${numero}${tomadorParteEmail} foi <b>autorizada</b> pela prefeitura.</p>${descricaoParteEmail}<p><b>Valor:</b> R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}</p><p>Seguem em anexo o <b>PDF</b> e o <b>XML</b> da nota. O PDF também está disponível no portal do cliente para consultas futuras.</p>`,
+        anexos,
       })
     }
   }
-  // canal portal: não é necessário fazer nada — o cliente vê automaticamente no portal
+  // canal portal: não é necessário fazer nada — o cliente baixa diretamente pelo portal
 
   // Atualiza registro de entrega
   await prisma.notaFiscal.update({
@@ -643,10 +718,11 @@ export async function entregarNotaCliente(
 export async function cancelarNotaFiscal(
   notaFiscalId: string,
   justificativa: string,
+  entregarApos?: 'whatsapp' | 'email',
 ): Promise<{ sucesso: boolean; detalhe?: string }> {
   const nota = await prisma.notaFiscal.findUnique({
     where:   { id: notaFiscalId },
-    include: { empresa: true },
+    include: { empresa: true, cliente: true },
   })
 
   if (!nota) return { sucesso: false, detalhe: 'Nota fiscal não encontrada.' }
@@ -666,24 +742,38 @@ export async function cancelarNotaFiscal(
 
     await spedyClient.cancelarNfse(nota.spedyId, justificativa)
 
-    await prisma.notaFiscal.update({
+    const notaAtualizada = await prisma.notaFiscal.update({
       where: { id: nota.id },
       data:  {
-        status:                      'cancelada',
-        canceladaEm:                 new Date(),
-        cancelamentoJustificativa:   justificativa,
-        atualizadoEm:                new Date(),
+        status:                    'cancelada',
+        canceladaEm:               new Date(),
+        cancelamentoJustificativa: justificativa,
+        atualizadoEm:              new Date(),
       },
     })
+
+    const numero = nota.numero ? `nº ${nota.numero}` : `(${nota.id.slice(0, 8)})`
 
     await registrarInteracao({
       clienteId: nota.clienteId,
       tipo:      'nota_fiscal_cancelada',
       origem:    'sistema',
-      titulo:    `NFS-e nº ${nota.numero ?? nota.id.slice(0, 8)} cancelada`,
-      conteudo:  `Nota Fiscal cancelada. Justificativa: ${justificativa}`,
+      titulo:    `NFS-e ${numero} cancelada`,
+      conteudo:  `Nota Fiscal cancelada. Justificativa: ${justificativa}. Valor: R$ ${Number(nota.valorTotal).toFixed(2)}.`,
       metadados: { notaFiscalId: nota.id },
-    }).catch(() => null)
+      escritorioEvento: true,
+    }).catch(err => logger.warn('nfse-cancelamento-interacao-falhou', { notaId: nota.id, err }))
+
+    // Entrega PDF+XML de cancelamento ao cliente se solicitado
+    if (entregarApos) {
+      await entregarDocumentoCancelamento(
+        { ...notaAtualizada, cliente: nota.cliente },
+        nota.spedyId,
+        config,
+        empresa.spedyApiKey,
+        entregarApos,
+      ).catch(err => logger.warn('nfse-entrega-cancelamento-falhou', { notaId: nota.id, err }))
+    }
 
     return { sucesso: true }
 
@@ -691,6 +781,87 @@ export async function cancelarNotaFiscal(
     logger.error('spedy-cancelamento-falhou', { notaId: nota.id, err })
     const msg = err instanceof SpedyError ? err.message : 'Erro ao cancelar na Spedy'
     return { sucesso: false, detalhe: msg }
+  }
+}
+
+async function entregarDocumentoCancelamento(
+  nota: { id: string; clienteId: string; numero: number | null; valorTotal: unknown; descricao: string; tomadorNome?: string | null; cliente: { nome: string; whatsapp: string | null; telefone: string | null; email: string | null } },
+  spedyId: string,
+  config: Awaited<ReturnType<typeof getEscritorioSpedy>>,
+  spedyApiKey: string,
+  canal: 'whatsapp' | 'email',
+): Promise<void> {
+  const spedyClient = getSpedyClienteClient({ spedyApiKey, spedyAmbiente: config.spedyAmbiente })
+  const numero      = nota.numero ? `NFS-e-${nota.numero}` : 'NFS-e'
+  const numeroExib  = nota.numero ? `nº ${nota.numero}` : ''
+
+  // Busca PDF e XML de cancelamento (mesmo endpoint — conteúdo reflete o status atual)
+  let pdfBuffer: Buffer | null = null
+  let xmlBuffer: Buffer | null = null
+
+  const [pdfRes, xmlRes] = await Promise.allSettled([
+    fetch(spedyClient.pdfUrl(spedyId)),
+    fetch(spedyClient.xmlUrl(spedyId)),
+  ])
+  if (pdfRes.status === 'fulfilled' && pdfRes.value.ok) {
+    pdfBuffer = Buffer.from(await pdfRes.value.arrayBuffer())
+  }
+  if (xmlRes.status === 'fulfilled' && xmlRes.value.ok) {
+    xmlBuffer = Buffer.from(await xmlRes.value.arrayBuffer())
+  }
+
+  const valor     = `R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`
+  const tomador   = nota.tomadorNome ? ` emitida para ${nota.tomadorNome}` : ''
+  const primeiroNome = nota.cliente.nome.split(' ')[0]
+
+  if (canal === 'whatsapp') {
+    const whatsapp = nota.cliente.whatsapp ?? nota.cliente.telefone
+    if (!whatsapp) return
+
+    const apiKey = config.evolutionApiKey
+      ? (isEncrypted(config.evolutionApiKey) ? decrypt(config.evolutionApiKey) : config.evolutionApiKey)
+      : null
+    if (!config.evolutionApiUrl || !apiKey || !config.evolutionInstance) return
+
+    const evoCfg: EvolutionConfig = { baseUrl: config.evolutionApiUrl, apiKey, instance: config.evolutionInstance }
+    const remoteJid = whatsapp.replace(/\D/g, '') + '@s.whatsapp.net'
+
+    await sendText(evoCfg, remoteJid,
+      `🚫 *NFS-e ${numeroExib} cancelada*\n\nOlá, ${primeiroNome}! A Nota Fiscal de Serviço ${numeroExib}${tomador} (${valor}) foi cancelada com sucesso.\n\nSeguem o PDF e XML de cancelamento para seus registros.`,
+    )
+    if (pdfBuffer) {
+      await sendMedia(evoCfg, remoteJid, {
+        mediatype: 'document', mimetype: 'application/pdf',
+        fileName:  `${numero}-cancelamento.pdf`,
+        caption:   `📄 PDF de cancelamento da ${numero}`,
+        mediaBase64: pdfBuffer.toString('base64'),
+      })
+    }
+    if (xmlBuffer) {
+      await sendMedia(evoCfg, remoteJid, {
+        mediatype: 'document', mimetype: 'application/xml',
+        fileName:  `${numero}-cancelamento.xml`,
+        caption:   `🗂️ XML de cancelamento da ${numero}`,
+        mediaBase64: xmlBuffer.toString('base64'),
+      })
+    }
+
+  } else if (canal === 'email') {
+    const { sendEmail } = await import('@/lib/email/send')
+    if (!nota.cliente.email) return
+
+    const tomadorEmail = nota.tomadorNome ? ` emitida para <b>${nota.tomadorNome}</b>` : ''
+    const anexos = [
+      pdfBuffer && { nome: `${numero}-cancelamento.pdf`, content: pdfBuffer, mimeType: 'application/pdf' },
+      xmlBuffer && { nome: `${numero}-cancelamento.xml`, content: xmlBuffer, mimeType: 'application/xml' },
+    ].filter(Boolean) as { nome: string; content: Buffer; mimeType: string }[]
+
+    await sendEmail({
+      para:    nota.cliente.email,
+      assunto: `NFS-e ${numeroExib} cancelada`,
+      corpo:   `<p>Olá, ${primeiroNome}!</p><p>A Nota Fiscal de Serviço ${numeroExib}${tomadorEmail} no valor de <b>${valor}</b> foi <b>cancelada</b> com sucesso.</p><p>Seguem em anexo o PDF e o XML de cancelamento para seus registros.</p>`,
+      anexos,
+    })
   }
 }
 
