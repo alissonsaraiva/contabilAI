@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const INPUT  = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
@@ -34,11 +34,13 @@ type FormData = {
   aiProviderPortal: string
   aiProviderWhatsapp: string
   aiProviderAgente: string
+  aiProviderDocumentoResumo: string
   aiModelOnboarding: string
   aiModelCrm: string
   aiModelPortal: string
   aiModelWhatsapp: string
   aiModelAgente: string
+  aiModelDocumentoResumo: string
   systemPromptOnboarding: string
   systemPromptCrm: string
   systemPromptPortal: string
@@ -92,11 +94,12 @@ const PROVIDERS = [
 ]
 
 const SUB_IAS = [
-  { providerField: 'aiProviderOnboarding' as const, modelField: 'aiModelOnboarding' as const, promptField: 'systemPromptOnboarding' as const, nameField: 'nomeAssistenteOnboarding' as const, label: 'Chat Onboarding',    icon: 'chat_bubble',   desc: 'Triagem de novos clientes', note: null },
-  { providerField: 'aiProviderCrm'        as const, modelField: 'aiModelCrm'        as const, promptField: 'systemPromptCrm'        as const, nameField: 'nomeAssistenteCrm'        as const, label: 'Assistente CRM',   icon: 'support_agent', desc: 'Auxílio interno para o contador', note: null },
-  { providerField: 'aiProviderPortal'     as const, modelField: 'aiModelPortal'     as const, promptField: 'systemPromptPortal'     as const, nameField: 'nomeAssistentePortal'     as const, label: 'Portal Cliente',   icon: 'person',        desc: 'Chat do cliente com o escritório', note: null },
-  { providerField: 'aiProviderWhatsapp'   as const, modelField: 'aiModelWhatsapp'   as const, promptField: null,                              nameField: 'nomeAssistenteWhatsapp'   as const, label: 'IA WhatsApp',      icon: 'chat',          desc: 'Respostas automáticas via WhatsApp', note: null },
-  { providerField: 'aiProviderAgente'     as const, modelField: 'aiModelAgente'     as const, promptField: null,                              nameField: null,                               label: 'Agente Operacional', icon: 'smart_toy',    desc: 'Executa tarefas e consultas no CRM', note: 'Requer suporte a tool use. Recomendado: Claude.' },
+  { providerField: 'aiProviderOnboarding'      as const, modelField: 'aiModelOnboarding'      as const, promptField: 'systemPromptOnboarding' as const, nameField: 'nomeAssistenteOnboarding' as const, label: 'Chat Onboarding',       icon: 'chat_bubble',   desc: 'Triagem de novos clientes',                        note: null },
+  { providerField: 'aiProviderCrm'             as const, modelField: 'aiModelCrm'             as const, promptField: 'systemPromptCrm'        as const, nameField: 'nomeAssistenteCrm'        as const, label: 'Assistente CRM',        icon: 'support_agent', desc: 'Auxílio interno para o contador',                  note: null },
+  { providerField: 'aiProviderPortal'          as const, modelField: 'aiModelPortal'          as const, promptField: 'systemPromptPortal'     as const, nameField: 'nomeAssistentePortal'     as const, label: 'Portal Cliente',        icon: 'person',        desc: 'Chat do cliente com o escritório',                 note: null },
+  { providerField: 'aiProviderWhatsapp'        as const, modelField: 'aiModelWhatsapp'        as const, promptField: null,                              nameField: 'nomeAssistenteWhatsapp'   as const, label: 'IA WhatsApp',           icon: 'chat',          desc: 'Respostas automáticas via WhatsApp',               note: null },
+  { providerField: 'aiProviderAgente'          as const, modelField: 'aiModelAgente'          as const, promptField: null,                              nameField: null,                               label: 'Agente Operacional',    icon: 'smart_toy',     desc: 'Executa tarefas e consultas no CRM',               note: 'Requer suporte a tool use. Recomendado: Claude.' },
+  { providerField: 'aiProviderDocumentoResumo' as const, modelField: 'aiModelDocumentoResumo' as const, promptField: null,                              nameField: null,                               label: 'Resumo de Documentos',  icon: 'description',   desc: 'Classifica e resume documentos recebidos (todos os canais)', note: 'Recomendado: modelo econômico como Claude Haiku ou Gemini Flash.' },
 ]
 
 export default function ConfiguracoesIAPage() {
@@ -107,6 +110,10 @@ export default function ConfiguracoesIAPage() {
   const [status, setStatus]       = useState<Record<string, ApiStatus>>({})
   const [allModels, setAllModels] = useState<AllModels>(FALLBACK_MODELS)
   const [modelsLoading, setModelsLoading] = useState(false)
+  // Collapse state: key = providerField, value = collapsed?
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const toggleCollapse = useCallback((key: string) =>
+    setCollapsed(prev => ({ ...prev, [key]: !prev[key] })), [])
 
 
   const { register, handleSubmit, watch, setValue, reset } = useForm<FormData>({
@@ -119,12 +126,14 @@ export default function ConfiguracoesIAPage() {
       aiProviderCrm:        'claude',
       aiProviderPortal:     'claude',
       aiProviderWhatsapp:   'claude',
-      aiProviderAgente:     'claude',
-      aiModelOnboarding:    'claude-haiku-4-5-20251001',
-      aiModelCrm:           'claude-haiku-4-5-20251001',
-      aiModelPortal:        'claude-haiku-4-5-20251001',
-      aiModelWhatsapp:      'claude-haiku-4-5-20251001',
-      aiModelAgente:        'claude-haiku-4-5-20251001',
+      aiProviderAgente:          'claude',
+      aiProviderDocumentoResumo: 'claude',
+      aiModelOnboarding:         'claude-haiku-4-5-20251001',
+      aiModelCrm:                'claude-haiku-4-5-20251001',
+      aiModelPortal:             'claude-haiku-4-5-20251001',
+      aiModelWhatsapp:           'claude-haiku-4-5-20251001',
+      aiModelAgente:             'claude-haiku-4-5-20251001',
+      aiModelDocumentoResumo:    'claude-haiku-4-5-20251001',
     },
   })
 
@@ -146,12 +155,14 @@ export default function ConfiguracoesIAPage() {
         aiProviderCrm:         data.aiProviderCrm        ?? 'claude',
         aiProviderPortal:      data.aiProviderPortal     ?? 'claude',
         aiProviderWhatsapp:    data.aiProviderWhatsapp   ?? 'claude',
-        aiProviderAgente:      data.aiProviderAgente     ?? 'claude',
-        aiModelOnboarding:     data.aiModelOnboarding    ?? 'claude-haiku-4-5-20251001',
-        aiModelCrm:            data.aiModelCrm           ?? 'claude-haiku-4-5-20251001',
-        aiModelPortal:         data.aiModelPortal        ?? 'claude-haiku-4-5-20251001',
-        aiModelWhatsapp:       data.aiModelWhatsapp      ?? 'claude-haiku-4-5-20251001',
-        aiModelAgente:         data.aiModelAgente        ?? 'claude-haiku-4-5-20251001',
+        aiProviderAgente:          data.aiProviderAgente          ?? 'claude',
+        aiProviderDocumentoResumo: data.aiProviderDocumentoResumo ?? 'claude',
+        aiModelOnboarding:         data.aiModelOnboarding         ?? 'claude-haiku-4-5-20251001',
+        aiModelCrm:                data.aiModelCrm                ?? 'claude-haiku-4-5-20251001',
+        aiModelPortal:             data.aiModelPortal             ?? 'claude-haiku-4-5-20251001',
+        aiModelWhatsapp:           data.aiModelWhatsapp           ?? 'claude-haiku-4-5-20251001',
+        aiModelAgente:             data.aiModelAgente             ?? 'claude-haiku-4-5-20251001',
+        aiModelDocumentoResumo:    data.aiModelDocumentoResumo    ?? 'claude-haiku-4-5-20251001',
         systemPromptOnboarding: data.systemPromptOnboarding ?? '',
         systemPromptCrm:        data.systemPromptCrm        ?? '',
         systemPromptPortal:     data.systemPromptPortal     ?? '',
@@ -240,12 +251,14 @@ export default function ConfiguracoesIAPage() {
           aiProviderCrm:         data.aiProviderCrm,
           aiProviderPortal:      data.aiProviderPortal,
           aiProviderWhatsapp:    data.aiProviderWhatsapp,
-          aiProviderAgente:      data.aiProviderAgente,
-          aiModelOnboarding:     data.aiModelOnboarding,
-          aiModelCrm:            data.aiModelCrm,
-          aiModelPortal:         data.aiModelPortal,
-          aiModelWhatsapp:       data.aiModelWhatsapp,
-          aiModelAgente:         data.aiModelAgente,
+          aiProviderAgente:          data.aiProviderAgente,
+          aiProviderDocumentoResumo: data.aiProviderDocumentoResumo,
+          aiModelOnboarding:         data.aiModelOnboarding,
+          aiModelCrm:                data.aiModelCrm,
+          aiModelPortal:             data.aiModelPortal,
+          aiModelWhatsapp:           data.aiModelWhatsapp,
+          aiModelAgente:             data.aiModelAgente,
+          aiModelDocumentoResumo:    data.aiModelDocumentoResumo,
           systemPromptOnboarding: data.systemPromptOnboarding,
           systemPromptCrm:        data.systemPromptCrm,
           systemPromptPortal:     data.systemPromptPortal,
@@ -275,11 +288,12 @@ export default function ConfiguracoesIAPage() {
   }
 
   const watchedProviders = {
-    aiProviderOnboarding: watch('aiProviderOnboarding'),
-    aiProviderCrm:        watch('aiProviderCrm'),
-    aiProviderPortal:     watch('aiProviderPortal'),
-    aiProviderWhatsapp:   watch('aiProviderWhatsapp'),
-    aiProviderAgente:     watch('aiProviderAgente'),
+    aiProviderOnboarding:      watch('aiProviderOnboarding'),
+    aiProviderCrm:             watch('aiProviderCrm'),
+    aiProviderPortal:          watch('aiProviderPortal'),
+    aiProviderWhatsapp:        watch('aiProviderWhatsapp'),
+    aiProviderAgente:          watch('aiProviderAgente'),
+    aiProviderDocumentoResumo: watch('aiProviderDocumentoResumo'),
   }
 
   return (
@@ -441,18 +455,31 @@ export default function ConfiguracoesIAPage() {
               const selectedProvider = watchedProviders[providerField] as 'claude' | 'openai' | 'google'
               const providerData = allModels[selectedProvider] ?? allModels.claude
               const models = providerData.models
+              const isCollapsed = !!collapsed[providerField]
 
               return (
-                <div key={providerField} className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
+                <div key={providerField} className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+                  {/* Header — sempre visível, clicável para colapsar */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapse(providerField)}
+                    className="flex w-full items-center gap-3 p-5 text-left hover:bg-surface-container-low/40 transition-colors"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                       <span className="material-symbols-outlined text-[16px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <h3 className="text-[13px] font-semibold text-on-surface">{label}</h3>
                       <p className="text-[11px] text-on-surface-variant/80">{desc}</p>
                     </div>
-                  </div>
+                    <ChevronDown
+                      className={cn('h-4 w-4 text-on-surface-variant/50 shrink-0 transition-transform duration-200', isCollapsed ? '' : 'rotate-180')}
+                    />
+                  </button>
+
+                  {/* Conteúdo colapsável */}
+                  {!isCollapsed && (
+                  <div className="px-5 pb-5 pt-1">
 
                   {/* Provider selection */}
                   <div className="mb-4">
@@ -549,6 +576,8 @@ export default function ConfiguracoesIAPage() {
                       <span className="material-symbols-outlined text-[13px]">warning</span>
                       {note}
                     </p>
+                  )}
+                  </div>
                   )}
                 </div>
               )

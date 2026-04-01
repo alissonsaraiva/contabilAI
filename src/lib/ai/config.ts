@@ -37,6 +37,7 @@ export type AiConfig = {
     portal: string
     whatsapp: string
     agente: string
+    documentoResumo: string
   }
   providers: {
     onboarding: string
@@ -44,6 +45,7 @@ export type AiConfig = {
     portal: string
     whatsapp: string
     agente: string
+    documentoResumo: string
   }
   systemPrompts: {
     onboarding: string | null
@@ -101,6 +103,8 @@ export async function getAiConfig(): Promise<AiConfig> {
         aiModelPortal: true,
         aiModelWhatsapp: true,
         aiModelAgente: true,
+        aiModelDocumentoResumo: true,
+        aiProviderDocumentoResumo: true,
         aiProviderOnboarding: true,
         aiProviderCrm: true,
         aiProviderPortal: true,
@@ -153,7 +157,8 @@ export async function getAiConfig(): Promise<AiConfig> {
   const providerPortal     = s('aiProviderPortal')     ?? globalProvider
   const providerWhatsapp   = s('aiProviderWhatsapp')   ?? globalProvider
   // Agente sempre usa Claude (tool use nativo) — fallback para o provider global se configurado
-  const providerAgente     = s('aiProviderAgente')     ?? 'claude'
+  const providerAgente          = s('aiProviderAgente')          ?? 'claude'
+  const providerDocumentoResumo = s('aiProviderDocumentoResumo') ?? globalProvider
 
   const config: AiConfig = {
     nomeAssistentes: {
@@ -177,15 +182,17 @@ export async function getAiConfig(): Promise<AiConfig> {
       crm:        resolveModel(s('aiModelCrm'),        providerCrm,        openaiModel),
       portal:     resolveModel(s('aiModelPortal'),     providerPortal,     openaiModel),
       whatsapp:   resolveModel(s('aiModelWhatsapp'),   providerWhatsapp,   openaiModel),
-      agente:     resolveModel(s('aiModelAgente'),     providerAgente,     openaiModel),
+      agente:          resolveModel(s('aiModelAgente'),          providerAgente,          openaiModel),
+      documentoResumo: resolveModel(s('aiModelDocumentoResumo'), providerDocumentoResumo, openaiModel),
     },
 
     providers: {
-      onboarding: providerOnboarding,
-      crm:        providerCrm,
-      portal:     providerPortal,
-      whatsapp:   providerWhatsapp,
-      agente:     providerAgente,
+      onboarding:      providerOnboarding,
+      crm:             providerCrm,
+      portal:          providerPortal,
+      whatsapp:        providerWhatsapp,
+      agente:          providerAgente,
+      documentoResumo: providerDocumentoResumo,
     },
 
     systemPrompts: {

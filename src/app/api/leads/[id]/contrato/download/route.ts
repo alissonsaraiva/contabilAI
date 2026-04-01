@@ -26,7 +26,14 @@ export async function GET(_req: Request, { params }: Params) {
   }
 
   const key = storageKeys.contratoLead(id)
-  const signedUrl = await getDownloadUrl(key, 300) // 5 min
+
+  let signedUrl: string
+  try {
+    signedUrl = await getDownloadUrl(key, 300) // 5 min
+  } catch (err) {
+    console.error('[contrato/download] falha ao gerar URL assinada:', err)
+    return NextResponse.json({ error: 'Não foi possível gerar o link de download. Tente novamente.' }, { status: 502 })
+  }
 
   return NextResponse.redirect(signedUrl)
 }

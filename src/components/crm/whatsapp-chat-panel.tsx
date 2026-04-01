@@ -130,12 +130,31 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
   }, [])
 
   // SSE — recebe ping quando nova mensagem WhatsApp chega
+  // Reconecta automaticamente até 5x com backoff exponencial após erro
   useEffect(() => {
     if (!conversaId) return
-    const es = new EventSource(`/api/stream/conversas/${conversaId}`)
-    es.onmessage = () => carregar()
-    es.onerror   = () => es.close()
-    return () => es.close()
+    let es: EventSource
+    let tentativas = 0
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let encerrado = false
+
+    function conectar() {
+      es = new EventSource(`/api/stream/conversas/${conversaId}`)
+      es.onmessage = () => { tentativas = 0; carregar() }
+      es.onerror   = () => {
+        es.close()
+        if (encerrado || tentativas >= 5) return
+        tentativas++
+        timeoutId = setTimeout(conectar, Math.min(1000 * 2 ** tentativas, 30_000))
+      }
+    }
+
+    conectar()
+    return () => {
+      encerrado = true
+      if (timeoutId) clearTimeout(timeoutId)
+      es.close()
+    }
   }, [conversaId, carregar])
 
   // Scroll automático ao fundo
@@ -151,10 +170,11 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
     }
   }, [mensagens])
 
-  function parseEntityFromPath(): { entidadeTipo: 'lead' | 'cliente'; entidadeId: string } | null {
-    const m = apiPath.match(/\/api\/(leads|clientes)\/([^/]+)\/whatsapp/)
+  function parseEntityFromPath(): { entidadeTipo: 'lead' | 'cliente' | 'socio'; entidadeId: string } | null {
+    const m = apiPath.match(/\/api\/(leads|clientes|socios)\/([^/]+)\/whatsapp/)
     if (!m) return null
-    return { entidadeTipo: m[1] === 'leads' ? 'lead' : 'cliente', entidadeId: m[2] }
+    const mapa: Record<string, 'lead' | 'cliente' | 'socio'> = { leads: 'lead', clientes: 'cliente', socios: 'socio' }
+    return { entidadeTipo: mapa[m[1]], entidadeId: m[2] }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -162,6 +182,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
     if (!file) return
     const entity = parseEntityFromPath()
     if (!entity) { toast.error('Não foi possível identificar o destinatário'); return }
+    if (file.size > 25 * 1024 * 1024) { toast.error('Arquivo muito grande. O limite é 25 MB.'); return }
 
     setUploading(true)
     try {

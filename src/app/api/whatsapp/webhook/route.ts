@@ -12,6 +12,8 @@ import { downloadMedia, detectMediaType, extractMediaCaption, extractMimeType, e
 import { transcribeAudio } from '@/lib/ai/transcribe'
 import type { AIMessageContentPart } from '@/lib/ai/providers/types'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { classificarDocumento, buildContextoConversa } from '@/lib/services/classificar-documento'
+import { criarDocumento } from '@/lib/services/documentos'
 // Garante que todas as tools estejam registradas
 import '@/lib/ai/tools'
 
@@ -388,11 +390,22 @@ export async function POST(req: Request) {
         try {
           const media = await downloadMedia(cfg, { key, message: msg! })
           if (media) {
+            const base64 = media.buffer.toString('base64')
             mediaContentParts = [
-              { type: 'image', mediaType: media.mimeType, data: media.buffer.toString('base64') },
+              { type: 'image', mediaType: media.mimeType, data: base64 },
               ...(caption ? [{ type: 'text' as const, text: caption }] : []),
             ]
             textoFinal = caption || '[imagem enviada]'
+            // Classificar + arquivar como documento (fire-and-forget)
+            arquivarMidiaWhatsappAsync({
+              media,
+              base64,
+              conversaId,
+              clienteId: cached.clienteId ?? undefined,
+              leadId:    cached.leadId    ?? undefined,
+              remoteJid,
+              tipoMidia: 'imagem',
+            })
           }
         } catch (err) {
           console.error('[whatsapp/webhook] erro ao processar imagem:', err)
@@ -408,13 +421,34 @@ export async function POST(req: Request) {
                 textoFinal = `[Documento recebido: ${fileName}]\n\n${pdfText.slice(0, 3000)}`
                 console.log('[whatsapp/webhook] PDF extraído, chars:', pdfText.length)
               }
+              // Classificar + arquivar como documento (fire-and-forget)
+              arquivarMidiaWhatsappAsync({
+                media,
+                textoExtraido: pdfText || undefined,
+                conversaId,
+                clienteId: cached.clienteId ?? undefined,
+                leadId:    cached.leadId    ?? undefined,
+                remoteJid,
+                tipoMidia: 'documento',
+              })
             } else if (media.mimeType.startsWith('image/')) {
               // Documento é uma imagem (ex: foto de nota fiscal)
+              const base64 = media.buffer.toString('base64')
               mediaContentParts = [
-                { type: 'image', mediaType: media.mimeType, data: media.buffer.toString('base64') },
+                { type: 'image', mediaType: media.mimeType, data: base64 },
                 ...(caption ? [{ type: 'text' as const, text: caption }] : []),
               ]
               textoFinal = caption || '[documento/imagem enviado]'
+              // Classificar + arquivar como documento (fire-and-forget)
+              arquivarMidiaWhatsappAsync({
+                media,
+                base64,
+                conversaId,
+                clienteId: cached.clienteId ?? undefined,
+                leadId:    cached.leadId    ?? undefined,
+                remoteJid,
+                tipoMidia: 'documento',
+              })
             }
           }
         } catch (err) {
@@ -466,4 +500,58 @@ export async function POST(req: Request) {
 
 export async function GET() {
   return new Response('ok', { status: 200 })
+}
+
+// ─── Arquivamento de mídia WhatsApp ──────────────────────────────────────────
+
+type ArquivarMidiaInput = {
+  media:          { buffer: Buffer; mimeType: string; fileName?: string }
+  tipoMidia:      'imagem' | 'documento'
+  conversaId:     string
+  clienteId?:     string
+  leadId?:        string
+  remoteJid:      string
+  base64?:        string   // já calculado (evita re-encode)
+  textoExtraido?: string   // já extraído (PDF)
+}
+
+/**
+ * Classifica a mídia com contexto da conversa e, se for um documento formal,
+ * salva via criarDocumento() (que dispara resumo + RAG automaticamente).
+ * Totalmente fire-and-forget — nunca bloqueia o webhook.
+ */
+function arquivarMidiaWhatsappAsync(input: ArquivarMidiaInput): void {
+  if (!input.clienteId && !input.leadId) return  // sem vínculo, nada a fazer
+
+  buildContextoConversa(input.conversaId, 5)
+    .then(contexto =>
+      classificarDocumento({
+        arquivo: {
+          nome:          input.media.fileName ?? 'arquivo',
+          mimeType:      input.media.mimeType,
+          buffer:        input.base64 ? undefined : input.media.buffer,
+          base64:        input.base64,
+          textoExtraido: input.textoExtraido,
+        },
+        contexto,
+      }),
+    )
+    .then(deveArquivar => {
+      if (!deveArquivar) return
+      const tipoLabel = input.tipoMidia === 'imagem' ? 'WhatsApp — Imagem' : 'WhatsApp — Documento'
+      return criarDocumento({
+        clienteId: input.clienteId,
+        leadId:    input.leadId,
+        arquivo: {
+          buffer:   input.media.buffer,
+          nome:     input.media.fileName ?? 'arquivo',
+          mimeType: input.media.mimeType,
+        },
+        tipo:   tipoLabel,
+        status: 'recebido',
+        origem: 'whatsapp',
+        metadados: { fonte: 'whatsapp', remoteJid: input.remoteJid },
+      })
+    })
+    .catch(err => console.error('[whatsapp/webhook] arquivarMidia error:', err))
 }

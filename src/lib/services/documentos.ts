@@ -19,6 +19,7 @@ import { prisma } from '@/lib/prisma'
 import { uploadArquivo, storageKeys } from '@/lib/storage'
 import { parseXML } from '@/lib/xml-parser'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { resumirDocumentoAsync } from './resumir-documento'
 import type { CategoriaDocumento } from '@prisma/client'
 import { nanoid } from 'nanoid'
 
@@ -45,7 +46,7 @@ export type CriarDocumentoInput = {
   observacao?: string
 
   // Origem e rastreabilidade
-  origem:        'crm' | 'portal' | 'integracao'
+  origem:        'crm' | 'portal' | 'integracao' | 'whatsapp' | 'email'
   integracaoId?: string   // ex: 'focus_nfe', 'contaazul', 'sefaz'
   metadados?:    Record<string, unknown>
 }
@@ -111,7 +112,7 @@ export async function criarDocumento(input: CriarDocumentoInput): Promise<CriarD
     },
   })
 
-  // 6. Indexa no RAG (fire-and-forget)
+  // 6. Indexa no RAG (fire-and-forget) — será re-indexado com resumo após geração
   indexarAsync('documento', {
     id:        documento.id,
     clienteId: input.clienteId,
@@ -123,6 +124,9 @@ export async function criarDocumento(input: CriarDocumentoInput): Promise<CriarD
     origem:    input.origem,
     criadoEm:  documento.criadoEm,
   })
+
+  // 7. Gera resumo IA e re-indexa com conteúdo (fire-and-forget)
+  resumirDocumentoAsync(documento.id)
 
   return {
     id:          documento.id,

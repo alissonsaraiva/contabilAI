@@ -69,17 +69,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Arquivo muito grande. Limite: 10 MB.' }, { status: 413 })
     }
 
-    const buffer  = Buffer.from(await anexo.arrayBuffer())
-    const key     = storageKeys.comunicadoAnexo(comunicado.id, anexo.name)
-    const url     = await uploadArquivo(key, buffer, anexo.type || 'application/octet-stream')
+    try {
+      const buffer  = Buffer.from(await anexo.arrayBuffer())
+      const key     = storageKeys.comunicadoAnexo(comunicado.id, anexo.name)
+      const url     = await uploadArquivo(key, buffer, anexo.type || 'application/octet-stream')
 
-    await prisma.comunicado.update({
-      where: { id: comunicado.id },
-      data:  { anexoUrl: url, anexoNome: anexo.name },
-    })
+      await prisma.comunicado.update({
+        where: { id: comunicado.id },
+        data:  { anexoUrl: url, anexoNome: anexo.name },
+      })
 
-    comunicado.anexoUrl  = url
-    comunicado.anexoNome = anexo.name
+      comunicado.anexoUrl  = url
+      comunicado.anexoNome = anexo.name
+    } catch (err) {
+      // Falha no upload — desfaz o comunicado para evitar registro sem anexo
+      await prisma.comunicado.delete({ where: { id: comunicado.id } }).catch(() => {})
+      console.error('[comunicados] falha no upload do anexo:', err)
+      return NextResponse.json({ error: 'Falha ao enviar o anexo. Tente novamente.' }, { status: 502 })
+    }
   } else if (anexoUrlSistema && anexoNomeSistema) {
     // Documento existente no sistema — reutiliza a URL sem novo upload
     await prisma.comunicado.update({

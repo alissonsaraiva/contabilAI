@@ -47,18 +47,24 @@ export async function POST(req: Request, { params }: Params) {
   // PJ: prefere empresaId do form, senão usa da relação do cliente
   const empresaId = empresaIdForm || cliente.empresaId || undefined
 
-  const documento = await criarDocumento({
-    clienteId,
-    empresaId,
-    arquivo: {
-      buffer,
-      nome:     file.name,
-      mimeType: file.type || 'application/octet-stream',
-    },
-    tipo,
-    categoria: categoria ?? undefined,
-    origem:    'crm',
-  })
+  let documento: Awaited<ReturnType<typeof criarDocumento>>
+  try {
+    documento = await criarDocumento({
+      clienteId,
+      empresaId,
+      arquivo: {
+        buffer,
+        nome:     file.name,
+        mimeType: file.type || 'application/octet-stream',
+      },
+      tipo,
+      categoria: categoria ?? undefined,
+      origem:    'crm',
+    })
+  } catch (err) {
+    console.error('[crm/clientes/documentos] falha ao salvar documento:', err)
+    return NextResponse.json({ error: 'Falha ao enviar o documento. Tente novamente.' }, { status: 502 })
+  }
 
   return NextResponse.json(documento, { status: 201 })
 }

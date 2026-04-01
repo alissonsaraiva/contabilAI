@@ -36,6 +36,8 @@ export async function GET() {
       aiModelPortal: true,
       aiModelWhatsapp: true,
       aiModelAgente: true,
+      aiModelDocumentoResumo: true,
+      aiProviderDocumentoResumo: true,
       aiProviderOnboarding: true,
       aiProviderCrm: true,
       aiProviderPortal: true,
@@ -81,8 +83,8 @@ export async function PUT(req: Request) {
   const plainFields = [
     'nomeAssistenteOnboarding', 'nomeAssistenteCrm', 'nomeAssistentePortal', 'nomeAssistenteWhatsapp',
     'aiProvider', 'openaiBaseUrl', 'openaiModel',
-    'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal', 'aiModelWhatsapp', 'aiModelAgente',
-    'aiProviderOnboarding', 'aiProviderCrm', 'aiProviderPortal', 'aiProviderWhatsapp', 'aiProviderAgente',
+    'aiModelOnboarding', 'aiModelCrm', 'aiModelPortal', 'aiModelWhatsapp', 'aiModelAgente', 'aiModelDocumentoResumo',
+    'aiProviderOnboarding', 'aiProviderCrm', 'aiProviderPortal', 'aiProviderWhatsapp', 'aiProviderAgente', 'aiProviderDocumentoResumo',
     'systemPromptOnboarding', 'systemPromptCrm', 'systemPromptPortal',
     // WhatsApp (saved from both IA and WhatsApp pages)
     'systemPromptWhatsapp', 'whatsappAiEnabled', 'whatsappAiFeature',

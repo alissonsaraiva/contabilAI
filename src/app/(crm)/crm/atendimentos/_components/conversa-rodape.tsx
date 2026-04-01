@@ -53,6 +53,7 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
     const file = e.target.files?.[0]
     if (!file) return
     if (!entidadeTipo || !entidadeId) { toast.error('Entidade não identificada para upload'); return }
+    if (file.size > 25 * 1024 * 1024) { toast.error('Arquivo muito grande. O limite é 25 MB.'); return }
 
     setUploading(true)
     try {

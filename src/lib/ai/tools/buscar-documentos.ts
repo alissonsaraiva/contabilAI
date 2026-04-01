@@ -71,6 +71,7 @@ const buscarDocumentosTool: Tool = {
         url:       true,
         mimeType:  true,
         status:    true,
+        resumo:    true,
         criadoEm:  true,
       },
     })
@@ -88,12 +89,15 @@ const buscarDocumentosTool: Tool = {
       crm:        'escritório',
       portal:     'cliente',
       integracao: 'integração',
+      whatsapp:   'cliente (WhatsApp)',
+      email:      'cliente (email)',
     }
 
     const linhas = documentos.map(d => {
       const data   = new Date(d.criadoEm).toLocaleDateString('pt-BR')
       const origem = origemLabel[d.origem] ?? d.origem
-      return `• [${data}] ${d.categoria ?? d.tipo} — ${d.nome} (enviado por: ${origem}) | id: ${d.id}`
+      const resumo = d.resumo ? ` | ${d.resumo}` : ''
+      return `• [${data}] ${d.categoria ?? d.tipo} — ${d.nome} (enviado por: ${origem})${resumo} | id: ${d.id}`
     })
 
     return {

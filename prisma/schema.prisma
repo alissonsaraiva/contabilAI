@@ -363,7 +363,9 @@ model Documento {
   // "integracao" = empurrado por sistema externo (NFe, ERP, etc.)
   integracaoId   String?            // ex: "focus_nfe", "contaazul", "sefaz"
   xmlMetadata    Json?
-  visualizadoEm  DateTime?          // null = não visualizado pelo cliente (origem 'crm')
+  resumo         String?   @db.Text  // gerado por IA após upload
+  resumoEm       DateTime?           // timestamp da última geração de resumo
+  visualizadoEm  DateTime?           // null = não visualizado pelo cliente (origem 'crm')
   deletadoEm     DateTime?
   criadoEm       DateTime           @default(now())
 
@@ -558,11 +560,13 @@ model Escritorio {
   aiModelWhatsapp   String?  @default("claude-haiku-4-5-20251001")
   aiModelAgente     String?  @default("claude-haiku-4-5-20251001")
 
-  aiProviderOnboarding String?  @default("claude")
-  aiProviderCrm        String?  @default("claude")
-  aiProviderPortal     String?  @default("claude")
-  aiProviderWhatsapp   String?  @default("claude")
-  aiProviderAgente     String?  @default("claude")
+  aiProviderOnboarding      String?  @default("claude")
+  aiProviderCrm             String?  @default("claude")
+  aiProviderPortal          String?  @default("claude")
+  aiProviderWhatsapp        String?  @default("claude")
+  aiProviderAgente          String?  @default("claude")
+  aiModelDocumentoResumo    String?  @default("claude-haiku-4-5-20251001")
+  aiProviderDocumentoResumo String?  @default("claude")
 
   // Nome de cada IA por feature (cada uma pode ter identidade própria)
   nomeAssistenteOnboarding String?

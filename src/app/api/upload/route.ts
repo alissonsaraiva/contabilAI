@@ -51,7 +51,14 @@ export async function POST(req: Request) {
     key = storageKeys.documentoCliente(entidadeId, `${tipo}-${nanoid(6)}`)
   }
 
-  const uploadUrl = await getUploadUrl(key, contentType)
+  let uploadUrl: string
+  try {
+    uploadUrl = await getUploadUrl(key, contentType)
+  } catch (err) {
+    console.error('[upload] falha ao gerar URL assinada:', err)
+    return NextResponse.json({ error: 'Serviço de storage indisponível. Tente novamente.' }, { status: 502 })
+  }
+
   const publicUrl = `${process.env.STORAGE_PUBLIC_URL}/${key}`
 
   return NextResponse.json({ uploadUrl, publicUrl, key })

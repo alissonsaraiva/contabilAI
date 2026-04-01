@@ -3,6 +3,7 @@ import { criarDocumento } from '@/lib/services/documentos'
 import { registrarInteracao } from '@/lib/services/interacoes'
 import { askAI } from '@/lib/ai/ask'
 import { notificarEmailRecebido } from '@/lib/notificacoes'
+import { classificarDocumento, buildContextoEmail } from '@/lib/services/classificar-documento'
 import type { EmailRecebido } from './imap'
 
 export type ResultadoProcessamento = {
@@ -33,11 +34,33 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
   // Upload dos anexos e criação de Documento via service unificado
   const documentosId: string[] = []
   const anexosMeta: Array<{ nome: string; url: string; mimeType: string }> = []
+  const anexosRejeitados: string[] = []
+
+  const MAX_UNKNOWN_SIZE = 5 * 1024 * 1024  // 5 MB para remetentes desconhecidos
+
+  const contextoEmail = buildContextoEmail(email.assunto, email.corpo)
 
   for (const anexo of email.anexos) {
     try {
       if (associado) {
-        // Usa criarDocumento() — S3 + banco + RAG automático
+        // Classifica se é documento formal antes de arquivar
+        const deveArquivar = await classificarDocumento({
+          arquivo: {
+            nome:     anexo.nome,
+            mimeType: anexo.mimeType || 'application/octet-stream',
+            buffer:   anexo.buffer,
+          },
+          contexto: contextoEmail,
+        }).catch(() => true)  // em caso de erro, arquiva por segurança
+
+        if (!deveArquivar) {
+          // Não é documento formal — registra rejeição para rastreabilidade no CRM
+          console.log('[email/processar] anexo ignorado (não é documento formal):', anexo.nome)
+          anexosRejeitados.push(anexo.nome)
+          continue
+        }
+
+        // Usa criarDocumento() — S3 + banco + RAG + resumo automático
         const doc = await criarDocumento({
           clienteId: clienteId ?? undefined,
           leadId:    leadId    ?? undefined,
@@ -48,21 +71,25 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
           },
           tipo:   'Email — Anexo',
           status: 'recebido',
-          origem: 'portal',  // documento veio do cliente
+          origem: 'email',
           metadados: { fonte: 'email', de: email.de, assunto: email.assunto },
         })
         documentosId.push(doc.id)
         anexosMeta.push({ nome: anexo.nome, url: doc.url, mimeType: anexo.mimeType })
       } else {
-        // Remetente desconhecido — apenas upload S3, sem registro Documento
+        // Remetente desconhecido — apenas upload S3 se dentro do limite de tamanho
+        if (anexo.buffer.byteLength > MAX_UNKNOWN_SIZE) {
+          console.warn('[email/processar] anexo de remetente desconhecido ignorado (muito grande):', anexo.nome, anexo.buffer.byteLength)
+          continue
+        }
         const { uploadArquivo } = await import('@/lib/storage')
         const timestamp = Date.now()
         const key = `emails/desconhecidos/${timestamp}_${anexo.nome}`
         const url = await uploadArquivo(key, anexo.buffer, anexo.mimeType || 'application/octet-stream')
         anexosMeta.push({ nome: anexo.nome, url, mimeType: anexo.mimeType })
       }
-    } catch {
-      // Falha no upload de um anexo — continua com os demais
+    } catch (err) {
+      console.error('[email/processar] falha ao processar anexo:', anexo.nome, err)
     }
   }
 
@@ -87,7 +114,8 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
       assunto:       email.assunto,
       messageId:     email.messageId,
       dataEnvio:     email.dataEnvio.toISOString(),
-      anexos:        anexosMeta,
+      anexos:           anexosMeta,
+      anexosRejeitados: anexosRejeitados.length > 0 ? anexosRejeitados : undefined,
       documentosId,
       sugestao,
     },

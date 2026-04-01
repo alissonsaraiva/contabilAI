@@ -74,6 +74,7 @@ import './listar-comunicados'
 // ─── Tools de documentos ──────────────────────────────────────────────────────
 import './listar-documentos-pendentes'
 import './aprovar-documento'
+import './resumir-documento'
 
 // ─── Tools de email ───────────────────────────────────────────────────────────
 import './classificar-email'

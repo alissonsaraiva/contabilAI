@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth-portal'
 import { criarDocumento } from '@/lib/services/documentos'
 import { resolveClienteId } from '@/lib/portal-session'
 import { notificarDocumentoEnviado } from '@/lib/notificacoes'
+import { classificarDocumento, buildContextoPortal } from '@/lib/services/classificar-documento'
 import type { CategoriaDocumento } from '@prisma/client'
 
 export async function POST(req: Request) {
@@ -30,22 +31,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Arquivo muito grande. O limite é 10 MB.' }, { status: 413 })
   }
 
+  // Bloqueia extensões executáveis / scripts por nome de arquivo
+  const EXTENSOES_BLOQUEADAS = /\.(exe|bat|cmd|sh|ps1|msi|dll|so|js|mjs|ts|py|rb|php|pl|jar|vbs|wsf|hta)$/i
+  if (EXTENSOES_BLOQUEADAS.test(file.name)) {
+    return NextResponse.json({ error: 'Tipo de arquivo não permitido.' }, { status: 415 })
+  }
+
   const bytes  = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
 
-  const documento = await criarDocumento({
-    clienteId,
-    empresaId: empresaId || undefined,
-    arquivo: {
-      buffer,
-      nome:     file.name,
-      mimeType: file.type || 'application/octet-stream',
-    },
-    tipo,
-    categoria:  categoria ?? undefined,
-    status:     'pendente',
-    origem:     'portal',
-  })
+  // Classifica se o arquivo é um documento formal antes de arquivar
+  const contexto = await buildContextoPortal(clienteId, 5)
+  const deveArquivar = await classificarDocumento({
+    arquivo: { nome: file.name, mimeType: file.type || 'application/octet-stream', buffer },
+    contexto,
+  }).catch(() => true)  // em caso de erro, arquiva por segurança
+
+  if (!deveArquivar) {
+    return NextResponse.json(
+      { error: 'O arquivo enviado não parece ser um documento formal. Por favor, envie um documento válido (nota fiscal, boleto, contrato, etc.).' },
+      { status: 422 },
+    )
+  }
+
+  let documento: Awaited<ReturnType<typeof criarDocumento>>
+  try {
+    documento = await criarDocumento({
+      clienteId,
+      empresaId: empresaId || undefined,
+      arquivo: {
+        buffer,
+        nome:     file.name,
+        mimeType: file.type || 'application/octet-stream',
+      },
+      tipo,
+      categoria:  categoria ?? undefined,
+      status:     'pendente',
+      origem:     'portal',
+    })
+  } catch (err) {
+    console.error('[portal/documentos/upload] falha ao salvar documento:', err)
+    return NextResponse.json({ error: 'Falha ao enviar o documento. Tente novamente.' }, { status: 502 })
+  }
 
   notificarDocumentoEnviado({ clienteId, nomeArquivo: file.name }).catch(() => {})
 
