@@ -41,7 +41,10 @@ export async function GET(
     instance: row.evolutionInstance,
   }
 
-  const media = await downloadMedia(cfg, mensagem.whatsappMsgData as Record<string, unknown>)
+  // Extrai apenas { key, message } — campos extras como remoteJid/clienteId quebram o getBase64FromMediaMessage da Evolution API
+  const raw = mensagem.whatsappMsgData as Record<string, unknown>
+  const msgForDownload = { key: raw.key, message: raw.message }
+  const media = await downloadMedia(cfg, msgForDownload)
   if (!media) {
     return NextResponse.json({ error: 'Mídia não encontrada na Evolution' }, { status: 404 })
   }

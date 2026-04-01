@@ -132,9 +132,10 @@ export async function processarMensagensPendentes(): Promise<{
         }
 
         // Tenta retry de download para placeholders de documento
+        // Extrai apenas { key, message } — campos extras quebram o getBase64FromMediaMessage da Evolution API
         if (m.conteudo === '[document]' && data && !mediaContentParts) {
           try {
-            const media = await downloadMedia(cfg, data)
+            const media = await downloadMedia(cfg, { key: data.key, message: data.message })
             if (media?.mimeType.includes('pdf')) {
               const pdfText = await extractPdfText(media.buffer)
               if (pdfText) {
@@ -189,11 +190,13 @@ export async function processarMensagensPendentes(): Promise<{
         } catch (err) {
           console.error('[processar-pendentes] erro ao escalar documento não processado:', { conversaId: conversa.id, err })
         }
-        // Remove as mensagens pending sem processar pela IA
-        await prisma.mensagemIA.deleteMany({
+        // Marca as mensagens como processadas SEM deletar — preserva o [document] visível na conversa
+        // (o usuário humano ainda pode clicar e tentar baixar via proxy)
+        await prisma.mensagemIA.updateMany({
           where: { id: { in: msgs.map(m => m.id) } },
+          data:  { aiProcessado: true, status: 'sent' },
         }).catch((err: unknown) =>
-          console.error('[processar-pendentes] erro ao deletar msgs pending de documento não processado:', { conversaId: conversa.id, err }),
+          console.error('[processar-pendentes] erro ao marcar msgs de documento como processadas:', { conversaId: conversa.id, err }),
         )
         conversasProcessadas++
         continue

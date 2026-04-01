@@ -5,7 +5,6 @@ import { decrypt, isEncrypted } from '@/lib/crypto'
 import { sendText, sendMedia } from '@/lib/evolution'
 import { getProvider } from '@/lib/ai/providers'
 import { getAiConfig } from '@/lib/ai/config'
-import { SYSTEM_BASE_DEFAULT } from '@/lib/ai/ask'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import { emitEscalacaoResolvida } from '@/lib/event-bus'
 import { sendPushToCliente } from '@/lib/push'
@@ -44,29 +43,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // ── Modo IA: reformula no tom da assistente ──────────────────────────────────
   if (modo === 'ia') {
+    const config = await getAiConfig()
+    const provider = getProvider(config.provider)
+    const nomeIa = (esc.canal === 'whatsapp' ? config.nomeAssistentes.whatsapp : config.nomeAssistentes.onboarding) ?? 'Assistente'
+    const historico = (esc.historico as { role: string; content: string }[]) ?? []
+    const ctxStr = historico
+      .slice(-6)
+      .map(m => `${m.role === 'user' ? 'Cliente' : nomeIa}: ${typeof m.content === 'string' ? m.content.slice(0, 200) : ''}`)
+      .join('\n')
+
+    // Prompt mínimo e focado — não inclui SYSTEM_BASE_DEFAULT (regras de negócio
+    // do WhatsApp que confundem o modelo numa tarefa simples de reformulação)
+    const systemReformula = `Você é ${nomeIa}, assistente virtual de um escritório contábil. Reformule a orientação da equipe no seu tom natural — cordial, direto, em português brasileiro. NÃO mencione que recebeu orientação de alguém. Responda apenas com o texto final para o cliente, sem explicações adicionais.`
+
+    let reformulado: string | null = null
     try {
-      const config = await getAiConfig()
-      const provider = getProvider(config.provider)
-      const nomeIa = (esc.canal === 'whatsapp' ? config.nomeAssistentes.whatsapp : config.nomeAssistentes.onboarding) ?? 'Assistente'
-      const historico = (esc.historico as { role: string; content: string }[]) ?? []
-      const ctxStr = historico
-        .slice(-6)
-        .map(m => `${m.role === 'user' ? 'Cliente' : nomeIa}: ${m.content}`)
-        .join('\n')
-
-      const systemReformula = `${SYSTEM_BASE_DEFAULT}
-
-Você receberá uma orientação de um membro da equipe e deve reformulá-la no seu tom natural de assistente ${nomeIa} — cordial, direto e em português brasileiro. NÃO mencione que recebeu orientação de alguém. Responda como se fosse sua própria resposta.`
-
       const result = await provider.complete({
         system: systemReformula,
         messages: [
           {
             role: 'user',
-            content: `Contexto da conversa recente:\n${ctxStr}\n\nOrientação da equipe: ${conteudo}\n\nReformule no seu tom para enviar ao cliente.`,
+            content: ctxStr
+              ? `Contexto recente:\n${ctxStr}\n\nOrientação da equipe: ${conteudo}`
+              : `Orientação da equipe: ${conteudo}`,
           },
         ],
-        maxTokens: 512,
+        maxTokens: 300,
         temperature: 0.4,
         model: config.models.whatsapp ?? config.models.onboarding,
         apiKey:
@@ -74,11 +76,20 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
           config.provider === 'google'  ? config.googleApiKey    ?? undefined :
                                           config.openaiApiKey    ?? undefined,
       })
-      mensagemFinal = result.text
+      reformulado = result.text?.trim() || null
     } catch (err) {
-      console.error('[escalacoes/responder] erro ao reformular:', err)
-      // Se a reformulação falhar, usa o conteúdo original
+      console.error('[escalacoes/responder] erro ao reformular com IA:', err)
     }
+
+    if (!reformulado) {
+      // Reformulação falhou — retorna erro em vez de enviar a instrução crua ao cliente
+      return NextResponse.json(
+        { error: 'Falha ao reformular com a IA. Tente novamente ou use "Enviar diretamente".' },
+        { status: 502 },
+      )
+    }
+
+    mensagemFinal = reformulado
   }
 
   // ── Envia pelo canal correto ────────────────────────────────────────────────
