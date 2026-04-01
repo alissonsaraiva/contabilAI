@@ -239,9 +239,11 @@ export async function POST(req: Request) {
     aiEnabled = row?.whatsappAiEnabled ?? false
     aiFeature = row?.whatsappAiFeature ?? 'whatsapp'
     groqApiKey = row?.groqApiKey ? (isEncrypted(row.groqApiKey as string) ? decrypt(row.groqApiKey as string) : row.groqApiKey as string) : null
-  } catch { /* DB indisponível */ }
+  } catch (err) {
+    console.error('[whatsapp/webhook] erro ao carregar config do escritório:', err)
+  }
 
-  if (!cfg || !aiEnabled) return new Response('ai disabled', { status: 200 })
+  if (!cfg) return new Response('no config', { status: 200 })
 
   // Verifica que a requisição veio da instância Evolution configurada
   const headerApiKey = req.headers.get('apikey')
@@ -304,6 +306,42 @@ export async function POST(req: Request) {
       await addMensagemUsuario(conversaId, textSanitizado)
       // Notifica o WhatsApp Drawer do CRM (humano no controle) via SSE
       emitWhatsAppRefresh(conversaId)
+      // Confirmação de recebimento para o cliente (só no paused — na conversa ativa a IA responde)
+      if (mediaType && cfg) {
+        sendHumanLike(cfg, remoteJid, 'Documento recebido ✓ Nossa equipe irá analisar em breve.')
+          .catch((err: unknown) =>
+            console.error('[whatsapp/webhook] erro ao enviar confirmação de mídia (conversa pausada):', { remoteJid, err }),
+          )
+      }
+      // Classifica e arquiva documento mesmo com humano no controle (fire-and-forget)
+      if (mediaType && msg && cfg) {
+        ;(async () => {
+          try {
+            const media = await downloadMedia(cfg, { key, message: msg! })
+            if (media) {
+              const isPdf = mediaType === 'document' && media.mimeType.includes('pdf')
+              const textoExtraido = isPdf ? (await extractPdfText(media.buffer)) || undefined : undefined
+              const base64 = (!isPdf && media.buffer) ? media.buffer.toString('base64') : undefined
+              arquivarMidiaWhatsappAsync({
+                media,
+                base64,
+                textoExtraido,
+                conversaId,
+                clienteId: cached.clienteId ?? undefined,
+                leadId:    cached.leadId    ?? undefined,
+                remoteJid,
+                tipoMidia: mediaType === 'image' ? 'imagem' : 'documento',
+              })
+            }
+          } catch (err) {
+            console.error('[whatsapp/webhook] erro no arquivamento de mídia (conversa pausada):', {
+              remoteJid,
+              conversaId,
+              err,
+            })
+          }
+        })()
+      }
       // Notifica a equipe que o cliente respondeu enquanto IA está pausada
       import('@/lib/notificacoes')
         .then(({ notificarRespostaClientePausado }) =>
@@ -314,9 +352,14 @@ export async function POST(req: Request) {
             remoteJid,
           })
         )
-        .catch(() => {})
+        .catch((err: unknown) =>
+          console.error('[whatsapp/webhook] erro ao notificar resposta_cliente_pausado:', { conversaId, err }),
+        )
       return new Response('paused', { status: 200 })
     }
+
+    // IA desabilitada — mensagem já foi salva se estava pausada; para conversas ativas, descarta
+    if (!aiEnabled) return new Response('ai disabled', { status: 200 })
 
     // Carrega histórico persistido
     const historico = await getHistorico(conversaId)
@@ -345,7 +388,9 @@ export async function POST(req: Request) {
             await sendHumanLike(cfg, remoteJid, 'Desculpe, não consegui processar o áudio. Pode digitar sua mensagem?')
             prisma.mensagemIA.create({
               data: { conversaId, role: 'user', conteudo: '[áudio]', status: 'sent', whatsappMsgData: { key, message: msg } as object },
-            }).catch(() => {})
+            }).catch((saveErr: unknown) =>
+              console.error('[whatsapp/webhook] erro ao salvar mensagem de áudio não transcrito:', { conversaId, saveErr }),
+            )
             prisma.escalacao.create({
               data: {
                 canal: 'whatsapp', status: 'pendente',
@@ -360,7 +405,9 @@ export async function POST(req: Request) {
                 id: esc.id, clienteId: esc.clienteId, leadId: esc.leadId,
                 canal: 'whatsapp', motivoIA: esc.motivoIA, criadoEm: esc.criadoEm,
               })
-            }).catch(() => {})
+            }).catch((escErr: unknown) =>
+              console.error('[whatsapp/webhook] erro ao criar escalação por falha de transcrição (com key):', { conversaId, escErr }),
+            )
             await prisma.conversaIA.update({ where: { id: conversaId }, data: { pausadaEm: new Date() } })
             return new Response('transcription_error', { status: 200 })
           }
@@ -368,7 +415,9 @@ export async function POST(req: Request) {
           await sendHumanLike(cfg, remoteJid, 'Recebi um áudio, mas a transcrição não está configurada. Por favor, envie sua mensagem por texto.')
           prisma.mensagemIA.create({
             data: { conversaId, role: 'user', conteudo: '[áudio]', status: 'sent', whatsappMsgData: { key, message: msg } as object },
-          }).catch(() => {})
+          }).catch((saveErr: unknown) =>
+            console.error('[whatsapp/webhook] erro ao salvar mensagem de áudio sem Groq key:', { conversaId, saveErr }),
+          )
           prisma.escalacao.create({
             data: {
               canal: 'whatsapp', status: 'pendente',
@@ -383,7 +432,9 @@ export async function POST(req: Request) {
               id: esc.id, clienteId: esc.clienteId, leadId: esc.leadId,
               canal: 'whatsapp', motivoIA: esc.motivoIA, criadoEm: esc.criadoEm,
             })
-          }).catch(() => {})
+          }).catch((escErr: unknown) =>
+            console.error('[whatsapp/webhook] erro ao criar escalação por áudio sem Groq key:', { conversaId, escErr }),
+          )
           return new Response('no_groq_key', { status: 200 })
         }
       } else if (mediaType === 'image') {
@@ -491,6 +542,7 @@ export async function POST(req: Request) {
     })
     // Notifica o WhatsApp Drawer do CRM via SSE (após salvar no DB)
     emitWhatsAppRefresh(conversaId)
+    lastResponse.set(remoteJid, Date.now())
   } catch (err) {
     console.error('[whatsapp/webhook] erro:', err)
   }
@@ -523,22 +575,43 @@ type ArquivarMidiaInput = {
 function arquivarMidiaWhatsappAsync(input: ArquivarMidiaInput): void {
   if (!input.clienteId && !input.leadId) return  // sem vínculo, nada a fazer
 
+  const tipoLabel = input.tipoMidia === 'imagem' ? 'WhatsApp — Imagem' : 'WhatsApp — Documento'
+
   buildContextoConversa(input.conversaId, 5)
-    .then(contexto =>
-      classificarDocumento({
-        arquivo: {
-          nome:          input.media.fileName ?? 'arquivo',
-          mimeType:      input.media.mimeType,
-          buffer:        input.base64 ? undefined : input.media.buffer,
-          base64:        input.base64,
-          textoExtraido: input.textoExtraido,
-        },
-        contexto,
-      }),
-    )
-    .then(deveArquivar => {
+    .then(async (contexto) => {
+      let deveArquivar: boolean
+      try {
+        deveArquivar = await classificarDocumento({
+          arquivo: {
+            nome:          input.media.fileName ?? 'arquivo',
+            mimeType:      input.media.mimeType,
+            buffer:        input.base64 ? undefined : input.media.buffer,
+            base64:        input.base64,
+            textoExtraido: input.textoExtraido,
+          },
+          contexto,
+        })
+      } catch (err) {
+        // IA de classificação falhou — salva com status pendente para revisão/retry
+        console.error('[webhook] falha na classificação de documento via IA:', { remoteJid: input.remoteJid, err })
+        return criarDocumento({
+          clienteId: input.clienteId,
+          leadId:    input.leadId,
+          arquivo: {
+            buffer:   input.media.buffer,
+            nome:     input.media.fileName ?? 'arquivo',
+            mimeType: input.media.mimeType,
+          },
+          tipo:        tipoLabel,
+          status:      'pendente',
+          origem:      'whatsapp',
+          resumoStatus: 'pendente',
+          metadados:   { fonte: 'whatsapp', remoteJid: input.remoteJid, classificacaoFalhou: true },
+        })
+      }
+
       if (!deveArquivar) return
-      const tipoLabel = input.tipoMidia === 'imagem' ? 'WhatsApp — Imagem' : 'WhatsApp — Documento'
+
       return criarDocumento({
         clienteId: input.clienteId,
         leadId:    input.leadId,

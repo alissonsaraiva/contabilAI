@@ -133,7 +133,9 @@ export async function roterarDocumentoWhatsapp(opts: {
           conteudo:  interacao.conteudo,
           criadoEm:  interacao.criadoEm,
         })
-      }).catch(() => {})
+      }).catch((err: unknown) =>
+        console.error('[action-router] erro ao registrar interação de documento WhatsApp:', { clienteId, leadId, err }),
+      )
     }
 
     return {

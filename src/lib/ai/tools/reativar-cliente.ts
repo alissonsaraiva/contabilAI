@@ -79,7 +79,9 @@ const reativarClienteTool: Tool = {
       conteudo: motivo,
       origem:  'ia',
       metadados: { solicitanteAI: ctx.solicitanteAI, statusAnterior },
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[tool/reativar-cliente] erro ao registrar interação:', { clienteId, err }),
+    )
 
     // Re-indexa cliente atualizado
     const clienteAtualizado = await prisma.cliente.findUnique({

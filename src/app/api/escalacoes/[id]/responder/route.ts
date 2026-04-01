@@ -127,7 +127,9 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
             status: 'sent',
             tentativas: 1,
           },
-        }).catch(() => {})
+        }).catch((err: unknown) =>
+          console.error('[escalacoes/responder] erro ao salvar mensagemIA:', { conversaId: conversaRow.id, err }),
+        )
       }
     }
   }
@@ -149,14 +151,18 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
     prisma.conversaIA.updateMany({
       where: { canal: 'whatsapp', remoteJid: esc.remoteJid, NOT: { pausadaEm: null } },
       data: { pausadaEm: null, pausadoPorId: null },
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[escalacoes/responder] erro ao despausa conversa WhatsApp:', { remoteJid: esc.remoteJid, err }),
+    )
   }
   // Onboarding/portal: despausa via conversaIAId (se vinculada)
   if (esc.canal !== 'whatsapp' && escAtualizada.conversaIAId) {
     prisma.conversaIA.update({
       where: { id: escAtualizada.conversaIAId },
       data: { pausadaEm: null, pausadoPorId: null },
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[escalacoes/responder] erro ao despausa conversa portal:', { conversaId: escAtualizada.conversaIAId, err }),
+    )
   }
 
   // Notifica widgets via SSE (substitui poll de 4s)
@@ -168,7 +174,9 @@ Você receberá uma orientação de um membro da equipe e deve reformulá-la no 
       title: 'Resposta da equipe',
       body:  mensagemFinal.slice(0, 100),
       url:   '/portal/suporte',
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[escalacoes/responder] erro ao enviar push para cliente:', { clienteId: esc.clienteId, err }),
+    )
   }
 
   // Indexa escalação resolvida no RAG (contexto de atendimento para futuras consultas)

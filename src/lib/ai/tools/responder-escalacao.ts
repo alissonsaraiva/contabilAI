@@ -108,13 +108,17 @@ const responderEscalacaoTool: Tool = {
               status:     'sent',
               tentativas: 1,
             },
-          }).catch(() => {})
+          }).catch((err: unknown) =>
+            console.error('[tool/responder-escalacao] erro ao criar mensagemIA:', { conversaId: conversaRow.id, err }),
+          )
 
           // Reativa a IA
           prisma.conversaIA.update({
             where: { id: conversaRow.id },
             data:  { pausadaEm: null, pausadoPorId: null },
-          }).catch(() => {})
+          }).catch((err: unknown) =>
+            console.error('[tool/responder-escalacao] erro ao reativar conversa:', { conversaId: conversaRow.id, err }),
+          )
         }
       }
     }

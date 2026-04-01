@@ -288,3 +288,75 @@ export async function notificarEmailRecebido({
     console.error('[notificacoes] falha ao criar notificação email_recebido:', err)
   }
 }
+
+/**
+ * Notifica a equipe quando o processamento IA de um documento falha definitivamente
+ * (todas as tentativas esgotadas). Abre um chamado (OS) se houver clienteId.
+ */
+export async function notificarDocumentoFalhou(opts: {
+  documentoId:   string
+  clienteId?:    string
+  leadId?:       string
+  nomeArquivo:   string
+  tipoDocumento: string
+  erro:          string
+}): Promise<void> {
+  const chave = `doc_falhou:${opts.documentoId}`
+  if (dentroDoCooldow(chave)) return
+  registrarCooldown(chave)
+
+  try {
+    let nomeCliente = 'Cliente desconhecido'
+    if (opts.clienteId) {
+      const c = await prisma.cliente.findUnique({
+        where:  { id: opts.clienteId },
+        select: { nome: true },
+      })
+      nomeCliente = c?.nome ?? nomeCliente
+    } else if (opts.leadId) {
+      const l = await prisma.lead.findUnique({
+        where:  { id: opts.leadId },
+        select: { dadosJson: true, contatoEntrada: true },
+      })
+      const dados = (l?.dadosJson ?? {}) as Record<string, string>
+      nomeCliente = dados['Nome completo'] ?? dados['Razão Social'] ?? l?.contatoEntrada ?? nomeCliente
+    }
+
+    // Notifica o sino
+    const ids = await buscarEquipeAtendimento()
+    await criarParaTodos(ids, {
+      tipo:    'documento_falhou',
+      titulo:  `Falha ao processar documento de ${nomeCliente}`,
+      mensagem: `Arquivo "${opts.nomeArquivo}" não pôde ser processado após 3 tentativas. Revisão manual necessária.`,
+      url:     opts.clienteId
+        ? `/crm/clientes/${opts.clienteId}`
+        : opts.leadId
+        ? `/crm/leads/${opts.leadId}`
+        : '/crm/atendimentos',
+    })
+
+    // Abre OS se houver cliente vinculado
+    if (opts.clienteId) {
+      await prisma.ordemServico.create({
+        data: {
+          clienteId:  opts.clienteId,
+          tipo:       'documento',
+          origem:     'ia',
+          visivelPortal: false,
+          titulo:     `Documento não processado: ${opts.nomeArquivo.slice(0, 60)}`,
+          descricao:  `O sistema tentou processar o documento "${opts.nomeArquivo}" (${opts.tipoDocumento}) 3 vezes e não conseguiu gerar o resumo/classificação automática.\n\nErro: ${opts.erro.slice(0, 300)}\n\nDocumento ID: ${opts.documentoId}\n\nAção necessária: revisar manualmente o documento e confirmar se deve ser arquivado.`,
+          status:     'aberta',
+          prioridade: 'media',
+        },
+      }).catch((err: unknown) =>
+        console.error('[notificacoes] erro ao criar OS para documento_falhou:', {
+          documentoId: opts.documentoId,
+          clienteId:   opts.clienteId,
+          err,
+        }),
+      ) // OS é best-effort — não deve travar a notificação
+    }
+  } catch (err) {
+    console.error('[notificacoes] falha ao notificar documento_falhou:', err)
+  }
+}

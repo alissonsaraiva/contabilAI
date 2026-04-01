@@ -50,7 +50,8 @@ export function indexarAsync(tipo: TipoIndexacao, dados: unknown): void {
         case 'agendamento':     return (mod as any).indexarAgendamento?.(dados)
       }
     })
-    .catch(() => {
-      // RAG nunca bloqueia nem propaga erro — operação best-effort
+    .catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[rag/indexar-async] falha ao indexar:', { tipo, msg })
     })
 }

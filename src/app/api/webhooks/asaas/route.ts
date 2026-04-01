@@ -135,7 +135,11 @@ export async function POST(req: Request) {
               .catch(err => console.error('[Asaas webhook] Erro ao sincronizar após PAYMENT_CREATED:', err))
           }
         })
-        .catch(() => {/* silencia */})
+        .catch((err: unknown) =>
+          console.error('[Asaas webhook] erro ao buscar cliente para sincronização pós-PAYMENT_CREATED:', {
+            clienteId: cliente.id, err,
+          }),
+        )
     })
 
     return NextResponse.json({ ok: true })
@@ -226,7 +230,12 @@ export async function POST(req: Request) {
         title: 'Pagamento confirmado ✅',
         body:  'Seu pagamento foi recebido com sucesso. Obrigado!',
         url:   '/portal/financeiro',
-      }).catch(() => {/* silencia */})
+      }).catch((err: unknown) =>
+        console.error('[Asaas webhook] erro ao enviar push PWA de pagamento confirmado (CONFIRMED):', {
+          clienteId: cobrancaConf.clienteId,
+          err,
+        }),
+      )
     }
 
     return NextResponse.json({ ok: true })
@@ -287,7 +296,12 @@ export async function POST(req: Request) {
         title: 'Pagamento confirmado ✅',
         body:  'Seu pagamento foi recebido com sucesso. Obrigado!',
         url:   '/portal/financeiro',
-      }).catch(() => {/* silencia */})
+      }).catch((err: unknown) =>
+        console.error('[Asaas webhook] erro ao enviar push PWA de pagamento confirmado (RECEIVED):', {
+          clienteId: cobranca.clienteId,
+          err,
+        }),
+      )
     }
 
     return NextResponse.json({ ok: true })
@@ -359,7 +373,12 @@ export async function POST(req: Request) {
           title: 'Cobrança em atraso',
           body:  `Você tem uma cobrança de ${valorVenc} vencida. Acesse o portal para regularizar.`,
           url:   '/portal/financeiro',
-        }).catch(() => {/* silencia */})
+        }).catch((err: unknown) =>
+          console.error('[Asaas webhook] erro ao enviar push PWA de cobrança vencida:', {
+            clienteId: cliente.id,
+            err,
+          }),
+        )
 
         // WhatsApp — prioriza sócio principal, fallback para cliente.whatsapp
         const socioP    = cliente.empresa?.socios?.[0]

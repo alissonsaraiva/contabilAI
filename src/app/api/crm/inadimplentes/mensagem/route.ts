@@ -116,7 +116,9 @@ export async function POST(req: Request) {
           origem:    'crm_manual',
           usuarioId: session.user?.id ?? null,
         },
-      }).catch(() => {})
+      }).catch((err: unknown) =>
+        console.error('[crm/inadimplentes/mensagem] erro ao registrar interação:', { clienteId: c.id, err }),
+      )
 
       results.push({ clienteId: c.id, ok: true })
     } catch (err) {

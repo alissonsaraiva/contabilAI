@@ -149,7 +149,9 @@ export async function PATCH(req: Request, { params }: Params) {
       osId:      id,
       clienteId: existing.clienteId,
       titulo:    existing.titulo,
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[crm/ordens-servico] erro ao notificar os_resolvida:', { osId: id, err }),
+    )
 
     // Push para o cliente no portal
     if (existing.clienteId) {
@@ -157,7 +159,9 @@ export async function PATCH(req: Request, { params }: Params) {
         title: 'Chamado respondido',
         body:  `Seu chamado "${existing.titulo}" foi respondido. Acesse o portal para ver a resposta.`,
         url:   '/portal/suporte',
-      }).catch(() => {})
+      }).catch((err: unknown) =>
+        console.error('[crm/ordens-servico] erro ao enviar push OS resolvida:', { clienteId: existing.clienteId, err }),
+      )
     }
   }
 

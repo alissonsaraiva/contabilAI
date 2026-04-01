@@ -25,7 +25,9 @@ export async function POST(
   prisma.escalacao.updateMany({
     where: { conversaIAId: id, status: { in: ['pendente', 'em_atendimento'] } },
     data:  { status: 'resolvida' },
-  }).catch(() => {})
+  }).catch((err: unknown) =>
+    console.error('[conversas/retomar] erro ao resolver escalação:', { conversaId: id, err }),
+  )
 
   registrarIaRetomada({
     conversaId:   id,

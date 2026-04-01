@@ -31,7 +31,7 @@ export async function uploadArquivo(
     throw new Error(`Tipo de arquivo não permitido: ${contentType}`)
   }
 
-  await storage.send(
+  const upload = storage.send(
     new PutObjectCommand({
       Bucket: process.env.STORAGE_BUCKET_NAME,
       Key: key,
@@ -39,6 +39,10 @@ export async function uploadArquivo(
       ContentType: contentType,
     }),
   )
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`[storage] upload timeout após 15s — key: ${key}`)), 15_000),
+  )
+  await Promise.race([upload, timeout])
   return `${process.env.STORAGE_PUBLIC_URL}/${key}`
 }
 

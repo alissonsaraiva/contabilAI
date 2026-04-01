@@ -115,9 +115,14 @@ export async function classificarDocumento(
 
     const resposta = result.text.trim().toLowerCase()
     return resposta.startsWith('sim') || resposta === 's'
-  } catch {
-    // Em caso de erro da IA, adota postura conservadora: não arquiva
-    return false
+  } catch (err) {
+    console.error('[classificar-documento] falha na classificação via IA:', {
+      nome: arquivo.nome,
+      mimeType: arquivo.mimeType,
+      err,
+    })
+    // Propaga o erro para o caller distinguir "IA indisponível" de "não é documento"
+    throw err
   }
 }
 

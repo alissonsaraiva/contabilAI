@@ -16,6 +16,7 @@ import { getAiConfig }                from '@/lib/ai/config'
 import { completeWithFallback }       from '@/lib/ai/providers/fallback'
 import { extrairConteudoDocumento }   from './extrair-conteudo-documento'
 import { indexarAsync }               from '@/lib/rag/indexar-async'
+import { DOCUMENTO_MAX_TENTATIVAS }   from './documento-config'
 import type { AIMessageContentPart }  from '@/lib/ai/providers/types'
 
 const SYSTEM_PROMPT = `Você é um assistente especializado em documentos contábeis e fiscais brasileiros.
@@ -47,41 +48,49 @@ export async function resumirDocumento(documentoId: string): Promise<string | nu
 
   if (!doc) return null
 
-  const config   = await getAiConfig()
-  const provider = config.providers.documentoResumo
-  const model    = config.models.documentoResumo
-
-  // Extrai conteúdo do arquivo
-  const conteudo = await extrairConteudoDocumento({
-    mimeType:    doc.mimeType ?? 'application/octet-stream',
-    nome:        doc.nome,
-    url:         doc.url,
-    xmlMetadata: doc.xmlMetadata,
-  })
-
-  if (!conteudo) {
-    // Formato não suportado — gera resumo só com metadados
-    const resumoMeta = gerarResumoMetadados(doc)
-    await salvarResumo(documentoId, resumoMeta, doc)
-    return resumoMeta
-  }
-
-  // Monta mensagem (texto ou imagem + texto para vision)
-  let userContent: AIMessageContentPart[]
-
-  if (conteudo.tipo === 'imagem') {
-    userContent = [
-      { type: 'image', mediaType: conteudo.mimeType, data: conteudo.base64 },
-      { type: 'text',  text: buildPromptTexto(doc) },
-    ]
-  } else {
-    userContent = [{
-      type: 'text',
-      text: `${buildPromptTexto(doc)}\n\nConteúdo do arquivo:\n${conteudo.texto}`,
-    }]
-  }
+  // Marca como em processamento
+  await prisma.documento.update({
+    where: { id: documentoId },
+    data:  { resumoStatus: 'processando' },
+  }).catch((err: unknown) =>
+    console.error('[resumir-documento] erro ao marcar status processando:', { documentoId, err }),
+  )
 
   try {
+    const config   = await getAiConfig()
+    const provider = config.providers.documentoResumo
+    const model    = config.models.documentoResumo
+
+    // Extrai conteúdo do arquivo
+    const conteudo = await extrairConteudoDocumento({
+      mimeType:    doc.mimeType ?? 'application/octet-stream',
+      nome:        doc.nome,
+      url:         doc.url,
+      xmlMetadata: doc.xmlMetadata,
+    })
+
+    if (!conteudo) {
+      // Formato não suportado — gera resumo só com metadados
+      const resumoMeta = gerarResumoMetadados(doc)
+      await salvarResumo(documentoId, resumoMeta, doc)
+      return resumoMeta
+    }
+
+    // Monta mensagem (texto ou imagem + texto para vision)
+    let userContent: AIMessageContentPart[]
+
+    if (conteudo.tipo === 'imagem') {
+      userContent = [
+        { type: 'image', mediaType: conteudo.mimeType, data: conteudo.base64 },
+        { type: 'text',  text: buildPromptTexto(doc) },
+      ]
+    } else {
+      userContent = [{
+        type: 'text',
+        text: `${buildPromptTexto(doc)}\n\nConteúdo do arquivo:\n${conteudo.texto}`,
+      }]
+    }
+
     const result = await completeWithFallback(
       {
         system:      SYSTEM_PROMPT,
@@ -106,16 +115,56 @@ export async function resumirDocumento(documentoId: string): Promise<string | nu
     return resumo
   } catch (err) {
     console.error('[resumir-documento] erro ao gerar resumo:', err)
+    const msg = err instanceof Error ? err.message : String(err)
+    // Incrementa tentativas e marca como falhou
+    const updated = await prisma.documento.update({
+      where: { id: documentoId },
+      data: {
+        resumoStatus:     'falhou',
+        resumoTentativas: { increment: 1 },
+        resumoErro:       msg.slice(0, 500),
+      },
+      select: { resumoTentativas: true, clienteId: true, leadId: true, nome: true, tipo: true },
+    }).catch((err: unknown) => {
+      console.error('[resumir-documento] erro ao salvar status falhou:', { documentoId, err })
+      return null
+    })
+
+    // Esgotou tentativas — para o retry e abre chamado
+    if (updated && updated.resumoTentativas >= DOCUMENTO_MAX_TENTATIVAS) {
+      await prisma.documento.update({
+        where: { id: documentoId },
+        data:  { resumoStatus: 'esgotado' },
+      }).catch((err: unknown) =>
+        console.error('[resumir-documento] erro ao marcar status esgotado:', { documentoId, err }),
+      )
+
+      import('@/lib/notificacoes')
+        .then(({ notificarDocumentoFalhou }) =>
+          notificarDocumentoFalhou({
+            documentoId,
+            clienteId: updated.clienteId ?? undefined,
+            leadId:    updated.leadId    ?? undefined,
+            nomeArquivo: updated.nome,
+            tipoDocumento: updated.tipo,
+            erro: msg,
+          })
+        )
+        .catch((err: unknown) =>
+          console.error('[resumir-documento] erro ao enviar notificação documento_falhou:', { documentoId, err }),
+        )
+    }
     return null
   }
 }
 
 /** Wrapper fire-and-forget — para uso em criarDocumento() */
 export function resumirDocumentoAsync(documentoId: string): void {
-  // Evita chamada duplicada de IA se o documento já foi resumido (race condition com backfill)
-  prisma.documento.findUnique({ where: { id: documentoId }, select: { resumo: true } })
+  // Evita chamada duplicada de IA se o documento já foi resumido ou esgotou as tentativas
+  prisma.documento.findUnique({ where: { id: documentoId }, select: { resumo: true, resumoStatus: true } })
     .then(doc => {
       if (doc?.resumo) return
+      if (doc?.resumoStatus === 'esgotado') return  // não retentar após exaustão
       return resumirDocumento(documentoId)
     })
     .catch(err => console.error('[resumir-documento] async error:', err))
@@ -162,7 +211,7 @@ async function salvarResumo(
 ): Promise<void> {
   await prisma.documento.update({
     where: { id: documentoId },
-    data:  { resumo, resumoEm: new Date() },
+    data:  { resumo, resumoEm: new Date(), resumoStatus: 'ok', resumoErro: null },
   })
 
   // Re-indexa no RAG com o resumo incluído (melhora busca semântica)

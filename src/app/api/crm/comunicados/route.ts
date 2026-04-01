@@ -101,7 +101,9 @@ export async function POST(req: Request) {
   if (comunicado.publicado) {
     indexarAsync('comunicado', comunicado)
     if (enviarEmail) {
-      enviarComunicadoPorEmail(comunicado.id).catch(() => {})
+      enviarComunicadoPorEmail(comunicado.id).catch((err: unknown) =>
+        console.error('[crm/comunicados] erro ao enviar comunicado por email:', { comunicadoId: comunicado.id, err }),
+      )
     }
     // Push broadcast para todos os clientes ativos (fire-and-forget)
     prisma.cliente.findMany({
@@ -113,9 +115,13 @@ export async function POST(req: Request) {
           title: comunicado.titulo,
           body:  comunicado.conteudo.slice(0, 100),
           url:   '/portal/dashboard',
-        }).catch(() => {})
+        }).catch((err: unknown) =>
+          console.error('[crm/comunicados] erro ao enviar push broadcast:', { clienteId: c.id, err }),
+        )
       }
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[crm/comunicados] erro ao buscar clientes para push broadcast:', { comunicadoId: comunicado.id, err }),
+    )
   }
 
   return NextResponse.json(comunicado, { status: 201 })

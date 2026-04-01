@@ -222,7 +222,9 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
         .then(({ notificarAgenteFalhou }) =>
           notificarAgenteFalhou(err instanceof Error ? err.message : String(err))
         )
-        .catch(() => {})
+        .catch((notifErr: unknown) =>
+          console.error('[portal/chat] erro ao notificar agente_falhou (agente):', notifErr),
+        )
     }
   }
   // ────────────────────────────────────────────────────────────────────────────
@@ -247,7 +249,9 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
     console.error('[portal/chat] IA indisponível:', aiErrMsg)
     import('@/lib/notificacoes')
       .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
-      .catch(() => {})
+      .catch((notifErr: unknown) =>
+        console.error('[portal/chat] erro ao notificar agente_falhou (ia):', notifErr),
+      )
     return NextResponse.json({ reply: 'Estou com uma instabilidade no momento. Tente novamente em alguns minutos ou acesse a seção de atendimento do portal.' })
   }
 
@@ -285,7 +289,9 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
           .then(({ notificarEscalacaoPortal }) =>
             notificarEscalacaoPortal(clienteIdParaConversa, esc.id)
           )
-          .catch(() => {})
+          .catch((notifErr: unknown) =>
+            console.error('[portal/chat] erro ao notificar escalacao_portal:', { escalacaoId: esc.id, notifErr }),
+          )
       }).catch(err => console.error('[portal/chat] Falha ao criar escalação:', err))
     } catch (err) {
       console.error('[portal/chat] Falha ao pausar conversa após escalação:', err)

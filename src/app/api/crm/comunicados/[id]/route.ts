@@ -50,7 +50,9 @@ export async function PATCH(req: Request, { params }: Params) {
     const { StatusCliente } = await import('@prisma/client')
     const statusValidos = Object.values(StatusCliente)
     const filtro = statusEmail.filter(s => statusValidos.includes(s as any)) as any[]
-    enviarComunicadoPorEmail(comunicado.id, filtro.length > 0 ? filtro : ['ativo', 'inadimplente']).catch(() => {})
+    enviarComunicadoPorEmail(comunicado.id, filtro.length > 0 ? filtro : ['ativo', 'inadimplente']).catch((err: unknown) =>
+      console.error('[crm/comunicados] erro ao enviar comunicado por email (atualização):', { comunicadoId: comunicado.id, err }),
+    )
   }
 
   return NextResponse.json({ ...comunicado, emailDisparado: dispararEmail })

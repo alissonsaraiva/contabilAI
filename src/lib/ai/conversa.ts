@@ -52,7 +52,9 @@ export async function getOrCreateConversaWhatsapp(
           leadId:    opts.leadId    ?? undefined,
           socioId:   opts.socioId   ?? undefined,
         },
-      }).catch(() => {})
+      }).catch((err: unknown) =>
+        console.error('[conversa] erro ao atualizar identidade (whatsapp):', { conversaId: existente.id, err }),
+      )
     }
     return existente.id
   }
@@ -97,7 +99,9 @@ export async function getOrCreateConversaSession(
           clienteId: opts.clienteId ?? undefined,
           leadId:    opts.leadId    ?? undefined,
         },
-      }).catch(() => {})
+      }).catch((err: unknown) =>
+        console.error('[conversa] erro ao atualizar identidade (session):', { conversaId: existente.id, err }),
+      )
     }
     return existente.id
   }
@@ -125,7 +129,9 @@ export function atualizarIdentidadeConversa(
   prisma.conversaIA.update({
     where: { id: conversaId },
     data: { clienteId: opts.clienteId, leadId: opts.leadId },
-  }).catch(() => {})
+  }).catch((err: unknown) =>
+    console.error('[conversa] erro ao atualizar identidade:', { conversaId, err }),
+  )
 }
 
 // ─── Mensagens ────────────────────────────────────────────────────────────────

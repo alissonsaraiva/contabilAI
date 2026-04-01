@@ -74,7 +74,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Falha ao enviar o documento. Tente novamente.' }, { status: 502 })
   }
 
-  notificarDocumentoEnviado({ clienteId, nomeArquivo: file.name }).catch(() => {})
+  notificarDocumentoEnviado({ clienteId, nomeArquivo: file.name }).catch((err: unknown) =>
+    console.error('[portal/documentos/upload] erro ao notificar documento_enviado:', { clienteId, err }),
+  )
 
   return NextResponse.json(documento)
 }

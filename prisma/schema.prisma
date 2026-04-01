@@ -365,6 +365,9 @@ model Documento {
   xmlMetadata    Json?
   resumo         String?   @db.Text  // gerado por IA após upload
   resumoEm       DateTime?           // timestamp da última geração de resumo
+  resumoStatus     String    @default("pendente")   // pendente|ok|falhou|esgotado
+  resumoTentativas Int       @default(0)
+  resumoErro       String?   @db.Text
   visualizadoEm  DateTime?           // null = não visualizado pelo cliente (origem 'crm')
   deletadoEm     DateTime?
   criadoEm       DateTime           @default(now())

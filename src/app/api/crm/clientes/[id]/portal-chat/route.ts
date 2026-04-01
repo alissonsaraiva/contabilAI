@@ -77,7 +77,9 @@ export async function POST(
   prisma.escalacao.updateMany({
     where:  { conversaIAId: conversaId, canal: 'portal', status: 'pendente' },
     data:   { status: 'resolvida', respostaEnviada: mensagem.trim(), operadorId: user.id },
-  }).catch(() => {})
+  }).catch((err: unknown) =>
+    console.error('[crm/portal-chat] erro ao resolver escalação pendente:', { conversaId, err }),
+  )
 
   // Notifica o portal do cliente via SSE
   emitConversaMensagem(conversaId, { role: 'assistant', conteudo: mensagem.trim() })
@@ -87,7 +89,9 @@ export async function POST(
     title: 'Nova mensagem da equipe',
     body:  mensagem.trim().slice(0, 100),
     url:   '/portal/suporte',
-  }).catch(() => {})
+  }).catch((err: unknown) =>
+    console.error('[crm/portal-chat] erro ao enviar push mensagem manual:', { clienteId, err }),
+  )
 
   return NextResponse.json({ ok: true, mensagem: novaMensagem })
 }

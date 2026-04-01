@@ -186,7 +186,9 @@ const enviarCobrancaInadimplenteTool: Tool = {
         origem:    'ia_crm',
         usuarioId: ctx.usuarioId ?? null,
       },
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[tool/enviar-cobranca-inadimplente] erro ao registrar interação:', { clienteId: cliente.id, err }),
+    )
 
     return {
       sucesso: true,

@@ -132,14 +132,18 @@ export async function POST(req: Request) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[cron] erro ao disparar agendamento "${ag.descricao}":`, msg)
       resultados.push({ id: ag.id, descricao: ag.descricao, sucesso: false, erro: msg })
-      notificarAgenteFalhou(`Agendamento "${ag.descricao}" falhou: ${msg}`).catch(() => {})
+      notificarAgenteFalhou(`Agendamento "${ag.descricao}" falhou: ${msg}`).catch((notifErr: unknown) =>
+        console.error('[cron] erro ao notificar agente_falhou:', { agendamentoId: ag.id, notifErr }),
+      )
 
       // Recalcula próximo mesmo em caso de erro para não ficar preso em loop
       const proximo = proximoDisparo(ag.cron, agora)
       await prisma.agendamentoAgente.update({
         where: { id: ag.id },
         data:  { ultimoDisparo: agora, proximoDisparo: proximo ?? undefined },
-      }).catch(() => {})
+      }).catch((err: unknown) =>
+        console.error('[cron] erro ao atualizar próximo disparo após falha:', { agendamentoId: ag.id, err }),
+      )
     }
   }
 

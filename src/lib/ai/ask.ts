@@ -213,9 +213,13 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
       setProviderHealth(failedProvider, { ok: false, error: errMsg })
       if (eraOk) {
         const { notificarIaOffline } = await import('@/lib/notificacoes')
-        notificarIaOffline(failedProvider, errMsg).catch(() => {})
+        notificarIaOffline(failedProvider, errMsg).catch((err: unknown) =>
+          console.error('[askAI] erro ao enviar notificação ia_offline:', { failedProvider, err }),
+        )
       }
-    } catch { /* não bloqueia a resposta */ }
+    } catch (err) {
+      console.error('[askAI] erro ao atualizar health do provider de embedding:', err)
+    }
   }
 
   // 3. Monta system prompt — usa o do DB se configurado, senão o default por feature

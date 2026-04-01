@@ -133,7 +133,9 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
   })
 
   // Notifica a equipe (fire-and-forget, com cooldown de 5 min por remetente)
-  notificarEmailRecebido({ de: email.de, assunto: email.assunto, interacaoId }).catch(() => {})
+  notificarEmailRecebido({ de: email.de, assunto: email.assunto, interacaoId }).catch((err: unknown) =>
+    console.error('[email/processar] erro ao notificar email_recebido:', { de: email.de, err }),
+  )
 
   return { interacaoId, clienteId, leadId, associado, sugestao, documentosId }
 }

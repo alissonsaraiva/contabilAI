@@ -26,7 +26,9 @@ export async function POST(req: Request) {
   prisma.escalacao.updateMany({
     where: { conversaIAId: conversaId, status: 'pendente' },
     data:  { status: 'em_atendimento' },
-  }).catch(() => {})
+  }).catch((err: unknown) =>
+    console.error('[conversas/pausar] erro ao marcar escalação em_atendimento:', { conversaId, err }),
+  )
 
   registrarHumanoAssumiu({
     conversaId,
@@ -54,7 +56,9 @@ export async function POST(req: Request) {
         pausadaEm,
       })
     }
-  }).catch(() => {})
+  }).catch((err: unknown) =>
+    console.error('[conversas/pausar] erro ao indexar conversa no RAG:', { conversaId, err }),
+  )
 
   return NextResponse.json({ ok: true })
 }

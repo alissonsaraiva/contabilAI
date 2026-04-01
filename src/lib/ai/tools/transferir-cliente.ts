@@ -104,7 +104,9 @@ const transferirClienteTool: Tool = {
         conteudo: `${motivo}. Novo responsável: ${responsavelNome}.`,
         origem:  'ia',
         metadados: { solicitanteAI: ctx.solicitanteAI, responsavelId, responsavelNome },
-      }).catch(() => {})
+      }).catch((err: unknown) =>
+        console.error('[tool/transferir-cliente] erro ao registrar interação:', { clienteId, err }),
+      )
 
       indexarAsync('cliente', {
         id: cliente.id, nome: cliente.nome, email: cliente.email,

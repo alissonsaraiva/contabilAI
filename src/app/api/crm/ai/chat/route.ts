@@ -251,7 +251,9 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, convers
     } catch (err) {
       // Agente falhou — notifica o admin via central de notificações, não o operador no chat
       const { notificarAgenteFalhou } = await import('@/lib/notificacoes')
-      notificarAgenteFalhou(err instanceof Error ? err.message : String(err)).catch(() => {})
+      notificarAgenteFalhou(err instanceof Error ? err.message : String(err)).catch((notifErr: unknown) =>
+        console.error('[crm/ai/chat] erro ao notificar agente_falhou (agente):', notifErr),
+      )
     }
   }
   // ─────────────────────────────────────────────────────────────────────────────
@@ -276,7 +278,9 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, convers
     console.error('[crm/ai/chat] IA indisponível:', aiErrMsg)
     import('@/lib/notificacoes')
       .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
-      .catch(() => {})
+      .catch((notifErr: unknown) =>
+        console.error('[crm/ai/chat] erro ao notificar agente_falhou (ia):', notifErr),
+      )
     return NextResponse.json({ reply: 'Estou enfrentando uma instabilidade no momento. Tente novamente em alguns instantes.' })
   }
 

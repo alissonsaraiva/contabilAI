@@ -61,7 +61,9 @@ export async function POST(req: Request) {
     prisma.interacao.updateMany({
       where: { id: interacaoOrigemId, tipo: 'email_recebido', respondidoEm: null },
       data:  { respondidoEm: new Date(), respondidoPorId: usuarioId },
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[email/enviar] erro ao marcar interação como respondida:', { interacaoOrigemId, err }),
+    )
   }
 
   return NextResponse.json({ ok: true, messageId: resultado.messageId })

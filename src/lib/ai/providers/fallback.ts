@@ -57,7 +57,9 @@ function markFailed(provider: KnownProvider, error: string): void {
   if (eraOk) {
     import('@/lib/notificacoes')
       .then(({ notificarIaOffline }) => notificarIaOffline(provider, error))
-      .catch(() => {})
+      .catch((err: unknown) =>
+        console.error('[ai/fallback] erro ao enviar notificação de provider offline:', { provider, err }),
+      )
   }
 }
 

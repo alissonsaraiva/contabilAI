@@ -101,7 +101,9 @@ const enviarMensagemPortalTool: Tool = {
       title: 'Nova mensagem do escritório',
       body:  mensagem.slice(0, 100),
       url:   '/portal/suporte',
-    }).catch(() => {})
+    }).catch((err: unknown) =>
+      console.error('[tool/enviar-mensagem-portal] erro ao enviar push:', { clienteId, err }),
+    )
 
     return {
       sucesso: true,

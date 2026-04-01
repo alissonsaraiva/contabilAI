@@ -42,7 +42,9 @@ export async function criarEscalacao(input: CriarEscalacaoInput): Promise<string
     .then(({ notificarEscalacaoPortal }) =>
       notificarEscalacaoPortal(input.clienteId ?? '', escalacao.id)
     )
-    .catch(() => {})
+    .catch((err: unknown) =>
+      console.error('[escalacoes] erro ao notificar escalacao_portal:', { escalacaoId: escalacao.id, err }),
+    )
 
   // Indexa no RAG
   indexarAsync('escalacao', {

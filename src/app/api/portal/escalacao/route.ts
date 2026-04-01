@@ -67,7 +67,9 @@ export async function POST(req: Request) {
   })
 
   // Notifica equipe CRM
-  notificarEscalacaoPortal(clienteId, escalacao.id).catch(() => {})
+  notificarEscalacaoPortal(clienteId, escalacao.id).catch((err: unknown) =>
+    console.error('[portal/escalacao] erro ao notificar escalacao_portal:', { escalacaoId: escalacao.id, err }),
+  )
 
   return NextResponse.json({ ok: true, escalacaoId: escalacao.id })
 }

@@ -49,6 +49,7 @@ export type CriarDocumentoInput = {
   origem:        'crm' | 'portal' | 'integracao' | 'whatsapp' | 'email'
   integracaoId?: string   // ex: 'focus_nfe', 'contaazul', 'sefaz'
   metadados?:    Record<string, unknown>
+  resumoStatus?:  string   // default: 'pendente'
 }
 
 export type CriarDocumentoResult = {
@@ -109,6 +110,7 @@ export async function criarDocumento(input: CriarDocumentoInput): Promise<CriarD
       origem:         input.origem,
       integracaoId:   input.integracaoId,
       xmlMetadata:    xmlMetadata as never,
+      resumoStatus:   input.resumoStatus ?? 'pendente',
     },
   })
 

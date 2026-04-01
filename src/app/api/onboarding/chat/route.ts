@@ -120,7 +120,9 @@ export async function POST(req: Request) {
       if (conversaId) {
         prisma.mensagemIA.create({
           data: { conversaId, role: 'user', conteudo: message },
-        }).catch(() => {})
+        }).catch((err: unknown) =>
+          console.error('[onboarding/chat] erro ao salvar mensagem de usuário pausado:', { conversaId, err }),
+        )
       }
       return NextResponse.json({
         reply: 'Aguarde um momento, um especialista está verificando sua mensagem...',
@@ -261,7 +263,9 @@ export async function POST(req: Request) {
     // Notifica equipe no sino do CRM
     import('@/lib/notificacoes')
       .then(({ notificarAgenteFalhou }) => notificarAgenteFalhou(aiErrMsg))
-      .catch(() => {})
+      .catch((notifErr: unknown) =>
+        console.error('[onboarding/chat] erro ao notificar agente_falhou:', notifErr),
+      )
     // Retorna mensagem amigável e inicia poll para o lead aguardar humano
     return NextResponse.json({
       reply: 'Estou com uma instabilidade no momento. Um especialista da nossa equipe já foi notificado e irá responder em breve.',

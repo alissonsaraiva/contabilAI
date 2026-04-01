@@ -16,6 +16,7 @@ type Documento = {
   tamanho: number | null
   criadoEm: string | Date
   xmlMetadata?: unknown
+  resumoStatus?: string | null
 }
 
 type Props = {
@@ -274,6 +275,24 @@ export function DocumentosTabContent({ documentos: documentosIniciais, uploadSlo
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${STATUS_COLORS[d.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
                             {d.status}
                           </span>
+                          {d.resumoStatus === 'esgotado' && (
+                            <span title="Falha no processamento IA após 3 tentativas — OS aberta para revisão" className="flex items-center gap-0.5 rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-error">
+                              <span className="material-symbols-outlined text-[11px]">error</span>
+                              IA falhou
+                            </span>
+                          )}
+                          {d.resumoStatus === 'falhou' && (
+                            <span title="Falha no processamento IA — aguardando retry automático" className="flex items-center gap-0.5 rounded-full bg-orange-status/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-orange-status">
+                              <span className="material-symbols-outlined text-[11px]">sync_problem</span>
+                              Retry
+                            </span>
+                          )}
+                          {d.resumoStatus === 'processando' && (
+                            <span title="Gerando resumo IA..." className="flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                              <span className="material-symbols-outlined animate-spin text-[11px]">progress_activity</span>
+                              IA
+                            </span>
+                          )}
                           <a
                             href={d.url}
                             target="_blank"

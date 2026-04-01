@@ -48,7 +48,9 @@ export async function processarMensagensPendentes(): Promise<{
       pausadaEm: { not: null, lt: umaHoraAtras },
     },
     data: { pausadaEm: null, pausadoPorId: null },
-  }).catch(() => {})
+  }).catch((err: unknown) =>
+    console.error('[processar-pendentes] erro no auto-resume de conversas pausadas:', err),
+  )
 
   // Busca conversas WhatsApp com mensagens não processadas cuja última msg chegou há >5s
   const conversas = await prisma.conversaIA.findMany({
@@ -112,11 +114,7 @@ export async function processarMensagensPendentes(): Promise<{
 
       if (msgs.length === 0) continue
 
-      // Marca como processadas antes de chamar a IA (evita duplo envio)
-      await prisma.mensagemIA.updateMany({
-        where: { id: { in: msgs.map(m => m.id) } },
-        data:  { aiProcessado: true },
-      })
+      // Marca como processadas APÓS a IA responder com sucesso (ver abaixo)
 
       // Agrega textos e pega o último mediaContent disponível
       const textos = msgs.map(m => m.conteudo).filter(t => t && t !== '[áudio]')
@@ -308,7 +306,13 @@ export async function processarMensagensPendentes(): Promise<{
             where: { id: conversa.id },
             data:  { leadId: novoLead.id },
           })
-        } catch { /* ignora */ }
+        } catch (err) {
+          console.error('[processar-pendentes] erro ao criar lead via ##LEAD##:', {
+            remoteJid,
+            conversaId: conversa.id,
+            err,
+          })
+        }
       }
 
       // Detecta ##HUMANO##
@@ -335,11 +339,21 @@ export async function processarMensagensPendentes(): Promise<{
             motivoIA:  esc.motivoIA,
             criadoEm:  esc.criadoEm,
           })
-        }).catch(() => {})
+        }).catch((err: unknown) =>
+          console.error('[processar-pendentes] erro ao indexar escalação no RAG:', {
+            conversaId: conversa.id,
+            err,
+          }),
+        )
         await prisma.conversaIA.update({
           where: { id: conversa.id },
           data:  { pausadaEm: new Date() },
-        }).catch(() => {})
+        }).catch((err: unknown) =>
+          console.error('[processar-pendentes] CRÍTICO: falha ao pausar conversa após escalação:', {
+            conversaId: conversa.id,
+            err,
+          }),
+        )
       }
 
       // Persiste resposta e envia
@@ -347,12 +361,23 @@ export async function processarMensagensPendentes(): Promise<{
       const sendResult = await sendHumanLike(cfg, remoteJid, resposta)
 
       if (sendResult.ok) {
-        atualizarStatusMensagem(mensagemId, 'sent').catch(() => {})
+        // Marca como processadas após a IA responder com sucesso (evita mensagens perdidas por crash)
+        await prisma.mensagemIA.updateMany({
+          where: { id: { in: msgs.map(m => m.id) } },
+          data:  { aiProcessado: true },
+        }).catch((err: unknown) =>
+          console.error('[processar-pendentes] erro ao marcar aiProcessado:', { conversaId: conversa.id, err }),
+        )
+        atualizarStatusMensagem(mensagemId, 'sent').catch((err: unknown) =>
+          console.error('[processar-pendentes] erro ao atualizar status para sent:', { mensagemId, err }),
+        )
       } else {
         atualizarStatusMensagem(mensagemId, 'failed', {
           tentativas: sendResult.attempts,
           erroEnvio:  sendResult.error,
-        }).catch(() => {})
+        }).catch((err: unknown) =>
+          console.error('[processar-pendentes] erro ao atualizar status para failed:', { mensagemId, err }),
+        )
       }
 
       conversasProcessadas++
