@@ -237,11 +237,14 @@ export async function deleteInstance(cfg: EvolutionConfig) {
 }
 
 // Configura webhook da instância
+// headers.apikey é obrigatório: o app valida que toda chamada de webhook
+// vem com o header apikey === cfg.apiKey para rejeitar chamadas não autorizadas.
 export async function setWebhook(cfg: EvolutionConfig, webhookUrl: string) {
   return evo(cfg, 'POST', `/webhook/set/${cfg.instance}`, {
     webhook: {
       enabled:           true,
       url:               webhookUrl,
+      headers:           { apikey: cfg.apiKey },
       webhook_by_events: false,
       webhook_base64:    false,
       events:            ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],

@@ -58,7 +58,8 @@ async function getDashboardData() {
     clientesRecentes,
     osRecentes,
     convHojeTotal,
-    convHojePausadas,
+    escalacaoHojeTotal,
+    escalacaoHojeResolvidas,
     leadsHoje,
   ] = await Promise.all([
     prisma.cliente.count({ where: { status: 'ativo' } }),
@@ -82,7 +83,8 @@ async function getDashboardData() {
       include: { cliente: { select: { id: true, nome: true } } },
     }),
     prisma.conversaIA.count({ where: { criadaEm: { gte: hoje } } }),
-    prisma.conversaIA.count({ where: { criadaEm: { gte: hoje }, pausadaEm: { not: null } } }),
+    prisma.escalacao.count({ where: { criadoEm: { gte: hoje } } }),
+    prisma.escalacao.count({ where: { criadoEm: { gte: hoje }, status: 'resolvida' } }),
     prisma.lead.count({ where: { criadoEm: { gte: hoje } } }),
   ])
 
@@ -93,8 +95,8 @@ async function getDashboardData() {
     : []
   const clienteMap = Object.fromEntries(clientesEscalacao.map(c => [c.id, c.nome]))
 
-  const taxaResolucaoIA = convHojeTotal > 0
-    ? Math.round(((convHojeTotal - convHojePausadas) / convHojeTotal) * 100)
+  const taxaResolucaoIA = escalacaoHojeTotal > 0
+    ? Math.round((escalacaoHojeResolvidas / escalacaoHojeTotal) * 100)
     : 100
 
   return {
@@ -102,7 +104,7 @@ async function getDashboardData() {
     conversasHoje, chamadosAbertos, leadsHoje,
     escalacoesPendentes, clienteMap,
     clientesRecentes, osRecentes,
-    taxaResolucaoIA, convHojeTotal, convHojePausadas,
+    taxaResolucaoIA, convHojeTotal, escalacaoHojeTotal,
   }
 }
 
@@ -126,7 +128,7 @@ export default async function DashboardPage() {
           {
             label: 'Conversas hoje',
             value: d.conversasHoje,
-            sub:   `${d.convHojePausadas} escaladas`,
+            sub:   `${d.escalacaoHojeTotal} escaladas`,
             icon:  '💬',
             color: 'bg-green-status/8',
             href:  '/crm/atendimentos',
@@ -361,7 +363,7 @@ export default async function DashboardPage() {
                 <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Conversas</p>
               </div>
               <div className="rounded-xl bg-surface-container-low p-3 text-center">
-                <p className="text-[22px] font-bold text-error">{d.convHojePausadas}</p>
+                <p className="text-[22px] font-bold text-error">{d.escalacaoHojeTotal}</p>
                 <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Escaladas</p>
               </div>
               <div className="rounded-xl bg-surface-container-low p-3 text-center">
