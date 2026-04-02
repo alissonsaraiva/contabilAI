@@ -45,6 +45,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ): Promise<NextResponse> {
   const { token } = await params
+
   // 1. Verifica token de segurança
   const tokenValido = await verificarToken(token)
   if (!tokenValido) {
@@ -61,16 +62,62 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // 3. Responde 200 imediatamente — processamento em background
-  // (Spedy exige resposta rápida para não marcar webhook como falho)
-  const processamento = processarWebhookSpedy(payload).catch(err => {
-    logger.error('spedy-webhook-processamento-falhou', {
-      event:   payload.event,
-      spedyId: payload.data?.id,
-      err,
+  // 3. Idempotência — evita processar o mesmo evento duas vezes
+  //    A Spedy pode reenviar eventos em caso de falha de entrega.
+  //    WebhookLog tem unique([provider, eventId]) — a criação falha com P2002 se já existir.
+  try {
+    await prisma.webhookLog.create({
+      data: {
+        provider: 'spedy',
+        eventId:  payload.id,
+        payload:  payload as object,
+      },
     })
-    Sentry.captureException(err, { tags: { module: 'webhook-spedy', event: payload.event }, extra: { spedyId: payload.data?.id } })
-  })
+  } catch (err: unknown) {
+    const isPrismaUniqueViolation =
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code: string }).code === 'P2002'
+
+    if (isPrismaUniqueViolation) {
+      logger.warn('spedy-webhook-evento-duplicado', {
+        eventId: payload.id,
+        event:   payload.event,
+        spedyId: payload.data?.id,
+      })
+      return NextResponse.json({ received: true, duplicate: true })
+    }
+
+    // Erro inesperado ao registrar — loga mas processa assim mesmo para não perder o evento
+    logger.error('spedy-webhook-log-error', { err, eventId: payload.id })
+    Sentry.captureException(err, {
+      tags:  { module: 'webhook-spedy', operation: 'criar-log-idempotencia' },
+      extra: { eventId: payload.id, event: payload.event },
+    })
+  }
+
+  // 4. Responde 200 imediatamente — processamento em background
+  //    (Spedy exige resposta rápida para não marcar webhook como falho)
+  const processamento = processarWebhookSpedy(payload)
+    .then(async () => {
+      // Marca como processado com sucesso no log
+      await prisma.webhookLog.updateMany({
+        where: { provider: 'spedy', eventId: payload.id },
+        data:  { processado: true },
+      })
+    })
+    .catch(err => {
+      logger.error('spedy-webhook-processamento-falhou', {
+        event:   payload.event,
+        spedyId: payload.data?.id,
+        err,
+      })
+      Sentry.captureException(err, {
+        tags:  { module: 'webhook-spedy', event: payload.event },
+        extra: { spedyId: payload.data?.id, eventId: payload.id },
+      })
+    })
 
   // Aguarda apenas 1s para dar chance ao processamento sem bloquear
   await Promise.race([

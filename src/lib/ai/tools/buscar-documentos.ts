@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -53,12 +54,34 @@ const buscarDocumentosTool: Tool = {
       }
     }
 
+    // Para clientes PJ, documentos são indexados pela empresaId — resolve automaticamente
+    // se o clienteId está no contexto mas empresaId não foi fornecido explicitamente.
+    let empresaIdResolvido = empresaId
+    if (clienteId && !empresaId) {
+      try {
+        const cliente = await prisma.cliente.findUnique({
+          where:  { id: clienteId },
+          select: { empresaId: true },
+        })
+        if (cliente?.empresaId) empresaIdResolvido = cliente.empresaId
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags:  { module: 'buscar-documentos', operation: 'resolve-empresa' },
+          extra: { clienteId },
+        })
+      }
+    }
+
+    // OR: documento vinculado ao cliente PF OU à empresa PJ OU ao lead
+    const orConditions: object[] = []
+    if (clienteId)          orConditions.push({ clienteId })
+    if (empresaIdResolvido) orConditions.push({ empresaId: empresaIdResolvido })
+    if (leadId)             orConditions.push({ leadId })
+
     const documentos = await prisma.documento.findMany({
       where: {
-        ...(clienteId  && { clienteId }),
-        ...(empresaId  && { empresaId }),
-        ...(leadId     && { leadId }),
-        ...(categoria  && { categoria: categoria as never }),
+        OR: orConditions,
+        ...(categoria && { categoria: categoria as never }),
       },
       orderBy: { criadoEm: 'desc' },
       take:    20,

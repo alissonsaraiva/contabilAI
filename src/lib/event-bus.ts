@@ -26,6 +26,7 @@ export const eventBus = g[KEY] as EventEmitter
 // ── Helpers tipados ──────────────────────────────────────────────────────────
 
 export type EventConversaMensagem = {
+  id?: string          // ID da MensagemIA — usado pelo portal Clara para rastrear exclusões
   role: 'assistant' | 'user'
   conteudo: string
   mediaUrl?: string | null
@@ -58,4 +59,15 @@ export type EventPortalUserMessage = { type: 'portal-user-message' }
 
 export function emitPortalUserMessage(conversaId: string) {
   eventBus.emit(`portal-user:${conversaId}`, { type: 'portal-user-message' } satisfies EventPortalUserMessage)
+}
+
+// ── Exclusão de mensagem (operador apagou para todos) ─────────────────────────
+
+export type EventMensagemExcluida = { type: 'mensagem_excluida'; mensagemId: string }
+
+export function emitMensagemExcluida(conversaId: string, mensagemId: string) {
+  eventBus.emit(
+    `mensagem-excluida:${conversaId}`,
+    { type: 'mensagem_excluida', mensagemId } satisfies EventMensagemExcluida,
+  )
 }

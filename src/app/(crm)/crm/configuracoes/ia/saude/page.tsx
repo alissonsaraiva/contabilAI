@@ -6,51 +6,51 @@ import { PROVIDER_LABELS } from '@/lib/ai/constants'
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 type ProviderInfo = {
-  name:        string
-  ok:          boolean
-  checkedAt:   number
-  error?:      string
+  name: string
+  ok: boolean
+  checkedAt: number
+  error?: string
   circuitOpen: boolean
-  resetsAt:    number | null
+  resetsAt: number | null
 }
 
 type FallbackEvent = {
-  id:           number
+  id: number
   fromProvider: string
-  toProvider:   string
-  feature:      string
-  error:        string
-  timestamp:    number
+  toProvider: string
+  feature: string
+  error: string
+  timestamp: number
 }
 
 type ToolStat = { tool: string; count: number; avgMs: number }
 
 type HealthData = {
-  providers:      ProviderInfo[]
+  providers: ProviderInfo[]
   fallbackEvents: FallbackEvent[]
   stats: {
     totalAcoes24h: number
-    sucessos24h:   number
-    taxaSucesso:   number | null
-    tools:         ToolStat[]
+    sucessos24h: number
+    taxaSucesso: number | null
+    tools: ToolStat[]
   }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const TOOL_LABELS: Record<string, string> = {
-  resumirFunil:        'Resumir funil',
+  resumirFunil: 'Resumir funil',
   listarLeadsInativos: 'Leads inativos',
-  buscarDadosCliente:  'Dados do cliente',
-  listarTarefas:       'Listar tarefas',
-  criarTarefa:         'Criar tarefa',
-  registrarInteracao:  'Registrar interação',
+  buscarDadosCliente: 'Dados do cliente',
+  listarTarefas: 'Listar tarefas',
+  criarTarefa: 'Criar tarefa',
+  registrarInteracao: 'Registrar interação',
   atualizarStatusLead: 'Atualizar lead',
 }
 
 function timeAgo(ts: number): string {
   const diff = Math.floor((Date.now() - ts) / 1000)
-  if (diff < 60)  return `${diff}s atrás`
+  if (diff < 60) return `${diff}s atrás`
   if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`
   return `${Math.floor(diff / 3600)}h atrás`
 }
@@ -68,10 +68,10 @@ function ProviderCard({ p }: { p: ProviderInfo }) {
   const unchecked = p.checkedAt === 0
 
   const badge = unchecked
-    ? { bg: 'bg-zinc-100 dark:bg-zinc-800',  text: 'text-zinc-500',               dot: 'bg-zinc-400',              pulse: false, label: 'Pendente' }
+    ? { bg: 'bg-zinc-100 dark:bg-zinc-800', text: 'text-zinc-500', dot: 'bg-zinc-400', pulse: false, label: 'Pendente' }
     : p.ok
-      ? { bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500', pulse: true,  label: 'Online'  }
-      : { bg: 'bg-red-50 dark:bg-red-950/40',         text: 'text-red-700 dark:text-red-400',         dot: 'bg-red-500',    pulse: false, label: 'Offline' }
+      ? { bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500', pulse: true, label: 'Online' }
+      : { bg: 'bg-red-50 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-400', dot: 'bg-red-500', pulse: false, label: 'Offline' }
 
   const cardBorder = unchecked
     ? 'border-zinc-200 dark:border-zinc-700'
@@ -152,7 +152,7 @@ function FallbackEventCard({ ev }: { ev: FallbackEvent }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function SaudePage() {
-  const [data, setData]       = useState<HealthData | null>(null)
+  const [data, setData] = useState<HealthData | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastFetch, setLastFetch] = useState<number>(0)
 
@@ -177,12 +177,12 @@ export default function SaudePage() {
 
   // Providers que têm API configurada (checkedAt > 0 ou online)
   const activeProviders = data?.providers.filter(p => p.checkedAt > 0 || !p.ok) ?? []
-  const allProviders    = data?.providers ?? []
+  const allProviders = data?.providers ?? []
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-on-surface">Saúde das IAs</h1>
           <p className="mt-0.5 text-sm text-on-surface-variant">
@@ -198,7 +198,7 @@ export default function SaudePage() {
           <button
             onClick={fetchHealth}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg border border-outline-variant px-3 py-2 text-sm text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+            className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-lg border border-outline-variant px-3 py-2 text-sm text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
           >
             <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin' : ''}`}>
               refresh
@@ -210,19 +210,18 @@ export default function SaudePage() {
 
       {/* Stats 24h */}
       {data && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-surface-container p-4">
             <p className="text-xs text-on-surface-variant mb-1">Ações (24h)</p>
             <p className="text-2xl font-bold text-on-surface">{data.stats.totalAcoes24h}</p>
           </div>
           <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-surface-container p-4">
             <p className="text-xs text-on-surface-variant mb-1">Taxa de sucesso</p>
-            <p className={`text-2xl font-bold ${
-              data.stats.taxaSucesso === null                      ? 'text-zinc-400' :
-              data.stats.taxaSucesso >= 90                         ? 'text-emerald-600 dark:text-emerald-400' :
-              data.stats.taxaSucesso >= 70                         ? 'text-amber-600  dark:text-amber-400'   :
-                                                                     'text-red-600    dark:text-red-400'
-            }`}>
+            <p className={`text-2xl font-bold ${data.stats.taxaSucesso === null ? 'text-zinc-400' :
+                data.stats.taxaSucesso >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
+                  data.stats.taxaSucesso >= 70 ? 'text-amber-600  dark:text-amber-400' :
+                    'text-red-600    dark:text-red-400'
+              }`}>
               {data.stats.taxaSucesso !== null ? `${data.stats.taxaSucesso}%` : '—'}
             </p>
           </div>

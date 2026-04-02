@@ -37,8 +37,19 @@ export async function POST(req: Request) {
         const resultado = await processarEmailRecebido(email)
         processados++
         if (resultado.associado) associados++
-      } catch {
+      } catch (err) {
         erros++
+        // Loga contexto suficiente para debugar sem expor corpo do email
+        console.error('[email/sync] falha ao processar email individual:', {
+          messageId: email.messageId,
+          de:        email.de,
+          assunto:   email.assunto,
+          err,
+        })
+        Sentry.captureException(err, {
+          tags:  { module: 'email-sync', operation: 'processar-email' },
+          extra: { messageId: email.messageId, de: email.de, assunto: email.assunto },
+        })
       }
     }
 
@@ -64,7 +75,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, mensagem, processados: 0, falhasConsecutivas })
   }
 
-  return NextResponse.json({ ok: true, processados, associados, erros })
+  // ok=true apenas se não houve nenhum erro individual — facilita monitorar no cron
+  return NextResponse.json({ ok: erros === 0, processados, associados, erros })
 }
 
 // GET — retorna status IMAP + SMTP (usado pela tela de configurações)

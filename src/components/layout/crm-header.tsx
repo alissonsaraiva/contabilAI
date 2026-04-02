@@ -36,7 +36,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/crm/atendimentos',   icon: 'support_agent', label: 'Atendimentos' },
       { href: '/crm/ordens-servico', icon: 'assignment',    label: 'Chamados' },
       { href: '/crm/emails',         icon: 'mail',          label: 'E-mails' },
-      { href: '/crm/tarefas',        icon: 'check_circle',  label: 'Tarefas' },
     ],
   },
   {
@@ -71,7 +70,6 @@ function resolveTitle(pathname: string): string {
   if (pathname === '/crm/atendimentos') return 'Atendimentos'
   if (pathname === '/crm/ordens-servico') return 'Chamados'
   if (pathname === '/crm/emails') return 'E-mails'
-  if (pathname === '/crm/tarefas') return 'Tarefas'
   if (pathname === '/crm/comunicados') return 'Comunicados'
   if (pathname === '/crm/relatorios') return 'Relatórios IA'
   if (pathname.startsWith('/crm/configuracoes')) return 'Configurações'

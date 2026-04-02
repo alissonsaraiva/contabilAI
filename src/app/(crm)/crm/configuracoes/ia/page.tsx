@@ -6,8 +6,8 @@ import { toast } from 'sonner'
 import { Loader2, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const INPUT  = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
-const LABEL  = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
+const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 const SELECT = `${INPUT} cursor-pointer`
 
 
@@ -47,11 +47,11 @@ type FormData = {
 }
 
 const OPENAI_PRESETS = [
-  { label: 'OpenAI',      baseUrl: 'https://api.openai.com/v1' },
-  { label: 'Groq',        baseUrl: 'https://api.groq.com/openai/v1' },
-  { label: 'DeepSeek',    baseUrl: 'https://api.deepseek.com/v1' },
+  { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1' },
+  { label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1' },
+  { label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
   { label: 'Together AI', baseUrl: 'https://api.together.xyz/v1' },
-  { label: 'Mistral',     baseUrl: 'https://api.mistral.ai/v1' },
+  { label: 'Mistral', baseUrl: 'https://api.mistral.ai/v1' },
 ]
 
 const FALLBACK_MODELS: AllModels = {
@@ -60,19 +60,19 @@ const FALLBACK_MODELS: AllModels = {
     dynamic: false,
     models: [
       { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — rápido e econômico' },
-      { value: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6 — melhor custo-benefício' },
-      { value: 'claude-opus-4-6',           label: 'Claude Opus 4.6 — mais capaz' },
+      { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 — melhor custo-benefício' },
+      { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 — mais capaz' },
     ],
   },
   openai: {
     configured: false,
     dynamic: false,
     models: [
-      { value: 'gpt-4.1-nano',  label: 'GPT-4.1 Nano — ultra econômico' },
-      { value: 'gpt-4.1-mini',  label: 'GPT-4.1 Mini — econômico' },
-      { value: 'gpt-4.1',       label: 'GPT-4.1 — avançado' },
-      { value: 'gpt-4o-mini',   label: 'GPT-4o Mini' },
-      { value: 'gpt-4o',        label: 'GPT-4o' },
+      { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano — ultra econômico' },
+      { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini — econômico' },
+      { value: 'gpt-4.1', label: 'GPT-4.1 — avançado' },
+      { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+      { value: 'gpt-4o', label: 'GPT-4o' },
     ],
   },
   google: {
@@ -80,34 +80,34 @@ const FALLBACK_MODELS: AllModels = {
     dynamic: false,
     models: [
       { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite — ultra econômico' },
-      { value: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash — rápido e econômico' },
-      { value: 'gemini-2.5-flash',      label: 'Gemini 2.5 Flash — equilibrado' },
-      { value: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro — mais capaz' },
+      { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash — rápido e econômico' },
+      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — equilibrado' },
+      { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro — mais capaz' },
     ],
   },
 }
 
 const PROVIDERS = [
-  { value: 'claude',  icon: '🟣', name: 'Claude',  desc: 'Anthropic' },
-  { value: 'openai',  icon: '🟢', name: 'OpenAI',  desc: 'GPT / Groq...' },
-  { value: 'google',  icon: '🔵', name: 'Gemini',  desc: 'Google' },
+  { value: 'claude', icon: '🟣', name: 'Claude', desc: 'Anthropic' },
+  { value: 'openai', icon: '🟢', name: 'OpenAI', desc: 'GPT / Groq...' },
+  { value: 'google', icon: '🔵', name: 'Gemini', desc: 'Google' },
 ]
 
 const SUB_IAS = [
-  { providerField: 'aiProviderOnboarding'      as const, modelField: 'aiModelOnboarding'      as const, promptField: 'systemPromptOnboarding' as const, nameField: 'nomeAssistenteOnboarding' as const, label: 'Chat Onboarding',       icon: 'chat_bubble',   desc: 'Triagem de novos clientes',                        note: null },
-  { providerField: 'aiProviderCrm'             as const, modelField: 'aiModelCrm'             as const, promptField: 'systemPromptCrm'        as const, nameField: 'nomeAssistenteCrm'        as const, label: 'Assistente CRM',        icon: 'support_agent', desc: 'Auxílio interno para o contador',                  note: null },
-  { providerField: 'aiProviderPortal'          as const, modelField: 'aiModelPortal'          as const, promptField: 'systemPromptPortal'     as const, nameField: 'nomeAssistentePortal'     as const, label: 'Portal Cliente',        icon: 'person',        desc: 'Chat do cliente com o escritório',                 note: null },
-  { providerField: 'aiProviderWhatsapp'        as const, modelField: 'aiModelWhatsapp'        as const, promptField: null,                              nameField: 'nomeAssistenteWhatsapp'   as const, label: 'IA WhatsApp',           icon: 'chat',          desc: 'Respostas automáticas via WhatsApp',               note: null },
-  { providerField: 'aiProviderAgente'          as const, modelField: 'aiModelAgente'          as const, promptField: null,                              nameField: null,                               label: 'Agente Operacional',    icon: 'smart_toy',     desc: 'Executa tarefas e consultas no CRM',               note: 'Requer suporte a tool use. Recomendado: Claude.' },
-  { providerField: 'aiProviderDocumentoResumo' as const, modelField: 'aiModelDocumentoResumo' as const, promptField: null,                              nameField: null,                               label: 'Resumo de Documentos',  icon: 'description',   desc: 'Classifica e resume documentos recebidos (todos os canais)', note: 'Recomendado: modelo econômico como Claude Haiku ou Gemini Flash.' },
+  { providerField: 'aiProviderOnboarding' as const, modelField: 'aiModelOnboarding' as const, promptField: 'systemPromptOnboarding' as const, nameField: 'nomeAssistenteOnboarding' as const, label: 'Chat Onboarding', icon: 'chat_bubble', desc: 'Triagem de novos clientes', note: null },
+  { providerField: 'aiProviderCrm' as const, modelField: 'aiModelCrm' as const, promptField: 'systemPromptCrm' as const, nameField: 'nomeAssistenteCrm' as const, label: 'Assistente CRM', icon: 'support_agent', desc: 'Auxílio interno para o contador', note: null },
+  { providerField: 'aiProviderPortal' as const, modelField: 'aiModelPortal' as const, promptField: 'systemPromptPortal' as const, nameField: 'nomeAssistentePortal' as const, label: 'Portal Cliente', icon: 'person', desc: 'Chat do cliente com o escritório', note: null },
+  { providerField: 'aiProviderWhatsapp' as const, modelField: 'aiModelWhatsapp' as const, promptField: null, nameField: 'nomeAssistenteWhatsapp' as const, label: 'IA WhatsApp', icon: 'chat', desc: 'Respostas automáticas via WhatsApp', note: null },
+  { providerField: 'aiProviderAgente' as const, modelField: 'aiModelAgente' as const, promptField: null, nameField: null, label: 'Agente Operacional', icon: 'smart_toy', desc: 'Executa tarefas e consultas no CRM', note: 'Requer suporte a tool use. Recomendado: Claude.' },
+  { providerField: 'aiProviderDocumentoResumo' as const, modelField: 'aiModelDocumentoResumo' as const, promptField: null, nameField: null, label: 'Resumo de Documentos', icon: 'description', desc: 'Classifica e resume documentos recebidos (todos os canais)', note: 'Recomendado: modelo econômico como Claude Haiku ou Gemini Flash.' },
 ]
 
 export default function ConfiguracoesIAPage() {
-  const [tab, setTab]           = useState<'chaves' | 'funcionalidades'>('chaves')
-  const [loading, setLoading]     = useState(false)
-  const [testing, setTesting]     = useState(false)
+  const [tab, setTab] = useState<'chaves' | 'funcionalidades'>('chaves')
+  const [loading, setLoading] = useState(false)
+  const [testing, setTesting] = useState(false)
   const [testResults, setTestResults] = useState<TestResults | null>(null)
-  const [status, setStatus]       = useState<Record<string, ApiStatus>>({})
+  const [status, setStatus] = useState<Record<string, ApiStatus>>({})
   const [allModels, setAllModels] = useState<AllModels>(FALLBACK_MODELS)
   const [modelsLoading, setModelsLoading] = useState(false)
   // Collapse state: key = providerField, value = collapsed?
@@ -121,21 +121,21 @@ export default function ConfiguracoesIAPage() {
   const { register, handleSubmit, watch, setValue, reset } = useForm<FormData>({
     defaultValues: {
       nomeAssistenteOnboarding: '',
-      nomeAssistenteCrm:        '',
-      nomeAssistentePortal:     '',
-      nomeAssistenteWhatsapp:   '',
+      nomeAssistenteCrm: '',
+      nomeAssistentePortal: '',
+      nomeAssistenteWhatsapp: '',
       aiProviderOnboarding: 'claude',
-      aiProviderCrm:        'claude',
-      aiProviderPortal:     'claude',
-      aiProviderWhatsapp:   'claude',
-      aiProviderAgente:          'claude',
+      aiProviderCrm: 'claude',
+      aiProviderPortal: 'claude',
+      aiProviderWhatsapp: 'claude',
+      aiProviderAgente: 'claude',
       aiProviderDocumentoResumo: 'claude',
-      aiModelOnboarding:         'claude-haiku-4-5-20251001',
-      aiModelCrm:                'claude-haiku-4-5-20251001',
-      aiModelPortal:             'claude-haiku-4-5-20251001',
-      aiModelWhatsapp:           'claude-haiku-4-5-20251001',
-      aiModelAgente:             'claude-haiku-4-5-20251001',
-      aiModelDocumentoResumo:    'claude-haiku-4-5-20251001',
+      aiModelOnboarding: 'claude-haiku-4-5-20251001',
+      aiModelCrm: 'claude-haiku-4-5-20251001',
+      aiModelPortal: 'claude-haiku-4-5-20251001',
+      aiModelWhatsapp: 'claude-haiku-4-5-20251001',
+      aiModelAgente: 'claude-haiku-4-5-20251001',
+      aiModelDocumentoResumo: 'claude-haiku-4-5-20251001',
     },
   })
 
@@ -144,37 +144,37 @@ export default function ConfiguracoesIAPage() {
     fetch('/api/configuracoes/ia').then(r => r.json()).then(data => {
       reset({
         nomeAssistenteOnboarding: data.nomeAssistenteOnboarding ?? '',
-        nomeAssistenteCrm:        data.nomeAssistenteCrm        ?? '',
-        nomeAssistentePortal:     data.nomeAssistentePortal     ?? '',
-        nomeAssistenteWhatsapp:   data.nomeAssistenteWhatsapp   ?? '',
-        anthropicApiKey:       '',
-        voyageApiKey:          '',
-        openaiApiKey:          '',
-        openaiBaseUrl:         data.openaiBaseUrl   ?? '',
-        googleApiKey:          '',
-        groqApiKey:            '',
-        aiProviderOnboarding:  data.aiProviderOnboarding ?? 'claude',
-        aiProviderCrm:         data.aiProviderCrm        ?? 'claude',
-        aiProviderPortal:      data.aiProviderPortal     ?? 'claude',
-        aiProviderWhatsapp:    data.aiProviderWhatsapp   ?? 'claude',
-        aiProviderAgente:          data.aiProviderAgente          ?? 'claude',
+        nomeAssistenteCrm: data.nomeAssistenteCrm ?? '',
+        nomeAssistentePortal: data.nomeAssistentePortal ?? '',
+        nomeAssistenteWhatsapp: data.nomeAssistenteWhatsapp ?? '',
+        anthropicApiKey: '',
+        voyageApiKey: '',
+        openaiApiKey: '',
+        openaiBaseUrl: data.openaiBaseUrl ?? '',
+        googleApiKey: '',
+        groqApiKey: '',
+        aiProviderOnboarding: data.aiProviderOnboarding ?? 'claude',
+        aiProviderCrm: data.aiProviderCrm ?? 'claude',
+        aiProviderPortal: data.aiProviderPortal ?? 'claude',
+        aiProviderWhatsapp: data.aiProviderWhatsapp ?? 'claude',
+        aiProviderAgente: data.aiProviderAgente ?? 'claude',
         aiProviderDocumentoResumo: data.aiProviderDocumentoResumo ?? 'claude',
-        aiModelOnboarding:         data.aiModelOnboarding         ?? 'claude-haiku-4-5-20251001',
-        aiModelCrm:                data.aiModelCrm                ?? 'claude-haiku-4-5-20251001',
-        aiModelPortal:             data.aiModelPortal             ?? 'claude-haiku-4-5-20251001',
-        aiModelWhatsapp:           data.aiModelWhatsapp           ?? 'claude-haiku-4-5-20251001',
-        aiModelAgente:             data.aiModelAgente             ?? 'claude-haiku-4-5-20251001',
-        aiModelDocumentoResumo:    data.aiModelDocumentoResumo    ?? 'claude-haiku-4-5-20251001',
+        aiModelOnboarding: data.aiModelOnboarding ?? 'claude-haiku-4-5-20251001',
+        aiModelCrm: data.aiModelCrm ?? 'claude-haiku-4-5-20251001',
+        aiModelPortal: data.aiModelPortal ?? 'claude-haiku-4-5-20251001',
+        aiModelWhatsapp: data.aiModelWhatsapp ?? 'claude-haiku-4-5-20251001',
+        aiModelAgente: data.aiModelAgente ?? 'claude-haiku-4-5-20251001',
+        aiModelDocumentoResumo: data.aiModelDocumentoResumo ?? 'claude-haiku-4-5-20251001',
         systemPromptOnboarding: data.systemPromptOnboarding ?? '',
-        systemPromptCrm:        data.systemPromptCrm        ?? '',
-        systemPromptPortal:     data.systemPromptPortal     ?? '',
+        systemPromptCrm: data.systemPromptCrm ?? '',
+        systemPromptPortal: data.systemPromptPortal ?? '',
       })
       setStatus({
         anthropicApiKey: { configured: !!data.anthropicApiKeyConfigured, masked: data.anthropicApiKey },
-        voyageApiKey:    { configured: !!data.voyageApiKeyConfigured,    masked: data.voyageApiKey },
-        openaiApiKey:    { configured: !!data.openaiApiKeyConfigured,    masked: data.openaiApiKey },
-        googleApiKey:    { configured: !!data.googleApiKeyConfigured,    masked: data.googleApiKey },
-        groqApiKey:      { configured: !!data.groqApiKeyConfigured,      masked: data.groqApiKey },
+        voyageApiKey: { configured: !!data.voyageApiKeyConfigured, masked: data.voyageApiKey },
+        openaiApiKey: { configured: !!data.openaiApiKeyConfigured, masked: data.openaiApiKey },
+        googleApiKey: { configured: !!data.googleApiKeyConfigured, masked: data.googleApiKey },
+        groqApiKey: { configured: !!data.groqApiKeyConfigured, masked: data.groqApiKey },
       })
     })
   }, [reset])
@@ -191,7 +191,7 @@ export default function ConfiguracoesIAPage() {
           google: data.google ?? FALLBACK_MODELS.google,
         })
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setModelsLoading(false))
   }
 
@@ -206,11 +206,11 @@ export default function ConfiguracoesIAPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           anthropicApiKey: data.anthropicApiKey,
-          voyageApiKey:    data.voyageApiKey,
-          openaiApiKey:    data.openaiApiKey,
-          openaiBaseUrl:   data.openaiBaseUrl,
-          googleApiKey:    data.googleApiKey,
-          groqApiKey:      data.groqApiKey,
+          voyageApiKey: data.voyageApiKey,
+          openaiApiKey: data.openaiApiKey,
+          openaiBaseUrl: data.openaiBaseUrl,
+          googleApiKey: data.googleApiKey,
+          groqApiKey: data.groqApiKey,
         }),
       })
       if (!res.ok) throw new Error()
@@ -218,10 +218,10 @@ export default function ConfiguracoesIAPage() {
       const updated = await fetch('/api/configuracoes/ia').then(r => r.json())
       setStatus({
         anthropicApiKey: { configured: !!updated.anthropicApiKeyConfigured, masked: updated.anthropicApiKey },
-        voyageApiKey:    { configured: !!updated.voyageApiKeyConfigured,    masked: updated.voyageApiKey },
-        openaiApiKey:    { configured: !!updated.openaiApiKeyConfigured,    masked: updated.openaiApiKey },
-        googleApiKey:    { configured: !!updated.googleApiKeyConfigured,    masked: updated.googleApiKey },
-        groqApiKey:      { configured: !!updated.groqApiKeyConfigured,      masked: updated.groqApiKey },
+        voyageApiKey: { configured: !!updated.voyageApiKeyConfigured, masked: updated.voyageApiKey },
+        openaiApiKey: { configured: !!updated.openaiApiKeyConfigured, masked: updated.openaiApiKey },
+        googleApiKey: { configured: !!updated.googleApiKeyConfigured, masked: updated.googleApiKey },
+        groqApiKey: { configured: !!updated.groqApiKeyConfigured, masked: updated.groqApiKey },
       })
       // Reset key fields
       setValue('anthropicApiKey', '')
@@ -246,24 +246,24 @@ export default function ConfiguracoesIAPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nomeAssistenteOnboarding: data.nomeAssistenteOnboarding || null,
-          nomeAssistenteCrm:        data.nomeAssistenteCrm        || null,
-          nomeAssistentePortal:     data.nomeAssistentePortal     || null,
-          nomeAssistenteWhatsapp:   data.nomeAssistenteWhatsapp   || null,
-          aiProviderOnboarding:  data.aiProviderOnboarding,
-          aiProviderCrm:         data.aiProviderCrm,
-          aiProviderPortal:      data.aiProviderPortal,
-          aiProviderWhatsapp:    data.aiProviderWhatsapp,
-          aiProviderAgente:          data.aiProviderAgente,
+          nomeAssistenteCrm: data.nomeAssistenteCrm || null,
+          nomeAssistentePortal: data.nomeAssistentePortal || null,
+          nomeAssistenteWhatsapp: data.nomeAssistenteWhatsapp || null,
+          aiProviderOnboarding: data.aiProviderOnboarding,
+          aiProviderCrm: data.aiProviderCrm,
+          aiProviderPortal: data.aiProviderPortal,
+          aiProviderWhatsapp: data.aiProviderWhatsapp,
+          aiProviderAgente: data.aiProviderAgente,
           aiProviderDocumentoResumo: data.aiProviderDocumentoResumo,
-          aiModelOnboarding:         data.aiModelOnboarding,
-          aiModelCrm:                data.aiModelCrm,
-          aiModelPortal:             data.aiModelPortal,
-          aiModelWhatsapp:           data.aiModelWhatsapp,
-          aiModelAgente:             data.aiModelAgente,
-          aiModelDocumentoResumo:    data.aiModelDocumentoResumo,
+          aiModelOnboarding: data.aiModelOnboarding,
+          aiModelCrm: data.aiModelCrm,
+          aiModelPortal: data.aiModelPortal,
+          aiModelWhatsapp: data.aiModelWhatsapp,
+          aiModelAgente: data.aiModelAgente,
+          aiModelDocumentoResumo: data.aiModelDocumentoResumo,
           systemPromptOnboarding: data.systemPromptOnboarding,
-          systemPromptCrm:        data.systemPromptCrm,
-          systemPromptPortal:     data.systemPromptPortal,
+          systemPromptCrm: data.systemPromptCrm,
+          systemPromptPortal: data.systemPromptPortal,
         }),
       })
       if (!res.ok) throw new Error()
@@ -290,11 +290,11 @@ export default function ConfiguracoesIAPage() {
   }
 
   const watchedProviders = {
-    aiProviderOnboarding:      watch('aiProviderOnboarding'),
-    aiProviderCrm:             watch('aiProviderCrm'),
-    aiProviderPortal:          watch('aiProviderPortal'),
-    aiProviderWhatsapp:        watch('aiProviderWhatsapp'),
-    aiProviderAgente:          watch('aiProviderAgente'),
+    aiProviderOnboarding: watch('aiProviderOnboarding'),
+    aiProviderCrm: watch('aiProviderCrm'),
+    aiProviderPortal: watch('aiProviderPortal'),
+    aiProviderWhatsapp: watch('aiProviderWhatsapp'),
+    aiProviderAgente: watch('aiProviderAgente'),
     aiProviderDocumentoResumo: watch('aiProviderDocumentoResumo'),
   }
 
@@ -304,8 +304,8 @@ export default function ConfiguracoesIAPage() {
       {/* Tabs */}
       <div className="flex gap-1 rounded-xl bg-surface-container-low/60 p-1 border border-outline-variant/15">
         {([
-          { key: 'chaves',          label: 'Chaves de API',       icon: 'key' },
-          { key: 'funcionalidades', label: 'Por Funcionalidade',  icon: 'tune' },
+          { key: 'chaves', label: 'Chaves de API', icon: 'key' },
+          { key: 'funcionalidades', label: 'Por Funcionalidade', icon: 'tune' },
         ] as const).map(t => (
           <button
             key={t.key}
@@ -327,7 +327,7 @@ export default function ConfiguracoesIAPage() {
       {/* ── Tab: Chaves de API ── */}
       {tab === 'chaves' && (
         <>
-          <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+          <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
                 <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>key</span>
@@ -376,42 +376,42 @@ export default function ConfiguracoesIAPage() {
           </div>
 
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3">
-            <button
-              type="button" onClick={handleTest} disabled={testing}
-              className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
-            >
-              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">electrical_services</span>}
-              {testing ? 'Testando...' : 'Testar conexões'}
-            </button>
+            <div className="flex flex-col-reverse md:flex-row md:items-center justify-end gap-4 mt-6">
+              <button
+                type="button" onClick={handleTest} disabled={testing}
+                className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
+              >
+                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">electrical_services</span>}
+                {testing ? 'Testando...' : 'Testar conexões'}
+              </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button" onClick={() => reset()} disabled={loading}
-                className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface-variant shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
-              >
-                <span className="material-symbols-outlined text-[16px]">undo</span>
-                Cancelar
-              </button>
-              <button
-                type="button" onClick={handleSubmit(onSubmitKeys)} disabled={loading}
-                className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
-                Salvar
-              </button>
+              <div className="flex flex-col-reverse md:flex-row items-center gap-3 w-full md:w-auto">
+                <button
+                  type="button" onClick={() => reset()} disabled={loading}
+                  className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface-variant shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
+                >
+                  <span className="material-symbols-outlined text-[16px]">undo</span>
+                  Cancelar
+                </button>
+                <button
+                  type="button" onClick={handleSubmit(onSubmitKeys)} disabled={loading}
+                  className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px]"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
+                  Salvar
+                </button>
+              </div>
             </div>
-          </div>
 
             {/* Resultados dos testes */}
             {testResults && (
               <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low/50 divide-y divide-outline-variant/10">
                 {([
                   { key: 'anthropic', icon: '🟣', name: 'Anthropic (Claude)' },
-                  { key: 'voyage',    icon: '🔷', name: 'Voyage AI (RAG)' },
-                  { key: 'groq',      icon: '⚡', name: 'Groq (Whisper)' },
-                  { key: 'openai',    icon: '🟢', name: 'OpenAI / Compatible' },
-                  { key: 'google',    icon: '🔵', name: 'Google (Gemini)' },
+                  { key: 'voyage', icon: '🔷', name: 'Voyage AI (RAG)' },
+                  { key: 'groq', icon: '⚡', name: 'Groq (Whisper)' },
+                  { key: 'openai', icon: '🟢', name: 'OpenAI / Compatible' },
+                  { key: 'google', icon: '🔵', name: 'Google (Gemini)' },
                 ] as const).map(({ key, icon, name }) => {
                   const r = testResults[key]
                   return (
@@ -440,171 +440,174 @@ export default function ConfiguracoesIAPage() {
             )}
           </div>
         </>
-      )}
+      )
+      }
 
       {/* ── Tab: Por Funcionalidade ── */}
-      {tab === 'funcionalidades' && (
-        <>
-          {modelsLoading && (
-            <div className="flex items-center gap-2 text-[12px] text-on-surface-variant/60">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Carregando modelos disponíveis...
-            </div>
-          )}
+      {
+        tab === 'funcionalidades' && (
+          <>
+            {modelsLoading && (
+              <div className="flex items-center gap-2 text-[12px] text-on-surface-variant/60">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Carregando modelos disponíveis...
+              </div>
+            )}
 
-          <div className="space-y-4">
-            {SUB_IAS.map(({ providerField, modelField, promptField, nameField, label, icon, desc, note }) => {
-              const selectedProvider = watchedProviders[providerField] as 'claude' | 'openai' | 'google'
-              const providerData = allModels[selectedProvider] ?? allModels.claude
-              const models = providerData.models
-              const isCollapsed = !!collapsed[providerField]
+            <div className="space-y-4">
+              {SUB_IAS.map(({ providerField, modelField, promptField, nameField, label, icon, desc, note }) => {
+                const selectedProvider = watchedProviders[providerField] as 'claude' | 'openai' | 'google'
+                const providerData = allModels[selectedProvider] ?? allModels.claude
+                const models = providerData.models
+                const isCollapsed = !!collapsed[providerField]
 
-              return (
-                <div key={providerField} className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
-                  {/* Header — sempre visível, clicável para colapsar */}
-                  <button
-                    type="button"
-                    onClick={() => toggleCollapse(providerField)}
-                    className="flex w-full items-center gap-3 p-5 text-left hover:bg-surface-container-low/40 transition-colors"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                      <span className="material-symbols-outlined text-[16px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-[13px] font-semibold text-on-surface">{label}</h3>
-                      <p className="text-[11px] text-on-surface-variant/80">{desc}</p>
-                    </div>
-                    <ChevronDown
-                      className={cn('h-4 w-4 text-on-surface-variant/50 shrink-0 transition-transform duration-200', isCollapsed ? '' : 'rotate-180')}
-                    />
-                  </button>
-
-                  {/* Conteúdo colapsável */}
-                  {!isCollapsed && (
-                  <div className="px-5 pb-5 pt-1">
-
-                  {/* Provider selection */}
-                  <div className="mb-4">
-                    <p className="text-[12px] font-semibold text-on-surface-variant mb-2">Provider</p>
-                    <div className="flex gap-2">
-                      {PROVIDERS.map(opt => {
-                        const pData = allModels[opt.value as 'claude' | 'openai' | 'google']
-                        const available = pData?.configured ?? false
-                        const selected = selectedProvider === opt.value
-                        return (
-                          <label
-                            key={opt.value}
-                            className={cn(
-                              'relative flex cursor-pointer flex-col gap-0.5 rounded-xl border px-3 py-2.5 transition-all flex-1',
-                              !available && 'cursor-not-allowed opacity-50',
-                              selected && available
-                                ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
-                                : 'border-outline-variant/20 hover:border-outline-variant/40',
-                            )}
-                          >
-                            <input
-                              type="radio"
-                              value={opt.value}
-                              {...register(providerField)}
-                              disabled={!available}
-                              className="sr-only"
-                            />
-                            <span className="text-[13px]">{opt.icon} <span className="font-semibold text-on-surface">{opt.name}</span></span>
-                            <span className="text-[10px] text-on-surface-variant/70">
-                              {available ? opt.desc : 'Chave não configurada'}
-                            </span>
-                            {!available && (
-                              <span className="absolute right-2 top-2 material-symbols-outlined text-[12px] text-on-surface-variant/40">lock</span>
-                            )}
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Model selection */}
-                  <div className="mb-4">
-                    <label className="text-[12px] font-semibold text-on-surface-variant mb-1.5 block">Modelo</label>
-                    <select
-                      {...register(modelField)}
-                      className={SELECT}
-                      disabled={modelsLoading}
+                return (
+                  <div key={providerField} className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+                    {/* Header — sempre visível, clicável para colapsar */}
+                    <button
+                      type="button"
+                      onClick={() => toggleCollapse(providerField)}
+                      className="flex w-full items-center gap-3 p-5 text-left hover:bg-surface-container-low/40 transition-colors"
                     >
-                      {models.map(m => (
-                        <option key={m.value} value={m.value}>{m.label}</option>
-                      ))}
-                    </select>
-                    {providerData.dynamic && (
-                      <p className="text-[10px] text-green-600 mt-1 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[12px]">sync</span>
-                        Modelos atualizados via API
-                      </p>
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                        <span className="material-symbols-outlined text-[16px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-[13px] font-semibold text-on-surface">{label}</h3>
+                        <p className="text-[11px] text-on-surface-variant/80">{desc}</p>
+                      </div>
+                      <ChevronDown
+                        className={cn('h-4 w-4 text-on-surface-variant/50 shrink-0 transition-transform duration-200', isCollapsed ? '' : 'rotate-180')}
+                      />
+                    </button>
+
+                    {/* Conteúdo colapsável */}
+                    {!isCollapsed && (
+                      <div className="px-5 pb-5 pt-1">
+
+                        {/* Provider selection */}
+                        <div className="mb-4">
+                          <p className="text-[12px] font-semibold text-on-surface-variant mb-2">Provider</p>
+                          <div className="flex gap-2">
+                            {PROVIDERS.map(opt => {
+                              const pData = allModels[opt.value as 'claude' | 'openai' | 'google']
+                              const available = pData?.configured ?? false
+                              const selected = selectedProvider === opt.value
+                              return (
+                                <label
+                                  key={opt.value}
+                                  className={cn(
+                                    'relative flex cursor-pointer flex-col gap-0.5 rounded-xl border px-3 py-2.5 transition-all flex-1',
+                                    !available && 'cursor-not-allowed opacity-50',
+                                    selected && available
+                                      ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
+                                      : 'border-outline-variant/20 hover:border-outline-variant/40',
+                                  )}
+                                >
+                                  <input
+                                    type="radio"
+                                    value={opt.value}
+                                    {...register(providerField)}
+                                    disabled={!available}
+                                    className="sr-only"
+                                  />
+                                  <span className="text-[13px]">{opt.icon} <span className="font-semibold text-on-surface">{opt.name}</span></span>
+                                  <span className="text-[10px] text-on-surface-variant/70">
+                                    {available ? opt.desc : 'Chave não configurada'}
+                                  </span>
+                                  {!available && (
+                                    <span className="absolute right-2 top-2 material-symbols-outlined text-[12px] text-on-surface-variant/40">lock</span>
+                                  )}
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Model selection */}
+                        <div className="mb-4">
+                          <label className="text-[12px] font-semibold text-on-surface-variant mb-1.5 block">Modelo</label>
+                          <select
+                            {...register(modelField)}
+                            className={SELECT}
+                            disabled={modelsLoading}
+                          >
+                            {models.map(m => (
+                              <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                          </select>
+                          {providerData.dynamic && (
+                            <p className="text-[10px] text-green-600 mt-1 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[12px]">sync</span>
+                              Modelos atualizados via API
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Nome da IA (identidade desta assistente) */}
+                        {nameField && (
+                          <div className="mb-4">
+                            <label className="text-[12px] font-semibold text-on-surface-variant mb-1.5 block">Nome da IA</label>
+                            <input
+                              {...register(nameField)}
+                              type="text"
+                              placeholder="Ex: Clara, Sofia, Ana... (deixe em branco para omitir)"
+                              className={INPUT}
+                            />
+                          </div>
+                        )}
+
+                        {/* System prompt (not for WhatsApp — managed in WhatsApp page) */}
+                        {promptField && (
+                          <div>
+                            <label className="text-[12px] font-semibold text-on-surface-variant mb-1.5 block">System Prompt</label>
+                            <textarea
+                              {...register(promptField)}
+                              rows={4}
+                              className="w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 resize-y min-h-[96px]"
+                              placeholder="Deixe em branco para usar o prompt padrão"
+                            />
+                          </div>
+                        )}
+                        {!promptField && !note && (
+                          <p className="text-[11px] text-on-surface-variant/60 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">info</span>
+                            O system prompt do WhatsApp é configurado na aba WhatsApp
+                          </p>
+                        )}
+                        {note && (
+                          <p className="text-[11px] text-amber-600 flex items-center gap-1 mt-1">
+                            <span className="material-symbols-outlined text-[13px]">warning</span>
+                            {note}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
+                )
+              })}
+            </div>
 
-                  {/* Nome da IA (identidade desta assistente) */}
-                  {nameField && (
-                    <div className="mb-4">
-                      <label className="text-[12px] font-semibold text-on-surface-variant mb-1.5 block">Nome da IA</label>
-                      <input
-                        {...register(nameField)}
-                        type="text"
-                        placeholder="Ex: Clara, Sofia, Ana... (deixe em branco para omitir)"
-                        className={INPUT}
-                      />
-                    </div>
-                  )}
-
-                  {/* System prompt (not for WhatsApp — managed in WhatsApp page) */}
-                  {promptField && (
-                    <div>
-                      <label className="text-[12px] font-semibold text-on-surface-variant mb-1.5 block">System Prompt</label>
-                      <textarea
-                        {...register(promptField)}
-                        rows={4}
-                        className="w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 resize-y min-h-[96px]"
-                        placeholder="Deixe em branco para usar o prompt padrão"
-                      />
-                    </div>
-                  )}
-                  {!promptField && !note && (
-                    <p className="text-[11px] text-on-surface-variant/60 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]">info</span>
-                      O system prompt do WhatsApp é configurado na aba WhatsApp
-                    </p>
-                  )}
-                  {note && (
-                    <p className="text-[11px] text-amber-600 flex items-center gap-1 mt-1">
-                      <span className="material-symbols-outlined text-[13px]">warning</span>
-                      {note}
-                    </p>
-                  )}
-                  </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button" onClick={() => reset()} disabled={loading}
-              className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface-variant shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
-            >
-              <span className="material-symbols-outlined text-[16px]">undo</span>
-              Cancelar
-            </button>
-            <button
-              type="button" onClick={handleSubmit(onSubmitFeatures)} disabled={loading}
-              className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
-              Salvar
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+            <div className="flex flex-col-reverse md:flex-row md:items-center justify-end gap-3 mt-4 pt-4 border-t border-outline-variant/15">
+              <button
+                type="button" onClick={() => reset()} disabled={loading}
+                className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface-variant shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-[16px]">undo</span>
+                Cancelar
+              </button>
+              <button
+                type="button" onClick={handleSubmit(onSubmitFeatures)} disabled={loading}
+                className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px]"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
+                Salvar
+              </button>
+            </div>
+          </>
+        )
+      }
+    </div >
   )
 }
 

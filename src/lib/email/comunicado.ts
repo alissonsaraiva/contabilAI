@@ -2,8 +2,10 @@
  * Envio em massa de comunicados por e-mail.
  * Chamado de forma fire-and-forget — não bloqueia a resposta da API.
  * Só envia uma vez por comunicado (guarda emailEnviadoEm).
+ * Rastreia sucesso/falha por destinatário via ComunicadoEnvio.
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from './send'
 import { wrapEmailHtml } from './template'
@@ -56,27 +58,71 @@ export async function enviarComunicadoPorEmail(
     ? [{ nome: comunicado.anexoNome, url: comunicado.anexoUrl }]
     : []
 
-  // Busca clientes nos status selecionados com e-mail cadastrado
+  // Busca clientes nos status selecionados
+  // email é campo obrigatório (String @unique) — não precisa filtrar por null
   const clientes = await prisma.cliente.findMany({
-    where: {
-      status: { in: statusFiltro },
-      email:  { not: undefined },
-    },
+    where: { status: { in: statusFiltro } },
     select: { id: true, nome: true, email: true },
   })
+
+  let enviados = 0
+  let falhas   = 0
 
   for (const cliente of clientes) {
     if (!cliente.email) continue
     try {
-      await sendEmail({
+      const result = await sendEmail({
         para:    cliente.email,
         assunto: comunicado.titulo,
         corpo:   htmlCorpo,
         anexos,
       })
-    } catch {
-      // Falha individual não interrompe os outros
+
+      if (result.ok) {
+        enviados++
+        await prisma.comunicadoEnvio.upsert({
+          where:  { comunicadoId_clienteId: { comunicadoId: comunicado.id, clienteId: cliente.id } },
+          create: { id: crypto.randomUUID(), comunicadoId: comunicado.id, clienteId: cliente.id, email: cliente.email, status: 'enviado', enviadoEm: new Date() },
+          update: { status: 'enviado', enviadoEm: new Date(), erro: null },
+        })
+      } else {
+        falhas++
+        await prisma.comunicadoEnvio.upsert({
+          where:  { comunicadoId_clienteId: { comunicadoId: comunicado.id, clienteId: cliente.id } },
+          create: { id: crypto.randomUUID(), comunicadoId: comunicado.id, clienteId: cliente.id, email: cliente.email, status: 'falhou', erro: result.erro },
+          update: { status: 'falhou', erro: result.erro },
+        })
+        console.error('[comunicado] falha ao enviar email para cliente:', { clienteId: cliente.id, email: cliente.email, erro: result.erro })
+      }
+    } catch (err) {
+      falhas++
+      console.error('[comunicado] exceção ao enviar email para cliente:', { clienteId: cliente.id, email: cliente.email, err })
+      Sentry.captureException(err, {
+        tags:  { module: 'email-comunicado', operation: 'enviar-cliente' },
+        extra: { clienteId: cliente.id, comunicadoId: comunicado.id, email: cliente.email },
+      })
+      // Registra falha individual para visibilidade e retry futuro
+      try {
+        await prisma.comunicadoEnvio.upsert({
+          where:  { comunicadoId_clienteId: { comunicadoId: comunicado.id, clienteId: cliente.id } },
+          create: { id: crypto.randomUUID(), comunicadoId: comunicado.id, clienteId: cliente.id, email: cliente.email, status: 'falhou', erro: err instanceof Error ? err.message : String(err) },
+          update: { status: 'falhou', erro: err instanceof Error ? err.message : String(err) },
+        })
+      } catch {
+        // Não propaga — manter loop rodando para os demais clientes
+      }
     }
     await sleep(DELAY_MS)
+  }
+
+  if (falhas > 0) {
+    console.warn(`[comunicado] envio concluído com falhas: ${enviados} enviados, ${falhas} falhas — comunicadoId=${comunicado.id}`)
+    Sentry.captureMessage(`Comunicado enviado com falhas parciais: ${falhas}/${clientes.length}`, {
+      level: 'warning',
+      tags:  { module: 'email-comunicado', operation: 'envio-massa' },
+      extra: { comunicadoId: comunicado.id, enviados, falhas, total: clientes.length },
+    })
+  } else {
+    console.log(`[comunicado] envio concluído com sucesso: ${enviados}/${clientes.length} destinatários — comunicadoId=${comunicado.id}`)
   }
 }

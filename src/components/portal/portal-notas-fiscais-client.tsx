@@ -20,27 +20,27 @@ type NotaFiscal = {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  autorizada:  'Autorizada',
-  cancelada:   'Cancelada',
+  autorizada: 'Autorizada',
+  cancelada: 'Cancelada',
   processando: 'Processando',
-  enviando:    'Enviando',
-  rejeitada:   'Rejeitada',
+  enviando: 'Enviando',
+  rejeitada: 'Rejeitada',
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  autorizada:  'bg-green-500/10 text-green-600',
-  cancelada:   'bg-gray-100 text-gray-500',
+  autorizada: 'bg-green-500/10 text-green-600',
+  cancelada: 'bg-gray-100 text-gray-500',
   processando: 'bg-blue-500/10 text-blue-600',
-  enviando:    'bg-purple-500/10 text-purple-600',
-  rejeitada:   'bg-red-500/10 text-red-600',
+  enviando: 'bg-purple-500/10 text-purple-600',
+  rejeitada: 'bg-red-500/10 text-red-600',
 }
 
 const STATUS_ICONS: Record<string, string> = {
-  autorizada:  'check_circle',
-  cancelada:   'remove_circle',
+  autorizada: 'check_circle',
+  cancelada: 'remove_circle',
   processando: 'hourglass_empty',
-  enviando:    'upload',
-  rejeitada:   'cancel',
+  enviando: 'upload',
+  rejeitada: 'cancel',
 }
 
 type Props = { clienteId: string }
@@ -115,48 +115,51 @@ export function PortalNotasFiscaisClient({ clienteId }: Props) {
           {notas.map(nota => {
             const statusColor = STATUS_COLORS[nota.status] ?? 'bg-gray-100 text-gray-500'
             const statusLabel = STATUS_LABELS[nota.status] ?? nota.status
-            const statusIcon  = STATUS_ICONS[nota.status] ?? 'help'
-            const dataRef     = nota.autorizadaEm ?? nota.criadoEm
-            const dataFmt     = format(new Date(dataRef), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-            const valorFmt    = `R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`
+            const statusIcon = STATUS_ICONS[nota.status] ?? 'help'
+            const dataRef = nota.autorizadaEm ?? nota.criadoEm
+            const dataFmt = format(new Date(dataRef), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+            const valorFmt = `R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`
 
             return (
-              <div key={nota.id} className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/8">
-                    <span className="material-symbols-outlined text-[20px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      receipt_long
-                    </span>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[14px] font-bold text-on-surface">
-                        {nota.numero ? `NFS-e nº ${nota.numero}` : 'NFS-e (em processamento)'}
-                      </span>
-                      <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusColor}`}>
-                        <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>{statusIcon}</span>
-                        {statusLabel}
+              <div key={nota.id} className="rounded-2xl border border-outline-variant/15 bg-card p-4 sm:p-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/8">
+                      <span className="material-symbols-outlined text-[20px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        receipt_long
                       </span>
                     </div>
 
-                    <p className="mt-1 text-[13px] text-on-surface-variant/70">{nota.descricao}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[14px] font-bold text-on-surface">
+                          {nota.numero ? `NFS-e nº ${nota.numero}` : 'NFS-e (em processamento)'}
+                        </span>
+                        <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusColor}`}>
+                          <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>{statusIcon}</span>
+                          {statusLabel}
+                        </span>
+                      </div>
 
-                    <div className="mt-2 flex items-center gap-4 flex-wrap">
-                      <span className="text-[15px] font-bold text-on-surface">{valorFmt}</span>
-                      <span className="text-[12px] text-on-surface-variant/60">{dataFmt}</span>
+                      <p className="mt-1 text-[13px] text-on-surface-variant/70">{nota.descricao}</p>
+
+                      <div className="mt-2 flex items-center gap-4 flex-wrap">
+                        <span className="text-[15px] font-bold text-on-surface">{valorFmt}</span>
+                        <span className="text-[12px] text-on-surface-variant/60">{dataFmt}</span>
+                      </div>
+
+                      {nota.protocolo && (
+                        <p className="mt-1 text-[11px] text-on-surface-variant/40 font-mono">
+                          Protocolo: {nota.protocolo}
+                        </p>
+                      )}
                     </div>
 
-                    {nota.protocolo && (
-                      <p className="mt-1 text-[11px] text-on-surface-variant/40 font-mono">
-                        Protocolo: {nota.protocolo}
-                      </p>
-                    )}
                   </div>
 
                   {/* Ações: baixar PDF e XML */}
                   {nota.spedyId && (nota.status === 'autorizada' || nota.status === 'cancelada') && (
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0 pl-13 sm:pl-0 border-t sm:border-0 border-outline-variant/10 pt-3 sm:pt-0 justify-end sm:justify-start">
                       <a
                         href={`/api/portal/notas-fiscais/${nota.id}/pdf`}
                         target="_blank"

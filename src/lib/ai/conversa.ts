@@ -162,7 +162,7 @@ export async function getHistorico(
   limit = MAX_HISTORICO,
 ): Promise<HistoricoMsg[]> {
   const rows = await prisma.mensagemIA.findMany({
-    where: { conversaId },
+    where: { conversaId, excluido: false },
     orderBy: { criadaEm: 'asc' },
     select: { role: true, conteudo: true },
   })
@@ -201,12 +201,18 @@ export async function addMensagens(
   user: string,
   assistant: string,
 ): Promise<string> {
+  // Timestamps explícitos com 1ms de diferença garantem ordenação determinística:
+  // user.criadaEm < assistant.criadaEm sempre, mesmo que o banco processe em paralelo.
+  // Sem isso, Promise.all cria ambos com @default(now()) idêntico → ordenação não-determinística.
+  const userTs      = new Date()
+  const assistantTs = new Date(userTs.getTime() + 1)
+
   const [, assistantMsg] = await Promise.all([
     prisma.mensagemIA.create({
-      data: { conversaId, role: 'user', conteudo: user, status: 'sent' },
+      data: { conversaId, role: 'user', conteudo: user, status: 'sent', criadaEm: userTs },
     }),
     prisma.mensagemIA.create({
-      data: { conversaId, role: 'assistant', conteudo: assistant, status: 'pending' },
+      data: { conversaId, role: 'assistant', conteudo: assistant, status: 'pending', criadaEm: assistantTs },
       select: { id: true },
     }),
     // @updatedAt só é atualizado por update() — precisa ser explícito
@@ -274,7 +280,7 @@ export async function getHistoricoCliente(
   limit = 40,
 ): Promise<HistoricoMsg[]> {
   const mensagens = await prisma.mensagemIA.findMany({
-    where: { conversa: { clienteId } },
+    where: { conversa: { clienteId }, excluido: false },
     orderBy: { criadaEm: 'asc' },
     take: limit,
     select: { role: true, conteudo: true, criadaEm: true, conversa: { select: { canal: true } } },
@@ -293,7 +299,7 @@ export async function getHistoricoLead(
   limit = 40,
 ): Promise<HistoricoMsg[]> {
   const mensagens = await prisma.mensagemIA.findMany({
-    where: { conversa: { leadId } },
+    where: { conversa: { leadId }, excluido: false },
     orderBy: { criadaEm: 'asc' },
     take: limit,
     select: { role: true, conteudo: true, conversa: { select: { canal: true } } },

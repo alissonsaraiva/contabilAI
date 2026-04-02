@@ -2,10 +2,12 @@
  * Service layer — Notas Fiscais (NFS-e via Spedy)
  *
  * Fluxo principal:
- *   1. emitirNotaFiscal()  → monta payload, cria registro, envia à Spedy
- *   2. processarWebhookSpedy() → atualiza status ao receber evento
- *   3. onNotaAutorizada()  → indexa RAG, cria Documento, entrega ao cliente
- *   4. onNotaRejeitada()   → notifica equipe com diagnóstico
+ *   1. emitirNotaFiscal()       → monta payload, cria registro, envia à Spedy
+ *   2. processarWebhookSpedy()  → atualiza status ao receber evento (webhook ou reconciliação)
+ *   3. onNotaAutorizada()       → interação + backup R2 + RAG + notificação + entrega ao cliente
+ *   4. onNotaRejeitada()        → notifica equipe com diagnóstico
+ *   5. cancelarNotaFiscal()     → cancela na Spedy, registra, entrega docs de cancelamento
+ *   6. reemitirNotaFiscal()     → reemissão de nota rejeitada (reutiliza integrationId)
  */
 
 import * as Sentry from '@sentry/nextjs'
@@ -14,6 +16,7 @@ import { ptBR } from 'date-fns/locale'
 import { prisma } from '@/lib/prisma'
 import { encrypt, decrypt, isEncrypted } from '@/lib/crypto'
 import { getSpedyClienteClient, getSpedyOwnerClient, SpedyError, type EmissaoNfseInput, type SpedyWebhookPayload } from '@/lib/spedy'
+import { uploadArquivo, getDownloadUrl, storageKeys } from '@/lib/storage'
 import { registrarInteracao } from '@/lib/services/interacoes'
 import { logger } from '@/lib/logger'
 import { sendText, sendMedia } from '@/lib/evolution'
@@ -516,6 +519,75 @@ async function onNotaCancelada(nota: { id: string; clienteId: string; numero: nu
   }).catch(err => logger.warn('nfse-webhook-cancelamento-interacao-falhou', { notaId: nota.id, err }))
 }
 
+// ─── Backup local de PDF+XML no R2 ────────────────────────────────────────────
+
+/**
+ * Baixa PDF e XML da Spedy e salva cópias no R2.
+ * Chamado imediatamente ao autorizar a nota — garante disponibilidade
+ * mesmo que a Spedy fique indisponível posteriormente.
+ */
+async function salvarPdfXmlNoR2(nota: {
+  id: string
+  clienteId: string
+  spedyId: string
+}): Promise<void> {
+  const notaComEmpresa = await prisma.notaFiscal.findUnique({
+    where:   { id: nota.id },
+    include: { empresa: { select: { spedyApiKey: true } } },
+  })
+
+  const spedyApiKey = notaComEmpresa?.empresa?.spedyApiKey
+  if (!spedyApiKey) {
+    logger.warn('nfse-r2-sem-spedy-key', { notaId: nota.id })
+    return
+  }
+
+  const config = await getEscritorioSpedy()
+  const spedyClient = getSpedyClienteClient({
+    spedyApiKey,
+    spedyAmbiente: config.spedyAmbiente,
+  })
+
+  const [pdfRes, xmlRes] = await Promise.allSettled([
+    fetch(spedyClient.pdfUrl(nota.spedyId)),
+    fetch(spedyClient.xmlUrl(nota.spedyId)),
+  ])
+
+  const updates: Partial<{ pdfUrl: string; xmlUrl: string }> = {}
+
+  if (pdfRes.status === 'fulfilled' && pdfRes.value.ok) {
+    const buf = Buffer.from(await pdfRes.value.arrayBuffer())
+    const key = storageKeys.notaFiscalPdf(nota.clienteId, nota.id)
+    await uploadArquivo(key, buf, 'application/pdf')
+    updates.pdfUrl = key
+  } else {
+    logger.warn('nfse-r2-pdf-indisponivel', {
+      notaId: nota.id,
+      status: pdfRes.status === 'fulfilled' ? pdfRes.value.status : 'network-error',
+    })
+  }
+
+  if (xmlRes.status === 'fulfilled' && xmlRes.value.ok) {
+    const buf = Buffer.from(await xmlRes.value.arrayBuffer())
+    const key = storageKeys.notaFiscalXml(nota.clienteId, nota.id)
+    await uploadArquivo(key, buf, 'application/xml')
+    updates.xmlUrl = key
+  } else {
+    logger.warn('nfse-r2-xml-indisponivel', {
+      notaId: nota.id,
+      status: xmlRes.status === 'fulfilled' ? xmlRes.value.status : 'network-error',
+    })
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await prisma.notaFiscal.update({
+      where: { id: nota.id },
+      data:  { ...updates, atualizadoEm: new Date() },
+    })
+    logger.info('nfse-r2-backup-salvo', { notaId: nota.id, arquivos: Object.keys(updates) })
+  }
+}
+
 // ─── Pós-autorização ──────────────────────────────────────────────────────────
 
 export async function onNotaAutorizada(nota: {
@@ -554,17 +626,25 @@ export async function onNotaAutorizada(nota: {
     escritorioEvento: true,
   }).catch(err => logger.warn('nfse-registrar-interacao-falhou', { notaId: nota.id, err }))
 
-  // 2. Indexa no RAG
+  // 2. Salva cópia local de PDF+XML no R2 (resiliência — Spedy pode ficar indisponível)
+  if (nota.spedyId) {
+    await salvarPdfXmlNoR2({ id: nota.id, clienteId: nota.clienteId, spedyId: nota.spedyId }).catch(err => {
+      logger.warn('nfse-r2-backup-falhou', { notaId: nota.id, err })
+      Sentry.captureException(err, { tags: { module: 'nfse-service', operation: 'r2-backup' }, extra: { notaId: nota.id } })
+    })
+  }
+
+  // 3. Indexa no RAG
   await indexarNotaFiscalRag(nota, cliente?.nome).catch(err =>
     logger.warn('nfse-rag-falhou', { notaId: nota.id, err })
   )
 
-  // 3. Notifica equipe no CRM
+  // 4. Notifica equipe no CRM
   await notificarEquipeNfsAutorizada(nota, cliente?.nome, mesAno).catch(err =>
     logger.warn('nfse-notificar-equipe-falhou', { notaId: nota.id, err })
   )
 
-  // 4. Envia ao cliente se configurado
+  // 5. Envia ao cliente se configurado
   if (config.spedyEnviarAoAutorizar) {
     const canal = (config.spedyEnviarCanalPadrao ?? 'whatsapp') as 'whatsapp' | 'email' | 'portal'
     await entregarNotaCliente(nota.id, canal).catch(err =>
@@ -612,28 +692,45 @@ export async function entregarNotaCliente(
   const mesAno   = format(dataAuth, 'MMMM/yyyy', { locale: ptBR })
   const numero   = nota.numero ? `nº ${nota.numero}` : ''
 
-  // Busca PDF e XML da Spedy (necessário para envio por WhatsApp e e-mail)
+  // Busca PDF e XML — tenta cópia local no R2 primeiro; Spedy como fallback
   const empresa = nota.empresa
   let pdfBuffer: Buffer | null = null
   let xmlBuffer: Buffer | null = null
 
-  if (empresa?.spedyApiKey) {
+  // 1ª tentativa: R2 (cópia salva ao autorizar — mais resiliente)
+  const pdfKey = nota.pdfUrl && !nota.pdfUrl.startsWith('https://') ? nota.pdfUrl : null
+  const xmlKey = nota.xmlUrl && !nota.xmlUrl.startsWith('https://') ? nota.xmlUrl : null
+
+  const [r2PdfRes, r2XmlRes] = await Promise.allSettled([
+    pdfKey ? getDownloadUrl(pdfKey).then(url => fetch(url)) : Promise.reject(new Error('sem-r2-pdf')),
+    xmlKey ? getDownloadUrl(xmlKey).then(url => fetch(url)) : Promise.reject(new Error('sem-r2-xml')),
+  ])
+
+  if (r2PdfRes.status === 'fulfilled' && r2PdfRes.value.ok) {
+    pdfBuffer = Buffer.from(await r2PdfRes.value.arrayBuffer())
+  }
+  if (r2XmlRes.status === 'fulfilled' && r2XmlRes.value.ok) {
+    xmlBuffer = Buffer.from(await r2XmlRes.value.arrayBuffer())
+  }
+
+  // 2ª tentativa: Spedy para o que não veio do R2
+  if ((!pdfBuffer || !xmlBuffer) && empresa?.spedyApiKey) {
     const spedyClient = getSpedyClienteClient({
       spedyApiKey:   empresa.spedyApiKey,
       spedyAmbiente: config.spedyAmbiente,
     })
     const [pdfRes, xmlRes] = await Promise.allSettled([
-      fetch(spedyClient.pdfUrl(nota.spedyId!)),
-      fetch(spedyClient.xmlUrl(nota.spedyId!)),
+      !pdfBuffer ? fetch(spedyClient.pdfUrl(nota.spedyId!)) : Promise.resolve(null as unknown as Response),
+      !xmlBuffer ? fetch(spedyClient.xmlUrl(nota.spedyId!)) : Promise.resolve(null as unknown as Response),
     ])
-    if (pdfRes.status === 'fulfilled' && pdfRes.value.ok) {
+    if (!pdfBuffer && pdfRes.status === 'fulfilled' && pdfRes.value?.ok) {
       pdfBuffer = Buffer.from(await pdfRes.value.arrayBuffer())
-    } else {
+    } else if (!pdfBuffer) {
       logger.warn('nfse-entrega-pdf-indisponivel', { notaId: nota.id })
     }
-    if (xmlRes.status === 'fulfilled' && xmlRes.value.ok) {
+    if (!xmlBuffer && xmlRes.status === 'fulfilled' && xmlRes.value?.ok) {
       xmlBuffer = Buffer.from(await xmlRes.value.arrayBuffer())
-    } else {
+    } else if (!xmlBuffer) {
       logger.warn('nfse-entrega-xml-indisponivel', { notaId: nota.id })
     }
   }
@@ -667,25 +764,63 @@ export async function entregarNotaCliente(
     const descricaoInfo = nota.descricao ? `\n📋 Serviço: ${nota.descricao}` : ''
     const texto = `✅ *NFS-e autorizada!*\n\nOlá, ${nota.cliente.nome.split(' ')[0]}! Sua Nota Fiscal de Serviço ${numero}${tomadorInfo} foi autorizada pela prefeitura.${descricaoInfo}\n\n💰 Valor: R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`
 
-    await sendText(evoCfg, remoteJid, texto)
+    // Tenta enviar com retry (3 tentativas, backoff 2s)
+    const errosEntrega: string[] = []
+
+    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+      try {
+        await sendText(evoCfg, remoteJid, texto)
+        break
+      } catch (err) {
+        if (tentativa === 3) errosEntrega.push(`texto: ${err instanceof Error ? err.message : String(err)}`)
+        else await new Promise(r => setTimeout(r, 2000 * tentativa))
+      }
+    }
 
     if (pdfBuffer) {
-      await sendMedia(evoCfg, remoteJid, {
-        mediatype:   'document',
-        mimetype:    'application/pdf',
-        fileName:    `${nomeArquivo}.pdf`,
-        caption:     `📄 PDF da ${nomeArquivo}`,
-        mediaBase64: pdfBuffer.toString('base64'),
-      })
+      for (let tentativa = 1; tentativa <= 3; tentativa++) {
+        try {
+          await sendMedia(evoCfg, remoteJid, {
+            mediatype:   'document',
+            mimetype:    'application/pdf',
+            fileName:    `${nomeArquivo}.pdf`,
+            caption:     `📄 PDF da ${nomeArquivo}`,
+            mediaBase64: pdfBuffer.toString('base64'),
+          })
+          break
+        } catch (err) {
+          if (tentativa === 3) errosEntrega.push(`pdf: ${err instanceof Error ? err.message : String(err)}`)
+          else await new Promise(r => setTimeout(r, 2000 * tentativa))
+        }
+      }
     }
     if (xmlBuffer) {
-      await sendMedia(evoCfg, remoteJid, {
-        mediatype:   'document',
-        mimetype:    'application/xml',
-        fileName:    `${nomeArquivo}.xml`,
-        caption:     `🗂️ XML da ${nomeArquivo} (para importação em sistemas contábeis)`,
-        mediaBase64: xmlBuffer.toString('base64'),
+      for (let tentativa = 1; tentativa <= 3; tentativa++) {
+        try {
+          await sendMedia(evoCfg, remoteJid, {
+            mediatype:   'document',
+            mimetype:    'application/xml',
+            fileName:    `${nomeArquivo}.xml`,
+            caption:     `🗂️ XML da ${nomeArquivo} (para importação em sistemas contábeis)`,
+            mediaBase64: xmlBuffer.toString('base64'),
+          })
+          break
+        } catch (err) {
+          if (tentativa === 3) errosEntrega.push(`xml: ${err instanceof Error ? err.message : String(err)}`)
+          else await new Promise(r => setTimeout(r, 2000 * tentativa))
+        }
+      }
+    }
+
+    // Se houve falhas após todas as tentativas, notifica a equipe
+    if (errosEntrega.length > 0) {
+      const motivo = errosEntrega.join('; ')
+      logger.error('nfse-entrega-whatsapp-falhou-apos-retry', { notaId: nota.id, motivo })
+      Sentry.captureException(new Error(`Entrega WhatsApp falhou: ${motivo}`), {
+        tags:  { module: 'nfse-service', operation: 'entrega-whatsapp' },
+        extra: { notaId: nota.id, whatsapp, motivo },
       })
+      await notificarEquipeEntregaFalhou(nota.id, nota.clienteId, 'whatsapp', motivo)
     }
 
   } else if (canal === 'email') {
@@ -698,12 +833,22 @@ export async function entregarNotaCliente(
         xmlBuffer && { nome: `${nomeArquivo}.xml`, content: xmlBuffer, mimeType: 'application/xml' },
       ].filter(Boolean) as { nome: string; content: Buffer; mimeType: string }[]
 
-      await sendEmail({
-        para:    nota.cliente.email,
-        assunto: `NFS-e ${numero} autorizada — ${mesAno}`,
-        corpo:   `<p>Olá, ${nota.cliente.nome.split(' ')[0]}!</p><p>Sua Nota Fiscal de Serviço ${numero}${tomadorParteEmail} foi <b>autorizada</b> pela prefeitura.</p>${descricaoParteEmail}<p><b>Valor:</b> R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}</p><p>Seguem em anexo o <b>PDF</b> e o <b>XML</b> da nota. O PDF também está disponível no portal do cliente para consultas futuras.</p>`,
-        anexos,
-      })
+      try {
+        await sendEmail({
+          para:    nota.cliente.email,
+          assunto: `NFS-e ${numero} autorizada — ${mesAno}`,
+          corpo:   `<p>Olá, ${nota.cliente.nome.split(' ')[0]}!</p><p>Sua Nota Fiscal de Serviço ${numero}${tomadorParteEmail} foi <b>autorizada</b> pela prefeitura.</p>${descricaoParteEmail}<p><b>Valor:</b> R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}</p><p>Seguem em anexo o <b>PDF</b> e o <b>XML</b> da nota. O PDF também está disponível no portal do cliente para consultas futuras.</p>`,
+          anexos,
+        })
+      } catch (emailErr) {
+        const motivo = emailErr instanceof Error ? emailErr.message : String(emailErr)
+        logger.error('nfse-entrega-email-falhou', { notaId: nota.id, motivo })
+        Sentry.captureException(emailErr, {
+          tags:  { module: 'nfse-service', operation: 'entrega-email' },
+          extra: { notaId: nota.id, email: nota.cliente.email, motivo },
+        })
+        await notificarEquipeEntregaFalhou(nota.id, nota.clienteId, 'email', motivo)
+      }
     }
   }
   // canal portal: não é necessário fazer nada — o cliente baixa diretamente pelo portal
@@ -734,6 +879,15 @@ export async function cancelarNotaFiscal(
   if (!nota) return { sucesso: false, detalhe: 'Nota fiscal não encontrada.' }
   if (nota.status !== 'autorizada') return { sucesso: false, detalhe: `Apenas notas autorizadas podem ser canceladas. Status atual: ${nota.status}` }
   if (!nota.spedyId) return { sucesso: false, detalhe: 'Nota sem ID Spedy — não pode ser cancelada pela API.' }
+
+  // Aviso de prazo legal — maioria dos municípios permite cancelamento apenas nos primeiros 30 dias
+  if (nota.autorizadaEm) {
+    const diasDesdeAutorizacao = Math.floor((Date.now() - nota.autorizadaEm.getTime()) / 86_400_000)
+    if (diasDesdeAutorizacao > 30) {
+      logger.warn('nfse-cancelamento-fora-prazo', { notaId: nota.id, diasDesdeAutorizacao })
+      // Não bloqueia — a Spedy ou a prefeitura fará a validação definitiva; apenas loga
+    }
+  }
 
   const empresa = nota.empresa
   if (!empresa?.spedyApiKey) return { sucesso: false, detalhe: 'Empresa não configurada na Spedy.' }
@@ -984,4 +1138,31 @@ async function notificarEquipeNfsRejeitada(
       url:       `/crm/clientes/${nota.clienteId}?aba=notas-fiscais`,
     })),
   })
+}
+
+async function notificarEquipeEntregaFalhou(
+  notaId: string,
+  clienteId: string,
+  canal: 'whatsapp' | 'email',
+  motivo: string,
+): Promise<void> {
+  try {
+    const usuarios = await prisma.usuario.findMany({
+      where:  { ativo: true, tipo: { in: ['admin', 'contador'] } },
+      select: { id: true },
+    })
+    if (!usuarios.length) return
+
+    await prisma.notificacao.createMany({
+      data: usuarios.map(u => ({
+        usuarioId: u.id,
+        tipo:      'nfse_entrega_falhou',
+        titulo:    `Falha na entrega de NFS-e por ${canal}`,
+        mensagem:  `A nota ${notaId.slice(0, 8)} não pôde ser entregue ao cliente. Motivo: ${motivo.slice(0, 120)}`,
+        url:       `/crm/clientes/${clienteId}?aba=notas-fiscais`,
+      })),
+    })
+  } catch (err) {
+    logger.error('nfse-notificar-entrega-falhou-erro', { notaId, err })
+  }
 }

@@ -9,7 +9,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { eventBus } from '@/lib/event-bus'
-import type { EventWhatsAppRefresh, EventPortalUserMessage } from '@/lib/event-bus'
+import type { EventWhatsAppRefresh, EventPortalUserMessage, EventMensagemExcluida } from '@/lib/event-bus'
 
 const KEEPALIVE_MS = 25_000
 
@@ -46,15 +46,18 @@ export async function GET(
         try { controller.enqueue(enc.encode(': ping\n\n')) } catch {}
       }, KEEPALIVE_MS)
 
-      const waHandler = (_payload: EventWhatsAppRefresh) => send({ type: 'refresh' })
-      const puHandler = (_payload: EventPortalUserMessage) => send({ type: 'refresh' })
-      eventBus.on(`whatsapp:${id}`,    waHandler)
-      eventBus.on(`portal-user:${id}`, puHandler)
+      const waHandler  = (_payload: EventWhatsAppRefresh) => send({ type: 'refresh' })
+      const puHandler  = (_payload: EventPortalUserMessage) => send({ type: 'refresh' })
+      const delHandler = (payload: EventMensagemExcluida) => send(payload)
+      eventBus.on(`whatsapp:${id}`,          waHandler)
+      eventBus.on(`portal-user:${id}`,       puHandler)
+      eventBus.on(`mensagem-excluida:${id}`, delHandler)
 
       function cleanup() {
         clearInterval(keepalive)
-        eventBus.off(`whatsapp:${id}`,    waHandler)
-        eventBus.off(`portal-user:${id}`, puHandler)
+        eventBus.off(`whatsapp:${id}`,          waHandler)
+        eventBus.off(`portal-user:${id}`,       puHandler)
+        eventBus.off(`mensagem-excluida:${id}`, delHandler)
       }
 
       req.signal.addEventListener('abort', () => {

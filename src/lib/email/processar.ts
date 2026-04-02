@@ -218,8 +218,9 @@ async function gerarSugestao(
           const dataUltimo = ultimo.criadoEm.toLocaleDateString('pt-BR')
           contextLines.push(`Último contato: ${ultimo.titulo ?? ultimo.tipo} em ${dataUltimo}`)
         }
-      } catch {
-        // Falha ao buscar contexto extra — continua com sugestão genérica
+      } catch (contextErr) {
+        // Falha ao buscar contexto extra — continua com sugestão genérica, mas loga para diagnóstico
+        console.error('[email/processar] falha ao buscar contexto do cliente para sugestão:', { clienteId, err: contextErr })
       }
     }
 
@@ -234,7 +235,16 @@ async function gerarSugestao(
     })
 
     return resposta
-  } catch {
+  } catch (err) {
+    console.error('[email/processar] falha ao gerar sugestão de resposta:', {
+      de:      email.de,
+      assunto: email.assunto,
+      err,
+    })
+    Sentry.captureException(err, {
+      tags:  { module: 'email-processar', operation: 'gerar-sugestao' },
+      extra: { de: email.de, assunto: email.assunto, clienteId, leadId },
+    })
     return null
   }
 }

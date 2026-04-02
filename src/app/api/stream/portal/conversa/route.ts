@@ -9,7 +9,7 @@
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { eventBus } from '@/lib/event-bus'
-import type { EventConversaMensagem } from '@/lib/event-bus'
+import type { EventConversaMensagem, EventMensagemExcluida } from '@/lib/event-bus'
 
 const KEEPALIVE_MS = 25_000
 
@@ -58,12 +58,15 @@ export async function GET(req: Request) {
         try { controller.enqueue(enc.encode(': ping\n\n')) } catch {}
       }, KEEPALIVE_MS)
 
-      const handler = (payload: EventConversaMensagem) => send(payload)
-      eventBus.on(`conversa:${conversaId}`, handler)
+      const handler    = (payload: EventConversaMensagem) => send(payload)
+      const delHandler = (payload: EventMensagemExcluida) => send(payload)
+      eventBus.on(`conversa:${conversaId}`,          handler)
+      eventBus.on(`mensagem-excluida:${conversaId}`, delHandler)
 
       function cleanup() {
         clearInterval(keepalive)
-        eventBus.off(`conversa:${conversaId}`, handler)
+        eventBus.off(`conversa:${conversaId}`,          handler)
+        eventBus.off(`mensagem-excluida:${conversaId}`, delHandler)
       }
 
       req.signal.addEventListener('abort', () => {

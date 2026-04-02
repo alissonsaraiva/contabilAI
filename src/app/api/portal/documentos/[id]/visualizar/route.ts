@@ -17,8 +17,12 @@ export async function PATCH(
   const clienteId = await resolveClienteId(user)
   if (!clienteId) return NextResponse.json({ error: 'Não autorizado' }, { status: 400 })
 
+  // OR: documento pode estar vinculado ao clienteId (PF) ou à empresaId (PJ)
+  const orConditions: object[] = [{ clienteId }]
+  if (user.empresaId) orConditions.push({ empresaId: user.empresaId })
+
   await prisma.documento.updateMany({
-    where: { id, clienteId, visualizadoEm: null },
+    where: { id, OR: orConditions, visualizadoEm: null },
     data:  { visualizadoEm: new Date() },
   })
 

@@ -54,10 +54,10 @@ export default function WhatsAppPage() {
   useEffect(() => {
     fetch('/api/configuracoes/ia').then(r => r.json()).then(data => {
       reset({
-        evolutionApiUrl:      data.evolutionApiUrl ?? '',
-        evolutionApiKey:      '',
-        evolutionInstance:    data.evolutionInstance ?? '',
-        whatsappAiEnabled:    data.whatsappAiEnabled ?? false,
+        evolutionApiUrl: data.evolutionApiUrl ?? '',
+        evolutionApiKey: '',
+        evolutionInstance: data.evolutionInstance ?? '',
+        whatsappAiEnabled: data.whatsappAiEnabled ?? false,
         systemPromptWhatsapp: data.systemPromptWhatsapp ?? '',
       })
     })
@@ -75,8 +75,8 @@ export default function WhatsAppPage() {
       const state = (data?.instance?.state ?? data?.state ?? 'unknown').toLowerCase()
       const mapped: ConnectionState =
         state === 'open' ? 'open' :
-        state.includes('connect') ? 'connecting' :
-        state === 'close' ? 'close' : 'unknown'
+          state.includes('connect') ? 'connecting' :
+            state === 'close' ? 'close' : 'unknown'
       setConnState(mapped)
       if (mapped === 'open') {
         setQrCode(null)
@@ -108,10 +108,10 @@ export default function WhatsAppPage() {
     setSavingCfg(true)
     try {
       const payload: Record<string, string | boolean> = {
-        evolutionApiUrl:      data.evolutionApiUrl,
-        evolutionInstance:    data.evolutionInstance,
-        whatsappAiEnabled:    data.whatsappAiEnabled,
-        whatsappAiFeature:    'whatsapp',
+        evolutionApiUrl: data.evolutionApiUrl,
+        evolutionInstance: data.evolutionInstance,
+        whatsappAiEnabled: data.whatsappAiEnabled,
+        whatsappAiFeature: 'whatsapp',
         systemPromptWhatsapp: data.systemPromptWhatsapp,
       }
       if (data.evolutionApiKey) payload.evolutionApiKey = data.evolutionApiKey
@@ -124,10 +124,10 @@ export default function WhatsAppPage() {
       if (!res.ok) throw new Error()
       toast.success('Configurações salvas')
       reset({
-        evolutionApiUrl:      data.evolutionApiUrl,
-        evolutionApiKey:      '',
-        evolutionInstance:    data.evolutionInstance,
-        whatsappAiEnabled:    data.whatsappAiEnabled,
+        evolutionApiUrl: data.evolutionApiUrl,
+        evolutionApiKey: '',
+        evolutionInstance: data.evolutionInstance,
+        whatsappAiEnabled: data.whatsappAiEnabled,
         systemPromptWhatsapp: data.systemPromptWhatsapp,
       })
     } catch {
@@ -216,13 +216,13 @@ export default function WhatsAppPage() {
 
   const stateColor = connState === 'open' ? 'text-green-status' : connState === 'connecting' ? 'text-yellow-600' : 'text-on-surface-variant/50'
   const stateLabel = connState === 'open' ? 'Conectado' : connState === 'connecting' ? 'Conectando...' : connState === 'close' ? 'Desconectado' : 'Desconhecido'
-  const stateIcon  = connState === 'open' ? 'check_circle' : connState === 'connecting' ? 'sync' : 'cancel'
+  const stateIcon = connState === 'open' ? 'check_circle' : connState === 'connecting' ? 'sync' : 'cancel'
 
   return (
     <form onSubmit={handleSubmit(onSaveConfig)} className="space-y-5">
 
       {/* Config Evolution API */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#25D366]/15">
             <span className="material-symbols-outlined text-[18px] text-[#25D366]" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -268,8 +268,8 @@ export default function WhatsAppPage() {
       </div>
 
       {/* Status + Ações */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
-        <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+        <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
               <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>phone_iphone</span>
@@ -347,8 +347,8 @@ export default function WhatsAppPage() {
       </div>
 
       {/* IA no WhatsApp */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
-        <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+        <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
               <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
@@ -379,7 +379,7 @@ export default function WhatsAppPage() {
       </div>
 
       {/* Webhook */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>webhook</span>
@@ -414,7 +414,7 @@ export default function WhatsAppPage() {
       </div>
 
       {/* Enviar mensagem de teste */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#25D366]/15">
             <span className="material-symbols-outlined text-[18px] text-[#25D366]" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>

@@ -11,34 +11,34 @@ import { cn } from '@/lib/utils'
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
 
 const schema = z.object({
-  provedorAssinatura:  z.enum(['zapsign', 'clicksign']).optional(),
-  zapsignToken:        z.string().optional(),
-  clicksignKey:        z.string().optional(),
+  provedorAssinatura: z.enum(['zapsign', 'clicksign']).optional(),
+  zapsignToken: z.string().optional(),
+  clicksignKey: z.string().optional(),
   clicksignHmacSecret: z.string().optional(),
-  zapiInstanceId:      z.string().optional(),
-  zapiToken:           z.string().optional(),
-  serproCpfToken:      z.string().optional(),
-  serproCnpjToken:     z.string().optional(),
-  asaasApiKey:         z.string().optional(),
-  asaasAmbiente:       z.enum(['sandbox', 'producao']).optional(),
-  asaasWebhookToken:   z.string().optional(),
-  spedyApiKey:         z.string().optional(),
-  spedyAmbiente:       z.enum(['sandbox', 'producao']).optional(),
+  zapiInstanceId: z.string().optional(),
+  zapiToken: z.string().optional(),
+  serproCpfToken: z.string().optional(),
+  serproCnpjToken: z.string().optional(),
+  asaasApiKey: z.string().optional(),
+  asaasAmbiente: z.enum(['sandbox', 'producao']).optional(),
+  asaasWebhookToken: z.string().optional(),
+  spedyApiKey: z.string().optional(),
+  spedyAmbiente: z.enum(['sandbox', 'producao']).optional(),
 })
 
 type FormData = z.infer<typeof schema>
 
 type Configured = {
-  zapsignToken:        boolean
-  clicksignKey:        boolean
+  zapsignToken: boolean
+  clicksignKey: boolean
   clicksignHmacSecret: boolean
-  zapiInstanceId:      boolean
-  zapiToken:           boolean
-  serproCpfToken:      boolean
-  serproCnpjToken:     boolean
-  asaasApiKey:         boolean
-  asaasWebhookToken:   boolean
-  spedyApiKey:         boolean
+  zapiInstanceId: boolean
+  zapiToken: boolean
+  serproCpfToken: boolean
+  serproCnpjToken: boolean
+  asaasApiKey: boolean
+  asaasWebhookToken: boolean
+  spedyApiKey: boolean
 }
 
 // ── Seção colapsável ────────────────────────────────────────────────────────
@@ -129,9 +129,9 @@ export default function IntegracoesPage() {
     defaultValues: { provedorAssinatura: 'zapsign' },
   })
 
-  const provedor       = watch('provedorAssinatura')
-  const asaasAmbiente  = watch('asaasAmbiente')
-  const spedyAmbiente  = watch('spedyAmbiente')
+  const provedor = watch('provedorAssinatura')
+  const asaasAmbiente = watch('asaasAmbiente')
+  const spedyAmbiente = watch('spedyAmbiente')
 
   useEffect(() => {
     fetch('/api/escritorio')
@@ -140,23 +140,23 @@ export default function IntegracoesPage() {
         if (!data) return
         reset({
           provedorAssinatura: (data.provedorAssinatura as string) === 'clicksign' ? 'clicksign' : 'zapsign',
-          asaasAmbiente:  (data.asaasAmbiente  as string) === 'producao' ? 'producao' : 'sandbox',
-          spedyAmbiente:  (data.spedyAmbiente  as string) === 'producao' ? 'producao' : 'sandbox',
+          asaasAmbiente: (data.asaasAmbiente as string) === 'producao' ? 'producao' : 'sandbox',
+          spedyAmbiente: (data.spedyAmbiente as string) === 'producao' ? 'producao' : 'sandbox',
           zapsignToken: '', clicksignKey: '', clicksignHmacSecret: '',
           zapiInstanceId: '', zapiToken: '', serproCpfToken: '', serproCnpjToken: '',
           asaasApiKey: '', asaasWebhookToken: '', spedyApiKey: '',
         })
         setConfigured({
-          zapsignToken:        !!data.zapsignToken,
-          clicksignKey:        !!data.clicksignKey,
+          zapsignToken: !!data.zapsignToken,
+          clicksignKey: !!data.clicksignKey,
           clicksignHmacSecret: !!data.clicksignHmacSecret,
-          zapiInstanceId:      !!data.zapiInstanceId,
-          zapiToken:           !!data.zapiToken,
-          serproCpfToken:      !!data.serproCpfToken,
-          serproCnpjToken:     !!data.serproCnpjToken,
-          asaasApiKey:         !!data.asaasApiKey,
-          asaasWebhookToken:   !!data.asaasWebhookToken,
-          spedyApiKey:         !!data.spedyApiKey,
+          zapiInstanceId: !!data.zapiInstanceId,
+          zapiToken: !!data.zapiToken,
+          serproCpfToken: !!data.serproCpfToken,
+          serproCnpjToken: !!data.serproCnpjToken,
+          asaasApiKey: !!data.asaasApiKey,
+          asaasWebhookToken: !!data.asaasWebhookToken,
+          spedyApiKey: !!data.spedyApiKey,
         })
       })
   }, [reset])
@@ -166,19 +166,19 @@ export default function IntegracoesPage() {
     try {
       const payload: Record<string, unknown> = {
         provedorAssinatura: data.provedorAssinatura,
-        asaasAmbiente:      data.asaasAmbiente ?? 'sandbox',
-        spedyAmbiente:      data.spedyAmbiente ?? 'sandbox',
+        asaasAmbiente: data.asaasAmbiente ?? 'sandbox',
+        spedyAmbiente: data.spedyAmbiente ?? 'sandbox',
       }
-      if (data.zapsignToken)        payload.zapsignToken        = data.zapsignToken
-      if (data.clicksignKey)        payload.clicksignKey        = data.clicksignKey
+      if (data.zapsignToken) payload.zapsignToken = data.zapsignToken
+      if (data.clicksignKey) payload.clicksignKey = data.clicksignKey
       if (data.clicksignHmacSecret) payload.clicksignHmacSecret = data.clicksignHmacSecret
-      if (data.zapiInstanceId)      payload.zapiInstanceId      = data.zapiInstanceId
-      if (data.zapiToken)           payload.zapiToken           = data.zapiToken
-      if (data.serproCpfToken)      payload.serproCpfToken      = data.serproCpfToken
-      if (data.serproCnpjToken)     payload.serproCnpjToken     = data.serproCnpjToken
-      if (data.asaasApiKey)         payload.asaasApiKey         = data.asaasApiKey
-      if (data.asaasWebhookToken)   payload.asaasWebhookToken   = data.asaasWebhookToken
-      if (data.spedyApiKey)         payload.spedyApiKey         = data.spedyApiKey
+      if (data.zapiInstanceId) payload.zapiInstanceId = data.zapiInstanceId
+      if (data.zapiToken) payload.zapiToken = data.zapiToken
+      if (data.serproCpfToken) payload.serproCpfToken = data.serproCpfToken
+      if (data.serproCnpjToken) payload.serproCnpjToken = data.serproCnpjToken
+      if (data.asaasApiKey) payload.asaasApiKey = data.asaasApiKey
+      if (data.asaasWebhookToken) payload.asaasWebhookToken = data.asaasWebhookToken
+      if (data.spedyApiKey) payload.spedyApiKey = data.spedyApiKey
 
       const res = await fetch('/api/escritorio', {
         method: 'PUT',
@@ -188,16 +188,16 @@ export default function IntegracoesPage() {
       if (!res.ok) throw new Error()
 
       setConfigured(prev => ({
-        zapsignToken:        prev.zapsignToken        || !!data.zapsignToken,
-        clicksignKey:        prev.clicksignKey        || !!data.clicksignKey,
+        zapsignToken: prev.zapsignToken || !!data.zapsignToken,
+        clicksignKey: prev.clicksignKey || !!data.clicksignKey,
         clicksignHmacSecret: prev.clicksignHmacSecret || !!data.clicksignHmacSecret,
-        zapiInstanceId:      prev.zapiInstanceId      || !!data.zapiInstanceId,
-        zapiToken:           prev.zapiToken           || !!data.zapiToken,
-        serproCpfToken:      prev.serproCpfToken      || !!data.serproCpfToken,
-        serproCnpjToken:     prev.serproCnpjToken     || !!data.serproCnpjToken,
-        asaasApiKey:         prev.asaasApiKey         || !!data.asaasApiKey,
-        asaasWebhookToken:   prev.asaasWebhookToken   || !!data.asaasWebhookToken,
-        spedyApiKey:         prev.spedyApiKey         || !!data.spedyApiKey,
+        zapiInstanceId: prev.zapiInstanceId || !!data.zapiInstanceId,
+        zapiToken: prev.zapiToken || !!data.zapiToken,
+        serproCpfToken: prev.serproCpfToken || !!data.serproCpfToken,
+        serproCnpjToken: prev.serproCnpjToken || !!data.serproCnpjToken,
+        asaasApiKey: prev.asaasApiKey || !!data.asaasApiKey,
+        asaasWebhookToken: prev.asaasWebhookToken || !!data.asaasWebhookToken,
+        spedyApiKey: prev.spedyApiKey || !!data.spedyApiKey,
       }))
       toast.success('Integrações salvas!')
     } catch {
@@ -208,13 +208,13 @@ export default function IntegracoesPage() {
   }
 
   // Contadores por seção para mostrar no header colapsado
-  const spedyCount     = configured.spedyApiKey ? 1 : 0
+  const spedyCount = configured.spedyApiKey ? 1 : 0
   const assinaturaCount =
-    (provedor === 'zapsign'   ? (configured.zapsignToken ? 1 : 0) : 0) +
+    (provedor === 'zapsign' ? (configured.zapsignToken ? 1 : 0) : 0) +
     (provedor === 'clicksign' ? (configured.clicksignKey ? 1 : 0) + (configured.clicksignHmacSecret ? 1 : 0) : 0)
-  const zapiCount    = (configured.zapiInstanceId ? 1 : 0) + (configured.zapiToken ? 1 : 0)
-  const serproCount  = (configured.serproCpfToken ? 1 : 0) + (configured.serproCnpjToken ? 1 : 0)
-  const asaasCount   = (configured.asaasApiKey ? 1 : 0) + (configured.asaasWebhookToken ? 1 : 0)
+  const zapiCount = (configured.zapiInstanceId ? 1 : 0) + (configured.zapiToken ? 1 : 0)
+  const serproCount = (configured.serproCpfToken ? 1 : 0) + (configured.serproCnpjToken ? 1 : 0)
+  const asaasCount = (configured.asaasApiKey ? 1 : 0) + (configured.asaasWebhookToken ? 1 : 0)
 
   return (
     <div className="space-y-3">
@@ -225,7 +225,7 @@ export default function IntegracoesPage() {
         {/* Seletor de provedor */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { value: 'zapsign',   label: 'ZapSign',  sub: 'Brasileira · ICP-Basic' },
+            { value: 'zapsign', label: 'ZapSign', sub: 'Brasileira · ICP-Basic' },
             { value: 'clicksign', label: 'ClickSign', sub: 'Brasileira · ICP-Basic' },
           ].map(opt => (
             <label
@@ -308,7 +308,7 @@ export default function IntegracoesPage() {
           <label className="mb-2 block text-[13px] font-semibold text-on-surface-variant">Ambiente</label>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { value: 'sandbox',  label: 'Sandbox',  sub: 'Testes — sem cobranças reais' },
+              { value: 'sandbox', label: 'Sandbox', sub: 'Testes — sem cobranças reais' },
               { value: 'producao', label: 'Produção', sub: 'Cobranças reais — use com cuidado' },
             ].map(opt => (
               <label
@@ -368,7 +368,7 @@ export default function IntegracoesPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {[
             { name: 'zapiInstanceId' as const, label: 'Instance ID', placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
-            { name: 'zapiToken'      as const, label: 'Token',        placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
+            { name: 'zapiToken' as const, label: 'Token', placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
           ].map(campo => (
             <div key={campo.name}>
               <FieldLabel label={campo.label} configured={configured[campo.name]} />
@@ -391,7 +391,7 @@ export default function IntegracoesPage() {
           <label className="mb-2 block text-[13px] font-semibold text-on-surface-variant">Ambiente</label>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { value: 'sandbox',  label: 'Sandbox',  sub: 'Testes — notas não são registradas na prefeitura' },
+              { value: 'sandbox', label: 'Sandbox', sub: 'Testes — notas não são registradas na prefeitura' },
               { value: 'producao', label: 'Produção', sub: 'Emissão real — notas enviadas à prefeitura' },
             ].map(opt => (
               <label
@@ -452,7 +452,7 @@ export default function IntegracoesPage() {
       <Section icon="verified_user" title="Serpro" subtitle="Validação de CPF e CNPJ" configCount={serproCount}>
         <div className="grid gap-4 md:grid-cols-2">
           {[
-            { name: 'serproCpfToken'  as const, label: 'Token CPF',  placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
+            { name: 'serproCpfToken' as const, label: 'Token CPF', placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
             { name: 'serproCnpjToken' as const, label: 'Token CNPJ', placeholder: 'Bearer xxxxxxxxxxxxxxxx' },
           ].map(campo => (
             <div key={campo.name}>
@@ -468,11 +468,11 @@ export default function IntegracoesPage() {
         </div>
       </Section>
 
-      <div className="flex items-center justify-end pt-1">
+      <div className="flex flex-col-reverse md:flex-row md:items-center justify-end gap-3 pt-1">
         <button
           onClick={handleSubmit(onSubmit)}
           disabled={loading}
-          className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60 min-w-[160px]"
+          className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60 min-w-[160px]"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
           Salvar integrações

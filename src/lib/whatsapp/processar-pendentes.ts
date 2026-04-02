@@ -29,12 +29,11 @@ import { sendHumanLike } from '@/lib/whatsapp/human-like'
 import { classificarIntencao } from '@/lib/ai/classificar-intencao'
 import { executarAgente } from '@/lib/ai/agent'
 import type { AIMessageContentPart } from '@/lib/ai/providers/types'
+import { emitWhatsAppRefresh } from '@/lib/event-bus'
 
 const DEBOUNCE_MS  = 30000  // aguarda 30s após última mensagem antes de processar (contexto completo)
-const LOCK_TIMEOUT = 30000 // considera trava expirada após 30s (reinício inesperado)
-
-// Lock in-memory para evitar duplo processamento simultâneo por conversaId
-const processando = new Set<string>()
+const LOCK_TIMEOUT = 30000  // considera lock expirado após 30s (proteção contra crash sem finally)
+const PDF_TIMEOUT  = 5000   // timeout para extração de texto de PDF (evita travar o cron)
 
 export async function processarMensagensPendentes(): Promise<{
   conversasProcessadas: number
@@ -43,17 +42,27 @@ export async function processarMensagensPendentes(): Promise<{
   const cutoff = new Date(Date.now() - DEBOUNCE_MS)
 
   // Auto-resume: despausar conversas pausadas há mais de 1h sem nova atividade humana
+  // Notifica o CRM via SSE para cada conversa retomada, evitando que operadores fiquem com dados stale
   const umaHoraAtras = new Date(Date.now() - 60 * 60_000)
-  await prisma.conversaIA.updateMany({
-    where: {
-      canal:     'whatsapp',
-      pausadaEm: { not: null, lt: umaHoraAtras },
-    },
-    data: { pausadaEm: null, pausadoPorId: null },
-  }).catch((err: unknown) => {
+  try {
+    const conversasPausadasParaResume = await prisma.conversaIA.findMany({
+      where: { canal: 'whatsapp', pausadaEm: { not: null, lt: umaHoraAtras } },
+      select: { id: true },
+    })
+    if (conversasPausadasParaResume.length > 0) {
+      await prisma.conversaIA.updateMany({
+        where: { id: { in: conversasPausadasParaResume.map(c => c.id) } },
+        data:  { pausadaEm: null, pausadoPorId: null },
+      })
+      // Emite SSE para cada conversa retomada — atualiza o drawer do CRM em tempo real
+      for (const c of conversasPausadasParaResume) {
+        emitWhatsAppRefresh(c.id)
+      }
+    }
+  } catch (err: unknown) {
     console.error('[processar-pendentes] erro no auto-resume de conversas pausadas:', err)
     Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'auto-resume' } })
-  })
+  }
 
   // Busca conversas WhatsApp com mensagens não processadas cuja última msg chegou há >5s
   const conversas = await prisma.conversaIA.findMany({
@@ -106,8 +115,17 @@ export async function processarMensagensPendentes(): Promise<{
   const erros: string[] = []
 
   for (const conversa of conversas) {
-    if (processando.has(conversa.id)) continue
-    processando.add(conversa.id)
+    // Lock distribuído via banco — atomic UPDATE evita duplo processamento entre instâncias Docker
+    // Considera o lock expirado se processandoEm está há mais de LOCK_TIMEOUT ms (proteção contra crash)
+    const lockExpiry = new Date(Date.now() - LOCK_TIMEOUT)
+    const lockAcquired = await prisma.conversaIA.updateMany({
+      where: {
+        id: conversa.id,
+        OR: [{ processandoEm: null }, { processandoEm: { lt: lockExpiry } }],
+      },
+      data: { processandoEm: new Date() },
+    })
+    if (lockAcquired.count === 0) continue // Outra instância está processando esta conversa
 
     try {
       // Busca todas as mensagens não processadas desta conversa
@@ -155,7 +173,11 @@ export async function processarMensagensPendentes(): Promise<{
                 mediaType:     'document',
               }
               if (media.mimeType.includes('pdf')) {
-                const pdfText = await extractPdfText(media.buffer)
+                // Timeout de 5s: PDF malformado ou muito grande pode travar o cron inteiro
+                const pdfText = await Promise.race<string | null>([
+                  extractPdfText(media.buffer),
+                  new Promise<null>(resolve => setTimeout(() => resolve(null), PDF_TIMEOUT)),
+                ])
                 if (pdfText) {
                   // Armazena só o label curto como conteudo (visível no CRM)
                   // O texto extraído vai para a IA via systemExtra — não para a conversa
@@ -169,8 +191,26 @@ export async function processarMensagensPendentes(): Promise<{
               }
               await prisma.mensagemIA.update({ where: { id: m.id }, data: updateData }).catch(() => null)
             }
-          } catch {
-            // retry falhou — usa placeholder mesmo
+          } catch (err: unknown) {
+            // retry de download falhou — mantém placeholder [document] visível no CRM para o operador
+            console.error('[processar-pendentes] retry de download de mídia falhou, mantendo placeholder:', { conversaId: conversa.id, mensagemId: m.id, err })
+            Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'retry-download-midia' }, extra: { conversaId: conversa.id, mensagemId: m.id } })
+          }
+        }
+
+        // Extrai texto de PDFs com buffer presente mas conteudo apenas com label
+        // (webhook path normal: media baixada com sucesso, texto não foi concatenado no conteudo)
+        if (!textoExtraidoPdf && m.mediaBuffer && m.mediaMimeType?.includes('pdf')) {
+          try {
+            // Timeout de 5s: PDF malformado ou muito grande pode travar o cron inteiro
+            const pdfText = await Promise.race<string | null>([
+              extractPdfText(Buffer.from(m.mediaBuffer as Buffer)),
+              new Promise<null>(resolve => setTimeout(() => resolve(null), PDF_TIMEOUT)),
+            ])
+            if (pdfText) textoExtraidoPdf = pdfText.slice(0, 3000)
+          } catch (err: unknown) {
+            console.error('[processar-pendentes] erro ao extrair texto do PDF:', { conversaId: conversa.id, mensagemId: m.id, err })
+            Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'extrair-pdf' }, extra: { conversaId: conversa.id, mensagemId: m.id } })
           }
         }
 
@@ -514,6 +554,12 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
         textoParaIA === '[documento/imagem enviado]'
       )
 
+      // documentoClassificado: indica que o action-router processou o arquivo com sucesso.
+      // Nesse caso, a IA não precisa "ver" o conteúdo bruto (imagem ou texto do PDF) —
+      // as informações relevantes já chegam via contextoIA. Passar o conteúdo completo
+      // ao modelo de visão ou ao contexto de texto causa sumarização indesejada.
+      let documentoClassificado = false
+
       if (ehDocumentoOuMidia) {
         const roteado = await roterarDocumentoWhatsapp({
           conteudo:         textoParaIA,
@@ -524,16 +570,14 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
         })
         if (roteado.classificado) {
           systemExtra += `\n\n${roteado.contextoIA}`
+          documentoClassificado = true
         }
       }
 
-      // Injeta conteúdo extraído do PDF no contexto da IA (não na conversa visível)
-      if (textoExtraidoPdf) {
-        systemExtra += `\n\n--- CONTEÚDO DO DOCUMENTO ---\n${textoExtraidoPdf}\n--- FIM DO DOCUMENTO ---`
-        systemExtra += `\n\nREGRA — RESPOSTA A DOCUMENTO: Use o conteúdo acima APENAS para classificar e registrar internamente. NÃO resuma, NÃO liste valores, NÃO descreva o conteúdo do documento na resposta. Responda apenas confirmando o recebimento, informando que vai anexar no sistema e no portal do cliente, e perguntando se o cliente deseja mais alguma coisa.`
-      }
-
       // Chama IA
+      // Quando o documento foi classificado com sucesso, omite mediaContentParts e
+      // textoExtraidoPdf do askAI principal — o modelo não precisa ver o conteúdo
+      // bruto e a ausência dele elimina a tendência de sumarizar para o cliente.
       const result = await askAI({
         pergunta:     textoParaIA || '[mídia enviada]',
         context,
@@ -541,14 +585,17 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
         historico,
         systemExtra,
         maxTokens:    512,
-        mediaContent: mediaContentParts ?? undefined,
+        mediaContent: documentoClassificado ? undefined : (mediaContentParts ?? undefined),
       })
 
       let resposta = result.resposta
 
       // Remove notações internas que não devem aparecer para o cliente
-      // Ex: [Documento: arquivo.pdf] gerado pelo agente ao confirmar envio
-      resposta = resposta.replace(/\[Documento:\s*[^\]]+\]/gi, '').replace(/\n{3,}/g, '\n\n').trim()
+      // Cobre variações: [Documento: ...], [Documento enviado: ...], [Documento recebido: ...], [Arquivo: ...]
+      resposta = resposta
+        .replace(/\[\s*(?:Documento|Arquivo)\s*[^\]]{0,300}\]/gi, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
 
       // Detecta ##LEAD##
       if (!conversa.clienteId && !conversa.leadId && resposta.includes('##LEAD##')) {
@@ -647,7 +694,14 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
         extra: { conversaId: conversa.id },
       })
     } finally {
-      processando.delete(conversa.id)
+      // Libera o lock distribuído — obrigatório mesmo em caso de erro para não bloquear a conversa
+      await prisma.conversaIA.update({
+        where: { id: conversa.id },
+        data:  { processandoEm: null },
+      }).catch((err: unknown) => {
+        console.error('[processar-pendentes] CRÍTICO: falha ao liberar lock de processamento:', { conversaId: conversa.id, err })
+        Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'liberar-lock' }, extra: { conversaId: conversa.id } })
+      })
     }
   }
 

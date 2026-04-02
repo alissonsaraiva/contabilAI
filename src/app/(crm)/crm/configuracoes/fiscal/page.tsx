@@ -14,17 +14,17 @@ const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 const HINT = 'mt-1 text-[11px] text-on-surface-variant/60'
 
 const schema = z.object({
-  cnpj:                        z.string().optional(),
-  crc:                         z.string().optional(),
-  contratoTemplate:            z.string().optional(),
-  multaPercent:                z.number().min(0).max(100).optional(),
-  jurosMesPercent:             z.number().min(0).max(100).optional(),
-  diasAtrasoMulta:             z.number().int().min(1).optional(),
-  diasInadimplenciaRescisao:   z.number().int().min(1).optional(),
-  diasAvisoRescisao:           z.number().int().min(1).optional(),
-  diasDocumentosAntecedencia:  z.number().int().min(1).optional(),
-  vencimentosDiasRaw:          z.string().optional(),
-  pixDescontoPercent:          z.number().min(0).max(100).optional(),
+  cnpj: z.string().optional(),
+  crc: z.string().optional(),
+  contratoTemplate: z.string().optional(),
+  multaPercent: z.number().min(0).max(100).optional(),
+  jurosMesPercent: z.number().min(0).max(100).optional(),
+  diasAtrasoMulta: z.number().int().min(1).optional(),
+  diasInadimplenciaRescisao: z.number().int().min(1).optional(),
+  diasAvisoRescisao: z.number().int().min(1).optional(),
+  diasDocumentosAntecedencia: z.number().int().min(1).optional(),
+  vencimentosDiasRaw: z.string().optional(),
+  pixDescontoPercent: z.number().min(0).max(100).optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -39,17 +39,17 @@ export default function FiscalPage() {
       .then((data: Record<string, unknown>) => {
         if (!data) return
         reset({
-          cnpj:                       data.cnpj as string ?? '',
-          crc:                        data.crc as string ?? '',
-          contratoTemplate:           data.contratoTemplate as string ?? '',
-          multaPercent:               (data.multaPercent as number) ?? 2.0,
-          jurosMesPercent:            (data.jurosMesPercent as number) ?? 1.0,
-          diasAtrasoMulta:            (data.diasAtrasoMulta as number) ?? 15,
-          diasInadimplenciaRescisao:  (data.diasInadimplenciaRescisao as number) ?? 60,
-          diasAvisoRescisao:          (data.diasAvisoRescisao as number) ?? 30,
+          cnpj: data.cnpj as string ?? '',
+          crc: data.crc as string ?? '',
+          contratoTemplate: data.contratoTemplate as string ?? '',
+          multaPercent: (data.multaPercent as number) ?? 2.0,
+          jurosMesPercent: (data.jurosMesPercent as number) ?? 1.0,
+          diasAtrasoMulta: (data.diasAtrasoMulta as number) ?? 15,
+          diasInadimplenciaRescisao: (data.diasInadimplenciaRescisao as number) ?? 60,
+          diasAvisoRescisao: (data.diasAvisoRescisao as number) ?? 30,
           diasDocumentosAntecedencia: (data.diasDocumentosAntecedencia as number) ?? 5,
-          pixDescontoPercent:         (data.pixDescontoPercent as number) ?? 5.0,
-          vencimentosDiasRaw:         Array.isArray(data.vencimentosDias)
+          pixDescontoPercent: (data.pixDescontoPercent as number) ?? 5.0,
+          vencimentosDiasRaw: Array.isArray(data.vencimentosDias)
             ? (data.vencimentosDias as number[]).join(', ')
             : '5, 10, 15, 20',
         })
@@ -82,7 +82,7 @@ export default function FiscalPage() {
   }
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-8 shadow-sm">
+    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-8 shadow-sm">
       <div className="mb-8">
         <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">Dados Fiscais & Contratuais</h2>
         <p className="mt-1 text-[13px] text-on-surface-variant/80">
@@ -244,11 +244,11 @@ export default function FiscalPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-outline-variant/15 pt-6">
+        <div className="flex flex-col-reverse md:flex-row md:items-center justify-end gap-3 border-t border-outline-variant/15 pt-6">
           <button
             type="submit"
             disabled={loading}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60 min-w-[160px]"
+            className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60 min-w-[160px]"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
             Salvar alterações

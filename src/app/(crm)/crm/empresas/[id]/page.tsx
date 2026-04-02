@@ -17,6 +17,7 @@ import { SocioWhatsAppButton } from '@/components/crm/socio-whatsapp-button'
 import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
+import { NotasFiscaisTabContent } from '@/components/crm/notas-fiscais-tab'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -55,7 +56,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function EmpresaDetailPage({ params }: Props) {
   const { id } = await params
 
-  const [aiConfig, empresa] = await Promise.all([
+  const [aiConfig, empresa, escritorio] = await Promise.all([
     getAiConfig(),
     prisma.empresa.findUnique({
       where: { id },
@@ -74,6 +75,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
         },
       },
     }),
+    prisma.escritorio.findFirst({ select: { spedyApiKey: true } }),
   ])
 
   if (!empresa) notFound()
@@ -408,9 +410,17 @@ export default async function EmpresaDetailPage({ params }: Props) {
           <PlaceholderTab icon="payments" label="Financeiro" descricao="Honorários, faturas, inadimplência e histórico de pagamentos." />
         </TabsContent>
 
-        {/* ── Fiscal ──────────────────────────────────────── */}
+        {/* ── Fiscal / NFS-e ──────────────────────────────── */}
         <TabsContent value="fiscal" className="m-0 focus-visible:outline-none">
-          <PlaceholderTab icon="receipt_long" label="Fiscal" descricao="Obrigações fiscais, competências, DAS, DCTF, apurações e calendário tributário." />
+          {!cliente ? (
+            <EmptyState icon="receipt_long" msg="Nenhum titular vinculado — emissão de NFS-e indisponível" />
+          ) : (
+            <NotasFiscaisTabContent
+              clienteId={cliente.id}
+              spedyConfigurado={!!empresa.spedyConfigurado}
+              escritorioSpedyOk={!!escritorio?.spedyApiKey}
+            />
+          )}
         </TabsContent>
       </Tabs>
 

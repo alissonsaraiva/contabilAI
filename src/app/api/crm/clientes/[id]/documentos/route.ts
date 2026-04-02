@@ -77,8 +77,17 @@ export async function GET(_req: Request, { params }: Params) {
 
   const { id: clienteId } = await params
 
+  // Resolve empresaId para incluir documentos de clientes PJ (armazenados sob empresaId)
+  const cliente = await prisma.cliente.findUnique({
+    where:  { id: clienteId },
+    select: { empresaId: true },
+  })
+
+  const orConditions: object[] = [{ clienteId }]
+  if (cliente?.empresaId) orConditions.push({ empresaId: cliente.empresaId })
+
   const documentos = await prisma.documento.findMany({
-    where:   { clienteId },
+    where:   { OR: orConditions },
     orderBy: { criadoEm: 'desc' },
     select: {
       id: true, nome: true, tipo: true, categoria: true,

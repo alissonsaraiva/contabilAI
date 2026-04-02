@@ -9,12 +9,12 @@ import { Suspense } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const COLUNAS: { status: StatusLead; label: string; dot: string }[] = [
-  { status: 'iniciado',              label: 'Iniciado',       dot: 'bg-on-surface-variant/40' },
-  { status: 'simulador',             label: 'Perfil',         dot: 'bg-primary' },
-  { status: 'plano_escolhido',       label: 'Plano',          dot: 'bg-tertiary' },
-  { status: 'dados_preenchidos',     label: 'Dados',          dot: 'bg-blue-500' },
-  { status: 'revisao',               label: 'Pagamento',      dot: 'bg-purple-500' },
-  { status: 'contrato_gerado',       label: 'Contrato',       dot: 'bg-indigo-500' },
+  { status: 'iniciado', label: 'Iniciado', dot: 'bg-on-surface-variant/40' },
+  { status: 'simulador', label: 'Perfil', dot: 'bg-primary' },
+  { status: 'plano_escolhido', label: 'Plano', dot: 'bg-tertiary' },
+  { status: 'dados_preenchidos', label: 'Dados', dot: 'bg-blue-500' },
+  { status: 'revisao', label: 'Pagamento', dot: 'bg-purple-500' },
+  { status: 'contrato_gerado', label: 'Contrato', dot: 'bg-indigo-500' },
   { status: 'aguardando_assinatura', label: 'Ag. Assinatura', dot: 'bg-orange-status' },
 ]
 
@@ -67,13 +67,13 @@ export default async function LeadsPage({ searchParams }: Props) {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-on-surface flex items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight text-on-surface flex flex-wrap items-center gap-x-3 gap-y-2">
             Onboarding
-            <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20">
+            <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20 whitespace-nowrap">
               {totalAbertos} em aberto
             </span>
             {totalAssinados > 0 && (
-              <span className="rounded-md bg-green-status/10 px-2 py-0.5 text-xs font-bold text-green-status border border-green-status/20">
+              <span className="rounded-md bg-green-status/10 px-2 py-0.5 text-xs font-bold text-green-status border border-green-status/20 whitespace-nowrap">
                 {totalAssinados} convertido{totalAssinados > 1 ? 's' : ''}
               </span>
             )}
@@ -195,7 +195,7 @@ export default async function LeadsPage({ searchParams }: Props) {
 
 function LeadCardItem({ lead }: { lead: any }) {
   return (
-    <Link href={`/crm/leads/${lead.id}`}>
+    <Link href={`/crm/leads/${lead.id}`} className="block">
       <div className="group rounded-[14px] border border-outline-variant/15 bg-card p-4 shadow-sm transition-all hover:shadow-md hover:border-outline-variant/30 flex flex-col gap-3">
         <h4 className="truncate text-[14px] font-semibold text-on-surface">
           {(lead.dadosJson as Record<string, string> | null)?.['Nome completo'] ?? lead.contatoEntrada}

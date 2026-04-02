@@ -7,31 +7,31 @@ import { Card } from '@/components/ui/card'
 import Link from 'next/link'
 
 const STATUS_OS: Record<string, { label: string; color: string; icon: string }> = {
-  aberta:              { label: 'Aberta',            color: 'text-blue-600 bg-blue-500/10',    icon: 'radio_button_unchecked' },
-  em_andamento:        { label: 'Em andamento',      color: 'text-primary bg-primary/10',      icon: 'autorenew' },
-  aguardando_cliente:  { label: 'Aguardando você',   color: 'text-yellow-600 bg-yellow-500/10',icon: 'pending' },
-  resolvida:           { label: 'Resolvida',         color: 'text-green-status bg-green-status/10', icon: 'task_alt' },
-  cancelada:           { label: 'Cancelada',         color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
+  aberta: { label: 'Aberta', color: 'text-blue-600 bg-blue-500/10', icon: 'radio_button_unchecked' },
+  em_andamento: { label: 'Em andamento', color: 'text-primary bg-primary/10', icon: 'autorenew' },
+  aguardando_cliente: { label: 'Aguardando você', color: 'text-yellow-600 bg-yellow-500/10', icon: 'pending' },
+  resolvida: { label: 'Resolvida', color: 'text-green-status bg-green-status/10', icon: 'task_alt' },
+  cancelada: { label: 'Cancelada', color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
 }
 
 const TIPO_OS: Record<string, string> = {
-  duvida:      'Dúvida',
+  duvida: 'Dúvida',
   solicitacao: 'Solicitação',
-  reclamacao:  'Reclamação',
-  documento:   'Documento',
-  outros:      'Outros',
+  reclamacao: 'Reclamação',
+  documento: 'Documento',
+  outros: 'Outros',
 }
 
 const TIPO_COMUNICADO: Record<string, { label: string; color: string }> = {
   informativo: { label: 'Informativo', color: 'text-blue-600 bg-blue-500/10' },
-  alerta:      { label: 'Alerta',      color: 'text-yellow-600 bg-yellow-500/10' },
-  obrigacao:   { label: 'Obrigação',   color: 'text-error bg-error/10' },
-  promocional: { label: 'Promoção',    color: 'text-green-status bg-green-status/10' },
+  alerta: { label: 'Alerta', color: 'text-yellow-600 bg-yellow-500/10' },
+  obrigacao: { label: 'Obrigação', color: 'text-error bg-error/10' },
+  promocional: { label: 'Promoção', color: 'text-green-status bg-green-status/10' },
 }
 
 export default async function PortalSuportePage() {
   const session = await auth()
-  const user    = session?.user as any
+  const user = session?.user as any
   if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) redirect('/portal/login')
 
   const clienteId = await resolveClienteId(user)
@@ -41,9 +41,9 @@ export default async function PortalSuportePage() {
   const [aiConfig, ordensRecentes, comunicados] = await Promise.all([
     getAiConfig(),
     prisma.ordemServico.findMany({
-      where:   { clienteId },
+      where: { clienteId },
       orderBy: { criadoEm: 'desc' },
-      take:    5,
+      take: 5,
     }),
     prisma.comunicado.findMany({
       where: {
@@ -51,45 +51,49 @@ export default async function PortalSuportePage() {
         OR: [{ expiradoEm: null }, { expiradoEm: { gt: now } }],
       },
       orderBy: { publicadoEm: 'desc' },
-      take:    5,
+      take: 5,
       select: { id: true, titulo: true, conteudo: true, tipo: true, publicadoEm: true, anexoUrl: true, anexoNome: true },
     }),
   ])
 
-  const nomeIa   = aiConfig.nomeAssistentes.portal ?? 'Assistente'
+  const nomeIa = aiConfig.nomeAssistentes.portal ?? 'Assistente'
   const osAberta = ordensRecentes.filter(o => o.status === 'aberta' || o.status === 'em_andamento' || o.status === 'aguardando_cliente')
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-headline text-2xl font-semibold text-on-surface">Suporte</h1>
           <p className="text-sm text-on-surface-variant/70 mt-1">
             Abra chamados, acompanhe solicitações e veja comunicados do escritório.
           </p>
         </div>
-        <Link
-          href="/portal/suporte/os/nova"
-          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
-        >
-          <span className="material-symbols-outlined text-[16px]">add</span>
-          Novo chamado
-        </Link>
+        <div className="w-full sm:w-auto">
+          <Link
+            href="/portal/suporte/os/nova"
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors w-full sm:w-auto"
+          >
+            <span className="material-symbols-outlined text-[16px]">add</span>
+            Novo chamado
+          </Link>
+        </div>
       </div>
 
       {/* Clara CTA */}
-      <Card className="border-outline-variant/15 bg-gradient-to-r from-primary/5 to-primary/10 p-5 rounded-[16px] shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-            <span className="material-symbols-outlined text-[26px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+      <Card className="border-outline-variant/15 bg-gradient-to-r from-primary/5 to-primary/10 p-4 sm:p-5 rounded-[16px] shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 relative">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+              <span className="material-symbols-outlined text-[26px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+            </div>
+            <div className="flex-1">
+              <h2 className="text-[14px] font-semibold text-on-surface">{nomeIa} — Assistente Virtual</h2>
+              <p className="text-[12px] text-on-surface-variant/70 mt-0.5">
+                Tire dúvidas rápidas sobre contabilidade, obrigações e documentos. Disponível 24h.
+              </p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="text-[14px] font-semibold text-on-surface">{nomeIa} — Assistente Virtual</h2>
-            <p className="text-[12px] text-on-surface-variant/70 mt-0.5">
-              Tire dúvidas rápidas sobre contabilidade, obrigações e documentos. Disponível 24h.
-            </p>
-          </div>
-          <p className="shrink-0 text-[12px] font-medium text-primary">
+          <p className="shrink-0 text-[12px] font-medium text-primary sm:text-right hidden sm:block">
             → Botão azul no canto direito
           </p>
         </div>
@@ -112,7 +116,7 @@ export default async function PortalSuportePage() {
                   <li key={o.id}>
                     <Link
                       href={`/portal/suporte/os/${o.id}`}
-                      className="flex items-start gap-3 px-5 py-3.5 hover:bg-surface-container/50 transition-colors"
+                      className="flex items-start gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container/50 transition-colors"
                     >
                       <span
                         className={`material-symbols-outlined mt-0.5 text-[18px] shrink-0 ${s.color.split(' ')[0]}`}
@@ -148,7 +152,7 @@ export default async function PortalSuportePage() {
           </p>
           <Link
             href="/portal/suporte/os/nova"
-            className="mt-2 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
+            className="mt-2 flex w-full sm:w-auto justify-center items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">add</span>
             Abrir primeiro chamado
@@ -170,7 +174,7 @@ export default async function PortalSuportePage() {
                   <li key={o.id}>
                     <Link
                       href={`/portal/suporte/os/${o.id}`}
-                      className="flex items-start gap-3 px-5 py-3.5 hover:bg-surface-container/50 transition-colors"
+                      className="flex items-start gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container/50 transition-colors"
                     >
                       <span
                         className={`material-symbols-outlined mt-0.5 text-[18px] shrink-0 ${s.color.split(' ')[0]}`}
@@ -214,23 +218,37 @@ export default async function PortalSuportePage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <p className="text-[13px] font-semibold text-on-surface">{c.titulo}</p>
+                        <Link
+                          href={`/portal/comunicados/${c.id}`}
+                          className="text-[13px] font-semibold text-on-surface hover:text-primary transition-colors"
+                        >
+                          {c.titulo}
+                        </Link>
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tc.color}`}>
                           {tc.label}
                         </span>
                       </div>
-                      <p className="text-[12px] text-on-surface-variant/80 leading-relaxed">{c.conteudo}</p>
-                      {c.anexoUrl && (
-                        <a
-                          href={c.anexoUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-surface-container px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-surface-container-high transition-colors"
+                      <p className="text-[12px] text-on-surface-variant/80 leading-relaxed line-clamp-3">{c.conteudo}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {c.anexoUrl && (
+                          <a
+                            href={c.anexoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-surface-container px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-surface-container-high transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">download</span>
+                            {c.anexoNome ?? 'Baixar anexo'}
+                          </a>
+                        )}
+                        <Link
+                          href={`/portal/comunicados/${c.id}`}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
                         >
-                          <span className="material-symbols-outlined text-[14px]">download</span>
-                          {c.anexoNome ?? 'Baixar anexo'}
-                        </a>
-                      )}
+                          Ver detalhes
+                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                        </Link>
+                      </div>
                       {c.publicadoEm && (
                         <p className="mt-1.5 text-[11px] text-on-surface-variant/50">
                           {new Date(c.publicadoEm).toLocaleDateString('pt-BR')}

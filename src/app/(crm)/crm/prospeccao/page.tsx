@@ -8,9 +8,9 @@ import { Suspense } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const COLUNAS = [
-  { step: 1, label: 'Novo',             dot: 'bg-on-surface-variant/40' },
-  { step: 2, label: 'Em contato',       dot: 'bg-primary' },
-  { step: 3, label: 'Qualificado',      dot: 'bg-tertiary' },
+  { step: 1, label: 'Novo', dot: 'bg-on-surface-variant/40' },
+  { step: 2, label: 'Em contato', dot: 'bg-primary' },
+  { step: 3, label: 'Qualificado', dot: 'bg-tertiary' },
   { step: 4, label: 'Proposta enviada', dot: 'bg-orange-status' },
 ]
 
@@ -33,7 +33,7 @@ export default async function ProspeccaoPage({ searchParams }: Props) {
   const desde = periodoParaData(periodo)
 
   const filtroData = desde ? { criadoEm: { gte: desde } } : {}
-  const whereBase  = { funil: 'prospeccao' as const, status: { notIn: ['cancelado', 'expirado', 'assinado'] as ('cancelado' | 'expirado' | 'assinado')[] }, ...filtroData }
+  const whereBase = { funil: 'prospeccao' as const, status: { notIn: ['cancelado', 'expirado', 'assinado'] as ('cancelado' | 'expirado' | 'assinado')[] }, ...filtroData }
 
   const [grouped, totalConvertidos, totalOnboarding] = await Promise.all([
     Promise.all(
@@ -67,18 +67,18 @@ export default async function ProspeccaoPage({ searchParams }: Props) {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-on-surface flex items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight text-on-surface flex flex-wrap items-center gap-x-3 gap-y-2">
             Prospecção
-            <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20">
+            <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20 whitespace-nowrap">
               {totalAbertos} em aberto
             </span>
             {totalOnboarding > 0 && (
-              <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary border border-primary/20">
+              <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary border border-primary/20 whitespace-nowrap">
                 {totalOnboarding} no onboarding
               </span>
             )}
             {totalConvertidos > 0 && (
-              <span className="rounded-md bg-green-status/10 px-2 py-0.5 text-xs font-bold text-green-status border border-green-status/20">
+              <span className="rounded-md bg-green-status/10 px-2 py-0.5 text-xs font-bold text-green-status border border-green-status/20 whitespace-nowrap">
                 {totalConvertidos} convertido{totalConvertidos > 1 ? 's' : ''}
               </span>
             )}

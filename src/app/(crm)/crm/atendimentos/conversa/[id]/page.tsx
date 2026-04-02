@@ -86,12 +86,19 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
             >
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed ${
-                  m.role === 'assistant'
-                    ? 'bg-primary/10 text-on-surface rounded-tr-sm'
-                    : 'bg-surface-container text-on-surface rounded-tl-sm'
+                  m.excluido
+                    ? 'bg-surface-container/60 text-on-surface-variant/50 ring-1 ring-outline-variant/20 rounded-tr-sm'
+                    : m.role === 'assistant'
+                      ? 'bg-primary/10 text-on-surface rounded-tr-sm'
+                      : 'bg-surface-container text-on-surface rounded-tl-sm'
                 }`}
               >
-                {m.conteudo === '[áudio]' ? (
+                {m.excluido ? (
+                  <p className="flex items-center gap-1.5 italic">
+                    <span className="material-symbols-outlined text-[13px]">block</span>
+                    Mensagem excluída
+                  </p>
+                ) : m.conteudo === '[áudio]' ? (
                   <div className="flex flex-col gap-1.5">
                     <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-9 w-full max-w-[12rem] rounded-lg" />
                     <p className="text-[10px] text-on-surface-variant/50">Áudio não transcrito</p>
@@ -127,9 +134,11 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
                 ) : (
                   <p className="whitespace-pre-wrap">{m.conteudo}</p>
                 )}
-                <p className={`mt-1 text-[10px] ${m.role === 'assistant' ? 'text-primary/50 text-right' : 'text-on-surface-variant/40'}`}>
-                  {formatDateTime(m.criadaEm)}
-                </p>
+                {!m.excluido && (
+                  <p className={`mt-1 text-[10px] ${m.role === 'assistant' ? 'text-primary/50 text-right' : 'text-on-surface-variant/40'}`}>
+                    {formatDateTime(m.criadaEm)}
+                  </p>
+                )}
               </div>
             </div>
           ))

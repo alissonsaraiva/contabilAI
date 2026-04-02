@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 
-type Msg = { role: 'user' | 'assistant'; text: string }
+type Msg = { id?: string; role: 'user' | 'assistant'; text: string; excluido?: boolean }
 
 export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const [open, setOpen]           = useState(false)
@@ -75,9 +75,11 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         if (pausada) setEscalada(true)
         if (Array.isArray(mensagens) && mensagens.length > 0) {
           lastPollCountRef.current = mensagens.length
-          setMsgs(mensagens.map((m: { role: string; conteudo: string }) => ({
-            role: m.role as 'user' | 'assistant',
-            text: m.conteudo,
+          setMsgs(mensagens.map((m: { id: string; role: string; conteudo: string | null; excluido?: boolean }) => ({
+            id:      m.id,
+            role:    m.role as 'user' | 'assistant',
+            text:    m.excluido ? '' : (m.conteudo ?? ''),
+            excluido: m.excluido ?? false,
           })))
         }
       })
@@ -99,9 +101,17 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       es.onmessage = (e) => {
         retryCount = 0
         try {
-          const data = JSON.parse(e.data) as { role: string; conteudo: string }
+          const data = JSON.parse(e.data) as { type?: string; id?: string; role?: string; conteudo?: string; mensagemId?: string }
+          if (data.type === 'mensagem_excluida' && data.mensagemId) {
+            setMsgs(prev => prev.map(m =>
+              m.id === data.mensagemId ? { ...m, excluido: true, text: '' } : m
+            ))
+            return
+          }
           if (data.role && data.conteudo) {
-            setMsgs(prev => [...prev, { role: 'assistant', text: data.conteudo }])
+            // Inclui o id para que exclusões futuras possam ser rastreadas
+            setMsgs(prev => [...prev, { id: data.id, role: 'assistant', text: data.conteudo! }])
+            lastPollCountRef.current += 1  // evita duplicata no próximo poll
             if (!openRef.current) setUnread(n => n + 1)
           }
         } catch {}
@@ -128,7 +138,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   }, [conversaId, sessionId])
 
   // Polling de 8s — fallback para quando SSE não cruza workers em produção.
-  // Busca mensagens do DB e adiciona novas ao state se o count cresceu.
+  // Faz merge completo por ID: detecta mensagens novas E exclusões de mensagens existentes.
   useEffect(() => {
     if (!conversaId || !sessionId) return
     const id = setInterval(async () => {
@@ -136,16 +146,38 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       try {
         const res = await fetch(`/api/portal/chat?sessionId=${sessionId}`)
         if (!res.ok) return
-        const { mensagens } = await res.json() as { mensagens: { role: string; conteudo: string }[] }
-        if (!Array.isArray(mensagens) || mensagens.length <= lastPollCountRef.current) return
-        // Há mensagens novas — adiciona apenas as que ainda não estão no state
-        const novas = mensagens.slice(lastPollCountRef.current)
-        lastPollCountRef.current = mensagens.length
-        setMsgs(prev => [
-          ...prev,
-          ...novas.map(m => ({ role: m.role as 'user' | 'assistant', text: m.conteudo })),
-        ])
-        if (!openRef.current) setUnread(n => n + novas.length)
+        const { mensagens: fetched } = await res.json() as {
+          mensagens: { id: string; role: string; conteudo: string | null; excluido?: boolean }[]
+        }
+        if (!Array.isArray(fetched)) return
+        lastPollCountRef.current = fetched.length
+
+        setMsgs(prev => {
+          const byId = new Map(fetched.map(m => [m.id, m]))
+
+          // 1. Atualiza exclusões em mensagens que já estão no state
+          const updated = prev.map(m => {
+            if (!m.id) return m
+            const fresh = byId.get(m.id)
+            return (fresh?.excluido && !m.excluido) ? { ...m, excluido: true, text: '' } : m
+          })
+
+          // 2. Acrescenta mensagens que ainda não estão no state (por ID)
+          const existingIds = new Set(updated.map(m => m.id).filter((x): x is string => !!x))
+          const novas = fetched.filter(m => !existingIds.has(m.id))
+          if (novas.length === 0) return updated.every((m, i) => m === prev[i]) ? prev : updated
+
+          if (!openRef.current) setUnread(n => n + novas.filter(m => !m.excluido).length)
+          return [
+            ...updated,
+            ...novas.map(m => ({
+              id:       m.id,
+              role:     m.role as 'user' | 'assistant',
+              text:     m.excluido ? '' : (m.conteudo ?? ''),
+              excluido: m.excluido ?? false,
+            })),
+          ]
+        })
       } catch {}
     }, 8_000)
     return () => clearInterval(id)
@@ -190,6 +222,9 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         if (data.conversaId) setConversaId(data.conversaId)
         if (data.escalado || data.pausada) setEscalada(true)
         setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
+        // Sincroniza o cursor do poll: user msg + IA response foram salvas no DB.
+        // Sem isso, o poll de 8s detectaria 2 "novas" mensagens e duplicaria.
+        lastPollCountRef.current += 2
       }
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Não consegui me conectar. Verifique sua conexão e tente novamente.' }])
@@ -294,12 +329,19 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                    m.role === 'user'
-                      ? 'bg-primary text-white rounded-br-sm'
-                      : 'bg-surface-container-low text-on-surface rounded-bl-sm'
+                    m.excluido
+                      ? 'bg-surface-container/60 text-on-surface-variant/50 ring-1 ring-outline-variant/20 rounded-bl-sm'
+                      : m.role === 'user'
+                        ? 'bg-primary text-white rounded-br-sm'
+                        : 'bg-surface-container-low text-on-surface rounded-bl-sm'
                   }`}
                 >
-                  {m.role === 'assistant' ? (
+                  {m.excluido ? (
+                    <p className="flex items-center gap-1.5 italic text-[12px]">
+                      <span className="material-symbols-outlined text-[13px]">block</span>
+                      Mensagem excluída
+                    </p>
+                  ) : m.role === 'assistant' ? (
                     <ReactMarkdown
                       components={{
                         p:      ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,

@@ -33,7 +33,7 @@ export async function POST(
   if (!conversa) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
 
   // Persiste a mensagem do humano como role 'assistant' (é uma resposta ao cliente)
-  await prisma.mensagemIA.create({
+  const novaMensagem = await prisma.mensagemIA.create({
     data: {
       conversaId: id,
       role: 'assistant',
@@ -44,6 +44,7 @@ export async function POST(
       mediaFileName,
       mediaMimeType,
     },
+    select: { id: true },
   })
 
   // Entrega via Escalacao para onboarding (widget faz poll)
@@ -117,11 +118,18 @@ export async function POST(
     }
   }
 
-  // Canal portal — mensagem já salva no banco, atualiza conversa e marca como sent
+  // Atualiza conversa:
+  // - Se for canal WhatsApp e a IA ainda estava ativa (pausadaEm null), pausa agora.
+  //   O operador assumiu o controle ao responder manualmente — evita que a IA também responda.
+  //   O operador pode devolver o controle à IA pelo drawer do CRM.
+  const deveePausar = conversa.canal === 'whatsapp' && !conversa.pausadaEm
   await Promise.all([
     prisma.conversaIA.update({
       where: { id },
-      data:  { atualizadaEm: new Date() },
+      data: {
+        atualizadaEm: new Date(),
+        ...(deveePausar && { pausadaEm: new Date(), pausadoPorId: user?.id ?? null }),
+      },
     }),
     prisma.mensagemIA.updateMany({
       where: { conversaId: id, role: 'assistant', status: 'pending' },
@@ -130,7 +138,7 @@ export async function POST(
   ])
 
   // Notifica o portal Clara via SSE (substitui setInterval de 5s)
-  emitConversaMensagem(id, { role: 'assistant', conteudo: texto || '', mediaUrl })
+  emitConversaMensagem(id, { id: novaMensagem.id, role: 'assistant', conteudo: texto || '', mediaUrl })
 
   return NextResponse.json({ ok: true })
 }

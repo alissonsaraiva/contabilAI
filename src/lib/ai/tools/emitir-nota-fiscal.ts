@@ -1,7 +1,45 @@
+import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import { registrarTool } from './registry'
 import { emitirNotaFiscal } from '@/lib/services/notas-fiscais'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
+
+/** Abre OS de escalonamento garantido — não depende da IA chamar criarOrdemServico */
+async function escalarParaHumano(
+  clienteId: string,
+  tituloOS: string,
+  descricaoOS: string,
+): Promise<void> {
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where:  { id: clienteId },
+      select: { empresaId: true },
+    })
+    await prisma.ordemServico.create({
+      data: {
+        clienteId,
+        empresaId:    cliente?.empresaId ?? undefined,
+        tipo:         'emissao_documento',
+        origem:       'ia',
+        visivelPortal: false,
+        titulo:       tituloOS,
+        descricao:    descricaoOS,
+        prioridade:   'alta',
+        status:       'aberta',
+      },
+    })
+    logger.info('nfse-escalacao-garantida', { clienteId, titulo: tituloOS })
+  } catch (escErr) {
+    // Nunca deixa o escalonamento derrubar a resposta — apenas loga
+    logger.error('nfse-escalacao-falhou', { clienteId, escErr })
+    Sentry.captureException(escErr, {
+      tags:  { module: 'emitir-nota-fiscal-tool', operation: 'escalar-os' },
+      extra: { clienteId },
+    })
+  }
+}
 
 const emitirNotaFiscalTool: Tool = {
   definition: {
@@ -70,8 +108,12 @@ const emitirNotaFiscalTool: Tool = {
           type: 'string',
           description: 'Código municipal do serviço (opcional). Usa default se omitido.',
         },
+        dadosConfirmados: {
+          type: 'boolean',
+          description: 'OBRIGATÓRIO: deve ser `true`. Confirma que você apresentou todos os dados ao solicitante (descrição, valor, tomador, CPF/CNPJ) e recebeu confirmação explícita antes de emitir. NUNCA passe `true` sem ter apresentado e confirmado os dados com o solicitante.',
+        },
       },
-      required: ['clienteId', 'descricao', 'valor', 'tomadorNome', 'tomadorCpfCnpj'],
+      required: ['clienteId', 'descricao', 'valor', 'tomadorNome', 'tomadorCpfCnpj', 'dadosConfirmados'],
     },
   },
 
@@ -98,6 +140,7 @@ const emitirNotaFiscalTool: Tool = {
       federalServiceCode: z.string().optional(),
       cityServiceCode:    z.string().optional(),
       taxationType:       z.string().optional(),
+      dadosConfirmados:   z.literal(true, { message: 'Apresente os dados ao solicitante e aguarde confirmação antes de emitir.' }),
     }).safeParse(input)
 
     if (!parsed.success) {
@@ -134,11 +177,24 @@ const emitirNotaFiscalTool: Tool = {
       })
 
       if (!resultado.sucesso) {
+        // Escalonamento garantido por código — não depende da IA chamar criarOrdemServico
+        await escalarParaHumano(
+          clienteId,
+          `Falha na emissão de NFS-e — ${resultado.motivo}`,
+          `Motivo: ${resultado.detalhe}\n\n` +
+          `Dados coletados:\n` +
+          `• Descrição: ${parsed.data.descricao}\n` +
+          `• Valor: R$ ${parsed.data.valor.toFixed(2)}\n` +
+          `• Tomador: ${parsed.data.tomadorNome} (${parsed.data.tomadorCpfCnpj})\n` +
+          `• Email tomador: ${parsed.data.tomadorEmail ?? '—'}\n` +
+          `• Município/UF: ${parsed.data.tomadorMunicipio ?? '—'}/${parsed.data.tomadorEstado ?? '—'}\n` +
+          `• OS origem: ${parsed.data.ordemServicoId ?? '—'}`,
+        )
         return {
           sucesso: false,
           dados:   resultado,
           erro:    resultado.detalhe,
-          resumo:  `Emissão bloqueada (${resultado.motivo}): ${resultado.detalhe}. Abra um chamado com tipo emissao_documento incluindo todos os dados coletados.`,
+          resumo:  `Emissão bloqueada (${resultado.motivo}): ${resultado.detalhe}. Um chamado de prioridade ALTA foi aberto automaticamente para a equipe.`,
         }
       }
 
@@ -149,10 +205,25 @@ const emitirNotaFiscalTool: Tool = {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro interno'
+      Sentry.captureException(err, {
+        tags:  { module: 'emitir-nota-fiscal-tool', operation: 'execute' },
+        extra: { clienteId },
+      })
+      // Escalonamento garantido mesmo em exceção inesperada
+      await escalarParaHumano(
+        clienteId,
+        'Erro interno na emissão de NFS-e',
+        `Erro técnico ao tentar emitir nota fiscal.\n\n` +
+        `Mensagem: ${msg}\n\n` +
+        `Dados coletados:\n` +
+        `• Descrição: ${parsed.data.descricao}\n` +
+        `• Valor: R$ ${parsed.data.valor.toFixed(2)}\n` +
+        `• Tomador: ${parsed.data.tomadorNome} (${parsed.data.tomadorCpfCnpj})`,
+      )
       return {
         sucesso: false,
         erro:    msg,
-        resumo:  `Erro ao emitir nota fiscal: ${msg}. Abra um chamado tipo emissao_documento com os dados coletados.`,
+        resumo:  `Erro ao emitir nota fiscal: ${msg}. Um chamado de prioridade ALTA foi aberto automaticamente para a equipe.`,
       }
     }
   },

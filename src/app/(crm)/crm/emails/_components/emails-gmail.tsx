@@ -42,19 +42,19 @@ export function EmailsGmail({
   enviados: initialEnviados,
   clientes,
 }: {
-  recebidos:   EmailItem[]
+  recebidos: EmailItem[]
   respondidos: EmailItem[]
-  enviados:    EmailItem[]
-  clientes:    ClienteOpt[]
+  enviados: EmailItem[]
+  clientes: ClienteOpt[]
 }) {
-  const [recebidos,   setRecebidos]   = useState(initialRecebidos)
+  const [recebidos, setRecebidos] = useState(initialRecebidos)
   const [respondidos, setRespondidos] = useState(initialRespondidos)
-  const [enviados,    setEnviados]    = useState(initialEnviados)
-  const [aba, setAba]                 = useState<Aba>('recebidos')
-  const [busca, setBusca]             = useState('')
-  const [painel, setPainel]           = useState<PainelDireito>({ tipo: 'vazio' })
+  const [enviados, setEnviados] = useState(initialEnviados)
+  const [aba, setAba] = useState<Aba>('recebidos')
+  const [busca, setBusca] = useState('')
+  const [painel, setPainel] = useState<PainelDireito>({ tipo: 'vazio' })
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
-  const [bulkLoading, setBulkLoading]   = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   // Limpa seleção e painel ao mudar de aba
   useEffect(() => {
@@ -129,9 +129,9 @@ export function EmailsGmail({
     setBulkLoading(true)
     try {
       const res = await fetch('/api/email/inbox/bulk', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ids, action }),
+        body: JSON.stringify({ ids, action }),
       })
       if (!res.ok) { toast.error('Erro ao executar ação'); return }
 
@@ -143,9 +143,9 @@ export function EmailsGmail({
         toast.success(`${ids.length} e-mail(s) marcados como tratados`)
       } else {
         // excluir: remove da lista atual
-        if (aba === 'recebidos')   setRecebidos(prev => prev.filter(e => !ids.includes(e.id)))
+        if (aba === 'recebidos') setRecebidos(prev => prev.filter(e => !ids.includes(e.id)))
         if (aba === 'respondidos') setRespondidos(prev => prev.filter(e => !ids.includes(e.id)))
-        if (aba === 'enviados')    setEnviados(prev => prev.filter(e => !ids.includes(e.id)))
+        if (aba === 'enviados') setEnviados(prev => prev.filter(e => !ids.includes(e.id)))
         toast.success(`${ids.length} e-mail(s) excluídos`)
       }
 
@@ -157,25 +157,24 @@ export function EmailsGmail({
   }
 
   const emailSelecionadoId = painel.tipo === 'email' ? painel.email.id : null
-  const todosSelecionados   = selecionados.size > 0 && selecionados.size === lista.length
-  const algumaSelecao       = selecionados.size > 0
+  const todosSelecionados = selecionados.size > 0 && selecionados.size === lista.length
+  const algumaSelecao = selecionados.size > 0
 
   return (
-    <div className="flex h-[calc(100vh-80px)] overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-80px)] overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
 
       {/* ── Coluna esquerda: lista ─────────────────────────────────────────── */}
-      <div className="flex w-[320px] shrink-0 flex-col border-r border-outline-variant/10">
+      <div className={`flex w-full md:w-[320px] lg:w-[360px] shrink-0 flex-col border-r border-outline-variant/10 ${painel.tipo !== 'vazio' ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Header da coluna */}
         <div className="flex items-center justify-between border-b border-outline-variant/10 px-4 py-3">
           <span className="text-[15px] font-semibold text-on-surface">E-mails</span>
           <button
             onClick={abrirCompor}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-semibold transition-all ${
-              painel.tipo === 'compor'
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-semibold transition-all ${painel.tipo === 'compor'
                 ? 'bg-primary text-white'
                 : 'bg-primary/10 text-primary hover:bg-primary/20'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined text-[15px]">edit</span>
             Novo
@@ -183,20 +182,19 @@ export function EmailsGmail({
         </div>
 
         {/* Abas */}
-        <div className="flex border-b border-outline-variant/10 px-2 pt-2 gap-0.5">
+        <div className="flex overflow-x-auto scrollbar-hide border-b border-outline-variant/10 px-2 pt-2 gap-0.5">
           {([
-            { key: 'recebidos',   label: 'Entrada',   count: recebidos.length },
-            { key: 'respondidos', label: 'Tratados',  count: 0 },
-            { key: 'enviados',    label: 'Enviados',  count: 0 },
+            { key: 'recebidos', label: 'Entrada', count: recebidos.length },
+            { key: 'respondidos', label: 'Tratados', count: 0 },
+            { key: 'enviados', label: 'Enviados', count: 0 },
           ] as const).map(({ key, label, count }) => (
             <button
               key={key}
               onClick={() => setAba(key)}
-              className={`flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-[12px] font-semibold transition-all border-b-2 ${
-                aba === key
+              className={`flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-[12px] font-semibold transition-all border-b-2 ${aba === key
                   ? 'border-primary text-primary'
                   : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'
-              }`}
+                }`}
             >
               {label}
               {key === 'recebidos' && count > 0 && (
@@ -228,7 +226,7 @@ export function EmailsGmail({
 
         {/* Toolbar bulk — aparece quando há seleção */}
         {algumaSelecao && (
-          <div className="flex items-center gap-2 border-b border-outline-variant/10 bg-primary/5 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 border-b border-outline-variant/10 bg-primary/5 px-3 py-2">
             <input
               type="checkbox"
               checked={todosSelecionados}
@@ -307,7 +305,7 @@ export function EmailsGmail({
       </div>
 
       {/* ── Coluna direita: painel ─────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className={`flex flex-1 flex-col overflow-hidden ${painel.tipo === 'vazio' ? 'hidden md:flex' : 'flex'}`}>
         {painel.tipo === 'vazio' && (
           <PainelVazio onCompor={abrirCompor} />
         )}
@@ -329,6 +327,7 @@ export function EmailsGmail({
                 setPainel({ tipo: 'email', email: { ...painel.email, clienteId, clienteNome, clienteLink: `/crm/clientes/${clienteId}` } })
               }
             }}
+            onBack={() => setPainel({ tipo: 'vazio' })}
           />
         )}
         {painel.tipo === 'compor' && (
@@ -346,15 +345,15 @@ export function EmailsGmail({
 // ─── Row compacto da lista ────────────────────────────────────────────────────
 
 function EmailRow({ email, aba, selecionado, marcado, onToggle, onClick }: {
-  email:     EmailItem
-  aba:       Aba
+  email: EmailItem
+  aba: Aba
   selecionado: boolean
-  marcado:   boolean
-  onToggle:  (e: React.MouseEvent) => void
-  onClick:   () => void
+  marcado: boolean
+  onToggle: (e: React.MouseEvent) => void
+  onClick: () => void
 }) {
-  const isEnviado    = email.tipo === 'email_enviado'
-  const remetente    = isEnviado
+  const isEnviado = email.tipo === 'email_enviado'
+  const remetente = isEnviado
     ? (email.metadados.para || email.clienteNome || 'Destinatário')
     : (email.metadados.nomeRemetente ?? email.metadados.de)
   const dataFormatada = new Date(email.metadados.dataEnvio ?? email.criadoEm)
@@ -364,13 +363,12 @@ function EmailRow({ email, aba, selecionado, marcado, onToggle, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`group flex w-full flex-col gap-1 border-b border-outline-variant/8 px-4 py-3 text-left transition-all ${
-        marcado
+      className={`group flex w-full flex-col gap-1 border-b border-outline-variant/8 px-4 py-3 text-left transition-all ${marcado
           ? 'bg-primary/6 border-l-2 border-l-primary'
           : selecionado
             ? 'bg-primary/8 border-l-2 border-l-primary'
             : 'hover:bg-surface-container-low/60'
-      }`}
+        }`}
     >
       <div className="flex items-center gap-2">
         {/* Checkbox — visível no hover ou quando marcado */}
@@ -382,7 +380,7 @@ function EmailRow({ email, aba, selecionado, marcado, onToggle, onClick }: {
           <input
             type="checkbox"
             checked={marcado}
-            onChange={() => {/* controlado pelo onClick */}}
+            onChange={() => {/* controlado pelo onClick */ }}
             className="h-3.5 w-3.5 accent-primary cursor-pointer"
           />
         </span>
@@ -443,23 +441,24 @@ function PainelVazio({ onCompor }: { onCompor: () => void }) {
 
 // ─── Painel: leitura + resposta ───────────────────────────────────────────────
 
-function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado }: {
+function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado, onBack }: {
   email: EmailItem
   aba: Aba
   clientes: ClienteOpt[]
   onReplied: (id: string) => void
   onDispensed: (id: string) => void
   onVinculado: (id: string, clienteId: string, clienteNome: string) => void
+  onBack: () => void
 }) {
-  const [resposta, setResposta]       = useState('')
+  const [resposta, setResposta] = useState('')
   const [assuntoResp, setAssuntoResp] = useState(`Re: ${email.metadados.assunto}`)
-  const [paraResp, setParaResp]       = useState(email.metadados.de)
-  const [enviando, setEnviando]       = useState(false)
+  const [paraResp, setParaResp] = useState(email.metadados.de)
+  const [enviando, setEnviando] = useState(false)
   const [dispensando, setDispensando] = useState(false)
   const [usouSugestao, setUsouSugestao] = useState(false)
-  const [repondendo, setRespondendo]  = useState(false)
+  const [repondendo, setRespondendo] = useState(false)
   const [vincularEstado, setVincularEstado] = useState<VincularEstado>('idle')
-  const [vincularBusca, setVincularBusca]   = useState('')
+  const [vincularBusca, setVincularBusca] = useState('')
   const [vincularClienteId, setVincularClienteId] = useState('')
 
   // Reset ao trocar de email
@@ -482,14 +481,14 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
     setEnviando(true)
     try {
       const res = await fetch('/api/email/enviar', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          para:              paraResp,
-          assunto:           assuntoResp,
-          corpo:             resposta,
-          clienteId:         email.clienteId ?? undefined,
-          leadId:            email.leadId    ?? undefined,
+        body: JSON.stringify({
+          para: paraResp,
+          assunto: assuntoResp,
+          corpo: resposta,
+          clienteId: email.clienteId ?? undefined,
+          leadId: email.leadId ?? undefined,
           interacaoOrigemId: email.id,
         }),
       })
@@ -509,9 +508,9 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
     setVincularEstado('salvando')
     try {
       const res = await fetch(`/api/email/inbox/${email.id}/vincular`, {
-        method:  'PATCH',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ clienteId: vincularClienteId }),
+        body: JSON.stringify({ clienteId: vincularClienteId }),
       })
       if (!res.ok) { toast.error('Erro ao vincular e-mail'); return }
       const d = await res.json()
@@ -539,12 +538,17 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Header do e-mail */}
-      <div className="border-b border-outline-variant/10 px-6 py-4">
-        <div className="flex items-start justify-between gap-4">
-          <h2 className="text-[16px] font-semibold text-on-surface leading-snug flex-1">
-            {email.metadados.assunto || '(sem assunto)'}
-          </h2>
-          <div className="flex shrink-0 items-center gap-2">
+      <div className="border-b border-outline-variant/10 px-4 md:px-6 py-4">
+        <div className="flex items-start gap-3 md:gap-4 flex-col md:flex-row">
+          <div className="flex items-center gap-2 w-full md:w-auto flex-1">
+            <button onClick={onBack} className="md:hidden flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+            </button>
+            <h2 className="text-[15px] md:text-[16px] font-semibold text-on-surface leading-snug flex-1 line-clamp-2 md:line-clamp-none">
+              {email.metadados.assunto || '(sem assunto)'}
+            </h2>
+          </div>
+          <div className="flex shrink-0 w-full md:w-auto flex-wrap items-center gap-2">
             {email.clienteLink && (
               <Link
                 href={email.clienteLink}
@@ -576,8 +580,8 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
             <span className="font-medium text-on-surface/80">
               {isRecebido
                 ? (email.metadados.nomeRemetente
-                    ? `${email.metadados.nomeRemetente} <${email.metadados.de}>`
-                    : email.metadados.de)
+                  ? `${email.metadados.nomeRemetente} <${email.metadados.de}>`
+                  : email.metadados.de)
                 : email.metadados.para}
             </span>
           </span>
@@ -604,7 +608,7 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
       </div>
 
       {/* Corpo do e-mail */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-5">
         <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-on-surface/80">
           {email.conteudo}
         </p>
@@ -685,7 +689,7 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
       {isPendente && isRecebido && (
         <div className="border-t border-outline-variant/10">
           {!repondendo ? (
-            <div className="px-6 py-4">
+            <div className="px-4 md:px-6 py-4">
               {/* Sugestão da IA */}
               {email.metadados.sugestao && !usouSugestao && (
                 <button
@@ -713,7 +717,7 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 px-6 py-4">
+            <div className="flex flex-col gap-3 px-4 md:px-6 py-4">
               {usouSugestao && (
                 <div className="flex items-center gap-2 rounded-lg bg-primary/8 px-3 py-1.5">
                   <span className="material-symbols-outlined text-[13px] text-primary"
@@ -726,7 +730,7 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex flex-col md:flex-row gap-2">
                 <input
                   value={paraResp}
                   onChange={e => setParaResp(e.target.value)}
@@ -765,7 +769,7 @@ function PainelEmail({ email, aba, clientes, onReplied, onDispensed, onVinculado
                   {enviando
                     ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                     : <span className="material-symbols-outlined text-[15px]"
-                        style={{ fontVariationSettings: "'FILL' 1" }}>send</span>}
+                      style={{ fontVariationSettings: "'FILL' 1" }}>send</span>}
                   Enviar resposta
                 </button>
               </div>
@@ -784,11 +788,11 @@ function PainelCompor({ clientes, onSent, onClose }: {
   onSent: (e: EmailItem) => void
   onClose: () => void
 }) {
-  const [para, setPara]       = useState('')
+  const [para, setPara] = useState('')
   const [assunto, setAssunto] = useState('')
-  const [corpo, setCorpo]     = useState('')
+  const [corpo, setCorpo] = useState('')
   const [clienteId, setClienteId] = useState('')
-  const [enviando, setEnviando]   = useState(false)
+  const [enviando, setEnviando] = useState(false)
   const [mostrarClientes, setMostrarClientes] = useState(false)
 
   // Autocomplete de clientes
@@ -811,12 +815,12 @@ function PainelCompor({ clientes, onSent, onClose }: {
     setEnviando(true)
     try {
       const res = await fetch('/api/email/enviar', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          para:      para.trim(),
-          assunto:   assunto.trim(),
-          corpo:     corpo.trim(),
+        body: JSON.stringify({
+          para: para.trim(),
+          assunto: assunto.trim(),
+          corpo: corpo.trim(),
           clienteId: clienteId || undefined,
         }),
       })
@@ -826,16 +830,16 @@ function PainelCompor({ clientes, onSent, onClose }: {
         return
       }
       onSent({
-        id:           crypto.randomUUID(),
-        tipo:         'email_enviado',
-        titulo:       assunto,
-        conteudo:     corpo,
-        criadoEm:     new Date().toISOString(),
+        id: crypto.randomUUID(),
+        tipo: 'email_enviado',
+        titulo: assunto,
+        conteudo: corpo,
+        criadoEm: new Date().toISOString(),
         respondidoEm: null,
-        clienteId:    clienteId || null,
-        leadId:       null,
-        clienteNome:  clientes.find(c => c.id === clienteId)?.nome ?? null,
-        clienteLink:  clienteId ? `/crm/clientes/${clienteId}` : null,
+        clienteId: clienteId || null,
+        leadId: null,
+        clienteNome: clientes.find(c => c.id === clienteId)?.nome ?? null,
+        clienteLink: clienteId ? `/crm/clientes/${clienteId}` : null,
         metadados: {
           de: '',
           para: para.trim(),
@@ -855,23 +859,26 @@ function PainelCompor({ clientes, onSent, onClose }: {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-outline-variant/10 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+      <div className="flex items-center justify-between border-b border-outline-variant/10 px-4 md:px-6 py-4">
+        <div className="flex items-center gap-2 md:gap-3">
+          <button onClick={onClose} className="md:hidden flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container transition-colors">
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </button>
+          <div className="hidden md:flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
             <span className="material-symbols-outlined text-[16px] text-primary">edit</span>
           </div>
           <span className="text-[15px] font-semibold text-on-surface">Novo e-mail</span>
         </div>
         <button
           onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
+          className="hidden md:flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
         >
           <span className="material-symbols-outlined text-[20px]">close</span>
         </button>
       </div>
 
       {/* Formulário */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-5 space-y-4">
         {/* Campo Para com autocomplete */}
         <div className="relative">
           <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
@@ -938,7 +945,7 @@ function PainelCompor({ clientes, onSent, onClose }: {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between border-t border-outline-variant/10 px-6 py-4">
+      <div className="flex items-center justify-between border-t border-outline-variant/10 px-4 md:px-6 py-4">
         <button
           onClick={onClose}
           className="rounded-xl border border-outline-variant/25 px-4 py-2 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container transition-colors"
@@ -953,7 +960,7 @@ function PainelCompor({ clientes, onSent, onClose }: {
           {enviando
             ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             : <span className="material-symbols-outlined text-[15px]"
-                style={{ fontVariationSettings: "'FILL' 1" }}>send</span>}
+              style={{ fontVariationSettings: "'FILL' 1" }}>send</span>}
           Enviar
         </button>
       </div>

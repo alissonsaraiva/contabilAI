@@ -9,28 +9,28 @@ const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
 
 type EmailConfig = {
   emailRemetente: string
-  emailNome:      string
-  emailSenha:     string
-  emailSmtpHost:  string
-  emailSmtpPort:  string
-  emailImapHost:  string
-  emailImapPort:  string
+  emailNome: string
+  emailSenha: string
+  emailSmtpHost: string
+  emailSmtpPort: string
+  emailImapHost: string
+  emailImapPort: string
 }
 
 type ImapStatus = {
-  status:             'nunca' | 'ok' | 'erro'
-  ultimaSync:         number | null
-  ultimoErro:         string | null
+  status: 'nunca' | 'ok' | 'erro'
+  ultimaSync: number | null
+  ultimoErro: string | null
   falhasConsecutivas: number
-  processados:        number
-  associados:         number
+  processados: number
+  associados: number
 }
 
 type SmtpStatus = {
-  status:      'nunca' | 'ok' | 'erro'
+  status: 'nunca' | 'ok' | 'erro'
   ultimoEnvio: number | null
-  ultimoErro:  string | null
-  provider:    'resend' | 'smtp' | null
+  ultimoErro: string | null
+  provider: 'resend' | 'smtp' | null
 }
 
 type EmailHealth = { imap: ImapStatus; smtp: SmtpStatus }
@@ -42,17 +42,17 @@ const EMPTY: EmailConfig = {
 }
 
 function StatusBadge({ status }: { status: 'nunca' | 'ok' | 'erro' }) {
-  if (status === 'ok')    return <span className="flex items-center gap-1 rounded-full bg-green-status/10 px-2.5 py-0.5 text-[11px] font-semibold text-green-status"><span className="h-1.5 w-1.5 rounded-full bg-green-status" />OK</span>
-  if (status === 'erro')  return <span className="flex items-center gap-1 rounded-full bg-error/10 px-2.5 py-0.5 text-[11px] font-semibold text-error"><span className="h-1.5 w-1.5 rounded-full bg-error" />Erro</span>
+  if (status === 'ok') return <span className="flex items-center gap-1 rounded-full bg-green-status/10 px-2.5 py-0.5 text-[11px] font-semibold text-green-status"><span className="h-1.5 w-1.5 rounded-full bg-green-status" />OK</span>
+  if (status === 'erro') return <span className="flex items-center gap-1 rounded-full bg-error/10 px-2.5 py-0.5 text-[11px] font-semibold text-error"><span className="h-1.5 w-1.5 rounded-full bg-error" />Erro</span>
   return <span className="flex items-center gap-1 rounded-full bg-surface-container px-2.5 py-0.5 text-[11px] font-semibold text-on-surface-variant"><span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/30" />Nunca usado</span>
 }
 
 export default function EmailPage() {
-  const [config, setConfig]           = useState<EmailConfig>(EMPTY)
-  const [saving, setSaving]           = useState(false)
-  const [testing, setTesting]         = useState(false)
+  const [config, setConfig] = useState<EmailConfig>(EMPTY)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
   const [testingImap, setTestingImap] = useState(false)
-  const [senhaSalva, setSenhaSalva]   = useState(false)
+  const [senhaSalva, setSenhaSalva] = useState(false)
   const [emailHealth, setEmailHealth] = useState<EmailHealth | null>(null)
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function EmailPage() {
     fetch('/api/email/sync')
       .then(r => r.json())
       .then(data => setEmailHealth(data))
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   function set(field: keyof EmailConfig, value: string) {
@@ -123,7 +123,7 @@ export default function EmailPage() {
 
   return (
     <div className="space-y-5">
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>mail</span>
@@ -164,7 +164,7 @@ export default function EmailPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>outgoing_mail</span>
@@ -190,7 +190,7 @@ export default function EmailPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>inbox</span>
@@ -274,19 +274,19 @@ export default function EmailPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col-reverse md:flex-row items-center gap-3 justify-end">
         <button onClick={handleTest} disabled={testing}
-          className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60">
+          className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60">
           {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">wifi_tethering</span>}
           Testar SMTP
         </button>
         <button onClick={handleTestImap} disabled={testingImap}
-          className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60">
+          className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl border border-outline-variant/30 bg-card px-5 py-2.5 text-[13px] font-semibold text-on-surface shadow-sm hover:bg-surface-container-low transition-colors disabled:opacity-60">
           {testingImap ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">inbox</span>}
           Testar IMAP
         </button>
         <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px] justify-center">
+          className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 min-w-[140px]">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
           Salvar
         </button>

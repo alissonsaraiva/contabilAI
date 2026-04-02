@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getSpedyClienteClient } from '@/lib/spedy'
+import { getDownloadUrl } from '@/lib/storage'
 import { logger } from '@/lib/logger'
 
 export async function GET(
@@ -41,14 +42,28 @@ export async function GET(
     return NextResponse.json({ error: 'Configuração fiscal indisponível' }, { status: 422 })
   }
 
+  const numero = nota.numero ? `NFS-e-${nota.numero}` : 'NFS-e'
+
   try {
+    // Tenta R2 primeiro (cópia local salva ao autorizar — mais resiliente)
+    const r2Key = nota.xmlUrl && !nota.xmlUrl.startsWith('https://') ? nota.xmlUrl : null
+    if (r2Key) {
+      try {
+        const signedUrl = await getDownloadUrl(r2Key, 3600)
+        return NextResponse.redirect(signedUrl, { status: 302 })
+      } catch (r2Err) {
+        logger.warn('crm-nfse-xml-r2-falhou', { notaId: nota.id, r2Err })
+        // cai no fallback Spedy abaixo
+      }
+    }
+
+    // Fallback: proxy direto da Spedy
     const spedyClient = getSpedyClienteClient({
       spedyApiKey:   empresa.spedyApiKey,
       spedyAmbiente: config?.spedyAmbiente,
     })
 
-    const xmlUrl = spedyClient.xmlUrl(nota.spedyId)
-    const xmlResponse = await fetch(xmlUrl)
+    const xmlResponse = await fetch(spedyClient.xmlUrl(nota.spedyId))
 
     if (!xmlResponse.ok) {
       logger.warn('crm-nfse-xml-spedy-erro', { notaId: nota.id, status: xmlResponse.status })
@@ -56,7 +71,6 @@ export async function GET(
     }
 
     const xmlBuffer = await xmlResponse.arrayBuffer()
-    const numero = nota.numero ? `NFS-e-${nota.numero}` : 'NFS-e'
 
     return new NextResponse(xmlBuffer, {
       headers: {

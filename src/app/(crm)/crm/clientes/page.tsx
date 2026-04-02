@@ -21,20 +21,22 @@ export default async function ClientesPage({ searchParams }: Props) {
   const skip = (page - 1) * PER_PAGE
   const qClean = q.replace(/\D/g, '')
 
-  const searchWhere = q ? { OR: [
-    { nome:     { contains: q,      mode: 'insensitive' as const } },
-    { email:    { contains: q,      mode: 'insensitive' as const } },
-    { cpf:      { contains: qClean } },
-    { telefone: { contains: qClean.length >= 4 ? qClean : q } },
-    { empresa:  { cnpj:       { contains: qClean } } },
-    { empresa:  { razaoSocial: { contains: q, mode: 'insensitive' as const } } },
-  ]} : {}
+  const searchWhere = q ? {
+    OR: [
+      { nome: { contains: q, mode: 'insensitive' as const } },
+      { email: { contains: q, mode: 'insensitive' as const } },
+      { cpf: { contains: qClean } },
+      { telefone: { contains: qClean.length >= 4 ? qClean : q } },
+      { empresa: { cnpj: { contains: qClean } } },
+      { empresa: { razaoSocial: { contains: q, mode: 'insensitive' as const } } },
+    ]
+  } : {}
 
   const filterWhere = {
     AND: [
       searchWhere,
-      status ? { status:    status as any } : {},
-      plano  ? { planoTipo: plano  as any } : {},
+      status ? { status: status as any } : {},
+      plano ? { planoTipo: plano as any } : {},
     ],
   }
 
@@ -64,9 +66,9 @@ export default async function ClientesPage({ searchParams }: Props) {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight text-on-surface">
+          <h1 className="flex flex-wrap items-center gap-x-3 gap-y-2 text-2xl font-semibold tracking-tight text-on-surface">
             Clientes
-            <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20">
+            <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20 whitespace-nowrap">
               {total} total
             </span>
           </h1>

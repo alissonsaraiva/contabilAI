@@ -90,6 +90,7 @@ import './reemitir-nota-fiscal'
 import './consultar-notas-fiscais'
 import './cancelar-nota-fiscal'
 import './enviar-nota-fiscal-cliente'
+import './buscar-tomadores-recorrentes'
 
 // ─── Tools externas ───────────────────────────────────────────────────────────
 import './buscar-cnpj-externo'

@@ -60,7 +60,17 @@ export async function GET(_req: Request, { params }: Params) {
   // hasWhatsappMedia: mensagem tem mídia no proxy (whatsappMsgData) mas não em mediaUrl direto
   const mensagens = conversas.flatMap(c => c.mensagens).map(({ whatsappMsgData, ...m }) => ({
     ...m,
-    hasWhatsappMedia: !!whatsappMsgData && !m.mediaUrl && m.conteudo.startsWith('[') && m.conteudo.endsWith(']'),
+    // Mensagem excluída: apaga conteúdo e mídia — front renderiza placeholder
+    conteudo:      m.excluido ? null : m.conteudo,
+    mediaUrl:      m.excluido ? null : m.mediaUrl,
+    mediaType:     m.excluido ? null : m.mediaType,
+    mediaFileName: m.excluido ? null : m.mediaFileName,
+    // Detecta mídia no proxy por mediaType (cobre PDFs antigos com texto no conteudo)
+    // ou pela combinação clássica whatsappMsgData + label exato
+    hasWhatsappMedia: !m.excluido && !m.mediaUrl && (
+      m.mediaType === 'document' ||
+      (!!whatsappMsgData && m.conteudo.startsWith('[') && m.conteudo.endsWith(']'))
+    ),
   }))
 
   return NextResponse.json({

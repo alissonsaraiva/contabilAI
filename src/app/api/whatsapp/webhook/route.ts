@@ -27,10 +27,13 @@ const lastResponse = new Map<string, number>()
 const RATE_LIMIT_MS = 3000
 
 // Limite de tamanho de mensagem antes de enviar para a IA
-const MAX_MSG_LENGTH = 1000
+// 4000 chars ≈ ~3 páginas de texto — mensagens legítimas raramente excedem isso
+const MAX_MSG_LENGTH = 4000
 
-// Padrões de jailbreak/prompt injection mais comuns
+// Padrões de jailbreak/prompt injection — inglês e português BR
+// Normalização: o texto já passa por trim/sanitize antes de chegar aqui
 const JAILBREAK_PATTERNS = [
+  // Inglês
   /ignore\s+(previous|all|above|prior)\s+instructions?/i,
   /forget\s+(everything|all|your)\s+(you|instructions?|rules?)/i,
   /you\s+are\s+now\s+(a\s+)?(different|new|another|unrestricted)/i,
@@ -44,12 +47,21 @@ const JAILBREAK_PATTERNS = [
   /\[INST\]/i,                        // Llama instruction format injection
   /<\|im_start\|>/i,                  // ChatML injection
   /\{\{.*\}\}/,                       // template injection
+  // Português BR
+  /ignore\s+(as\s+)?instru[çc][õo]es\s+anteriores/i,
+  /esque[çc]a?\s+(tudo|todas?\s+as\s+instru[çc][õo]es)/i,
+  /voc[êe]\s+(agora\s+[eé]|[eé]\s+agora)\s+(um|uma)\s+/i,
+  /finja\s+(que\s+)?(voc[êe]\s+[eé]|n[aã]o\s+tem|n[aã]o\s+[eé])/i,
+  /modo\s+(desenvolvedor|sem\s+restri[çc][õo]es?|irrestrito)/i,
+  /sem\s+restri[çc][õo]es?\s+/i,
+  /novo\s+(assistente|modo|sistema|prompt)/i,
+  /ignore\s+o\s+(sistema|prompt|instru[çc][aã]o)/i,
 ]
 
 // Cache de identificação: phone → contexto resolvido
 // 'desconhecido' = ainda não identificado, sem registro no banco
-// TTL de 30min: evita contexto obsoleto (ex: lead que virou cliente)
-const PHONE_CACHE_TTL_MS = 30 * 60 * 1000
+// TTL de 5min: janela curta para capturar conversões lead→cliente sem cache stale
+const PHONE_CACHE_TTL_MS = 5 * 60 * 1000
 const phoneCache = new Map<string, {
   clienteId?: string
   leadId?: string
@@ -141,6 +153,11 @@ export async function POST(req: Request) {
   if (WEBHOOK_SECRET) {
     const headerApiKey = req.headers.get('apikey')
     if (headerApiKey !== WEBHOOK_SECRET) {
+      Sentry.captureMessage('Webhook WhatsApp rejeitado: WEBHOOK_SECRET inválido', {
+        level: 'warning',
+        tags:  { module: 'whatsapp-webhook', operation: 'auth-secret' },
+        extra: { receivedPrefix: headerApiKey?.slice(0, 6) ?? 'ausente' },
+      })
       return new Response('unauthorized', { status: 401 })
     }
   }
@@ -212,17 +229,30 @@ export async function POST(req: Request) {
   // Se não há texto nem mídia reconhecida, ignora
   if (!textRaw && !mediaType) return new Response('no text', { status: 200 })
 
-  // Trunca mensagens muito longas antes de qualquer processamento
+  // Trunca mensagens muito longas — loga no Sentry para acompanhamento de frequência
   const textTruncado = textRaw.length > MAX_MSG_LENGTH ? textRaw.slice(0, MAX_MSG_LENGTH) : textRaw
+  if (textRaw.length > MAX_MSG_LENGTH) {
+    console.warn('[whatsapp/webhook] mensagem truncada:', { remoteJid, originalLength: textRaw.length, maxLength: MAX_MSG_LENGTH })
+    Sentry.captureMessage('Mensagem WhatsApp truncada por exceder limite', {
+      level: 'warning',
+      tags:  { module: 'whatsapp-webhook', operation: 'truncar-mensagem' },
+      extra: { remoteJid, originalLength: textRaw.length, maxLength: MAX_MSG_LENGTH },
+    })
+  }
 
   // Remove marcadores de controle internos para prevenir injeção de prompt
   const textSanitizado = textTruncado.replace(/##LEAD##|##HUMANO##/gi, '').trim()
   if (!textSanitizado && !mediaType) return new Response('no text after sanitize', { status: 200 })
 
-  // Detecta padrões de jailbreak — loga para auditoria e bloqueia
+  // Detecta padrões de jailbreak — loga para auditoria, captura no Sentry e bloqueia
   const isJailbreakAttempt = JAILBREAK_PATTERNS.some(p => p.test(textSanitizado))
   if (isJailbreakAttempt) {
     console.warn('[whatsapp/webhook] jailbreak attempt detected from:', remoteJid, '| msg:', textSanitizado.slice(0, 80))
+    Sentry.captureMessage('Tentativa de jailbreak bloqueada via WhatsApp', {
+      level: 'warning',
+      tags:  { module: 'whatsapp-webhook', operation: 'jailbreak-block' },
+      extra: { remoteJid, snippet: textSanitizado.slice(0, 120) },
+    })
     return new Response('blocked', { status: 200 }) // 200 para não revelar ao remetente que foi bloqueado
   }
 
@@ -261,6 +291,11 @@ export async function POST(req: Request) {
   const headerApiKey = req.headers.get('apikey')
   if (cfg.apiKey && headerApiKey !== cfg.apiKey) {
     console.warn('[whatsapp/webhook] apikey inválida recebida:', headerApiKey?.slice(0, 8))
+    Sentry.captureMessage('Webhook WhatsApp rejeitado: apikey da Evolution inválida', {
+      level: 'warning',
+      tags:  { module: 'whatsapp-webhook', operation: 'auth-evolution' },
+      extra: { receivedPrefix: headerApiKey?.slice(0, 6) ?? 'ausente' },
+    })
     return new Response('unauthorized', { status: 401 })
   }
 
@@ -360,7 +395,12 @@ export async function POST(req: Request) {
                 console.error('[whatsapp/webhook] erro ao salvar buffer de mídia pausada:', { conversaId, err }),
               )
               const isPdf = mediaType === 'document' && media.mimeType.includes('pdf')
-              const textoExtraido = isPdf ? (await extractPdfText(media.buffer)) || undefined : undefined
+              const textoExtraido = isPdf
+                ? (await Promise.race<string | null>([
+                    extractPdfText(media.buffer),
+                    new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
+                  ])) || undefined
+                : undefined
               const base64 = (!isPdf && media.buffer) ? media.buffer.toString('base64') : undefined
               arquivarMidiaWhatsappAsync({
                 media,
@@ -554,10 +594,15 @@ export async function POST(req: Request) {
             savedMediaMimeType = media.mimeType
             savedMediaFileName = media.fileName ?? null
             if (media.mimeType.includes('pdf')) {
-              const pdfText = await extractPdfText(media.buffer)
+              const pdfText = await Promise.race<string | null>([
+                extractPdfText(media.buffer),
+                new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
+              ])
               const fileName = media.fileName ?? 'documento'
+              // Salva apenas o label — texto do PDF vai para a IA via systemExtra (processar-pendentes)
+              // Nunca concatenar no conteudo: quebra a detecção de hasWhatsappMedia no CRM
+              textoFinal = `[Documento recebido: ${fileName}]`
               if (pdfText) {
-                textoFinal = `[Documento recebido: ${fileName}]\n\n${pdfText.slice(0, 3000)}`
                 console.log('[whatsapp/webhook] PDF extraído, chars:', pdfText.length)
               }
               // Classificar + arquivar como documento (fire-and-forget)

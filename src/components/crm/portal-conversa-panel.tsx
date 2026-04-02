@@ -6,8 +6,9 @@ import { toast } from 'sonner'
 type Mensagem = {
   id: string
   role: string
-  conteudo: string
+  conteudo: string | null
   criadaEm: string | Date
+  excluido?: boolean
 }
 
 export function PortalConversaPanel({
@@ -19,14 +20,15 @@ export function PortalConversaPanel({
   nomeExibido: string
   onClose: () => void
 }) {
-  const [mensagens, setMensagens]   = useState<Mensagem[]>([])
-  const [pausada, setPausada]       = useState(false)
-  const [assumindo, setAssumindo]   = useState(false)
+  const [mensagens, setMensagens] = useState<Mensagem[]>([])
+  const [pausada, setPausada] = useState(false)
+  const [assumindo, setAssumindo] = useState(false)
   const [reativando, setReativando] = useState(false)
-  const [texto, setTexto]           = useState('')
-  const [sending, setSending]       = useState(false)
-  const bottomRef                   = useRef<HTMLDivElement>(null)
-  const isFirstLoadRef              = useRef(true)
+  const [texto, setTexto] = useState('')
+  const [sending, setSending] = useState(false)
+  const [excluindo, setExcluindo] = useState<string | null>(null) // mensagemId em exclusão
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const isFirstLoadRef = useRef(true)
 
   const carregar = useCallback(async () => {
     try {
@@ -51,8 +53,20 @@ export function PortalConversaPanel({
 
     function conectar() {
       es = new EventSource(`/api/stream/conversas/${conversaId}`)
-      es.onmessage = () => { tentativas = 0; carregar() }
-      es.onerror   = () => {
+      es.onmessage = (e) => {
+        tentativas = 0
+        try {
+          const data = JSON.parse(e.data)
+          if (data?.type === 'mensagem_excluida' && data.mensagemId) {
+            setMensagens(prev => prev.map(m =>
+              m.id === data.mensagemId ? { ...m, excluido: true, conteudo: null } : m
+            ))
+            return
+          }
+        } catch { }
+        carregar()
+      }
+      es.onerror = () => {
         es.close()
         if (encerrado || tentativas >= 5) return
         tentativas++
@@ -91,9 +105,9 @@ export function PortalConversaPanel({
     setAssumindo(true)
     try {
       const res = await fetch('/api/conversas/pausar', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ conversaId }),
+        body: JSON.stringify({ conversaId }),
       })
       if (!res.ok) { toast.error('Erro ao assumir controle'); return }
       setPausada(true)
@@ -121,6 +135,24 @@ export function PortalConversaPanel({
     }
   }
 
+  async function excluirMensagem(conversaId: string, mensagemId: string) {
+    if (excluindo) return
+    if (!confirm('Apagar esta mensagem para todos?')) return
+    setExcluindo(mensagemId)
+    try {
+      const res = await fetch(`/api/conversas/${conversaId}/mensagens/${mensagemId}`, { method: 'DELETE' })
+      if (!res.ok) { toast.error('Erro ao excluir mensagem'); return }
+      setMensagens(prev => prev.map(m =>
+        m.id === mensagemId ? { ...m, excluido: true, conteudo: null } : m
+      ))
+    } catch (err: unknown) {
+      console.error('[PortalConversaPanel] erro ao excluir mensagem:', { mensagemId, err })
+      toast.error('Erro ao excluir mensagem')
+    } finally {
+      setExcluindo(null)
+    }
+  }
+
   async function enviar() {
     if (!texto.trim() || sending) return
     const textoEnviar = texto.trim()
@@ -128,9 +160,9 @@ export function PortalConversaPanel({
     setSending(true)
     try {
       const res = await fetch(`/api/conversas/${conversaId}/mensagem`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ texto: textoEnviar }),
+        body: JSON.stringify({ texto: textoEnviar }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -160,8 +192,14 @@ export function PortalConversaPanel({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-outline-variant/15 bg-card px-4 py-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-500/15 text-[12px] font-bold text-violet-600">
+      <div className="flex shrink-0 items-center gap-2 lg:gap-3 border-b border-outline-variant/15 bg-card px-3 lg:px-4 py-3">
+        <button
+          onClick={onClose}
+          className="lg:hidden flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container hover:text-on-surface"
+        >
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+        </button>
+        <div className="hidden lg:flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-500/15 text-[12px] font-bold text-violet-600">
           {initials}
         </div>
         <div className="min-w-0 flex-1">
@@ -170,7 +208,7 @@ export function PortalConversaPanel({
         </div>
         <button
           onClick={onClose}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container"
+          className="hidden lg:flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container"
         >
           <span className="material-symbols-outlined text-[20px]">close</span>
         </button>
@@ -182,19 +220,42 @@ export function PortalConversaPanel({
           <p className="py-8 text-center text-[13px] text-on-surface-variant/50">Sem mensagens</p>
         ) : (
           mensagens.map(m => (
-            <div key={m.id} className={`flex gap-3 ${m.role === 'assistant' ? 'flex-row-reverse' : ''}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed ${
-                m.role === 'assistant'
-                  ? 'rounded-tr-sm bg-violet-500/10 text-on-surface'
-                  : 'rounded-tl-sm bg-surface-container text-on-surface'
-              }`}>
-                <p className="whitespace-pre-wrap">{m.conteudo}</p>
-                <p className={`mt-1 text-[10px] ${
-                  m.role === 'assistant' ? 'text-right text-violet-400/80' : 'text-on-surface-variant/40'
+            <div key={m.id} className={`group flex gap-3 ${m.role === 'assistant' ? 'flex-row-reverse' : ''}`}>
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed ${m.excluido
+                  ? 'rounded-tr-sm bg-surface-container/60 text-on-surface-variant/50 ring-1 ring-outline-variant/20'
+                  : m.role === 'assistant'
+                    ? 'rounded-tr-sm bg-violet-500/10 text-on-surface'
+                    : 'rounded-tl-sm bg-surface-container text-on-surface'
                 }`}>
-                  {formatTime(m.criadaEm)}
-                </p>
+                {m.excluido ? (
+                  <p className="flex items-center gap-1.5 italic text-[12px]">
+                    <span className="material-symbols-outlined text-[13px]">block</span>
+                    Mensagem excluída
+                  </p>
+                ) : (
+                  <p className="whitespace-pre-wrap">{m.conteudo}</p>
+                )}
+                {!m.excluido && (
+                  <p className={`mt-1 text-[10px] ${m.role === 'assistant' ? 'text-right text-violet-400/80' : 'text-on-surface-variant/40'
+                    }`}>
+                    {formatTime(m.criadaEm)}
+                  </p>
+                )}
               </div>
+              {m.role === 'assistant' && !m.excluido && (
+                <button
+                  onClick={() => excluirMensagem(conversaId, m.id)}
+                  disabled={excluindo === m.id}
+                  className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center self-start rounded-full text-on-surface-variant/0 transition-all hover:bg-error/10 hover:text-error group-hover:text-on-surface-variant/40 disabled:opacity-50"
+                  title="Apagar para todos"
+                >
+                  {excluindo === m.id ? (
+                    <span className="material-symbols-outlined animate-spin text-[14px]">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[14px]">delete</span>
+                  )}
+                </button>
+              )}
             </div>
           ))
         )}

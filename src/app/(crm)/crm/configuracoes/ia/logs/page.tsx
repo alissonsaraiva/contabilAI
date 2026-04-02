@@ -8,16 +8,16 @@ import { LogRow, type LogEntry } from './_log-row'
 // ─── Filtros de período ───────────────────────────────────────────────────────
 
 const PERIODO_LABELS: Record<string, string> = {
-  '1d':  'Hoje',
-  '7d':  'Últimos 7 dias',
+  '1d': 'Hoje',
+  '7d': 'Últimos 7 dias',
   '30d': 'Últimos 30 dias',
   'all': 'Todos',
 }
 
 function buildDateFilter(periodo: string): Date | null {
   const now = new Date()
-  if (periodo === '1d')  { now.setDate(now.getDate() - 1);  return now }
-  if (periodo === '7d')  { now.setDate(now.getDate() - 7);  return now }
+  if (periodo === '1d') { now.setDate(now.getDate() - 1); return now }
+  if (periodo === '7d') { now.setDate(now.getDate() - 7); return now }
   if (periodo === '30d') { now.setDate(now.getDate() - 30); return now }
   return null
 }
@@ -32,8 +32,8 @@ const getStatsGlobais = unstable_cache(
     `
     let ok = 0, erros = 0
     for (const r of rows) {
-      if (r.sucesso) ok    = Number(r.total)
-      else           erros = Number(r.total)
+      if (r.sucesso) ok = Number(r.total)
+      else erros = Number(r.total)
     }
     return { ok, erros }
   },
@@ -45,24 +45,24 @@ const getStatsGlobais = unstable_cache(
 
 type Props = {
   searchParams: Promise<{
-    page?:       string
-    tool?:       string
+    page?: string
+    tool?: string
     solicitante?: string
-    sucesso?:    string
-    periodo?:    string
-    search?:     string
+    sucesso?: string
+    periodo?: string
+    search?: string
   }>
 }
 
 // ─── buildQuery helper ────────────────────────────────────────────────────────
 
 type Filters = {
-  tool?:       string
+  tool?: string
   solicitante?: string
-  sucesso?:    string
-  periodo?:    string
-  search?:     string
-  page?:       string
+  sucesso?: string
+  periodo?: string
+  search?: string
+  page?: string
 }
 
 function buildQuery(f: Filters): string {
@@ -77,26 +77,26 @@ function buildQuery(f: Filters): string {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function LogsPage({ searchParams }: Props) {
-  const sp      = await searchParams
-  const page    = Math.max(1, parseInt(sp.page ?? '1'))
-  const limit   = 50
-  const skip    = (page - 1) * limit
+  const sp = await searchParams
+  const page = Math.max(1, parseInt(sp.page ?? '1'))
+  const limit = 50
+  const skip = (page - 1) * limit
 
   const filters: Filters = {
-    tool:        sp.tool        || undefined,
+    tool: sp.tool || undefined,
     solicitante: sp.solicitante || undefined,
-    sucesso:     sp.sucesso     || undefined,
-    periodo:     sp.periodo     || 'all',
-    search:      sp.search      || undefined,
+    sucesso: sp.sucesso || undefined,
+    periodo: sp.periodo || 'all',
+    search: sp.search || undefined,
   }
 
   const desde = buildDateFilter(filters.periodo ?? 'all')
 
   const where = {
-    ...(filters.tool        && { tool:          filters.tool }),
+    ...(filters.tool && { tool: filters.tool }),
     ...(filters.solicitante && { solicitanteAI: filters.solicitante }),
     ...(filters.sucesso !== undefined && filters.sucesso !== '' && { sucesso: filters.sucesso === 'true' }),
-    ...(desde               && { criadoEm: { gte: desde } }),
+    ...(desde && { criadoEm: { gte: desde } }),
   }
 
   // ── Queries em paralelo ────────────────────────────────────────────────────
@@ -121,25 +121,25 @@ export default async function LogsPage({ searchParams }: Props) {
 
   // ── Resolve nomes em batch ─────────────────────────────────────────────────
   const clienteIds = [...new Set(acoes.map(a => a.clienteId).filter(Boolean))] as string[]
-  const leadIds    = [...new Set(acoes.map(a => a.leadId).filter(Boolean))]    as string[]
+  const leadIds = [...new Set(acoes.map(a => a.leadId).filter(Boolean))] as string[]
 
   const [clientes, leads] = await Promise.all([
     clienteIds.length > 0
       ? prisma.cliente.findMany({
-          where:  { id: { in: clienteIds } },
-          select: { id: true, nome: true, empresa: { select: { razaoSocial: true } } },
-        })
+        where: { id: { in: clienteIds } },
+        select: { id: true, nome: true, empresa: { select: { razaoSocial: true } } },
+      })
       : [],
     leadIds.length > 0
       ? prisma.lead.findMany({
-          where:  { id: { in: leadIds } },
-          select: { id: true, contatoEntrada: true, dadosJson: true },
-        })
+        where: { id: { in: leadIds } },
+        select: { id: true, contatoEntrada: true, dadosJson: true },
+      })
       : [],
   ])
 
   const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.empresa?.razaoSocial ?? c.nome ?? 'Cliente']))
-  const leadMap    = Object.fromEntries(leads.map(l => {
+  const leadMap = Object.fromEntries(leads.map(l => {
     const d = (l.dadosJson ?? {}) as Record<string, string>
     return [l.id, d['Nome completo'] ?? d['Razão Social'] ?? l.contatoEntrada ?? 'Lead']
   }))
@@ -149,34 +149,34 @@ export default async function LogsPage({ searchParams }: Props) {
   // ── Filtro de busca por contexto (aplicado após resolução de nomes) ─────────
   const acoesVisiveis = filters.search
     ? acoes.filter(a => {
-        const ctx = a.clienteId ? clienteMap[a.clienteId] : a.leadId ? leadMap[a.leadId] : ''
-        return ctx?.toLowerCase().includes(filters.search!.toLowerCase())
-      })
+      const ctx = a.clienteId ? clienteMap[a.clienteId] : a.leadId ? leadMap[a.leadId] : ''
+      return ctx?.toLowerCase().includes(filters.search!.toLowerCase())
+    })
     : acoes
 
   // ── Monta rows serializáveis para o client component ───────────────────────
   const rows: LogEntry[] = acoesVisiveis.map(a => ({
-    id:            a.id,
-    tool:          a.tool,
-    toolLabel:     toolLabelMap[a.tool] ?? a.tool,
-    sucesso:       a.sucesso,
-    duracaoMs:     a.duracaoMs,
+    id: a.id,
+    tool: a.tool,
+    toolLabel: toolLabelMap[a.tool] ?? a.tool,
+    sucesso: a.sucesso,
+    duracaoMs: a.duracaoMs,
     solicitanteAI: a.solicitanteAI,
-    usuarioNome:   a.usuarioNome,
-    usuarioTipo:   a.usuarioTipo,
-    contexto:      a.clienteId ? clienteMap[a.clienteId] : a.leadId ? leadMap[a.leadId] : null,
-    input:         a.input,
-    resultado:     a.resultado,
-    criadoEm:      a.criadoEm.toISOString(),
+    usuarioNome: a.usuarioNome,
+    usuarioTipo: a.usuarioTipo,
+    contexto: a.clienteId ? clienteMap[a.clienteId] : a.leadId ? leadMap[a.leadId] : null,
+    input: a.input,
+    resultado: a.resultado,
+    criadoEm: a.criadoEm.toISOString(),
   }))
 
   // ── URL de export (passa filtros atuais) ───────────────────────────────────
   const exportParams = new URLSearchParams()
-  if (filters.tool)        exportParams.set('tool',        filters.tool)
+  if (filters.tool) exportParams.set('tool', filters.tool)
   if (filters.solicitante) exportParams.set('solicitante', filters.solicitante)
-  if (filters.sucesso)     exportParams.set('sucesso',     filters.sucesso)
+  if (filters.sucesso) exportParams.set('sucesso', filters.sucesso)
   if (filters.periodo && filters.periodo !== 'all') exportParams.set('periodo', filters.periodo)
-  if (filters.search)      exportParams.set('search',      filters.search)
+  if (filters.search) exportParams.set('search', filters.search)
   const exportUrl = `/api/crm/agente-acoes/export${exportParams.toString() ? `?${exportParams}` : ''}`
 
   const hasFilters = !!(filters.tool || filters.solicitante || filters.sucesso || (filters.periodo && filters.periodo !== 'all') || filters.search)
@@ -185,16 +185,16 @@ export default async function LogsPage({ searchParams }: Props) {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-on-surface">Logs de execução</h1>
           <p className="mt-0.5 text-sm text-on-surface-variant">
             Registro de todas as ações executadas pelas IAs
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {/* Stats globais com cache */}
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-4 text-sm bg-surface-container-low px-3 py-2 rounded-lg border border-outline-variant/50">
             <div className="flex items-center gap-1.5 text-on-surface-variant">
               <span className="material-symbols-outlined text-[15px] text-success" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
               <span className="tabular-nums font-medium text-on-surface">{stats.ok.toLocaleString('pt-BR')}</span>
@@ -209,7 +209,7 @@ export default async function LogsPage({ searchParams }: Props) {
           {/* Export CSV */}
           <a
             href={exportUrl}
-            className="flex items-center gap-1.5 rounded-lg border border-outline-variant px-3 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors"
+            className="flex items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-outline-variant px-3 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors w-full sm:w-auto"
           >
             <span className="material-symbols-outlined text-[15px]">download</span>
             Exportar CSV

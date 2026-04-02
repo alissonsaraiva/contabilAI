@@ -70,7 +70,7 @@ const enviarMensagemPortalTool: Tool = {
     }
 
     // Salva mensagem e atualiza timestamp da conversa
-    await Promise.all([
+    const [novaMensagem] = await Promise.all([
       prisma.mensagemIA.create({
         data: {
           conversaId: conversa.id,
@@ -78,6 +78,7 @@ const enviarMensagemPortalTool: Tool = {
           conteudo:   mensagem,
           status:     'sent',
         },
+        select: { id: true },
       }),
       prisma.conversaIA.update({
         where: { id: conversa.id },
@@ -94,7 +95,7 @@ const enviarMensagemPortalTool: Tool = {
     ])
 
     // Notifica o portal em tempo real via SSE (se o cliente estiver com o chat aberto)
-    emitConversaMensagem(conversa.id, { role: 'assistant', conteudo: mensagem })
+    emitConversaMensagem(conversa.id, { id: novaMensagem.id, role: 'assistant', conteudo: mensagem })
 
     // Push notification — entrega mesmo com o portal fechado (fire-and-forget)
     sendPushToCliente(clienteId, {

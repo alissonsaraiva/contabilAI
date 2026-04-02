@@ -149,8 +149,10 @@ export async function roterarDocumentoWhatsapp(opts: {
       campos:       json.campos ?? {},
       contextoIA,
     }
-  } catch {
-    // Falhou ao classificar — continua com fluxo normal
+  } catch (err: unknown) {
+    // Falha na classificação — fluxo continua sem contexto extra (degradação graciosa)
+    console.error('[action-router] falha ao classificar documento WhatsApp:', { clienteId, leadId, err })
+    Sentry.captureException(err, { tags: { module: 'action-router', operation: 'classificar-documento' }, extra: { clienteId, leadId } })
     return { classificado: false }
   }
 }

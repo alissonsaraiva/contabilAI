@@ -189,7 +189,12 @@ export async function downloadMedia(
       mimeType: data.mimetype ?? 'application/octet-stream',
       fileName: data.fileName,
     }
-  } catch {
+  } catch (err: unknown) {
+    // Falha de rede ou parse — caller trata null e faz fallback para downloadMediaDirect
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!msg.includes('abort') && !msg.includes('ECONNREFUSED')) {
+      console.error('[whatsapp/media] downloadMedia falhou:', msg)
+    }
     return null
   }
 }

@@ -82,7 +82,7 @@ export async function POST(
   )
 
   // Notifica o portal do cliente via SSE
-  emitConversaMensagem(conversaId, { role: 'assistant', conteudo: mensagem.trim() })
+  emitConversaMensagem(conversaId, { id: novaMensagem.id, role: 'assistant', conteudo: mensagem.trim() })
 
   // Push para o cliente
   sendPushToCliente(clienteId, {

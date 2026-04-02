@@ -1,5 +1,6 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
-import { sendEmail } from './send'
+import { enviarEmailComHistorico } from './com-historico'
 import { criarTokenPortal } from '@/lib/portal/tokens'
 
 type ClienteBasico = {
@@ -18,16 +19,26 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
   const primeiroNome   = cliente.nome.split(' ')[0]
 
   if (!clienteRow?.empresaId) {
-    console.error('[boas-vindas] cliente sem empresaId — não é possível criar token de portal')
+    console.error('[boas-vindas] cliente sem empresaId — não é possível criar token de portal:', { clienteId: cliente.id })
+    Sentry.captureMessage('boas-vindas: cliente sem empresaId, email não enviado', {
+      level: 'warning',
+      tags:  { module: 'email-boas-vindas', operation: 'criar-token' },
+      extra: { clienteId: cliente.id, email: cliente.email },
+    })
     return
   }
 
   // Link válido por 24h — tempo suficiente para o cliente acessar com calma
   const { link } = await criarTokenPortal(cliente.id, clienteRow.empresaId, 24 * 60 * 60 * 1000)
 
-  await sendEmail({
-    para:    cliente.email,
-    assunto: `Bem-vindo(a) ao ${nomeEscritorio}! Acesse seu portal`,
+  // Usa enviarEmailComHistorico para que o email apareça no histórico do cliente
+  // wrapEmailHtml detecta HTML e passa o template sem modificar (isHtml = true)
+  const resultado = await enviarEmailComHistorico({
+    para:      cliente.email,
+    assunto:   `Bem-vindo(a) ao ${nomeEscritorio}! Acesse seu portal`,
+    clienteId: cliente.id,
+    origem:    'sistema',
+    metadados: { tipo: 'boas_vindas', tokenExpiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
     corpo: `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -145,4 +156,13 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
 </html>
     `,
   })
+
+  if (!resultado.ok) {
+    console.error('[boas-vindas] falha ao enviar email:', { clienteId: cliente.id, email: cliente.email, erro: resultado.erro })
+    Sentry.captureMessage(`boas-vindas: falha ao enviar email — ${resultado.erro}`, {
+      level: 'error',
+      tags:  { module: 'email-boas-vindas', operation: 'enviar' },
+      extra: { clienteId: cliente.id, email: cliente.email, erro: resultado.erro },
+    })
+  }
 }

@@ -15,6 +15,9 @@ type NotaFiscal = {
   issRetido: boolean
   tomadorNome: string
   tomadorCpfCnpj: string
+  tomadorEmail: string | null
+  tomadorMunicipio: string | null
+  tomadorEstado: string | null
   protocolo: string | null
   erroCodigo: string | null
   erroMensagem: string | null
@@ -93,6 +96,9 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
   const [cancelando, setCancelando] = useState<string | null>(null)
   const [justificativa, setJustificativa] = useState('')
   const [showCancelarModal, setShowCancelarModal] = useState<string | null>(null)
+  const [showReemitirModal, setShowReemitirModal] = useState<string | null>(null)
+  const [reemitirForm, setReemitirForm] = useState<FormState>(INITIAL_FORM)
+  const [reemitirSaving, setReemitirSaving] = useState(false)
 
   const fetchNotas = useCallback(async () => {
     setLoading(true)
@@ -100,7 +106,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       const res = await fetch(`/api/crm/notas-fiscais?clienteId=${clienteId}&limit=20`)
       if (!res.ok) throw new Error()
       const data = await res.json()
-      setNotas(data.notas ?? [])
+      setNotas(data.items ?? [])
       setTotal(data.total ?? 0)
     } catch {
       toast.error('Erro ao carregar notas fiscais')
@@ -192,6 +198,61 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       toast.success(`Nota enviada via ${canal === 'whatsapp' ? 'WhatsApp' : 'e-mail'}`)
     } catch {
       toast.error('Erro ao entregar nota')
+    }
+  }
+
+  function abrirReemitirModal(nota: NotaFiscal) {
+    setReemitirForm({
+      descricao:        nota.descricao,
+      valor:            String(Number(nota.valorTotal).toFixed(2)).replace('.', ','),
+      tomadorNome:      nota.tomadorNome,
+      tomadorCpfCnpj:   nota.tomadorCpfCnpj,
+      tomadorEmail:     nota.tomadorEmail     ?? '',
+      tomadorMunicipio: nota.tomadorMunicipio ?? '',
+      tomadorEstado:    nota.tomadorEstado    ?? '',
+    })
+    setShowReemitirModal(nota.id)
+  }
+
+  async function reemitir() {
+    if (!showReemitirModal) return
+    if (!reemitirForm.descricao || !reemitirForm.valor || !reemitirForm.tomadorNome || !reemitirForm.tomadorCpfCnpj) {
+      toast.error('Preencha todos os campos obrigatórios')
+      return
+    }
+    const valor = parseFloat(reemitirForm.valor.replace(',', '.'))
+    if (isNaN(valor) || valor <= 0) {
+      toast.error('Valor inválido')
+      return
+    }
+    setReemitirSaving(true)
+    try {
+      const res = await fetch(`/api/crm/notas-fiscais/${showReemitirModal}/reemitir`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          descricao:        reemitirForm.descricao,
+          valor,
+          tomadorNome:      reemitirForm.tomadorNome,
+          tomadorCpfCnpj:   reemitirForm.tomadorCpfCnpj.replace(/\D/g, ''),
+          tomadorEmail:     reemitirForm.tomadorEmail     || undefined,
+          tomadorMunicipio: reemitirForm.tomadorMunicipio || undefined,
+          tomadorEstado:    reemitirForm.tomadorEstado    || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Erro ao reemitir nota')
+        return
+      }
+      toast.success('NFS-e reenviada para processamento!')
+      setShowReemitirModal(null)
+      setReemitirForm(INITIAL_FORM)
+      fetchNotas()
+    } catch {
+      toast.error('Erro ao reemitir nota fiscal')
+    } finally {
+      setReemitirSaving(false)
     }
   }
 
@@ -350,6 +411,15 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
                         </a>
                       </>
                     )}
+                    {nota.status === 'rejeitada' && (
+                      <button
+                        title="Corrigir e reemitir"
+                        onClick={() => abrirReemitirModal(nota)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-tertiary"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">replay</span>
+                      </button>
+                    )}
                     {nota.status === 'autorizada' && nota.spedyId && (
                       <>
                         <button
@@ -452,17 +522,18 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">E-mail do tomador</label>
-                  <input
-                    type="email"
-                    value={form.tomadorEmail}
-                    onChange={e => setForm(f => ({ ...f, tomadorEmail: e.target.value }))}
-                    className={INPUT}
-                    placeholder="financeiro@empresa.com"
-                  />
-                </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">E-mail do tomador</label>
+                <input
+                  type="email"
+                  value={form.tomadorEmail}
+                  onChange={e => setForm(f => ({ ...f, tomadorEmail: e.target.value }))}
+                  className={INPUT}
+                  placeholder="financeiro@empresa.com"
+                />
+              </div>
+
+              <div className="grid grid-cols-[1fr_auto] gap-3">
                 <div>
                   <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">Município do tomador</label>
                   <input
@@ -471,6 +542,17 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
                     onChange={e => setForm(f => ({ ...f, tomadorMunicipio: e.target.value }))}
                     className={INPUT}
                     placeholder="São Paulo"
+                  />
+                </div>
+                <div className="w-20">
+                  <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">UF</label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={form.tomadorEstado}
+                    onChange={e => setForm(f => ({ ...f, tomadorEstado: e.target.value.toUpperCase() }))}
+                    className={INPUT}
+                    placeholder="SP"
                   />
                 </div>
               </div>
@@ -504,14 +586,162 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
         </div>
       )}
 
+      {/* Modal: Reemitir nota rejeitada */}
+      {showReemitirModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-outline-variant/15 p-5">
+              <div>
+                <h2 className="text-[15px] font-bold text-on-surface">Corrigir e reemitir NFS-e</h2>
+                <p className="text-[12px] text-on-surface-variant/70">Corrija os dados que causaram a rejeição e reenvie</p>
+              </div>
+              <button onClick={() => setShowReemitirModal(null)} className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container">
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Erro da rejeição */}
+            {notas.find(n => n.id === showReemitirModal)?.erroMensagem && (
+              <div className="mx-5 mt-4 rounded-xl border border-error/20 bg-error/5 px-4 py-3">
+                <p className="text-[11px] font-semibold text-error">Motivo da rejeição:</p>
+                <p className="mt-0.5 text-[12px] text-error/80">{notas.find(n => n.id === showReemitirModal)?.erroMensagem}</p>
+              </div>
+            )}
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">
+                  Descrição do serviço <span className="text-error">*</span>
+                </label>
+                <textarea
+                  value={reemitirForm.descricao}
+                  onChange={e => setReemitirForm(f => ({ ...f, descricao: e.target.value }))}
+                  rows={2}
+                  className="w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[13px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">
+                  Valor total (R$) <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={reemitirForm.valor}
+                  onChange={e => setReemitirForm(f => ({ ...f, valor: e.target.value }))}
+                  className={INPUT}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">
+                    Nome do tomador <span className="text-error">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={reemitirForm.tomadorNome}
+                    onChange={e => setReemitirForm(f => ({ ...f, tomadorNome: e.target.value }))}
+                    className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">
+                    CPF/CNPJ do tomador <span className="text-error">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={reemitirForm.tomadorCpfCnpj}
+                    onChange={e => setReemitirForm(f => ({ ...f, tomadorCpfCnpj: e.target.value }))}
+                    className={INPUT}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">E-mail do tomador</label>
+                <input
+                  type="email"
+                  value={reemitirForm.tomadorEmail}
+                  onChange={e => setReemitirForm(f => ({ ...f, tomadorEmail: e.target.value }))}
+                  className={INPUT}
+                />
+              </div>
+
+              <div className="grid grid-cols-[1fr_auto] gap-3">
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">Município do tomador</label>
+                  <input
+                    type="text"
+                    value={reemitirForm.tomadorMunicipio}
+                    onChange={e => setReemitirForm(f => ({ ...f, tomadorMunicipio: e.target.value }))}
+                    className={INPUT}
+                  />
+                </div>
+                <div className="w-20">
+                  <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">UF</label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={reemitirForm.tomadorEstado}
+                    onChange={e => setReemitirForm(f => ({ ...f, tomadorEstado: e.target.value.toUpperCase() }))}
+                    className={INPUT}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-outline-variant/15 p-4">
+              <button
+                onClick={() => setShowReemitirModal(null)}
+                className="rounded-xl px-4 py-2 text-[13px] font-semibold text-on-surface-variant hover:bg-surface-container"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={reemitir}
+                disabled={reemitirSaving}
+                className="flex items-center gap-2 rounded-xl bg-tertiary px-5 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-tertiary/90 disabled:opacity-60"
+              >
+                {reemitirSaving ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <span className="material-symbols-outlined text-[15px]">replay</span>
+                )}
+                Reemitir NFS-e
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Cancelar nota */}
-      {showCancelarModal && (
+      {showCancelarModal && (() => {
+        const notaCancel = notas.find(n => n.id === showCancelarModal)
+        const autorizadaEm = notaCancel?.autorizadaEm ? new Date(notaCancel.autorizadaEm) : null
+        const diasDesdeAutorizacao = autorizadaEm ? Math.floor((Date.now() - autorizadaEm.getTime()) / 86_400_000) : null
+        const prazoExpirado  = diasDesdeAutorizacao !== null && diasDesdeAutorizacao > 30
+        const prazoProximo   = diasDesdeAutorizacao !== null && diasDesdeAutorizacao >= 25 && !prazoExpirado
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-card shadow-2xl">
             <div className="border-b border-outline-variant/15 p-5">
               <h2 className="text-[15px] font-bold text-error">Cancelar NFS-e</h2>
               <p className="text-[12px] text-on-surface-variant/70">Esta ação pode não ser reversível dependendo do município e prazo legal.</p>
             </div>
+            {prazoExpirado && (
+              <div className="mx-5 mt-4 flex items-start gap-2 rounded-xl bg-error/10 px-3 py-2.5 text-error">
+                <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0">warning</span>
+                <p className="text-[12px] font-semibold">Prazo legal excedido — esta nota foi autorizada há {diasDesdeAutorizacao} dias. A maioria dos municípios permite cancelamento apenas nos primeiros 30 dias. Verifique junto ao município antes de prosseguir.</p>
+              </div>
+            )}
+            {prazoProximo && (
+              <div className="mx-5 mt-4 flex items-start gap-2 rounded-xl bg-orange-status/10 px-3 py-2.5 text-orange-status">
+                <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0">timer</span>
+                <p className="text-[12px] font-semibold">Atenção: prazo próximo — nota autorizada há {diasDesdeAutorizacao} dias. O prazo legal de 30 dias vence em {30 - diasDesdeAutorizacao!} dias.</p>
+              </div>
+            )}
             <div className="p-5 space-y-3">
               <label className="block text-[12px] font-semibold text-on-surface-variant">
                 Justificativa do cancelamento <span className="text-error">*</span> <span className="text-on-surface-variant/50">(mín. 15 caracteres)</span>
@@ -547,7 +777,8 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

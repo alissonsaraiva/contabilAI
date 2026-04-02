@@ -11,8 +11,8 @@ import { TIPOS } from '@/lib/usuarios/constants'
 // ─── Config de tipos ──────────────────────────────────────────────────────────
 
 const TIPO_CONFIG: Record<TipoUsuario, { label: string; badge: string }> = {
-  admin:      { label: 'Admin',      badge: 'bg-error/10 text-error border border-error/20' },
-  contador:   { label: 'Contador',   badge: 'bg-primary/10 text-primary border border-primary/20' },
+  admin: { label: 'Admin', badge: 'bg-error/10 text-error border border-error/20' },
+  contador: { label: 'Contador', badge: 'bg-primary/10 text-primary border border-primary/20' },
   assistente: { label: 'Assistente', badge: 'bg-surface-container text-on-surface-variant border border-outline-variant/20' },
 }
 
@@ -23,20 +23,20 @@ function getInitials(nome: string) {
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export type UsuarioRow = {
-  id:       string
-  nome:     string
-  email:    string
-  tipo:     TipoUsuario
-  ativo:    boolean
-  avatar:   string | null
+  id: string
+  nome: string
+  email: string
+  tipo: TipoUsuario
+  ativo: boolean
+  avatar: string | null
   criadoEm: Date
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function UsuariosClient({ usuarios }: { usuarios: UsuarioRow[] }) {
-  const [search,       setSearch]       = useState('')
-  const [tipoFilter,   setTipoFilter]   = useState<TipoUsuario | 'all'>('all')
+  const [search, setSearch] = useState('')
+  const [tipoFilter, setTipoFilter] = useState<TipoUsuario | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'ativo' | 'inativo'>('all')
 
   const filtered = useMemo(() => {
@@ -45,9 +45,9 @@ export function UsuariosClient({ usuarios }: { usuarios: UsuarioRow[] }) {
         const q = search.toLowerCase()
         if (!u.nome.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false
       }
-      if (tipoFilter !== 'all'    && u.tipo !== tipoFilter)        return false
-      if (statusFilter === 'ativo'   && !u.ativo)                  return false
-      if (statusFilter === 'inativo' &&  u.ativo)                  return false
+      if (tipoFilter !== 'all' && u.tipo !== tipoFilter) return false
+      if (statusFilter === 'ativo' && !u.ativo) return false
+      if (statusFilter === 'inativo' && u.ativo) return false
       return true
     })
   }, [usuarios, search, tipoFilter, statusFilter])
@@ -64,7 +64,7 @@ export function UsuariosClient({ usuarios }: { usuarios: UsuarioRow[] }) {
     <div className="space-y-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-on-surface">Usuários do CRM</h2>
           <p className="mt-0.5 text-[13px] text-on-surface-variant/80">
@@ -121,8 +121,8 @@ export function UsuariosClient({ usuarios }: { usuarios: UsuarioRow[] }) {
         {/* Filtro status */}
         <div className="flex items-center rounded-[10px] border border-outline-variant/30 bg-surface-container-low h-9 overflow-hidden shadow-sm">
           {([
-            { value: 'all',    label: 'Todos'   },
-            { value: 'ativo',  label: 'Ativo'   },
+            { value: 'all', label: 'Todos' },
+            { value: 'ativo', label: 'Ativo' },
             { value: 'inativo', label: 'Inativo' },
           ] as { value: 'all' | 'ativo' | 'inativo'; label: string }[]).map((s, i, arr) => (
             <button
@@ -242,9 +242,9 @@ export function UsuariosClient({ usuarios }: { usuarios: UsuarioRow[] }) {
         <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">Níveis de acesso</p>
         <div className="grid gap-3 sm:grid-cols-3">
           {[
-            { tipo: 'Admin',      desc: 'Acesso total: configurações, usuários, planos, IA e todos os dados do CRM.',  badge: 'bg-error/10 text-error' },
-            { tipo: 'Contador',   desc: 'Acesso operacional: clientes, leads, atendimentos, tarefas e comunicados. Sem acesso a configurações.', badge: 'bg-primary/10 text-primary' },
-            { tipo: 'Assistente', desc: 'Perfil reservado — acesso não habilitado nesta versão.',                       badge: 'bg-surface-container text-on-surface-variant' },
+            { tipo: 'Admin', desc: 'Acesso total: configurações, usuários, planos, IA e todos os dados do CRM.', badge: 'bg-error/10 text-error' },
+            { tipo: 'Contador', desc: 'Acesso operacional: clientes, leads, atendimentos, tarefas e comunicados. Sem acesso a configurações.', badge: 'bg-primary/10 text-primary' },
+            { tipo: 'Assistente', desc: 'Perfil reservado — acesso não habilitado nesta versão.', badge: 'bg-surface-container text-on-surface-variant' },
           ].map(n => (
             <div key={n.tipo} className="rounded-xl border border-outline-variant/15 bg-surface-container-low p-4">
               <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${n.badge} mb-2`}>

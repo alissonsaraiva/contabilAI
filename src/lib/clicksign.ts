@@ -4,12 +4,37 @@
  * Documentação: https://developers.clicksign.com
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 
 const BASE_URL = 'https://app.clicksign.com'
 
 function resolveKey(raw: string): string {
   return isEncrypted(raw) ? decrypt(raw) : raw
+}
+
+/**
+ * Retry com backoff exponencial para erros de rede e 5xx.
+ * Não retenta 4xx (erro do cliente — retentar não adianta).
+ */
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastError = err
+      if (attempt >= maxAttempts) break
+      const msg = err instanceof Error ? err.message : String(err)
+      const isRetryable =
+        (err instanceof Error && err.name === 'AbortError') ||
+        /ClickSign (500|502|503|504)/.test(msg)
+      if (!isRetryable) break
+      // Backoff: 1s, 3s
+      await new Promise((r) => setTimeout(r, 1000 * attempt))
+    }
+  }
+  throw lastError
 }
 
 async function clicksignFetch<T>(apiKey: string, path: string, options: { method?: string; json?: unknown }): Promise<T> {
@@ -54,7 +79,14 @@ type ClickSignDocument = {
     key: string
     path: string
     status: string
-    original_file_url?: string
+    /**
+     * ClickSign retorna downloads como objeto, não array.
+     * Campos: signed_file_url, original_file_url.
+     */
+    downloads?: {
+      signed_file_url?: string
+      original_file_url?: string
+    }
   }
 }
 
@@ -64,6 +96,7 @@ type ClickSignSigner = {
     email: string
     name: string
     token: string
+    sign_url?: string
   }
 }
 
@@ -72,6 +105,7 @@ type ClickSignList = {
     document_key: string
     signer_key: string
     sign_as: string
+    sign_url?: string   // retornado pela API em alguns planos
     widget_key?: string
     token?: string
   }
@@ -88,55 +122,110 @@ export async function enviarClickSign(
   const apiKey = resolveKey(rawKey)
   const base64Pdf = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`
 
-  // 1. Cria o documento
-  const docResp = await clicksignFetch<ClickSignDocument>(apiKey, '/api/v1/documents', {
-    method: 'POST',
-    json: {
-      document: {
-        path: `/contratos/${Date.now()}-${nomeContrato.slice(0, 40).replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
-        content_base64: base64Pdf,
-        deadline_at: null,
-        auto_close: true,
-        locale: 'pt-BR',
-        sequence_enabled: false,
+  // 1. Cria o documento (com retry)
+  const docResp = await withRetry(() =>
+    clicksignFetch<ClickSignDocument>(apiKey, '/api/v1/documents', {
+      method: 'POST',
+      json: {
+        document: {
+          path: `/contratos/${Date.now()}-${nomeContrato.slice(0, 40).replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
+          content_base64: base64Pdf,
+          deadline_at: null,
+          auto_close: true,
+          locale: 'pt-BR',
+          sequence_enabled: false,
+        },
       },
-    },
-  })
+    }),
+  )
 
   const docKey = docResp.document.key
 
-  // 2. Cria o signatário
-  const signerResp = await clicksignFetch<ClickSignSigner>(apiKey, '/api/v1/signers', {
-    method: 'POST',
-    json: {
-      signer: {
-        email: signatario.email,
-        name: signatario.nome,
-        auths: ['email'],
-        delivery: 'email',
-      },
-    },
-  })
+  // Loga o docKey ANTES de chamar os próximos passos.
+  // Se os passos 2 ou 3 falharem, este log permite localizar e cancelar
+  // o documento órfão manualmente no painel da ClickSign.
+  console.info(`[ClickSign] Documento criado: ${docKey} — prosseguindo com signatário e vínculo`)
+
+  // 2. Cria o signatário (com retry — usa docKey já conhecido)
+  let signerResp: ClickSignSigner
+  try {
+    signerResp = await withRetry(() =>
+      clicksignFetch<ClickSignSigner>(apiKey, '/api/v1/signers', {
+        method: 'POST',
+        json: {
+          signer: {
+            email: signatario.email,
+            name: signatario.nome,
+            auths: ['email'],
+            delivery: 'email',
+          },
+        },
+      }),
+    )
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { module: 'clicksign', operation: 'criar-signatario' },
+      extra: { docKey, signatarioEmail: signatario.email },
+    })
+    throw new Error(
+      `ClickSign: falha ao criar signatário para documento ${docKey}. ` +
+        `Acesse o painel da ClickSign e cancele/remova o documento manualmente. ` +
+        `Erro original: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
 
   const signerKey = signerResp.signer.key
 
-  // 3. Vincula signatário ao documento e solicita notificação por e-mail
-  const listResp = await clicksignFetch<ClickSignList>(apiKey, '/api/v1/lists', {
-    method: 'POST',
-    json: {
-      list: {
-        document_key: docKey,
-        signer_key: signerKey,
-        sign_as: 'contractee',
-        refusable: false,
-        communicate_events: { sign_as: true, view_as: false },
-        message: 'Você recebeu um contrato para assinatura eletrônica.',
-      },
-    },
-  })
+  // 3. Vincula signatário ao documento e solicita notificação por e-mail (com retry)
+  let listResp: ClickSignList
+  try {
+    listResp = await withRetry(() =>
+      clicksignFetch<ClickSignList>(apiKey, '/api/v1/lists', {
+        method: 'POST',
+        json: {
+          list: {
+            document_key: docKey,
+            signer_key: signerKey,
+            sign_as: 'contractee',
+            refusable: false,
+            communicate_events: { sign_as: true, view_as: false },
+            message: 'Você recebeu um contrato para assinatura eletrônica.',
+          },
+        },
+      }),
+    )
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { module: 'clicksign', operation: 'vincular-signatario' },
+      extra: { docKey, signerKey, signatarioEmail: signatario.email },
+    })
+    throw new Error(
+      `ClickSign: falha ao vincular signatário ${signerKey} ao documento ${docKey}. ` +
+        `Acesse o painel da ClickSign e finalize o vínculo ou cancele o documento manualmente. ` +
+        `Erro original: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
 
-  const signerToken = listResp.list.token ?? listResp.list.widget_key ?? signerKey
-  const signUrl = `https://app.clicksign.com/sign/${signerToken}`
+  // A ClickSign retorna sign_url diretamente no objeto list (planos Enterprise)
+  // ou no objeto signer. Fallback construído com o token do signatário.
+  const signUrl =
+    listResp.list.sign_url ??
+    signerResp.signer.sign_url ??
+    (signerResp.signer.token
+      ? `https://app.clicksign.com/sign/${signerResp.signer.token}`
+      : null)
+
+  if (!signUrl) {
+    Sentry.captureMessage('ClickSign: sign_url não encontrada na resposta da API', {
+      level: 'error',
+      tags: { module: 'clicksign', operation: 'sign-url' },
+      extra: { docKey, signerKey, listResp, signerResp },
+    })
+    throw new Error(
+      `ClickSign: não foi possível obter a URL de assinatura para o documento ${docKey}. ` +
+        `Verifique o plano contratado ou consulte o suporte da ClickSign.`,
+    )
+  }
 
   return { docKey, signUrl }
 }

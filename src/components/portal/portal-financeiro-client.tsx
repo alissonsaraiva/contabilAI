@@ -31,18 +31,18 @@ type CobrancaHistorico = {
 }
 
 const STATUS_LABEL: Record<CobrancaStatus, string> = {
-  PENDING:   'Em aberto',
-  RECEIVED:  'Pago',
-  OVERDUE:   'Vencido',
-  REFUNDED:  'Reembolsado',
+  PENDING: 'Em aberto',
+  RECEIVED: 'Pago',
+  OVERDUE: 'Vencido',
+  REFUNDED: 'Reembolsado',
   CANCELLED: 'Cancelado',
 }
 
 const STATUS_COLOR: Record<CobrancaStatus, string> = {
-  PENDING:   'bg-primary/10 text-primary',
-  RECEIVED:  'bg-green-status/10 text-green-status',
-  OVERDUE:   'bg-error/10 text-error',
-  REFUNDED:  'bg-surface-container text-on-surface-variant',
+  PENDING: 'bg-primary/10 text-primary',
+  RECEIVED: 'bg-green-status/10 text-green-status',
+  OVERDUE: 'bg-error/10 text-error',
+  REFUNDED: 'bg-surface-container text-on-surface-variant',
   CANCELLED: 'bg-surface-container text-on-surface-variant',
 }
 
@@ -70,7 +70,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
         fetch('/api/portal/financeiro/cobranca-aberta'),
         fetch('/api/portal/financeiro/cobrancas'),
       ])
-      if (abertaRes.ok)    setCobrancaAberta(await abertaRes.json())
+      if (abertaRes.ok) setCobrancaAberta(await abertaRes.json())
       if (historicoRes.ok) setHistorico(await historicoRes.json())
     } finally {
       setLoading(false)
@@ -95,9 +95,9 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
     setErro(null)
     try {
       const res = await fetch('/api/portal/financeiro/segunda-via', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ cobrancaId }),
+        body: JSON.stringify({ cobrancaId }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? 'Erro ao gerar segunda via.')
@@ -112,7 +112,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
 
   const FORMA_LABELS: Record<string, string> = {
     boleto: 'Boleto bancário',
-    pix:    'PIX',
+    pix: 'PIX',
   }
 
   if (loading) {
@@ -131,7 +131,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
 
       {/* Resumo da mensalidade */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-green-status/10">
             <span className="material-symbols-outlined text-[22px] text-green-status" style={{ fontVariationSettings: "'FILL' 1" }}>payments</span>
           </div>
@@ -139,7 +139,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
           <p className="text-xl font-bold text-on-surface mt-1">{formatBRL(valorMensal)}</p>
         </Card>
 
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>event_repeat</span>
           </div>
@@ -147,7 +147,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
           <p className="text-xl font-bold text-on-surface mt-1">Todo dia {vencimentoDia}</p>
         </Card>
 
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>credit_card</span>
           </div>
@@ -169,7 +169,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
       {/* Cobrança em aberto */}
       {asaasAtivo && cobrancaExibida && (
         <Card className="border-outline-variant/15 bg-card shadow-sm overflow-hidden rounded-[16px]">
-          <div className={`px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between ${cobrancaExibida.status === 'OVERDUE' ? 'bg-error/5' : ''}`}>
+          <div className={`p-4 sm:px-6 sm:py-4 border-b border-outline-variant/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cobrancaExibida.status === 'OVERDUE' ? 'bg-error/5' : ''}`}>
             <div className="flex items-center gap-3">
               <span
                 className={`material-symbols-outlined text-[20px] ${cobrancaExibida.status === 'OVERDUE' ? 'text-error' : 'text-primary'}`}
@@ -186,7 +186,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
                 </p>
               </div>
             </div>
-            <div className="text-right">
+            <div className="sm:text-right flex sm:block items-center justify-between">
               <p className="text-xl font-bold text-on-surface">{formatBRL(cobrancaExibida.valor)}</p>
               <span className={`text-[10px] font-bold uppercase px-2 py-[1px] rounded-full ${STATUS_COLOR[cobrancaExibida.status]}`}>
                 {STATUS_LABEL[cobrancaExibida.status]}
@@ -194,7 +194,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
             </div>
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-4">
             {/* PIX expirado */}
             {cobrancaExibida.formaPagamento === 'pix' && pixExpirado(cobrancaExibida) && (
               <div className="flex items-start gap-2 rounded-xl bg-orange-50 px-4 py-3 text-sm text-orange-700 dark:bg-orange-950/30 dark:text-orange-400">
@@ -301,7 +301,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
 
       {/* Sem cobranças */}
       {asaasAtivo && cobrancaExibida === null && (
-        <Card className="border-outline-variant/15 bg-card/60 p-6 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-6 rounded-[16px] shadow-sm">
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined text-[22px] text-green-status mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
               check_circle
@@ -316,7 +316,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
 
       {/* Sem integração Asaas */}
       {!asaasAtivo && (
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined text-[22px] text-primary mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
               info
@@ -332,13 +332,13 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
       {/* Histórico de cobranças */}
       {asaasAtivo && historico.length > 0 && (
         <div className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
-          <div className="flex items-center gap-3 px-6 py-4 border-b border-outline-variant/10">
+          <div className="flex items-center gap-3 p-4 sm:px-6 sm:py-4 border-b border-outline-variant/10">
             <span className="material-symbols-outlined text-[20px] text-primary/80" style={{ fontVariationSettings: "'FILL' 1" }}>history</span>
             <h3 className="font-headline text-base font-semibold text-on-surface">Histórico de pagamentos</h3>
           </div>
           <div className="divide-y divide-outline-variant/10">
             {historico.map(c => (
-              <div key={c.id} className="flex items-center gap-4 px-6 py-3.5">
+              <div key={c.id} className="flex flex-wrap items-center justify-between sm:justify-start gap-y-2 sm:gap-4 p-4 sm:px-6 sm:py-3.5">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-on-surface">
                     {new Date(c.vencimento).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
@@ -349,12 +349,14 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
                     </p>
                   )}
                 </div>
-                <span className="text-sm font-bold text-on-surface whitespace-nowrap">
-                  {formatBRL(c.valorPago ?? c.valor)}
-                </span>
-                <span className={`rounded-full px-2 py-[1px] text-[10px] font-bold uppercase tracking-wider ${STATUS_COLOR[c.status]}`}>
-                  {STATUS_LABEL[c.status]}
-                </span>
+                <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto basis-full sm:basis-auto mt-2 sm:mt-0 gap-3">
+                  <span className="text-sm font-bold text-on-surface whitespace-nowrap">
+                    {formatBRL(c.valorPago ?? c.valor)}
+                  </span>
+                  <span className={`rounded-full px-2 py-[1px] text-[10px] font-bold uppercase tracking-wider ${STATUS_COLOR[c.status]}`}>
+                    {STATUS_LABEL[c.status]}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

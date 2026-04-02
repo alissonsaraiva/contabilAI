@@ -74,7 +74,7 @@ export default function ContatoPage() {
   }
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-8 shadow-sm">
+    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-8 shadow-sm">
       <div className="mb-8">
         <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">Contato e Endereço</h2>
         <p className="mt-1 text-[13px] text-on-surface-variant/80">
@@ -171,11 +171,11 @@ export default function ContatoPage() {
           </p>
         </div>
 
-        <div className="mt-8 flex items-center justify-end gap-3 border-t border-outline-variant/15 pt-6">
+        <div className="mt-8 flex flex-col-reverse md:flex-row md:items-center justify-end gap-3 border-t border-outline-variant/15 pt-6">
           <button
             type="submit"
             disabled={loading}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60 min-w-[160px]"
+            className="w-full md:w-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60 min-w-[160px]"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
             Salvar alterações

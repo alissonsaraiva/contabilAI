@@ -10,48 +10,48 @@ import { DocItem } from './doc-item'
 
 /* ─── helpers de status ─── */
 const STATUS_OS: Record<string, { label: string; color: string }> = {
-  aberta:             { label: 'Aberta',       color: 'bg-primary/10 text-primary' },
-  em_andamento:       { label: 'Em andamento', color: 'bg-orange-status/10 text-orange-status' },
-  aguardando_cliente: { label: 'Aguardando',   color: 'bg-yellow-500/10 text-yellow-700' },
-  resolvida:          { label: 'Resolvida',    color: 'bg-green-status/10 text-green-status' },
-  cancelada:          { label: 'Cancelada',    color: 'bg-surface-container text-on-surface-variant/50' },
+  aberta: { label: 'Aberta', color: 'bg-primary/10 text-primary' },
+  em_andamento: { label: 'Em andamento', color: 'bg-orange-status/10 text-orange-status' },
+  aguardando_cliente: { label: 'Aguardando', color: 'bg-yellow-500/10 text-yellow-700' },
+  resolvida: { label: 'Resolvida', color: 'bg-green-status/10 text-green-status' },
+  cancelada: { label: 'Cancelada', color: 'bg-surface-container text-on-surface-variant/50' },
 }
 
 const REGIME_LABEL: Record<string, string> = {
-  MEI:             'MEI',
+  MEI: 'MEI',
   SimplesNacional: 'Simples Nacional',
-  LucroPresumido:  'Lucro Presumido',
-  LucroReal:       'Lucro Real',
-  Autonomo:        'Autônomo',
+  LucroPresumido: 'Lucro Presumido',
+  LucroReal: 'Lucro Real',
+  Autonomo: 'Autônomo',
 }
 
 /* Obrigações fiscais estáticas por regime/tipo */
 function getObrigacoes(regime: string | null | undefined, tipo: string): { label: string; vence: string; cor: string }[] {
   if (tipo === 'pf') {
     return [
-      { label: 'IRPF — Imposto de Renda PF',  vence: 'Abr/2026', cor: 'text-orange-status' },
-      { label: 'CARNÊ-LEÃO (se aplicável)',     vence: 'Mensal',   cor: 'text-primary' },
+      { label: 'IRPF — Imposto de Renda PF', vence: 'Abr/2026', cor: 'text-orange-status' },
+      { label: 'CARNÊ-LEÃO (se aplicável)', vence: 'Mensal', cor: 'text-primary' },
     ]
   }
   if (regime === 'MEI') {
     return [
-      { label: 'DAS-MEI',                         vence: 'Dia 20/mês', cor: 'text-primary' },
-      { label: 'DASN-SIMEI (anual)',               vence: 'Mai/2026',   cor: 'text-orange-status' },
-      { label: 'NF de Serviços (se prestador)',    vence: 'Mensal',     cor: 'text-on-surface-variant' },
+      { label: 'DAS-MEI', vence: 'Dia 20/mês', cor: 'text-primary' },
+      { label: 'DASN-SIMEI (anual)', vence: 'Mai/2026', cor: 'text-orange-status' },
+      { label: 'NF de Serviços (se prestador)', vence: 'Mensal', cor: 'text-on-surface-variant' },
     ]
   }
   if (regime === 'SimplesNacional') {
     return [
-      { label: 'DAS — Simples Nacional',           vence: 'Dia 20/mês', cor: 'text-primary' },
-      { label: 'DEFIS (anual)',                    vence: 'Mar/2026',   cor: 'text-orange-status' },
-      { label: 'DCTF (se aplicável)',              vence: 'Mensal',     cor: 'text-on-surface-variant' },
+      { label: 'DAS — Simples Nacional', vence: 'Dia 20/mês', cor: 'text-primary' },
+      { label: 'DEFIS (anual)', vence: 'Mar/2026', cor: 'text-orange-status' },
+      { label: 'DCTF (se aplicável)', vence: 'Mensal', cor: 'text-on-surface-variant' },
     ]
   }
   return [
-    { label: 'DCTF Mensal',                       vence: 'Dia 15/mês', cor: 'text-primary' },
-    { label: 'EFD-Contribuições',                 vence: 'Dia 10/mês', cor: 'text-orange-status' },
-    { label: 'SPED Contábil (anual)',             vence: 'Jun/2026',   cor: 'text-on-surface-variant' },
-    { label: 'ECF (anual)',                       vence: 'Jul/2026',   cor: 'text-on-surface-variant' },
+    { label: 'DCTF Mensal', vence: 'Dia 15/mês', cor: 'text-primary' },
+    { label: 'EFD-Contribuições', vence: 'Dia 10/mês', cor: 'text-orange-status' },
+    { label: 'SPED Contábil (anual)', vence: 'Jun/2026', cor: 'text-on-surface-variant' },
+    { label: 'ECF (anual)', vence: 'Jul/2026', cor: 'text-on-surface-variant' },
   ]
 }
 
@@ -69,7 +69,7 @@ function extColor(ext: string): string {
 
 export default async function PortalDashboardPage() {
   const session = await auth()
-  const user    = session?.user as any
+  const user = session?.user as any
   if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) redirect('/portal/login')
 
   const clienteId = await resolveClienteId(user)
@@ -78,7 +78,7 @@ export default async function PortalDashboardPage() {
   const [aiConfig, cliente, documentos, ordensRecentes, comunicados] = await Promise.all([
     getAiConfig(),
     prisma.cliente.findUnique({
-      where:  { id: clienteId },
+      where: { id: clienteId },
       select: {
         nome: true, email: true, cpf: true, planoTipo: true, valorMensal: true,
         vencimentoDia: true, status: true, dataInicio: true, tipoContribuinte: true,
@@ -91,16 +91,16 @@ export default async function PortalDashboardPage() {
       },
     }),
     prisma.documento.findMany({
-      where:   { clienteId, deletadoEm: null },
+      where: { clienteId, deletadoEm: null },
       orderBy: { criadoEm: 'desc' },
-      take:    6,
-      select:  { id: true, nome: true, tipo: true, url: true, criadoEm: true, status: true, visualizadoEm: true },
+      take: 6,
+      select: { id: true, nome: true, tipo: true, url: true, criadoEm: true, status: true, visualizadoEm: true },
     }),
     prisma.ordemServico.findMany({
-      where:   { clienteId },
+      where: { clienteId },
       orderBy: { criadoEm: 'desc' },
-      take:    4,
-      select:  { id: true, titulo: true, status: true, criadoEm: true, tipo: true },
+      take: 4,
+      select: { id: true, titulo: true, status: true, criadoEm: true, tipo: true },
     }),
     prisma.comunicado.findMany({
       where: {
@@ -108,21 +108,21 @@ export default async function PortalDashboardPage() {
         OR: [{ expiradoEm: null }, { expiradoEm: { gt: new Date() } }],
       },
       orderBy: { publicadoEm: 'desc' },
-      take:    3,
-      select:  { id: true, titulo: true, tipo: true, publicadoEm: true },
+      take: 3,
+      select: { id: true, titulo: true, tipo: true, publicadoEm: true },
     }),
   ])
 
   if (!cliente) redirect('/portal/login')
 
-  const nomeIa       = aiConfig.nomeAssistentes.portal ?? 'Assistente'
+  const nomeIa = aiConfig.nomeAssistentes.portal ?? 'Assistente'
   const primeiroNome = (user.tipo === 'socio' ? (user.name ?? cliente.nome) : cliente.nome).split(' ')[0]
-  const empresa       = cliente.empresa
-  const regime        = empresa?.regime ?? null
-  const obrigacoes    = getObrigacoes(regime, cliente.tipoContribuinte)
+  const empresa = cliente.empresa
+  const regime = empresa?.regime ?? null
+  const obrigacoes = getObrigacoes(regime, cliente.tipoContribuinte)
   const chamadosAbertos = ordensRecentes.filter(o => o.status !== 'resolvida' && o.status !== 'cancelada').length
   const docsDisponiveis = documentos.length
-  const docsNovos       = documentos.filter(d => !d.visualizadoEm).length
+  const docsNovos = documentos.filter(d => !d.visualizadoEm).length
 
   return (
     <div className="space-y-6">
@@ -130,7 +130,7 @@ export default async function PortalDashboardPage() {
       {/* ── Alerta status ── */}
       {(cliente.status === 'inadimplente' || cliente.status === 'suspenso') && (
         <div className={cn(
-          'flex items-start gap-4 rounded-2xl border px-5 py-4',
+          'flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-2xl border p-4 sm:px-5 sm:py-4',
           cliente.status === 'inadimplente' ? 'border-error/25 bg-error/8' : 'border-orange-status/25 bg-orange-status/8',
         )}>
           <span
@@ -149,12 +149,14 @@ export default async function PortalDashboardPage() {
                 : 'Sua conta está suspensa temporariamente. Entre em contato para regularizar.'}
             </p>
           </div>
-          <Link
-            href="/portal/suporte"
-            className={cn('shrink-0 rounded-xl px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors', cliente.status === 'inadimplente' ? 'bg-error hover:bg-error/90' : 'bg-orange-status hover:bg-orange-status/90')}
-          >
-            Falar agora
-          </Link>
+          <div className="w-full sm:w-auto pt-2 sm:pt-0">
+            <Link
+              href="/portal/suporte"
+              className={cn('flex justify-center shrink-0 rounded-xl px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors', cliente.status === 'inadimplente' ? 'bg-error hover:bg-error/90' : 'bg-orange-status hover:bg-orange-status/90')}
+            >
+              Falar agora
+            </Link>
+          </div>
         </div>
       )}
 
@@ -174,7 +176,7 @@ export default async function PortalDashboardPage() {
 
           {/* Obrigações fiscais */}
           <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-outline-variant/10 px-5 py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant/10 p-4 sm:px-5 sm:py-4">
               <div className="flex items-center gap-2.5">
                 <span className="text-[20px]">📅</span>
                 <h2 className="font-headline text-[14px] font-semibold text-on-surface">Obrigações fiscais</h2>
@@ -187,7 +189,7 @@ export default async function PortalDashboardPage() {
             </div>
             <ul className="divide-y divide-outline-variant/8">
               {obrigacoes.map((o, i) => (
-                <li key={i} className="flex items-center justify-between gap-4 px-5 py-3.5">
+                <li key={i} className="flex items-center justify-between gap-4 p-4 sm:px-5 sm:py-3.5">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-2 w-2 shrink-0 rounded-full bg-current opacity-60" style={{ color: 'currentcolor' }} />
                     <p className={cn('text-[13px] font-medium truncate', o.cor)}>{o.label}</p>
@@ -205,7 +207,7 @@ export default async function PortalDashboardPage() {
 
           {/* Documentos disponíveis */}
           <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-outline-variant/10 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-outline-variant/10 p-4 sm:px-5 sm:py-4">
               <div className="flex items-center gap-2.5">
                 <span className="text-[20px]">📄</span>
                 <h2 className="font-headline text-[14px] font-semibold text-on-surface">Documentos disponíveis</h2>
@@ -244,7 +246,7 @@ export default async function PortalDashboardPage() {
 
           {/* Meus chamados */}
           <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-outline-variant/10 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-outline-variant/10 p-4 sm:px-5 sm:py-4">
               <div className="flex items-center gap-2.5">
                 <span className="text-[20px]">🎫</span>
                 <h2 className="font-headline text-[14px] font-semibold text-on-surface">Meus chamados</h2>
@@ -283,7 +285,7 @@ export default async function PortalDashboardPage() {
                       <li key={o.id}>
                         <Link
                           href={`/portal/suporte/os/${o.id}`}
-                          className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-container-lowest/40 transition-colors"
+                          className="flex items-center gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container-lowest/40 transition-colors"
                         >
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-medium text-on-surface truncate">{o.titulo}</p>
@@ -311,7 +313,7 @@ export default async function PortalDashboardPage() {
           {/* Comunicados */}
           {comunicados.length > 0 && (
             <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between border-b border-outline-variant/10 px-5 py-4">
+              <div className="flex items-center justify-between border-b border-outline-variant/10 p-4 sm:px-5 sm:py-4">
                 <div className="flex items-center gap-2.5">
                   <span className="text-[20px]">📢</span>
                   <h2 className="font-headline text-[14px] font-semibold text-on-surface">Comunicados do escritório</h2>
@@ -319,19 +321,30 @@ export default async function PortalDashboardPage() {
               </div>
               <ul className="divide-y divide-outline-variant/8">
                 {comunicados.map(c => (
-                  <li key={c.id} className="flex items-center gap-3 px-5 py-3.5">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-[16px]">
-                      {c.tipo === 'alerta' ? '⚠️' : c.tipo === 'obrigacao' ? '📋' : '📢'}
-                    </div>
-                    <p className="flex-1 min-w-0 text-[13px] font-medium text-on-surface truncate">{c.titulo}</p>
-                    {c.publicadoEm && (
-                      <span className="shrink-0 text-[11px] text-on-surface-variant/50">
-                        {new Date(c.publicadoEm).toLocaleDateString('pt-BR')}
-                      </span>
-                    )}
+                  <li key={c.id}>
+                    <Link
+                      href={`/portal/comunicados/${c.id}`}
+                      className="flex items-center gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container/50 transition-colors"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-[16px]">
+                        {c.tipo === 'alerta' ? '⚠️' : c.tipo === 'obrigacao' ? '📋' : '📢'}
+                      </div>
+                      <p className="flex-1 min-w-0 text-[13px] font-medium text-on-surface truncate">{c.titulo}</p>
+                      {c.publicadoEm && (
+                        <span className="shrink-0 text-[11px] text-on-surface-variant/50">
+                          {new Date(c.publicadoEm).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
+                      <span className="material-symbols-outlined shrink-0 text-[16px] text-on-surface-variant/40">chevron_right</span>
+                    </Link>
                   </li>
                 ))}
               </ul>
+              <div className="border-t border-outline-variant/8 px-5 py-3 text-right">
+                <Link href="/portal/suporte" className="text-[12px] font-semibold text-primary hover:underline">
+                  Ver todos os comunicados →
+                </Link>
+              </div>
             </div>
           )}
         </div>
@@ -340,7 +353,7 @@ export default async function PortalDashboardPage() {
         <div className="flex min-w-0 flex-col gap-5">
 
           {/* Info do cliente */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-5">
+          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-4 sm:p-5">
             <div className="mb-4 flex items-center gap-2.5">
               <span className="text-[20px]">{cliente.tipoContribuinte === 'pf' ? '🪪' : '🏛️'}</span>
               <h2 className="font-headline text-[14px] font-semibold text-on-surface">
@@ -397,7 +410,7 @@ export default async function PortalDashboardPage() {
           </div>
 
           {/* Resumo do ano */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-5">
+          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-4 sm:p-5">
             <div className="mb-4 flex items-center gap-2.5">
               <span className="text-[20px]">📊</span>
               <h2 className="font-headline text-[14px] font-semibold text-on-surface">Resumo do ano</h2>
@@ -425,17 +438,17 @@ export default async function PortalDashboardPage() {
           </div>
 
           {/* Acesso rápido */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-5">
+          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2.5">
               <span className="text-[20px]">⚡</span>
               <h2 className="font-headline text-[14px] font-semibold text-on-surface">Acesso rápido</h2>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { href: '/portal/documentos',      icon: '📄', label: 'Documentos' },
+                { href: '/portal/documentos', icon: '📄', label: 'Documentos' },
                 { href: '/portal/suporte/os/nova', icon: '🎫', label: 'Abrir chamado' },
-                { href: '/portal/empresa',         icon: '🏛️', label: 'Minha empresa' },
-                { href: '/portal/suporte',         icon: '💬', label: 'Suporte' },
+                { href: '/portal/empresa', icon: '🏛️', label: 'Minha empresa' },
+                { href: '/portal/suporte', icon: '💬', label: 'Suporte' },
               ].map(a => (
                 <Link
                   key={a.href}

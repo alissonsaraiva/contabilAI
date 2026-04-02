@@ -7,11 +7,11 @@ import { formatCNPJ, formatTelefone } from '@/lib/utils'
 import { PortalContatoEdit } from '@/components/portal/portal-contato-edit'
 
 const REGIME_LABELS: Record<string, string> = {
-  MEI:             'MEI',
+  MEI: 'MEI',
   SimplesNacional: 'Simples Nacional',
-  LucroPresumido:  'Lucro Presumido',
-  LucroReal:       'Lucro Real',
-  Autonomo:        'Autônomo',
+  LucroPresumido: 'Lucro Presumido',
+  LucroReal: 'Lucro Real',
+  Autonomo: 'Autônomo',
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
@@ -26,14 +26,14 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 
 export default async function PortalEmpresaPage() {
   const session = await auth()
-  const user    = session?.user as any
+  const user = session?.user as any
   if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) redirect('/portal/login')
 
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
   const cliente = await prisma.cliente.findUnique({
-    where:   { id: clienteId },
+    where: { id: clienteId },
     include: {
       empresa: {
         include: { socios: { orderBy: { principal: 'desc' } } },
@@ -49,8 +49,8 @@ export default async function PortalEmpresaPage() {
   if (!cliente) redirect('/portal/login')
 
   const empresa = cliente.empresa
-  const plano   = cliente.contratos[0]
-  const isPF    = cliente.tipoContribuinte === 'pf'
+  const plano = cliente.contratos[0]
+  const isPF = cliente.tipoContribuinte === 'pf'
 
   return (
     <div className="space-y-6">
@@ -67,7 +67,7 @@ export default async function PortalEmpresaPage() {
 
       {/* PJ: dados da empresa */}
       {!isPF && (
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
               <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -98,7 +98,7 @@ export default async function PortalEmpresaPage() {
 
       {/* PF: dados profissionais */}
       {isPF && (
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
               <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -128,24 +128,24 @@ export default async function PortalEmpresaPage() {
 
       {/* Titular / Responsável (só PJ) */}
       {!isPF && (
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">person</span>
               <h2 className="text-[14px] font-semibold text-on-surface">Titular / Responsável</h2>
             </div>
             <PortalContatoEdit initial={{
-              email:       cliente.email,
+              email: cliente.email,
               estadoCivil: cliente.estadoCivil,
-              telefone:    cliente.telefone,
-              whatsapp:    cliente.whatsapp,
-              cep:         cliente.cep,
-              logradouro:  cliente.logradouro,
-              numero:      cliente.numero,
+              telefone: cliente.telefone,
+              whatsapp: cliente.whatsapp,
+              cep: cliente.cep,
+              logradouro: cliente.logradouro,
+              numero: cliente.numero,
               complemento: cliente.complemento,
-              bairro:      cliente.bairro,
-              cidade:      cliente.cidade,
-              uf:          cliente.uf,
+              bairro: cliente.bairro,
+              cidade: cliente.cidade,
+              uf: cliente.uf,
             }} />
           </div>
           <div>
@@ -174,24 +174,24 @@ export default async function PortalEmpresaPage() {
 
       {/* PF: contato */}
       {isPF && (
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">contact_phone</span>
               <h2 className="text-[14px] font-semibold text-on-surface">Contato</h2>
             </div>
             <PortalContatoEdit initial={{
-              email:       cliente.email,
+              email: cliente.email,
               estadoCivil: cliente.estadoCivil,
-              telefone:    cliente.telefone,
-              whatsapp:    cliente.whatsapp,
-              cep:         cliente.cep,
-              logradouro:  cliente.logradouro,
-              numero:      cliente.numero,
+              telefone: cliente.telefone,
+              whatsapp: cliente.whatsapp,
+              cep: cliente.cep,
+              logradouro: cliente.logradouro,
+              numero: cliente.numero,
               complemento: cliente.complemento,
-              bairro:      cliente.bairro,
-              cidade:      cliente.cidade,
-              uf:          cliente.uf,
+              bairro: cliente.bairro,
+              cidade: cliente.cidade,
+              uf: cliente.uf,
             }} />
           </div>
           <div>
@@ -218,7 +218,7 @@ export default async function PortalEmpresaPage() {
 
       {/* Plano contratado */}
       {plano && (
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">contract</span>
             <h2 className="text-[14px] font-semibold text-on-surface">Plano contratado</h2>
@@ -242,7 +242,7 @@ export default async function PortalEmpresaPage() {
 
       {/* Quadro societário (só PJ) */}
       {!isPF && empresa?.socios && empresa.socios.length > 0 && (
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">group</span>
             <h2 className="text-[14px] font-semibold text-on-surface">Quadro societário</h2>

@@ -80,4 +80,7 @@ export const storageKeys = {
   logoEscritorio:    ()                                => `escritorio/logo`,
   faviconEscritorio: ()                                => `escritorio/favicon`,
   comunicadoAnexo:   (comunicadoId: string, nome: string) => `comunicados/${comunicadoId}/${nome}`,
+  // Cópias locais de NFS-e (PDF e XML) — independentes da disponibilidade da Spedy
+  notaFiscalPdf: (clienteId: string, notaId: string) => `notas-fiscais/${clienteId}/${notaId}/nota.pdf`,
+  notaFiscalXml: (clienteId: string, notaId: string) => `notas-fiscais/${clienteId}/${notaId}/nota.xml`,
 }

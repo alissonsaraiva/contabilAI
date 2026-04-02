@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { enviarEmailComHistorico } from '@/lib/email/com-historico'
@@ -57,13 +58,21 @@ export async function POST(req: Request) {
   }
 
   // Se foi uma resposta a um email recebido, marca a interação origem como respondida
+  // Importante: await explícito — em serverless, Promise sem await pode ser abandonada antes de resolver
   if (interacaoOrigemId) {
-    prisma.interacao.updateMany({
-      where: { id: interacaoOrigemId, tipo: 'email_recebido', respondidoEm: null },
-      data:  { respondidoEm: new Date(), respondidoPorId: usuarioId },
-    }).catch((err: unknown) =>
-      console.error('[email/enviar] erro ao marcar interação como respondida:', { interacaoOrigemId, err }),
-    )
+    try {
+      await prisma.interacao.updateMany({
+        where: { id: interacaoOrigemId, tipo: 'email_recebido', respondidoEm: null },
+        data:  { respondidoEm: new Date(), respondidoPorId: usuarioId },
+      })
+    } catch (err: unknown) {
+      // Não crítico para o retorno (email já foi enviado), mas deve ser rastreado
+      console.error('[email/enviar] erro ao marcar interação como respondida:', { interacaoOrigemId, err })
+      Sentry.captureException(err, {
+        tags:  { module: 'email-enviar', operation: 'marcar-respondida' },
+        extra: { interacaoOrigemId, usuarioId },
+      })
+    }
   }
 
   return NextResponse.json({ ok: true, messageId: resultado.messageId })

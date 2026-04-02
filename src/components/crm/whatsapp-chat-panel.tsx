@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 type Mensagem = {
   id: string
   role: string
-  conteudo: string
+  conteudo: string | null
   criadaEm: string | Date
   status?: 'pending' | 'sent' | 'failed'
   erroEnvio?: string | null
@@ -15,6 +15,7 @@ type Mensagem = {
   mediaFileName?: string | null
   mediaMimeType?: string | null
   hasWhatsappMedia?: boolean
+  excluido?: boolean
 }
 
 type ArquivoAnexo = {
@@ -70,25 +71,26 @@ class WhatsAppChatBoundary extends Component<
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppChatPanelProps) {
-  const [mensagens, setMensagens]     = useState<Mensagem[]>([])
-  const [pausada, setPausada]         = useState(false)
-  const [conversaId, setConversaId]   = useState<string | null>(null)
-  const [assumindo, setAssumindo]     = useState(false)
-  const [telefone, setTelefone]       = useState<string | null>(null)
-  const [semNumero, setSemNumero]     = useState(false)
-  const [texto, setTexto]             = useState('')
-  const [sending, setSending]         = useState(false)
-  const [reativando, setReativando]   = useState(false)
-  const [arquivo, setArquivo]         = useState<ArquivoAnexo | null>(null)
-  const [uploading, setUploading]     = useState(false)
-  const [naoModoIA, setNaoModoIA]     = useState(false)
-  const fileInputRef                  = useRef<HTMLInputElement>(null)
-  const bottomRef                     = useRef<HTMLDivElement>(null)
-  const scrollContainerRef            = useRef<HTMLDivElement>(null)
-  const isNearBottomRef               = useRef(true)
-  const isFirstLoadRef                = useRef(true)
+  const [mensagens, setMensagens] = useState<Mensagem[]>([])
+  const [pausada, setPausada] = useState(false)
+  const [conversaId, setConversaId] = useState<string | null>(null)
+  const [assumindo, setAssumindo] = useState(false)
+  const [telefone, setTelefone] = useState<string | null>(null)
+  const [semNumero, setSemNumero] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [sending, setSending] = useState(false)
+  const [reativando, setReativando] = useState(false)
+  const [excluindo, setExcluindo] = useState<string | null>(null) // mensagemId em exclusão
+  const [arquivo, setArquivo] = useState<ArquivoAnexo | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [naoModoIA, setNaoModoIA] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const isNearBottomRef = useRef(true)
+  const isFirstLoadRef = useRef(true)
   // Mantém a previewUrl atual acessível no cleanup sem depender de state
-  const arquivoPreviewRef             = useRef<string | null>(null)
+  const arquivoPreviewRef = useRef<string | null>(null)
 
   function onScroll() {
     const el = scrollContainerRef.current
@@ -110,7 +112,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
       setPausada(data.pausada ?? false)
       setConversaId(data.conversa?.id ?? null)
       setTelefone(data.telefone ?? null)
-    } catch {}
+    } catch { }
   }, [apiPath])
 
   // Carrega ao montar (apiPath é estável durante a vida do componente)
@@ -141,8 +143,20 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
 
     function conectar() {
       es = new EventSource(`/api/stream/conversas/${conversaId}`)
-      es.onmessage = () => { tentativas = 0; carregar() }
-      es.onerror   = () => {
+      es.onmessage = (e) => {
+        tentativas = 0
+        try {
+          const data = JSON.parse(e.data)
+          if (data?.type === 'mensagem_excluida' && data.mensagemId) {
+            setMensagens(prev => prev.map(m =>
+              m.id === data.mensagemId ? { ...m, excluido: true, conteudo: null, mediaUrl: null, mediaType: null, mediaFileName: null } : m
+            ))
+            return
+          }
+        } catch { }
+        carregar()
+      }
+      es.onerror = () => {
         es.close()
         if (encerrado || tentativas >= 5) return
         tentativas++
@@ -239,8 +253,8 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
           conteudo: texto.trim(),
           pausarIA: !naoModoIA,
           ...(arquivo && {
-            mediaUrl:      arquivo.url,
-            mediaType:     arquivo.type,
+            mediaUrl: arquivo.url,
+            mediaType: arquivo.type,
             mediaFileName: arquivo.name,
             mediaMimeType: arquivo.mimeType,
           }),
@@ -303,12 +317,35 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
     }
   }
 
+  async function excluirMensagem(mensagemId: string) {
+    if (!conversaId || excluindo) return
+    if (!confirm('Apagar esta mensagem para todos?')) return
+    setExcluindo(mensagemId)
+    try {
+      const res = await fetch(`/api/conversas/${conversaId}/mensagens/${mensagemId}`, { method: 'DELETE' })
+      if (!res.ok) { toast.error('Erro ao excluir mensagem'); return }
+      setMensagens(prev => prev.map(m =>
+        m.id === mensagemId ? { ...m, excluido: true, conteudo: null, mediaUrl: null, mediaType: null, mediaFileName: null } : m
+      ))
+    } catch {
+      toast.error('Erro ao excluir mensagem')
+    } finally {
+      setExcluindo(null)
+    }
+  }
+
   return (
     <WhatsAppChatBoundary onClose={onClose}>
       {/* Header */}
-      <div className="flex shrink-0 flex-col gap-2 border-b border-outline-variant/15 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#25D366]/15">
+      <div className="flex shrink-0 flex-col gap-2 border-b border-outline-variant/15 px-4 lg:px-5 py-4">
+        <div className="flex items-center gap-2 lg:gap-3">
+          <button
+            onClick={onClose}
+            className="lg:hidden flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container hover:text-on-surface"
+          >
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </button>
+          <div className="hidden lg:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#25D366]/15">
             <span
               className="material-symbols-outlined text-[18px] text-[#25D366]"
               style={{ fontVariationSettings: "'FILL' 1" }}
@@ -322,7 +359,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
           </div>
           <button
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container hover:text-on-surface"
+            className="hidden lg:flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 transition-colors hover:bg-surface-container hover:text-on-surface"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
@@ -399,22 +436,28 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
         ) : (
           <div className="space-y-2.5">
             {mensagens.map(m => (
-              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+              <div key={m.id} className={`group flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
                 {m.role === 'user' && (
                   <div className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#25D366]/15">
                     <span className="material-symbols-outlined text-[12px] text-[#25D366]">person</span>
                   </div>
                 )}
                 <div
-                  className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 text-[12px] leading-relaxed ${
-                    m.role === 'user'
-                      ? 'rounded-bl-md bg-surface-container text-on-surface'
-                      : m.status === 'failed'
-                        ? 'rounded-br-md bg-error/10 text-on-surface ring-1 ring-error/20'
-                        : 'rounded-br-md bg-primary text-white'
-                  }`}
+                  className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 text-[12px] leading-relaxed ${m.excluido
+                      ? 'rounded-br-md bg-surface-container/60 text-on-surface-variant/50 ring-1 ring-outline-variant/20'
+                      : m.role === 'user'
+                        ? 'rounded-bl-md bg-surface-container text-on-surface'
+                        : m.status === 'failed'
+                          ? 'rounded-br-md bg-error/10 text-on-surface ring-1 ring-error/20'
+                          : 'rounded-br-md bg-primary text-white'
+                    }`}
                 >
-                  {m.conteudo === '[áudio]' ? (
+                  {m.excluido ? (
+                    <p className="flex items-center gap-1.5 italic">
+                      <span className="material-symbols-outlined text-[13px]">block</span>
+                      Mensagem excluída
+                    </p>
+                  ) : m.conteudo === '[áudio]' ? (
                     <div className="flex flex-col gap-1">
                       <audio controls src={`/api/whatsapp/media/${m.id}`} className="h-8 w-full max-w-[11rem] rounded-md" />
                       <p className="text-[10px] text-on-surface-variant/50">Áudio não transcrito</p>
@@ -428,7 +471,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
                       <a href={`/api/whatsapp/media/${m.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 hover:bg-white/20 transition-colors">
                         <span className="material-symbols-outlined text-[18px] shrink-0">attach_file</span>
                         <span className="text-[12px] truncate max-w-[8rem] sm:max-w-[12rem]">
-                          {m.conteudo.startsWith('[') ? 'Arquivo do cliente' : m.conteudo}
+                          {m.conteudo?.startsWith('[') ? 'Arquivo do cliente' : m.conteudo}
                         </span>
                         <span className="material-symbols-outlined text-[14px] shrink-0 opacity-60">download</span>
                       </a>
@@ -450,10 +493,12 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
                   ) : (
                     <p className="whitespace-pre-wrap">{m.conteudo}</p>
                   )}
-                  <p className={`mt-1 text-[10px] ${m.role === 'user' ? 'text-on-surface-variant/50' : m.status === 'failed' ? 'text-error/60' : 'text-white/50'}`}>
-                    {new Date(m.criadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  {m.role === 'assistant' && m.status === 'failed' && (
+                  {!m.excluido && (
+                    <p className={`mt-1 text-[10px] ${m.role === 'user' ? 'text-on-surface-variant/50' : m.status === 'failed' ? 'text-error/60' : 'text-white/50'}`}>
+                      {new Date(m.criadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                  {m.role === 'assistant' && m.status === 'failed' && !m.excluido && (
                     <p
                       className="mt-0.5 flex items-center gap-1 text-[10px] text-error/70"
                       title={m.erroEnvio ?? 'Falha no envio'}
@@ -463,6 +508,19 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
                     </p>
                   )}
                 </div>
+                {m.role === 'assistant' && !m.excluido && (
+                  <button
+                    onClick={() => excluirMensagem(m.id)}
+                    disabled={excluindo === m.id}
+                    className="ml-1 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-on-surface-variant/0 transition-all hover:bg-error/10 hover:text-error group-hover:text-on-surface-variant/40 disabled:opacity-40"
+                    title="Apagar para todos"
+                  >
+                    {excluindo === m.id
+                      ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
+                      : <span className="material-symbols-outlined text-[14px]">delete</span>
+                    }
+                  </button>
+                )}
                 {m.role === 'assistant' && (
                   <div className="ml-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
                     <span
@@ -535,11 +593,10 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
                 type="button"
                 onClick={() => setNaoModoIA(v => !v)}
                 title={naoModoIA ? 'Modo comunicado: IA continua ativa' : 'Clique para enviar sem pausar a IA'}
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-                  naoModoIA
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors ${naoModoIA
                     ? 'border-[#25D366]/40 bg-[#25D366]/10 text-[#25D366]'
                     : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant/40 hover:text-on-surface-variant'
-                }`}
+                  }`}
               >
                 <span
                   className="material-symbols-outlined text-[18px]"

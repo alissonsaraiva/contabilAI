@@ -34,9 +34,22 @@ export async function GET(
 
   const telefone = conversa.remoteJid?.replace('@s.whatsapp.net', '') ?? null
 
+  const mensagens = conversa.mensagens.map(({ whatsappMsgData, ...m }) => ({
+    ...m,
+    // Mensagem excluída: apaga conteúdo e mídia — front renderiza placeholder
+    conteudo:      m.excluido ? null : m.conteudo,
+    mediaUrl:      m.excluido ? null : m.mediaUrl,
+    mediaType:     m.excluido ? null : m.mediaType,
+    mediaFileName: m.excluido ? null : m.mediaFileName,
+    hasWhatsappMedia: !m.excluido && !m.mediaUrl && (
+      m.mediaType === 'document' ||
+      (!!whatsappMsgData && m.conteudo.startsWith('[') && m.conteudo.endsWith(']'))
+    ),
+  }))
+
   return NextResponse.json({
     conversa:  { id: conversa.id, canal: conversa.canal, pausadaEm: conversa.pausadaEm },
-    mensagens: conversa.mensagens,
+    mensagens,
     pausada:   !!conversa.pausadaEm,
     telefone,
     cliente:   conversa.cliente,

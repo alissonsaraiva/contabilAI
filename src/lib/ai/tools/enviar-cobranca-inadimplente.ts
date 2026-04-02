@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -6,7 +7,14 @@ import { sendText } from '@/lib/evolution'
 
 type Nivel = 'gentil' | 'urgente' | 'reforco'
 
-function montarMensagem(nome: string, valor: string, dataVenc: string, nivel: Nivel, pagamento: string, nomeEscritorio: string): string {
+function montarMensagem(
+  nome: string,
+  valor: string,
+  dataVenc: string,
+  nivel: Nivel,
+  pagamento: string,
+  nomeEscritorio: string,
+): string {
   const pagStr = pagamento || 'Entre em contato conosco para obter uma nova via de pagamento.'
 
   if (nivel === 'gentil') {
@@ -55,145 +63,191 @@ const enviarCobrancaInadimplenteTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    const clienteIdInput = (input.clienteId as string | undefined) ?? ctx.clienteId
-    const busca          = input.busca as string | undefined
-    const nivel          = (input.nivel as Nivel | undefined) ?? 'gentil'
+    try {
+      const clienteIdInput = (input.clienteId as string | undefined) ?? ctx.clienteId
+      const busca          = input.busca as string | undefined
+      const nivel          = (input.nivel as Nivel | undefined) ?? 'gentil'
 
-    if (!clienteIdInput && !busca) {
+      if (!clienteIdInput && !busca) {
+        return {
+          sucesso: false,
+          erro:    'Forneça clienteId ou busca (nome/CPF/CNPJ/e-mail).',
+          resumo:  'Não foi possível identificar o cliente.',
+        }
+      }
+
+      const buscaNorm = busca ? busca.replace(/[.\-\/\s]/g, '') : undefined
+
+      const cliente = clienteIdInput
+        ? await prisma.cliente.findUnique({
+            where:  { id: clienteIdInput },
+            select: {
+              id: true, nome: true, status: true, whatsapp: true, telefone: true,
+              empresa: {
+                select: {
+                  razaoSocial: true,
+                  socios: {
+                    where:  { principal: true },
+                    select: { nome: true, whatsapp: true, telefone: true },
+                    take:   1,
+                  },
+                },
+              },
+              cobrancasAsaas: {
+                where:   { status: { in: ['PENDING', 'OVERDUE'] } },
+                orderBy: { vencimento: 'asc' },
+                take:    1,
+                select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true },
+              },
+            },
+          })
+        : await prisma.cliente.findFirst({
+            where: {
+              OR: [
+                { nome:  { contains: busca!, mode: 'insensitive' } },
+                { email: { contains: busca!, mode: 'insensitive' } },
+                { empresa: { is: { razaoSocial: { contains: busca!, mode: 'insensitive' } } } },
+                { cpf: busca! },
+                { empresa: { is: { cnpj: busca! } } },
+                ...(buscaNorm && buscaNorm !== busca ? [
+                  { cpf: buscaNorm },
+                  { empresa: { is: { cnpj: buscaNorm } } },
+                ] : []),
+              ],
+            },
+            select: {
+              id: true, nome: true, status: true, whatsapp: true, telefone: true,
+              empresa: {
+                select: {
+                  razaoSocial: true,
+                  socios: {
+                    where:  { principal: true },
+                    select: { nome: true, whatsapp: true, telefone: true },
+                    take:   1,
+                  },
+                },
+              },
+              cobrancasAsaas: {
+                where:   { status: { in: ['PENDING', 'OVERDUE'] } },
+                orderBy: { vencimento: 'asc' },
+                take:    1,
+                select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true },
+              },
+            },
+          })
+
+      if (!cliente) {
+        return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Cliente não encontrado.' }
+      }
+
+      // GAP 6: valida se o cliente realmente está inadimplente antes de enviar mensagem
+      // de cobrança. Evita enviar "risco de suspensão" para cliente em dia.
+      if (cliente.status !== 'inadimplente') {
+        const cobrancasAbertas = (cliente as any).cobrancasAsaas ?? []
+        if (cobrancasAbertas.length === 0) {
+          return {
+            sucesso: false,
+            erro:    `Cliente ${cliente.nome} não está inadimplente e não possui cobranças em aberto.`,
+            resumo:  `${cliente.nome} está em dia — nenhuma cobrança em aberto encontrada.`,
+          }
+        }
+        // Tem PENDING (não OVERDUE) — avisa o operador mas permite envio com nível gentil apenas
+        if (nivel !== 'gentil') {
+          return {
+            sucesso: false,
+            erro:    `Cliente ${cliente.nome} possui status "${cliente.status}" (não inadimplente). Use nível "gentil" para cobranças preventivas.`,
+            resumo:  `Para enviar cobrança urgente/reforço, o cliente precisa estar inadimplente. Status atual: ${cliente.status}.`,
+          }
+        }
+      }
+
+      const cobranca = (cliente as any).cobrancasAsaas?.[0] ?? null
+      if (!cobranca) {
+        return {
+          sucesso: false,
+          erro:    'Nenhuma cobrança em aberto para este cliente.',
+          resumo:  `${cliente.nome} não possui cobranças em aberto.`,
+        }
+      }
+
+      // Resolve destino WhatsApp: sócio principal → cliente.whatsapp → cliente.telefone
+      const socioP   = (cliente as any).empresa?.socios?.[0]
+      const destWA   = socioP?.whatsapp ?? socioP?.telefone ?? cliente.whatsapp ?? cliente.telefone ?? null
+      const nomeDest = socioP?.nome ?? cliente.nome
+
+      if (!destWA) {
+        return {
+          sucesso: false,
+          erro:    'Nenhum número WhatsApp disponível para este cliente.',
+          resumo:  `${cliente.nome} não possui WhatsApp cadastrado.`,
+        }
+      }
+
+      const pagStr = cobranca.pixCopiaECola
+        ? `*PIX Copia e Cola:*\n${cobranca.pixCopiaECola}`
+        : cobranca.linkBoleto
+        ? `Acesse o boleto: ${cobranca.linkBoleto}`
+        : ''
+
+      const valor    = Number(cobranca.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      const dataVenc = new Date(cobranca.vencimento).toLocaleDateString('pt-BR')
+
+      const esc = await prisma.escritorio.findFirst({
+        select: { nomeFantasia: true, nome: true, evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
+      })
+
+      if (!esc?.evolutionApiUrl || !esc.evolutionApiKey || !esc.evolutionInstance) {
+        return {
+          sucesso: false,
+          erro:    'Evolution API não configurado.',
+          resumo:  'Não foi possível enviar: Evolution API não configurado.',
+        }
+      }
+
+      const rawKey = esc.evolutionApiKey
+      const evoCfg = {
+        baseUrl:  esc.evolutionApiUrl,
+        apiKey:   isEncrypted(rawKey) ? decrypt(rawKey) : rawKey,
+        instance: esc.evolutionInstance,
+      }
+      const nomeEsc  = esc.nomeFantasia ?? esc.nome ?? 'Nosso escritório'
+      const mensagem = montarMensagem(nomeDest, valor, dataVenc, nivel, pagStr, nomeEsc)
+      const numero   = destWA.replace(/\D/g, '')
+
+      // BUG 13: sendText agora dentro do try/catch — exceção era não capturada antes
+      await sendText(evoCfg, `${numero}@s.whatsapp.net`, mensagem)
+
+      await prisma.interacao.create({
+        data: {
+          clienteId: cliente.id,
+          tipo:      'whatsapp_enviado',
+          titulo:    `Cobrança ${cobranca.id} — ${nivel}`,
+          conteudo:  mensagem,
+          origem:    'ia_crm',
+          usuarioId: ctx.usuarioId ?? null,
+        },
+      }).catch((err: unknown) =>
+        console.error('[tool/enviar-cobranca-inadimplente] erro ao registrar interação:', { clienteId: cliente.id, err }),
+      )
+
+      return {
+        sucesso: true,
+        dados:   { clienteId: cliente.id, nivel, destWA: numero },
+        resumo:  `Mensagem de cobrança (${nivel}) enviada para ${nomeDest} (${numero}).`,
+      }
+    } catch (err) {
+      // BUG 13: captura exceções de sendText e quaisquer outros erros inesperados
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[tool/enviar-cobranca-inadimplente] erro inesperado:', err)
+      Sentry.captureException(err, {
+        tags:  { module: 'tool', operation: 'enviarCobrancaInadimplente' },
+        extra: { clienteId: ctx.clienteId, canal: ctx.solicitanteAI },
+      })
       return {
         sucesso: false,
-        erro:   'Forneça clienteId ou busca (nome/CPF/CNPJ/e-mail).',
-        resumo: 'Não foi possível identificar o cliente.',
+        erro:    msg,
+        resumo:  'Não foi possível enviar a mensagem de cobrança. Verifique se o WhatsApp está conectado.',
       }
-    }
-
-    const buscaNorm = busca ? busca.replace(/[.\-\/\s]/g, '') : undefined
-
-    const cliente = clienteIdInput
-      ? await prisma.cliente.findUnique({
-          where:  { id: clienteIdInput },
-          select: {
-            id: true, nome: true, status: true, whatsapp: true, telefone: true,
-            empresa: {
-              select: {
-                razaoSocial: true,
-                socios: {
-                  where:  { principal: true },
-                  select: { nome: true, whatsapp: true, telefone: true },
-                  take:   1,
-                },
-              },
-            },
-            cobrancasAsaas: {
-              where:   { status: { in: ['PENDING', 'OVERDUE'] } },
-              orderBy: { vencimento: 'asc' },
-              take:    1,
-              select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true },
-            },
-          },
-        })
-      : await prisma.cliente.findFirst({
-          where: {
-            OR: [
-              { nome:  { contains: busca!, mode: 'insensitive' } },
-              { email: { contains: busca!, mode: 'insensitive' } },
-              { empresa: { is: { razaoSocial: { contains: busca!, mode: 'insensitive' } } } },
-              { cpf: busca! },
-              { empresa: { is: { cnpj: busca! } } },
-              ...(buscaNorm && buscaNorm !== busca ? [
-                { cpf: buscaNorm },
-                { empresa: { is: { cnpj: buscaNorm } } },
-              ] : []),
-            ],
-          },
-          select: {
-            id: true, nome: true, status: true, whatsapp: true, telefone: true,
-            empresa: {
-              select: {
-                razaoSocial: true,
-                socios: {
-                  where:  { principal: true },
-                  select: { nome: true, whatsapp: true, telefone: true },
-                  take:   1,
-                },
-              },
-            },
-            cobrancasAsaas: {
-              where:   { status: { in: ['PENDING', 'OVERDUE'] } },
-              orderBy: { vencimento: 'asc' },
-              take:    1,
-              select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true },
-            },
-          },
-        })
-
-    if (!cliente) {
-      return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Cliente não encontrado.' }
-    }
-
-    const cobranca = (cliente as any).cobrancasAsaas?.[0] ?? null
-    if (!cobranca) {
-      return { sucesso: false, erro: 'Nenhuma cobrança em aberto para este cliente.', resumo: `${cliente.nome} não possui cobranças em aberto.` }
-    }
-
-    // Resolve destino WhatsApp: sócio principal → cliente.whatsapp → cliente.telefone
-    const socioP   = (cliente as any).empresa?.socios?.[0]
-    const destWA   = socioP?.whatsapp ?? socioP?.telefone ?? cliente.whatsapp ?? cliente.telefone ?? null
-    const nomeDest = socioP?.nome ?? cliente.nome
-
-    if (!destWA) {
-      return { sucesso: false, erro: 'Nenhum número WhatsApp disponível para este cliente.', resumo: `${cliente.nome} não possui WhatsApp cadastrado.` }
-    }
-
-    // Monta pagamento string
-    const pagStr = cobranca.pixCopiaECola
-      ? `*PIX Copia e Cola:*\n${cobranca.pixCopiaECola}`
-      : cobranca.linkBoleto
-      ? `Acesse o boleto: ${cobranca.linkBoleto}`
-      : ''
-
-    const valor    = Number(cobranca.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    const dataVenc = new Date(cobranca.vencimento).toLocaleDateString('pt-BR')
-
-    // Load escritório config
-    const esc = await prisma.escritorio.findFirst({
-      select: { nomeFantasia: true, nome: true, evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
-    })
-
-    if (!esc?.evolutionApiUrl || !esc.evolutionApiKey || !esc.evolutionInstance) {
-      return { sucesso: false, erro: 'Evolution API não configurado.', resumo: 'Não foi possível enviar: Evolution API não configurado.' }
-    }
-
-    const rawKey = esc.evolutionApiKey
-    const evoCfg = {
-      baseUrl:  esc.evolutionApiUrl,
-      apiKey:   isEncrypted(rawKey) ? decrypt(rawKey) : rawKey,
-      instance: esc.evolutionInstance,
-    }
-    const nomeEsc  = esc.nomeFantasia ?? esc.nome ?? 'Nosso escritório'
-    const mensagem = montarMensagem(nomeDest, valor, dataVenc, nivel, pagStr, nomeEsc)
-    const numero   = destWA.replace(/\D/g, '')
-
-    await sendText(evoCfg, `${numero}@s.whatsapp.net`, mensagem)
-
-    // Registra interação com chave canônica (mesmo formato do cron e CRM manual)
-    await prisma.interacao.create({
-      data: {
-        clienteId: cliente.id,
-        tipo:      'whatsapp_enviado',
-        titulo:    `Cobrança ${cobranca.id} — ${nivel}`,
-        conteudo:  mensagem,
-        origem:    'ia_crm',
-        usuarioId: ctx.usuarioId ?? null,
-      },
-    }).catch((err: unknown) =>
-      console.error('[tool/enviar-cobranca-inadimplente] erro ao registrar interação:', { clienteId: cliente.id, err }),
-    )
-
-    return {
-      sucesso: true,
-      dados:   { clienteId: cliente.id, nivel, destWA: numero },
-      resumo:  `Mensagem de cobrança (${nivel}) enviada para ${nomeDest} (${numero}).`,
     }
   },
 }

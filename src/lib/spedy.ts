@@ -4,6 +4,7 @@
  * Docs: https://api.spedy.com.br/v1
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { logger } from '@/lib/logger'
 
@@ -143,6 +144,34 @@ export interface CriarEmpresaSpedyInput {
   economicActivities?: Array<{ code: string; isMain: boolean }>
 }
 
+// ─── Retry helpers ────────────────────────────────────────────────────────────
+
+const RETRY_MAX        = 3    // tentativas totais (1 inicial + 2 retries)
+const RETRY_BASE_MS    = 500  // base do backoff exponencial
+const RETRY_JITTER_MAX = 200  // jitter aleatório máximo (ms)
+
+/** Retorna true se o statusCode merece nova tentativa */
+function deveRetry(status: number): boolean {
+  return status === 0       // erro de rede / timeout
+    || status === 429       // rate limit
+    || status >= 500        // erro do servidor Spedy
+}
+
+/** Tempo de espera (ms) para a tentativa N (1-based) com jitter */
+function calcDelay(attempt: number, rateLimitReset?: string | null): number {
+  if (rateLimitReset) {
+    const resetMs = parseInt(rateLimitReset, 10) * 1000 - Date.now()
+    if (resetMs > 0 && resetMs < 30_000) return resetMs + 200
+  }
+  const base  = RETRY_BASE_MS * Math.pow(3, attempt - 1)   // 500, 1500, 4500
+  const jitter = Math.floor(Math.random() * RETRY_JITTER_MAX)
+  return base + jitter
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 // ─── Client ───────────────────────────────────────────────────────────────────
 
 export class SpedyClient {
@@ -167,48 +196,115 @@ export class SpedyClient {
       'Accept':       'application/json',
     }
 
-    let response: Response
-    try {
-      response = await fetch(url, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-      })
-    } catch (err) {
-      logger.error('spedy-fetch-error', { method, path, err })
-      throw new SpedyError('Erro de conexão com a Spedy', 0)
-    }
+    let lastError: SpedyError | null = null
 
-    if (response.status === 429) {
-      const reset = response.headers.get('x-rate-limit-reset')
-      logger.warn('spedy-rate-limit', { reset })
-      throw new SpedyError('Rate limit atingido na Spedy', 429)
-    }
+    for (let attempt = 1; attempt <= RETRY_MAX; attempt++) {
+      let response: Response | null = null
 
-    if (response.status === 403) {
-      throw new SpedyError('Chave de API inválida ou sem permissão', 403)
-    }
+      try {
+        response = await fetch(url, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+        })
+      } catch (err) {
+        // Erro de rede / DNS / timeout
+        logger.error('spedy-fetch-error', { method, path, attempt, err })
+        lastError = new SpedyError('Erro de conexão com a Spedy', 0)
 
-    // Operações que retornam 204 No Content (ex: cancelamento)
-    if (response.status === 204) return undefined as T
+        if (attempt < RETRY_MAX) {
+          const delay = calcDelay(attempt)
+          logger.warn('spedy-retry', { method, path, attempt, delayMs: delay, motivo: 'network_error' })
+          await sleep(delay)
+          continue
+        }
 
-    const text = await response.text()
-    let json: unknown
-    try {
-      json = JSON.parse(text)
-    } catch {
-      logger.error('spedy-parse-error', { status: response.status, body: text.slice(0, 200) })
-      throw new SpedyError(`Resposta inválida da Spedy (${response.status})`, response.status)
-    }
+        // Esgotou tentativas — reporta ao Sentry e lança
+        Sentry.captureException(lastError, {
+          tags: { module: 'spedy-client', operation: `${method} ${path}` },
+          extra: { attempt, method, path },
+        })
+        throw lastError
+      }
 
-    if (!response.ok) {
+      // 403 — chave inválida: sem retry, erro imediato
+      if (response.status === 403) {
+        throw new SpedyError('Chave de API inválida ou sem permissão', 403)
+      }
+
+      // 204 No Content (ex: cancelamento bem-sucedido)
+      if (response.status === 204) return undefined as T
+
+      // Recupera o corpo para erros ou sucesso
+      const text = await response.text()
+      let json: unknown
+      try {
+        json = JSON.parse(text)
+      } catch {
+        logger.error('spedy-parse-error', { status: response.status, body: text.slice(0, 200) })
+        lastError = new SpedyError(`Resposta inválida da Spedy (${response.status})`, response.status)
+
+        if (attempt < RETRY_MAX && deveRetry(response.status)) {
+          const delay = calcDelay(attempt)
+          logger.warn('spedy-retry', { method, path, attempt, delayMs: delay, motivo: 'parse_error' })
+          await sleep(delay)
+          continue
+        }
+        throw lastError
+      }
+
+      // Resposta bem-sucedida
+      if (response.ok) return json as T
+
+      // Erro de negócio da Spedy — monta a mensagem
       const errors = (json as { errors?: Array<{ message: string }> })?.errors
-      const msg = errors?.[0]?.message ?? `Erro HTTP ${response.status}`
+      const msg    = errors?.[0]?.message ?? `Erro HTTP ${response.status}`
+
+      // 429 rate-limit: respeita o header reset-at
+      if (response.status === 429) {
+        const reset = response.headers.get('x-rate-limit-reset')
+        logger.warn('spedy-rate-limit', { reset, attempt })
+        lastError = new SpedyError('Rate limit atingido na Spedy', 429, json)
+
+        if (attempt < RETRY_MAX) {
+          const delay = calcDelay(attempt, reset)
+          logger.warn('spedy-retry', { method, path, attempt, delayMs: delay, motivo: 'rate_limit' })
+          await sleep(delay)
+          continue
+        }
+        Sentry.captureException(lastError, {
+          tags: { module: 'spedy-client', operation: `${method} ${path}` },
+          extra: { attempt },
+        })
+        throw lastError
+      }
+
+      // 5xx — erro do servidor Spedy: retry
+      if (response.status >= 500) {
+        logger.error('spedy-server-error', { method, path, status: response.status, msg, attempt })
+        lastError = new SpedyError(msg, response.status, json)
+
+        if (attempt < RETRY_MAX) {
+          const delay = calcDelay(attempt)
+          logger.warn('spedy-retry', { method, path, attempt, delayMs: delay, motivo: `http_${response.status}` })
+          await sleep(delay)
+          continue
+        }
+
+        Sentry.captureException(lastError, {
+          tags: { module: 'spedy-client', operation: `${method} ${path}` },
+          extra: { attempt, status: response.status },
+        })
+        throw lastError
+      }
+
+      // 4xx (exceto 403/429) — erro de dados: sem retry
       logger.error('spedy-api-error', { method, path, status: response.status, msg })
       throw new SpedyError(msg, response.status, json)
     }
 
-    return json as T
+    // Nunca alcançado — garante tipagem
+    throw lastError ?? new SpedyError('Erro desconhecido na Spedy', 0)
   }
 
   // ─── NFS-e ────────────────────────────────────────────────────────────────
@@ -356,6 +452,23 @@ export function getSpedyOwnerClient(config: {
 }): SpedyClient {
   const ambiente = config.spedyAmbiente === 'producao' ? 'producao' : 'sandbox'
   return new SpedyClient(config.spedyApiKey, ambiente as 'sandbox' | 'producao')
+}
+
+/**
+ * URL pública do PDF de uma NFS-e sem precisar instanciar SpedyClient.
+ * Útil para download de cópia em background (não requer API key).
+ */
+export function spedyPdfUrl(spedyId: string, ambiente?: string | null): string {
+  const base = ambiente === 'producao' ? SPEDY_BASE_PROD : SPEDY_BASE_SANDBOX
+  return `${base}/service-invoices/${spedyId}/pdf`
+}
+
+/**
+ * URL pública do XML de uma NFS-e sem precisar instanciar SpedyClient.
+ */
+export function spedyXmlUrl(spedyId: string, ambiente?: string | null): string {
+  const base = ambiente === 'producao' ? SPEDY_BASE_PROD : SPEDY_BASE_SANDBOX
+  return `${base}/service-invoices/${spedyId}/xml`
 }
 
 /**

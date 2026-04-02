@@ -21,17 +21,17 @@ type KnowledgeEntry = {
 }
 
 const CANAIS: { value: CanalRAG; label: string; icon: string; desc: string }[] = [
-  { value: 'onboarding', icon: 'chat_bubble',   label: 'Onboarding',  desc: 'Triagem de novos leads — planos, processo de abertura' },
-  { value: 'crm',        icon: 'support_agent', label: 'CRM',         desc: 'Base interna do contador — normas, procedimentos' },
-  { value: 'portal',     icon: 'person',         label: 'Portal',      desc: 'Atendimento ao cliente — obrigações, prazos, docs' },
-  { value: 'whatsapp',   icon: 'chat',           label: 'WhatsApp',    desc: 'Respostas rápidas via WhatsApp' },
-  { value: 'geral',      icon: 'public',         label: 'Geral',       desc: 'Aparece em todos os canais' },
+  { value: 'onboarding', icon: 'chat_bubble', label: 'Onboarding', desc: 'Triagem de novos leads — planos, processo de abertura' },
+  { value: 'crm', icon: 'support_agent', label: 'CRM', desc: 'Base interna do contador — normas, procedimentos' },
+  { value: 'portal', icon: 'person', label: 'Portal', desc: 'Atendimento ao cliente — obrigações, prazos, docs' },
+  { value: 'whatsapp', icon: 'chat', label: 'WhatsApp', desc: 'Respostas rápidas via WhatsApp' },
+  { value: 'geral', icon: 'public', label: 'Geral', desc: 'Aparece em todos os canais' },
 ]
 
 const TIPOS: { value: TipoConhecimento; label: string }[] = [
   { value: 'base_conhecimento', label: 'Base de Conhecimento' },
-  { value: 'fiscal_normativo',  label: 'Fiscal / Normativo' },
-  { value: 'template',          label: 'Template' },
+  { value: 'fiscal_normativo', label: 'Fiscal / Normativo' },
+  { value: 'template', label: 'Template' },
 ]
 
 const INPUT = 'w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
@@ -43,22 +43,22 @@ export default function ConhecimentoPage() {
   const [loadingList, setLoadingList] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
-  const [pdfOpen, setPdfOpen]   = useState(false)
-  const [seeding, setSeeding]   = useState(false)
+  const [pdfOpen, setPdfOpen] = useState(false)
+  const [seeding, setSeeding] = useState(false)
   const [confirmSeed, setConfirmSeed] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ sourceId: string; titulo: string | null } | null>(null)
 
   // Form texto
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null)
-  const [titulo, setTitulo]     = useState('')
+  const [titulo, setTitulo] = useState('')
   const [conteudo, setConteudo] = useState('')
-  const [tipo, setTipo]         = useState<TipoConhecimento>('base_conhecimento')
-  const [saving, setSaving]     = useState(false)
+  const [tipo, setTipo] = useState<TipoConhecimento>('base_conhecimento')
+  const [saving, setSaving] = useState(false)
 
   // Form PDF
-  const [pdfFile, setPdfFile]     = useState<File | null>(null)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [pdfTitulo, setPdfTitulo] = useState('')
-  const [pdfTipo, setPdfTipo]     = useState<TipoConhecimento>('base_conhecimento')
+  const [pdfTipo, setPdfTipo] = useState<TipoConhecimento>('base_conhecimento')
   const [uploadingPdf, setUploadingPdf] = useState(false)
 
   const loadEntries = useCallback(async () => {
@@ -193,8 +193,8 @@ export default function ConhecimentoPage() {
     <div className="space-y-5">
 
       {/* Header */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
+      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
               <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -243,7 +243,7 @@ export default function ConhecimentoPage() {
       </div>
 
       {/* Descrição do canal + botões */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-[12px] text-on-surface-variant/70">
           <span className="material-symbols-outlined text-[14px]">{canalInfo.icon}</span>
           {canalInfo.desc}
@@ -368,10 +368,10 @@ export default function ConhecimentoPage() {
                 className={INPUT}
                 placeholder={
                   activeCanal === 'onboarding' ? 'Ex: Como funciona o MEI?' :
-                  activeCanal === 'crm'        ? 'Ex: Procedimento DAS atrasado' :
-                  activeCanal === 'portal'     ? 'Ex: Quando vence meu DAS?' :
-                  activeCanal === 'whatsapp'   ? 'Ex: Horário de atendimento' :
-                  'Ex: Política de atendimento'
+                    activeCanal === 'crm' ? 'Ex: Procedimento DAS atrasado' :
+                      activeCanal === 'portal' ? 'Ex: Quando vence meu DAS?' :
+                        activeCanal === 'whatsapp' ? 'Ex: Horário de atendimento' :
+                          'Ex: Política de atendimento'
                 }
               />
             </div>

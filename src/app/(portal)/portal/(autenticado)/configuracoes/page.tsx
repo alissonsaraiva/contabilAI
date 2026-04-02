@@ -7,14 +7,14 @@ import { PortalPushToggle } from '@/components/portal/portal-push-toggle'
 
 export default async function PortalConfiguracoesPage() {
   const session = await auth()
-  const user    = session?.user as any
+  const user = session?.user as any
   if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) redirect('/portal/login')
 
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
   const cliente = await prisma.cliente.findUnique({
-    where:   { id: clienteId },
+    where: { id: clienteId },
     include: {
       empresa: {
         include: { socios: true },
@@ -42,16 +42,17 @@ export default async function PortalConfiguracoesPage() {
           <h2 className="text-[14px] font-semibold text-on-surface">Dados de acesso</h2>
         </div>
         <div className="space-y-3">
-          <div className="flex items-center justify-between py-2.5 border-b border-outline-variant/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 sm:py-2.5 border-b border-outline-variant/10">
             <div>
               <p className="text-[13px] font-medium text-on-surface">{user.name ?? cliente.nome}</p>
               <p className="text-[12px] text-on-surface-variant/60">{user.email ?? cliente.email}</p>
             </div>
-            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
-              user.tipo === 'cliente' ? 'text-primary bg-primary/10' : 'text-on-surface-variant bg-surface-container'
-            }`}>
-              {user.tipo === 'cliente' ? 'Titular' : 'Sócio'}
-            </span>
+            <div className="w-auto self-start sm:self-center">
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${user.tipo === 'cliente' ? 'text-primary bg-primary/10' : 'text-on-surface-variant bg-surface-container'
+                }`}>
+                {user.tipo === 'cliente' ? 'Titular' : 'Sócio'}
+              </span>
+            </div>
           </div>
           <p className="text-[12px] text-on-surface-variant/60 leading-relaxed">
             O acesso ao portal é feito por link mágico enviado para o seu e-mail cadastrado.
@@ -62,7 +63,7 @@ export default async function PortalConfiguracoesPage() {
 
       {/* Sócios com acesso (visível apenas para o titular) */}
       {user.tipo === 'cliente' && cliente.empresa && (
-        <Card className="border-outline-variant/15 bg-card/60 p-5 rounded-[16px] shadow-sm">
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">group</span>
             <h2 className="text-[14px] font-semibold text-on-surface">Sócios com acesso ao portal</h2>

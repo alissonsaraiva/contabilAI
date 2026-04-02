@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -39,69 +40,87 @@ const gerarSegundaViaAsaasTool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolExecuteResult> {
-    let cobrancaId = input.cobrancaId as string | undefined
-    const clienteIdInput = (input.clienteId as string | undefined) ?? ctx.clienteId
-    const busca    = input.busca as string | undefined
+    try {
+      let cobrancaId = input.cobrancaId as string | undefined
+      const clienteIdInput = (input.clienteId as string | undefined) ?? ctx.clienteId
+      const busca          = input.busca as string | undefined
 
-    // Resolve cobrancaId from clienteId or busca
-    // No WhatsApp/portal, busca textual é bloqueada para evitar acesso a dados de outros clientes
-    const isCanalRestrito = ctx.solicitanteAI === 'whatsapp' || ctx.solicitanteAI === 'portal'
+      // No WhatsApp/portal, busca textual é bloqueada para evitar acesso a dados de outros clientes
+      const isCanalRestrito = ctx.solicitanteAI === 'whatsapp' || ctx.solicitanteAI === 'portal'
 
-    if (!cobrancaId) {
-      let clienteId = clienteIdInput
+      if (!cobrancaId) {
+        let clienteId = clienteIdInput
 
-      if (!clienteId && busca && !isCanalRestrito) {
-        const buscaNorm = busca.replace(/[.\-\/\s]/g, '')
-        const c = await prisma.cliente.findFirst({
-          where: {
-            OR: [
-              { nome:  { contains: busca, mode: 'insensitive' } },
-              { email: { contains: busca, mode: 'insensitive' } },
-              { empresa: { is: { razaoSocial: { contains: busca, mode: 'insensitive' } } } },
-              { cpf: busca },
-              { empresa: { is: { cnpj: busca } } },
-              ...(buscaNorm !== busca ? [
-                { cpf: buscaNorm },
-                { empresa: { is: { cnpj: buscaNorm } } },
-              ] : []),
-            ],
-          },
-          select: { id: true },
+        if (!clienteId && busca && !isCanalRestrito) {
+          const buscaNorm = busca.replace(/[.\-\/\s]/g, '')
+          const c = await prisma.cliente.findFirst({
+            where: {
+              OR: [
+                { nome:  { contains: busca, mode: 'insensitive' } },
+                { email: { contains: busca, mode: 'insensitive' } },
+                { empresa: { is: { razaoSocial: { contains: busca, mode: 'insensitive' } } } },
+                { cpf: busca },
+                { empresa: { is: { cnpj: busca } } },
+                ...(buscaNorm !== busca ? [
+                  { cpf: buscaNorm },
+                  { empresa: { is: { cnpj: buscaNorm } } },
+                ] : []),
+              ],
+            },
+            select: { id: true },
+          })
+          clienteId = c?.id
+        }
+
+        if (!clienteId) {
+          const erroMsg = isCanalRestrito
+            ? 'Contexto de cliente não disponível. Não é possível gerar segunda via sem identificação.'
+            : 'Forneça cobrancaId, clienteId ou busca.'
+          return { sucesso: false, erro: erroMsg, resumo: 'Não foi possível identificar a cobrança.' }
+        }
+
+        const cobranca = await prisma.cobrancaAsaas.findFirst({
+          where:   { clienteId, status: { in: ['PENDING', 'OVERDUE'] } },
+          orderBy: { vencimento: 'asc' },
+          select:  { id: true },
         })
-        clienteId = c?.id
+
+        if (!cobranca) {
+          return {
+            sucesso: false,
+            erro:    'Nenhuma cobrança em aberto encontrada.',
+            resumo:  'Não há cobrança em aberto para este cliente.',
+          }
+        }
+        cobrancaId = cobranca.id
       }
 
-      if (!clienteId) {
-        const erroMsg = isCanalRestrito
-          ? 'Contexto de cliente não disponível. Não é possível gerar segunda via sem identificação.'
-          : 'Forneça cobrancaId, clienteId ou busca.'
-        return { sucesso: false, erro: erroMsg, resumo: 'Não foi possível identificar a cobrança.' }
-      }
+      const nova = await gerarSegundaVia(cobrancaId)
 
-      const cobranca = await prisma.cobrancaAsaas.findFirst({
-        where:   { clienteId, status: { in: ['PENDING', 'OVERDUE'] } },
-        orderBy: { vencimento: 'asc' },
-        select:  { id: true },
+      const linhas = [
+        `Segunda via gerada com sucesso! (ID: ${nova.novaCobrancaId})`,
+        nova.pixCopiaECola ? `PIX Copia e Cola:\n${nova.pixCopiaECola}` : '',
+        nova.linkBoleto    ? `Link do boleto: ${nova.linkBoleto}`       : '',
+      ].filter(Boolean)
+
+      return {
+        sucesso: true,
+        dados:   nova,
+        resumo:  linhas.join('\n'),
+      }
+    } catch (err) {
+      // BUG 12: sem este bloco, exceções de gerarSegundaVia propagavam sem Sentry
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[tool/gerarSegundaViaAsaas] erro ao gerar segunda via:', err)
+      Sentry.captureException(err, {
+        tags:  { module: 'tool', operation: 'gerarSegundaViaAsaas' },
+        extra: { clienteId: ctx.clienteId, canal: ctx.solicitanteAI },
       })
-
-      if (!cobranca) {
-        return { sucesso: false, erro: 'Nenhuma cobrança em aberto encontrada.', resumo: 'Não há cobrança em aberto para este cliente.' }
+      return {
+        sucesso: false,
+        erro:    msg,
+        resumo:  'Não foi possível gerar a segunda via. Tente novamente ou acesse o CRM.',
       }
-      cobrancaId = cobranca.id
-    }
-
-    const nova = await gerarSegundaVia(cobrancaId)
-
-    const linhas = [
-      `Segunda via gerada com sucesso! (ID: ${nova.novaCobrancaId})`,
-      nova.pixCopiaECola ? `PIX Copia e Cola:\n${nova.pixCopiaECola}` : '',
-      nova.linkBoleto    ? `Link do boleto: ${nova.linkBoleto}`       : '',
-    ].filter(Boolean)
-
-    return {
-      sucesso: true,
-      dados:   nova,
-      resumo:  linhas.join('\n'),
     }
   },
 }

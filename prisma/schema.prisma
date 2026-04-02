@@ -282,6 +282,7 @@ model Cliente {
   pushSubscriptions PushSubscription[]
   cobrancasAsaas    CobrancaAsaas[]
   notasFiscais      NotaFiscal[]
+  comunicadoEnvios  ComunicadoEnvio[]
 
   @@index([leadId], name: "cliente_leadId_partial")
   @@index([empresaId], name: "cliente_empresaId_partial")
@@ -452,9 +453,28 @@ model Comunicado {
   criadoEm       DateTime       @default(now())
   atualizadoEm   DateTime       @updatedAt
 
+  envios         ComunicadoEnvio[]
+
   @@index([publicado, publicadoEm])
   @@index([criadoEm])
   @@map("comunicados")
+}
+
+model ComunicadoEnvio {
+  id           String    @id @default(uuid())
+  comunicadoId String
+  comunicado   Comunicado @relation(fields: [comunicadoId], references: [id], onDelete: Cascade)
+  clienteId    String
+  cliente      Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  email        String
+  status       String    @default("pendente")  // "pendente" | "enviado" | "falhou"
+  erro         String?
+  enviadoEm    DateTime?
+  criadoEm     DateTime  @default(now())
+
+  @@unique([comunicadoId, clienteId])
+  @@index([comunicadoId])
+  @@map("comunicado_envios")
 }
 
 model Contrato {
@@ -511,6 +531,7 @@ model Interacao {
   @@index([origem, criadoEm])
   @@index([escritorioEvento, criadoEm])
   @@index([tipo, criadoEm])
+  @@index([tipo, respondidoEm])
   @@index([clienteId, deletadoEm])
   @@map("interacoes")
 }
@@ -679,6 +700,7 @@ model ConversaIA {
   pausadaEm        DateTime?    // quando preenchido, IA não responde automaticamente
   pausadoPorId     String?      // id do usuário que pausou a IA
   ultimaMensagemEm DateTime?    // atualizado a cada msg recebida (debounce WhatsApp)
+  processandoEm   DateTime?    // lock distribuído: cron seta ao iniciar, limpa no finally; evita duplo processamento entre instâncias
   criadaEm         DateTime     @default(now())
   atualizadaEm     DateTime     @updatedAt
 
@@ -712,6 +734,8 @@ model MensagemIA {
   mediaType         String?        // 'image' | 'document' | 'audio'
   mediaFileName     String?        // nome original do arquivo
   mediaMimeType     String?        // ex: application/pdf, image/jpeg
+  excluido          Boolean        @default(false)  // soft delete — operador apagou para todos
+  excluidoEm        DateTime?
   criadaEm          DateTime       @default(now())
 
   @@index([conversaId, criadaEm])

@@ -1,7 +1,44 @@
+import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import { registrarTool } from './registry'
 import { reemitirNotaFiscal } from '@/lib/services/notas-fiscais'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
+
+async function escalarReemissaoParaHumano(
+  clienteId: string | undefined,
+  notaFiscalId: string,
+  motivo: string,
+): Promise<void> {
+  if (!clienteId) return
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { id: clienteId },
+      select: { empresaId: true },
+    })
+    await prisma.ordemServico.create({
+      data: {
+        clienteId,
+        empresaId:    cliente?.empresaId ?? undefined,
+        tipo:         'emissao_documento',
+        origem:       'ia',
+        visivelPortal: false,
+        titulo:       `Falha na reemissão de NFS-e — ID ${notaFiscalId}`,
+        descricao:    `Erro ao reemitir nota fiscal.\n\nMotivo: ${motivo}\n\nID da nota: ${notaFiscalId}`,
+        prioridade:   'alta',
+        status:       'aberta',
+      },
+    })
+    logger.info('nfse-reemissao-escalacao-garantida', { clienteId, notaFiscalId })
+  } catch (escErr) {
+    logger.error('nfse-reemissao-escalacao-falhou', { clienteId, notaFiscalId, escErr })
+    Sentry.captureException(escErr, {
+      tags:  { module: 'reemitir-nota-fiscal-tool', operation: 'escalar-os' },
+      extra: { clienteId, notaFiscalId },
+    })
+  }
+}
 
 const reemitirNotaFiscalTool: Tool = {
   definition: {
@@ -93,11 +130,16 @@ const reemitirNotaFiscalTool: Tool = {
       )
 
       if (!resultado.sucesso) {
+        await escalarReemissaoParaHumano(
+          ctx.clienteId,
+          parsed.data.notaFiscalId,
+          `${resultado.motivo}: ${resultado.detalhe}`,
+        )
         return {
           sucesso: false,
           dados:   resultado,
           erro:    resultado.detalhe,
-          resumo:  `Reemissão bloqueada (${resultado.motivo}): ${resultado.detalhe}. Abra um chamado com tipo emissao_documento.`,
+          resumo:  `Reemissão bloqueada (${resultado.motivo}): ${resultado.detalhe}. Um chamado de prioridade ALTA foi aberto automaticamente para a equipe.`,
         }
       }
 
@@ -108,10 +150,15 @@ const reemitirNotaFiscalTool: Tool = {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro interno'
+      Sentry.captureException(err, {
+        tags:  { module: 'reemitir-nota-fiscal-tool', operation: 'execute' },
+        extra: { notaFiscalId: parsed.data.notaFiscalId, clienteId: ctx.clienteId },
+      })
+      await escalarReemissaoParaHumano(ctx.clienteId, parsed.data.notaFiscalId, msg)
       return {
         sucesso: false,
         erro:    msg,
-        resumo:  `Erro ao reemitir nota: ${msg}. Abra um chamado tipo emissao_documento com o ID da nota.`,
+        resumo:  `Erro ao reemitir nota: ${msg}. Um chamado de prioridade ALTA foi aberto automaticamente para a equipe.`,
       }
     }
   },

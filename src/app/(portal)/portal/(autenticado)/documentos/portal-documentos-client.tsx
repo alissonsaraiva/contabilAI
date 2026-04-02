@@ -8,19 +8,19 @@ const MESES = [
 ]
 
 const CATEGORIAS_INFO: { value: string; label: string; icon: string }[] = [
-  { value: 'todos',          label: 'Todos',             icon: 'folder_open' },
-  { value: 'geral',          label: 'Geral',             icon: 'description' },
-  { value: 'nota_fiscal',    label: 'Notas Fiscais',     icon: 'receipt_long' },
-  { value: 'imposto_renda',  label: 'Imposto de Renda',  icon: 'account_balance' },
-  { value: 'guias_tributos', label: 'Guias e Tributos',  icon: 'payments' },
-  { value: 'relatorios',     label: 'Relatórios',        icon: 'bar_chart' },
-  { value: 'outros',         label: 'Outros',            icon: 'more_horiz' },
+  { value: 'todos', label: 'Todos', icon: 'folder_open' },
+  { value: 'geral', label: 'Geral', icon: 'description' },
+  { value: 'nota_fiscal', label: 'Notas Fiscais', icon: 'receipt_long' },
+  { value: 'imposto_renda', label: 'Imposto de Renda', icon: 'account_balance' },
+  { value: 'guias_tributos', label: 'Guias e Tributos', icon: 'payments' },
+  { value: 'relatorios', label: 'Relatórios', icon: 'bar_chart' },
+  { value: 'outros', label: 'Outros', icon: 'more_horiz' },
 ]
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  pendente:  { label: 'Pendente',  color: 'text-yellow-600 bg-yellow-500/10' },
-  enviado:   { label: 'Enviado',   color: 'text-blue-600 bg-blue-500/10' },
-  aprovado:  { label: 'Aprovado',  color: 'text-green-600 bg-green-500/10' },
+  pendente: { label: 'Pendente', color: 'text-yellow-600 bg-yellow-500/10' },
+  enviado: { label: 'Enviado', color: 'text-blue-600 bg-blue-500/10' },
+  aprovado: { label: 'Aprovado', color: 'text-green-600 bg-green-500/10' },
   rejeitado: { label: 'Rejeitado', color: 'text-red-600 bg-red-500/10' },
 }
 
@@ -48,11 +48,11 @@ type Props = {
 function getIcon(mime: string | null, nome: string): string {
   const ext = nome.split('.').pop()?.toLowerCase() ?? ''
   if (mime === 'application/pdf' || ext === 'pdf') return 'picture_as_pdf'
-  if (mime?.startsWith('image/') || ['jpg','jpeg','png','gif','webp'].includes(ext)) return 'image'
+  if (mime?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image'
   if (mime?.includes('xml') || ext === 'xml') return 'code'
-  if (mime?.includes('spreadsheet') || ['xls','xlsx','csv'].includes(ext)) return 'table_chart'
-  if (mime?.includes('word') || ['doc','docx'].includes(ext)) return 'article'
-  if (mime?.includes('zip') || ['zip','rar','7z'].includes(ext)) return 'folder_zip'
+  if (mime?.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) return 'table_chart'
+  if (mime?.includes('word') || ['doc', 'docx'].includes(ext)) return 'article'
+  if (mime?.includes('zip') || ['zip', 'rar', '7z'].includes(ext)) return 'folder_zip'
   return 'description'
 }
 
@@ -81,20 +81,20 @@ function grupoPorAnoMes(docs: Doc[]) {
 
 export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: Props) {
   const [categoria, setCategoria] = useState('todos')
-  const [q,         setQ]         = useState('')
-  const [origem,    setOrigem]    = useState('')
+  const [q, setQ] = useState('')
+  const [origem, setOrigem] = useState('')
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
   // IDs de docs marcados como vistos nesta sessão (otimístico)
   const [vistos, setVistos] = useState<Set<string>>(new Set())
 
   const isNovo = useCallback((d: Doc) =>
     d.origem === 'crm' && !d.visualizadoEm && !vistos.has(d.id),
-  [vistos])
+    [vistos])
 
   function handleDownload(d: Doc) {
     if (isNovo(d)) {
       setVistos(prev => new Set(prev).add(d.id))
-      fetch(`/api/portal/documentos/${d.id}/visualizar`, { method: 'PATCH' }).catch(() => {})
+      fetch(`/api/portal/documentos/${d.id}/visualizar`, { method: 'PATCH' }).catch(() => { })
     }
     window.open(`/api/portal/documentos/${d.id}/download`, '_blank', 'noopener,noreferrer')
   }
@@ -146,21 +146,20 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
   return (
     <div className="space-y-5">
       {/* Tabs de categoria */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex overflow-x-auto pb-2 -mb-2 sm:flex-wrap gap-2 scrollbar-none snap-x snap-mandatory">
         {CATEGORIAS_INFO.map(cat => {
-          const count   = cat.value === 'todos' ? totalGeral : (contagemMap[cat.value] ?? 0)
-          const novos   = novosMap[cat.value] ?? 0
+          const count = cat.value === 'todos' ? totalGeral : (contagemMap[cat.value] ?? 0)
+          const novos = novosMap[cat.value] ?? 0
           if (cat.value !== 'todos' && count === 0) return null
           const isActive = categoria === cat.value
           return (
             <button
               key={cat.value}
               onClick={() => setCategoria(cat.value)}
-              className={`relative flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-all ${
-                isActive
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-              }`}
+              className={`relative flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-all ${isActive
+                ? 'bg-primary text-white shadow-sm'
+                : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                }`}
             >
               <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>{cat.icon}</span>
               {cat.label}
@@ -246,49 +245,51 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                 <div className="overflow-hidden rounded-[16px] border border-outline-variant/15 bg-card/60 shadow-sm">
                   <ul className="divide-y divide-outline-variant/10">
                     {grupo.docs.map(d => {
-                      const s       = STATUS_LABEL[d.status] ?? { label: d.status, color: 'text-on-surface-variant bg-surface-container' }
-                      const icon    = getIcon(d.mimeType, d.nome)
-                      const isXML   = d.mimeType?.includes('xml') || d.nome.toLowerCase().endsWith('.xml')
+                      const s = STATUS_LABEL[d.status] ?? { label: d.status, color: 'text-on-surface-variant bg-surface-container' }
+                      const icon = getIcon(d.mimeType, d.nome)
+                      const isXML = d.mimeType?.includes('xml') || d.nome.toLowerCase().endsWith('.xml')
                       const xmlMeta = d.xmlMetadata as any
-                      const novo    = isNovo(d)
+                      const novo = isNovo(d)
                       return (
-                        <li key={d.id} className={`flex items-start gap-3 px-5 py-3.5 transition-colors ${novo ? 'bg-primary/[0.03]' : ''}`}>
-                          <span
-                            className={`mt-0.5 material-symbols-outlined text-[20px] shrink-0 ${isXML ? 'text-primary' : 'text-on-surface-variant/50'}`}
-                            style={{ fontVariationSettings: "'FILL' 1" }}
-                          >
-                            {icon}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-[13px] font-medium text-on-surface truncate">{d.nome}</p>
-                              {novo && (
-                                <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-                                  Novo
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                              <span className="text-[11px] text-on-surface-variant/60">
-                                {d.tipo} · {new Date(d.criadoEm).toLocaleDateString('pt-BR')}
-                                {d.tamanho ? ` · ${formatSize(d.tamanho)}` : ''}
-                              </span>
-                              {d.origem === 'portal' && (
-                                <span className="text-[10px] font-semibold text-primary/70">↑ enviado por você</span>
-                              )}
-                            </div>
-                            {isXML && xmlMeta && xmlMeta.tipo !== 'desconhecido' && (
-                              <div className="mt-1.5 rounded-lg bg-primary/5 px-3 py-2 text-[11px] text-on-surface-variant/80 space-y-0.5">
-                                {xmlMeta.emitenteNome && <p><span className="font-semibold">Emitente:</span> {xmlMeta.emitenteNome}</p>}
-                                {xmlMeta.destinatarioNome && <p><span className="font-semibold">Destinatário:</span> {xmlMeta.destinatarioNome}</p>}
-                                {xmlMeta.valorTotal && <p><span className="font-semibold">Valor:</span> {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(xmlMeta.valorTotal)}</p>}
-                                {xmlMeta.dataEmissao && <p><span className="font-semibold">Emissão:</span> {new Date(xmlMeta.dataEmissao).toLocaleDateString('pt-BR')}</p>}
-                                {xmlMeta.numero && <p><span className="font-semibold">Nº:</span> {xmlMeta.numero}{xmlMeta.serie ? ` / Série ${xmlMeta.serie}` : ''}</p>}
-                                {xmlMeta.emitenteCnpj && <p><span className="font-semibold">CNPJ:</span> {xmlMeta.emitenteCnpj}</p>}
+                        <li key={d.id} className={`flex flex-col sm:flex-row sm:items-start gap-3 p-4 sm:px-5 sm:py-3.5 transition-colors ${novo ? 'bg-primary/[0.03]' : ''}`}>
+                          <div className="flex items-start gap-3 w-full sm:w-auto flex-1 min-w-0">
+                            <span
+                              className={`mt-0.5 material-symbols-outlined text-[20px] shrink-0 ${isXML ? 'text-primary' : 'text-on-surface-variant/50'}`}
+                              style={{ fontVariationSettings: "'FILL' 1" }}
+                            >
+                              {icon}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-[13px] font-medium text-on-surface truncate max-w-[calc(100%-48px)]">{d.nome}</p>
+                                {novo && (
+                                  <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                                    Novo
+                                  </span>
+                                )}
                               </div>
-                            )}
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                                <span className="text-[11px] text-on-surface-variant/60">
+                                  {d.tipo} · {new Date(d.criadoEm).toLocaleDateString('pt-BR')}
+                                  {d.tamanho ? ` · ${formatSize(d.tamanho)}` : ''}
+                                </span>
+                                {d.origem === 'portal' && (
+                                  <span className="text-[10px] font-semibold text-primary/70">↑ enviado por você</span>
+                                )}
+                              </div>
+                              {isXML && xmlMeta && xmlMeta.tipo !== 'desconhecido' && (
+                                <div className="mt-1.5 rounded-lg bg-primary/5 px-3 py-2 text-[11px] text-on-surface-variant/80 space-y-0.5">
+                                  {xmlMeta.emitenteNome && <p><span className="font-semibold">Emitente:</span> {xmlMeta.emitenteNome}</p>}
+                                  {xmlMeta.destinatarioNome && <p><span className="font-semibold">Destinatário:</span> {xmlMeta.destinatarioNome}</p>}
+                                  {xmlMeta.valorTotal && <p><span className="font-semibold">Valor:</span> {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(xmlMeta.valorTotal)}</p>}
+                                  {xmlMeta.dataEmissao && <p><span className="font-semibold">Emissão:</span> {new Date(xmlMeta.dataEmissao).toLocaleDateString('pt-BR')}</p>}
+                                  {xmlMeta.numero && <p><span className="font-semibold">Nº:</span> {xmlMeta.numero}{xmlMeta.serie ? ` / Série ${xmlMeta.serie}` : ''}</p>}
+                                  {xmlMeta.emitenteCnpj && <p><span className="font-semibold">CNPJ:</span> {xmlMeta.emitenteCnpj}</p>}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center justify-end sm:justify-start gap-2 shrink-0 w-full sm:w-auto ml-10 sm:ml-0 pt-2 sm:pt-0 border-t sm:border-0 border-outline-variant/10">
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>
                               {s.label}
                             </span>

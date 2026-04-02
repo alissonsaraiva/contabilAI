@@ -164,7 +164,11 @@ export async function notificarEscalacaoPortal(clienteId: string, escalacaoId: s
 
 /**
  * Notifica a equipe quando um cliente entra em inadimplência via Asaas.
- * Anti-spam: no máximo uma notificação por cliente a cada 10 minutos.
+ *
+ * Anti-spam — duas camadas para funcionar corretamente em ambiente com múltiplas
+ * instâncias Docker (GAP 2: o cooldown in-memory sozinho não é suficiente):
+ *   1. In-memory (rápido, evita DB round-trip na mesma instância)
+ *   2. Banco de dados (persistente, funciona cross-instância)
  */
 export async function notificarClienteInadimplente(opts: {
   clienteId: string
@@ -172,19 +176,42 @@ export async function notificarClienteInadimplente(opts: {
   valorVencido: number
   vencimento: Date
 }): Promise<void> {
-  const chave = `inadimplente:${opts.clienteId}`
-  if (dentroDoCooldow(chave)) return
-  registrarCooldown(chave)
+  // Camada 1: in-memory (mesma instância, sem overhead de DB)
+  const chaveMemoria = `inadimplente:${opts.clienteId}`
+  if (dentroDoCooldow(chaveMemoria)) return
+
+  // Camada 2: DB — verifica se outra instância já enviou recentemente
+  try {
+    const recenteNoDB = await prisma.notificacao.findFirst({
+      where: {
+        tipo:     'cliente_inadimplente',
+        url:      `/crm/clientes/${opts.clienteId}`,
+        criadoEm: { gte: new Date(Date.now() - COOLDOWN_MS) },
+      },
+      select: { id: true },
+    })
+    if (recenteNoDB) {
+      // Sincroniza o cache in-memory para evitar round-trips futuros nesta instância
+      registrarCooldown(chaveMemoria)
+      return
+    }
+  } catch (err) {
+    // Falha na consulta não deve impedir a notificação — melhor notificar em excesso que não notificar
+    console.error('[notificacoes] erro ao verificar cooldown DB para inadimplente:', err)
+  }
+
+  // Registra in-memory antes de criar no DB para evitar race condition dentro da mesma instância
+  registrarCooldown(chaveMemoria)
 
   try {
     const valor = opts.valorVencido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     const data  = opts.vencimento.toLocaleDateString('pt-BR')
-    const ids = await buscarEquipeAtendimento()
+    const ids   = await buscarEquipeAtendimento()
     await criarParaTodos(ids, {
-      tipo:    'cliente_inadimplente',
-      titulo:  `Inadimplência: ${opts.nomeCliente}`,
+      tipo:     'cliente_inadimplente',
+      titulo:   `Inadimplência: ${opts.nomeCliente}`,
       mensagem: `Boleto de ${valor} venceu em ${data}.`,
-      url:     `/crm/clientes/${opts.clienteId}`,
+      url:      `/crm/clientes/${opts.clienteId}`,
     })
   } catch (err) {
     console.error('[notificacoes] falha ao notificar cliente_inadimplente:', err)

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -46,11 +47,31 @@ Pode filtrar por cliente específico, tipo de documento ou período.`,
     const tipo      = input.tipo      as string | undefined
     const limite    = Math.min(Number(input.limite ?? 20), 50)
 
+    // Quando filtrar por cliente específico, inclui documentos da empresa PJ (OR)
+    let clienteWhere: object | undefined
+    if (clienteId) {
+      try {
+        const cliente = await prisma.cliente.findUnique({
+          where:  { id: clienteId },
+          select: { empresaId: true },
+        })
+        const orConditions: object[] = [{ clienteId }]
+        if (cliente?.empresaId) orConditions.push({ empresaId: cliente.empresaId })
+        clienteWhere = { OR: orConditions }
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags:  { module: 'listar-documentos-pendentes', operation: 'resolve-empresa' },
+          extra: { clienteId },
+        })
+        clienteWhere = { clienteId }
+      }
+    }
+
     const documentos = await prisma.documento.findMany({
       where: {
-        status:    { in: ['pendente', 'solicitado'] },
-        clienteId: clienteId ?? undefined,
-        tipo:      tipo ? { contains: tipo, mode: 'insensitive' } : undefined,
+        status: { in: ['pendente', 'solicitado'] },
+        ...clienteWhere,
+        tipo:   tipo ? { contains: tipo, mode: 'insensitive' } : undefined,
       },
       select: {
         id:       true,

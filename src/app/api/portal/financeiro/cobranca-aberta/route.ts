@@ -3,11 +3,17 @@
  *
  * Retorna a cobrança mais recente em aberto (PENDING ou OVERDUE) com todos os
  * dados de pagamento (PIX QR Code, copia e cola, link do boleto).
+ *
+ * GAP 4: inclui campo `pixExpirado` para o frontend saber quando exibir alerta
+ * de QR Code vencido e oferecer botão de segunda via, em vez de mostrar código inválido.
  */
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
+
+// PIX do Asaas expira em 24h; usamos 20h como margem de segurança
+const PIX_EXPIRACAO_MS = 20 * 60 * 60 * 1000
 
 export async function GET() {
   const session = await auth()
@@ -41,8 +47,20 @@ export async function GET() {
 
   if (!cobranca) return NextResponse.json(null)
 
+  // GAP 4: detecta PIX expirado para o frontend exibir alerta adequado
+  // (em vez de mostrar silenciosamente um QR Code inválido ao cliente)
+  const pixExpirado =
+    cobranca.formaPagamento === 'pix' &&
+    !!cobranca.pixCopiaECola &&
+    !!cobranca.atualizadoEm &&
+    Date.now() - new Date(cobranca.atualizadoEm).getTime() > PIX_EXPIRACAO_MS
+
   return NextResponse.json({
     ...cobranca,
-    valor: Number(cobranca.valor),
+    valor:       Number(cobranca.valor),
+    pixExpirado,
+    // Se PIX expirado, remove os dados de pagamento para evitar que o cliente copie código inválido
+    pixQrCode:    pixExpirado ? null : cobranca.pixQrCode,
+    pixCopiaECola: pixExpirado ? null : cobranca.pixCopiaECola,
   })
 }

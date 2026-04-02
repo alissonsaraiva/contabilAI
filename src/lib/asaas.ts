@@ -8,6 +8,7 @@
  * Autenticação: header `access_token: <api_key>`
  */
 import { prisma } from '@/lib/prisma'
+import type { AsaasStatusCobranca, FormaPagamento } from '@prisma/client'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -118,14 +119,28 @@ export async function asaasCreateCustomer(params: {
   cpfCnpj: string
   email?: string | null
   mobilePhone?: string | null
+  phone?: string | null
+  postalCode?: string | null
+  address?: string | null
+  addressNumber?: string | null
+  complement?: string | null
+  province?: string | null
+  externalReference?: string | null
 }): Promise<AsaasCustomer> {
   return asaasFetch<AsaasCustomer>('/customers', {
     method: 'POST',
     body: JSON.stringify({
-      name:        params.name,
-      cpfCnpj:     params.cpfCnpj.replace(/\D/g, ''),
-      email:       params.email ?? undefined,
-      mobilePhone: params.mobilePhone ? params.mobilePhone.replace(/\D/g, '') : undefined,
+      name:              params.name,
+      cpfCnpj:           params.cpfCnpj.replace(/\D/g, ''),
+      email:             params.email             ?? undefined,
+      mobilePhone:       params.mobilePhone       ? params.mobilePhone.replace(/\D/g, '')  : undefined,
+      phone:             params.phone             ? params.phone.replace(/\D/g, '')         : undefined,
+      postalCode:        params.postalCode        ? params.postalCode.replace(/\D/g, '')    : undefined,
+      address:           params.address           ?? undefined,
+      addressNumber:     params.addressNumber     ?? undefined,
+      complement:        params.complement        ?? undefined,
+      province:          params.province          ?? undefined,
+      externalReference: params.externalReference ?? undefined,
     }),
   })
 }
@@ -302,4 +317,42 @@ export function toBillingType(forma: string): AsaasBillingType {
   if (forma === 'pix') return 'PIX'
   if (forma === 'boleto') return 'BOLETO'
   throw new Error(`[Asaas] Forma de pagamento não suportada: ${forma}. Use pix ou boleto.`)
+}
+
+/**
+ * Mapeia billingType do Asaas → FormaPagamento local.
+ * Centralizado aqui para evitar duplicação entre asaas-sync.ts e webhook.
+ */
+export function mapBillingTypeToLocal(billingType: string): FormaPagamento {
+  if (billingType === 'PIX') return 'pix'
+  if (billingType === 'BOLETO') return 'boleto'
+  return 'boleto' // fallback conservador
+}
+
+/**
+ * Mapeia status do Asaas → AsaasStatusCobranca local.
+ * Centralizado aqui para evitar duplicação entre asaas-sync.ts e webhook.
+ */
+export function mapAsaasStatus(asaasStatus: string): AsaasStatusCobranca {
+  switch (asaasStatus) {
+    case 'PENDING':
+    case 'CONFIRMED':
+    case 'AWAITING_RISK_ANALYSIS':
+      return 'PENDING'
+    case 'RECEIVED':
+    case 'RECEIVED_IN_CASH':
+      return 'RECEIVED'
+    case 'OVERDUE':
+    case 'DUNNING_REQUESTED':
+    case 'DUNNING_RECEIVED':
+      return 'OVERDUE'
+    case 'REFUNDED':
+    case 'REFUND_REQUESTED':
+    case 'CHARGEBACK_REQUESTED':
+    case 'CHARGEBACK_DISPUTE':
+    case 'AWAITING_CHARGEBACK_REVERSAL':
+      return 'REFUNDED'
+    default:
+      return 'CANCELLED'
+  }
 }

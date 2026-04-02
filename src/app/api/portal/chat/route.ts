@@ -35,7 +35,7 @@ export async function GET(req: Request) {
       pausadaEm: true,
       mensagens: {
         orderBy: { criadaEm: 'asc' },
-        select:  { role: true, conteudo: true },
+        select:  { id: true, role: true, conteudo: true, excluido: true },
       },
     },
   })

@@ -69,7 +69,18 @@ export async function GET(_req: Request, { params }: Params) {
   })
 
   const conversaAtual = conversas.at(-1) ?? null
-  const mensagens = conversas.flatMap(c => c.mensagens)
+  const mensagens = conversas.flatMap(c => c.mensagens).map(({ whatsappMsgData, ...m }) => ({
+    ...m,
+    // Mensagem excluída: apaga conteúdo e mídia — front renderiza placeholder
+    conteudo:      m.excluido ? null : m.conteudo,
+    mediaUrl:      m.excluido ? null : m.mediaUrl,
+    mediaType:     m.excluido ? null : m.mediaType,
+    mediaFileName: m.excluido ? null : m.mediaFileName,
+    hasWhatsappMedia: !m.excluido && !m.mediaUrl && (
+      m.mediaType === 'document' ||
+      (!!whatsappMsgData && m.conteudo.startsWith('[') && m.conteudo.endsWith(']'))
+    ),
+  }))
 
   return NextResponse.json({
     conversa: conversaAtual ? { id: conversaAtual.id, pausadaEm: conversaAtual.pausadaEm } : null,
