@@ -1,19 +1,17 @@
-import { prisma } from '@/lib/prisma'
-import { emitWhatsAppRefresh } from '@/lib/event-bus'
-import { decrypt, isEncrypted } from '@/lib/crypto'
-import type { EvolutionConfig } from '@/lib/evolution'
-import * as Sentry from '@sentry/nextjs'
-import {
-  getOrCreateConversaWhatsapp,
-  getHistorico,
-} from '@/lib/ai/conversa'
-import { sendHumanLike } from '@/lib/whatsapp/human-like'
+import { prisma }                              from '@/lib/prisma'
+import { emitWhatsAppRefresh }                 from '@/lib/event-bus'
+import { decrypt, isEncrypted }               from '@/lib/crypto'
+import type { EvolutionConfig }               from '@/lib/evolution'
+import * as Sentry                            from '@sentry/nextjs'
+import { getOrCreateConversaWhatsapp, getHistorico } from '@/lib/ai/conversa'
+import { sendHumanLike }                      from '@/lib/whatsapp/human-like'
 import { downloadMedia, downloadMediaDirect, detectMediaType, extractMediaCaption, extractMimeType, extractPdfText } from '@/lib/whatsapp/media'
-import { transcribeAudio } from '@/lib/ai/transcribe'
-import type { AIMessageContentPart } from '@/lib/ai/providers/types'
-import { indexarAsync } from '@/lib/rag/indexar-async'
-import { classificarDocumento, buildContextoConversa } from '@/lib/services/classificar-documento'
-import { criarDocumento } from '@/lib/services/documentos'
+import { transcribeAudio }                    from '@/lib/ai/transcribe'
+import type { AIMessageContentPart }          from '@/lib/ai/providers/types'
+import { indexarAsync }                       from '@/lib/rag/indexar-async'
+import { RATE_LIMIT_MS, MAX_MSG_LENGTH, PHONE_CACHE_TTL_MS, JAILBREAK_PATTERNS } from '@/lib/whatsapp/constants'
+import { buscarPorTelefone }                  from '@/lib/whatsapp/identificar-contato'
+import { arquivarMidiaWhatsappAsync }         from '@/lib/whatsapp/arquivar-midia'
 // Garante que todas as tools estejam registradas
 import '@/lib/ai/tools'
 
@@ -24,44 +22,6 @@ const processed = new Set<string>()
 
 // Rate limiting: timestamp da última resposta enviada por número
 const lastResponse = new Map<string, number>()
-const RATE_LIMIT_MS = 3000
-
-// Limite de tamanho de mensagem antes de enviar para a IA
-// 4000 chars ≈ ~3 páginas de texto — mensagens legítimas raramente excedem isso
-const MAX_MSG_LENGTH = 4000
-
-// Padrões de jailbreak/prompt injection — inglês e português BR
-// Normalização: o texto já passa por trim/sanitize antes de chegar aqui
-const JAILBREAK_PATTERNS = [
-  // Inglês
-  /ignore\s+(previous|all|above|prior)\s+instructions?/i,
-  /forget\s+(everything|all|your)\s+(you|instructions?|rules?)/i,
-  /you\s+are\s+now\s+(a\s+)?(different|new|another|unrestricted)/i,
-  /act\s+as\s+(if\s+you\s+are\s+)?(a\s+)?(different|unrestricted|evil|jailbreak)/i,
-  /developer\s+mode/i,
-  /jailbreak/i,
-  /bypass\s+(your\s+)?(filter|restriction|rule|guideline)/i,
-  /pretend\s+(you\s+have\s+no|you\s+are\s+not|there\s+are\s+no)/i,
-  /\bDAN\b/,                          // "Do Anything Now" jailbreak
-  /\[SYSTEM\]/i,                      // tentativa de injetar bloco SYSTEM
-  /\[INST\]/i,                        // Llama instruction format injection
-  /<\|im_start\|>/i,                  // ChatML injection
-  /\{\{.*\}\}/,                       // template injection
-  // Português BR
-  /ignore\s+(as\s+)?instru[çc][õo]es\s+anteriores/i,
-  /esque[çc]a?\s+(tudo|todas?\s+as\s+instru[çc][õo]es)/i,
-  /voc[êe]\s+(agora\s+[eé]|[eé]\s+agora)\s+(um|uma)\s+/i,
-  /finja\s+(que\s+)?(voc[êe]\s+[eé]|n[aã]o\s+tem|n[aã]o\s+[eé])/i,
-  /modo\s+(desenvolvedor|sem\s+restri[çc][õo]es?|irrestrito)/i,
-  /sem\s+restri[çc][õo]es?\s+/i,
-  /novo\s+(assistente|modo|sistema|prompt)/i,
-  /ignore\s+o\s+(sistema|prompt|instru[çc][aã]o)/i,
-]
-
-// Cache de identificação: phone → contexto resolvido
-// 'desconhecido' = ainda não identificado, sem registro no banco
-// TTL de 5min: janela curta para capturar conversões lead→cliente sem cache stale
-const PHONE_CACHE_TTL_MS = 5 * 60 * 1000
 const phoneCache = new Map<string, {
   clienteId?: string
   leadId?: string
@@ -71,80 +31,6 @@ const phoneCache = new Map<string, {
   cachedAt: number
 }>()
 
-// Normaliza número de telefone para busca — retorna variantes
-// Cobre: com/sem código do país, com/sem 9º dígito (celulares BR)
-function normalizarPhone(remoteJid: string): string[] {
-  const digits = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '')
-  const variants = new Set<string>([
-    digits,
-    digits.length > 2 ? digits.slice(2) : '',  // sem 55
-    digits.length > 4 ? digits.slice(4) : '',  // sem 55+DDD
-    digits.length > 3 ? digits.slice(3) : '',  // sem 55+DDD (DDDs antigos)
-  ])
-  // Celulares brasileiros: migração de 8→9 dígitos após o DDD
-  // 12 dígitos (55+DDD+8d) → também tenta com 9 (55+DDD+9+8d = 13d)
-  if (digits.length === 12 && digits.startsWith('55')) {
-    const com9 = digits.slice(0, 4) + '9' + digits.slice(4)
-    variants.add(com9)
-    variants.add(com9.slice(2)) // sem 55
-  }
-  // 13 dígitos (55+DDD+9+8d) → também tenta sem 9 (55+DDD+8d = 12d)
-  if (digits.length === 13 && digits.startsWith('55') && digits[4] === '9') {
-    const sem9 = digits.slice(0, 4) + digits.slice(5)
-    variants.add(sem9)
-    variants.add(sem9.slice(2)) // sem 55
-  }
-  return [...variants].filter(v => v.length >= 8)
-}
-
-async function buscarPorTelefone(phone: string): Promise<{
-  clienteId?: string
-  leadId?: string
-  socioId?: string
-}> {
-  const variants = normalizarPhone(phone)
-  if (!variants.length) return {}
-
-  // Usa SQL bruto com regexp_replace para ignorar formatação (parênteses, hífens, espaços)
-  // nos campos de telefone/whatsapp armazenados no banco (ex: "(85) 98118-6338" → "85981186338")
-
-  // 1. Busca titular (cliente direto)
-  const clienteRows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM clientes
-    WHERE regexp_replace(COALESCE(telefone, ''), '[^0-9]', '', 'g') = ANY(${variants})
-       OR regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g') = ANY(${variants})
-    LIMIT 1
-  `
-  if (clienteRows.length > 0) return { clienteId: clienteRows[0].id }
-
-  // 2. Busca sócio — associado a uma empresa que tem cliente vinculado
-  const socioRows = await prisma.$queryRaw<{ id: string; clienteId: string | null }[]>`
-    SELECT s.id, e."clienteId"
-    FROM socios s
-    LEFT JOIN empresas e ON e.id = s."empresaId"
-    WHERE regexp_replace(COALESCE(s.telefone, ''), '[^0-9]', '', 'g') = ANY(${variants})
-       OR regexp_replace(COALESCE(s.whatsapp, ''), '[^0-9]', '', 'g') = ANY(${variants})
-    LIMIT 1
-  `
-  if (socioRows.length > 0) {
-    return {
-      socioId:   socioRows[0].id,
-      clienteId: socioRows[0].clienteId ?? undefined,
-    }
-  }
-
-  // 3. Busca lead
-  const leadRows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM leads
-    WHERE regexp_replace(COALESCE("contatoEntrada", ''), '[^0-9]', '', 'g') = ANY(${variants})
-      AND status NOT IN ('cancelado', 'expirado', 'assinado')
-    ORDER BY "criadoEm" DESC
-    LIMIT 1
-  `
-  if (leadRows.length > 0) return { leadId: leadRows[0].id }
-
-  return {}
-}
 
 
 export async function POST(req: Request) {
@@ -699,86 +585,3 @@ export async function GET() {
   return new Response('ok', { status: 200 })
 }
 
-// ─── Arquivamento de mídia WhatsApp ──────────────────────────────────────────
-
-type ArquivarMidiaInput = {
-  media:          { buffer: Buffer; mimeType: string; fileName?: string }
-  tipoMidia:      'imagem' | 'documento'
-  conversaId:     string
-  clienteId?:     string
-  leadId?:        string
-  remoteJid:      string
-  base64?:        string   // já calculado (evita re-encode)
-  textoExtraido?: string   // já extraído (PDF)
-}
-
-/**
- * Classifica a mídia com contexto da conversa e, se for um documento formal,
- * salva via criarDocumento() (que dispara resumo + RAG automaticamente).
- * Totalmente fire-and-forget — nunca bloqueia o webhook.
- */
-function arquivarMidiaWhatsappAsync(input: ArquivarMidiaInput): void {
-  if (!input.clienteId && !input.leadId) return  // sem vínculo, nada a fazer
-
-  const tipoLabel = input.tipoMidia === 'imagem' ? 'WhatsApp — Imagem' : 'WhatsApp — Documento'
-
-  // Busca empresaId do cliente para que o documento apareça também na ficha da empresa
-  const getEmpresaId = input.clienteId
-    ? prisma.cliente.findUnique({ where: { id: input.clienteId }, select: { empresaId: true } })
-        .then(c => c?.empresaId ?? undefined)
-        .catch(() => undefined)
-    : Promise.resolve(undefined)
-
-  Promise.all([buildContextoConversa(input.conversaId, 5), getEmpresaId])
-    .then(async ([contexto, empresaId]) => {
-      let deveArquivar: boolean
-      try {
-        deveArquivar = await classificarDocumento({
-          arquivo: {
-            nome:          input.media.fileName ?? 'arquivo',
-            mimeType:      input.media.mimeType,
-            buffer:        input.base64 ? undefined : input.media.buffer,
-            base64:        input.base64,
-            textoExtraido: input.textoExtraido,
-          },
-          contexto,
-        })
-      } catch (err) {
-        // IA de classificação falhou — salva com status pendente para revisão/retry
-        console.error('[webhook] falha na classificação de documento via IA:', { remoteJid: input.remoteJid, err })
-        return criarDocumento({
-          clienteId: input.clienteId,
-          leadId:    input.leadId,
-          empresaId,
-          arquivo: {
-            buffer:   input.media.buffer,
-            nome:     input.media.fileName ?? 'arquivo',
-            mimeType: input.media.mimeType,
-          },
-          tipo:        tipoLabel,
-          status:      'pendente',
-          origem:      'whatsapp',
-          resumoStatus: 'pendente',
-          metadados:   { fonte: 'whatsapp', remoteJid: input.remoteJid, classificacaoFalhou: true },
-        })
-      }
-
-      if (!deveArquivar) return
-
-      return criarDocumento({
-        clienteId: input.clienteId,
-        leadId:    input.leadId,
-        empresaId,
-        arquivo: {
-          buffer:   input.media.buffer,
-          nome:     input.media.fileName ?? 'arquivo',
-          mimeType: input.media.mimeType,
-        },
-        tipo:   tipoLabel,
-        status: 'recebido',
-        origem: 'whatsapp',
-        metadados: { fonte: 'whatsapp', remoteJid: input.remoteJid },
-      })
-    })
-    .catch(err => console.error('[whatsapp/webhook] arquivarMidia error:', err))
-}

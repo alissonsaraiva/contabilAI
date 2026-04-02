@@ -329,10 +329,53 @@ export async function POST(req: Request) {
         data:  { status: 'OVERDUE', atualizadoEm: new Date() },
       })
 
-      const cobranca = await prisma.cobrancaAsaas.findFirst({
+      let cobranca = await prisma.cobrancaAsaas.findFirst({
         where:  { asaasId: paymentId },
         select: { clienteId: true, valor: true, vencimento: true },
       })
+
+      // M3: Se a cobrança não existe localmente (ex: PAYMENT_CREATED foi perdido),
+      // tenta encontrar o cliente pelo customerId e criar o registro para marcar inadimplência.
+      if (!cobranca) {
+        const clienteRef = await prisma.cliente.findFirst({
+          where:  { asaasCustomerId: payment.customer },
+          select: { id: true, formaPagamento: true },
+        })
+        if (clienteRef) {
+          const criada = await prisma.cobrancaAsaas.upsert({
+            where:  { asaasId: paymentId },
+            create: {
+              asaasId:        paymentId,
+              clienteId:      clienteRef.id,
+              valor:          payment.value,
+              vencimento:     new Date(payment.dueDate),
+              status:         'OVERDUE',
+              formaPagamento: mapBillingTypeToLocal(payment.billingType),
+            },
+            update: { status: 'OVERDUE', atualizadoEm: new Date() },
+          })
+          cobranca = { clienteId: criada.clienteId, valor: criada.valor, vencimento: criada.vencimento }
+          console.warn(
+            `[Asaas webhook] PAYMENT_OVERDUE criou cobrança ausente localmente — ` +
+            `paymentId: ${paymentId}, clienteId: ${clienteRef.id}`,
+          )
+          Sentry.captureMessage('[Asaas webhook] PAYMENT_OVERDUE: cobrança não existia localmente — criada agora', {
+            level: 'warning',
+            tags:  { module: 'asaas-webhook', operation: 'PAYMENT_OVERDUE' },
+            extra: { paymentId, customerId: payment.customer, clienteId: clienteRef.id },
+          })
+        } else {
+          console.warn(
+            `[Asaas webhook] PAYMENT_OVERDUE ignorado: paymentId ${paymentId} sem cobrança ` +
+            `e customer ${payment.customer} não mapeado localmente.`,
+          )
+          Sentry.captureMessage('[Asaas webhook] PAYMENT_OVERDUE ignorado: customer não mapeado', {
+            level: 'warning',
+            tags:  { module: 'asaas-webhook', operation: 'PAYMENT_OVERDUE' },
+            extra: { paymentId, customerId: payment.customer },
+          })
+        }
+      }
 
       if (cobranca) {
         const cliente = await prisma.cliente.findUnique({

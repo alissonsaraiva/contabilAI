@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { WhatsAppChatPanel } from './whatsapp-chat-panel'
 import { PortalConversaPanel } from './portal-conversa-panel'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { getNomeFromDadosJson } from '@/lib/schemas/lead-dados-json'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ export type EscalacaoWebItem = {
 
 type SelectedConversation =
   | { type: 'whatsapp'; apiPath: string; nome: string }
-  | { type: 'portal';   conversaId: string; nome: string }
+  | { type: 'portal';   conversaId: string; nome: string; clienteId?: string }
 
 type FilterTab = 'todas' | 'urgentes' | 'voce' | 'ia'
 
@@ -63,8 +64,7 @@ function getApiPath(c: ConversaWebItem): string | null {
 function getNome(c: ConversaWebItem): string {
   return (
     c.cliente?.nome ??
-    ((c.lead?.dadosJson as any)?.nomeCompleto as string | undefined) ??
-    ((c.lead?.dadosJson as any)?.nome as string | undefined) ??
+    getNomeFromDadosJson(c.lead?.dadosJson) ??
     c.lead?.contatoEntrada ??
     c.remoteJid?.replace('@s.whatsapp.net', '') ??
     'Desconhecido'
@@ -134,7 +134,7 @@ export function AtendimentosWeb({
 
   function handleSelect(c: ConversaWebItem) {
     if (c.canal === 'portal') {
-      setSelected({ type: 'portal', conversaId: c.id, nome: getNome(c) })
+      setSelected({ type: 'portal', conversaId: c.id, nome: getNome(c), clienteId: c.cliente?.id })
       return
     }
     // WhatsApp: usa apiPath da entidade vinculada; sem entidade, cai no endpoint por conversaId
@@ -357,6 +357,7 @@ export function AtendimentosWeb({
               key={selected.conversaId}
               conversaId={selected.conversaId}
               nomeExibido={selected.nome}
+              clienteId={selected.clienteId}
               onClose={() => setSelected(null)}
             />
           ) : (

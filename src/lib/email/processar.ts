@@ -54,9 +54,19 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
         }).catch(() => true)  // em caso de erro, arquiva por segurança
 
         if (!deveArquivar) {
-          // Não é documento formal — registra rejeição para rastreabilidade no CRM
-          console.log('[email/processar] anexo ignorado (não é documento formal):', anexo.nome)
+          // Não é documento formal — não cria Documento no banco, mas faz upload S3
+          // para que o anexo apareça no painel de e-mail (sem ele o arquivo some da tela)
+          console.log('[email/processar] anexo não arquivado formalmente (não é documento formal):', anexo.nome)
           anexosRejeitados.push(anexo.nome)
+          try {
+            const { uploadArquivo } = await import('@/lib/storage')
+            const key = `emails/anexos/${clienteId ?? leadId ?? 'unknown'}/${Date.now()}_${anexo.nome}`
+            const url = await uploadArquivo(key, anexo.buffer, anexo.mimeType || 'application/octet-stream')
+            anexosMeta.push({ nome: anexo.nome, url, mimeType: anexo.mimeType })
+          } catch (uploadErr) {
+            console.error('[email/processar] falha ao fazer upload de anexo informal:', anexo.nome, uploadErr)
+            Sentry.captureException(uploadErr, { tags: { module: 'email-processar', operation: 'upload-anexo-informal' }, extra: { nomeAnexo: anexo.nome } })
+          }
           continue
         }
 
@@ -111,6 +121,26 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
     }
   }
 
+  // ── Threading por messageId/In-Reply-To ──────────────────────────────────
+  let emailThreadId: string | null = null
+
+  if (email.inReplyTo) {
+    // Tenta encontrar o email ao qual estamos respondendo para herdar a thread
+    const emailPai = await prisma.interacao.findFirst({
+      where: {
+        emailMessageId: email.inReplyTo,
+        tipo:           { in: ['email_recebido', 'email_enviado'] },
+      },
+      select: { emailThreadId: true, emailMessageId: true },
+    })
+    emailThreadId = emailPai?.emailThreadId ?? emailPai?.emailMessageId ?? email.inReplyTo
+  }
+
+  // Se não há inReplyTo ou não encontrou pai, este email é a raiz da thread
+  if (!emailThreadId && email.messageId && !email.messageId.startsWith('uid-')) {
+    emailThreadId = email.messageId
+  }
+
   // Registra interação via service (inclui RAG automático)
   const interacaoId = await registrarInteracao({
     tipo:      'email_recebido',
@@ -120,6 +150,9 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
     leadId:    leadId    ?? undefined,
     origem:    'sistema',
     escritorioEvento: !associado, // remetente desconhecido vai para log do escritório
+    emailMessageId: email.messageId && !email.messageId.startsWith('uid-') ? email.messageId : undefined,
+    emailInReplyTo: email.inReplyTo ?? undefined,
+    emailThreadId:  emailThreadId ?? undefined,
     metadados: {
       de:            email.de,
       nomeRemetente: email.nomeRemetente,
@@ -176,7 +209,7 @@ async function gerarSugestao(
     // Enriquece o contexto com dados atuais do cliente para uma sugestão mais precisa
     // — evita respostas genéricas que ignoram o estado real do relacionamento
     const contextLines: (string | null)[] = [
-      'EMAIL RECEBIDO — gere uma sugestão de resposta profissional e objetiva para o contador enviar.',
+      'EMAIL RECEBIDO — escreva APENAS o corpo do e-mail de resposta, sem preâmbulo, sem explicações, sem meta-comentários como "Se quiser, posso adaptar..." ou similares. Termine obrigatoriamente com:\n\nAtenciosamente,\n[NOME_OPERADOR]\n[NOME_ESCRITORIO]',
       `De: ${email.nomeRemetente} <${email.de}>`,
       `Assunto: ${email.assunto}`,
       email.anexos.length > 0

@@ -75,8 +75,8 @@ const enviarEmailTool: Tool = {
     // Evita duplicatas (ex: boas-vindas automática + e-mail manual com mesmo assunto)
     if (jáEnviado(para, assunto)) {
       return {
-        sucesso: true,
-        dados:   { deduplicado: true },
+        sucesso: false,
+        erro:    'Duplicata detectada.',
         resumo:  `E-mail para ${para} com assunto "${assunto}" já foi enviado nos últimos 90 segundos — ignorado para evitar duplicata.`,
       }
     }

@@ -61,7 +61,9 @@ const SOLICITANTES_VALIDOS: Set<string> = new Set(['crm', 'whatsapp', 'onboardin
 // Timeout total do loop — deixa margem antes do limite de 60s das serverless functions
 const AGENT_TIMEOUT_MS = 45_000
 // Timeout por execução de tool individual
-const TOOL_TIMEOUT_MS = 10_000
+// 25s: deve ser maior que FETCH_TIMEOUT_MS (15s) em evolution.ts para que
+// sendMedia/sendText possam completar antes de serem canceladas pelo agente.
+const TOOL_TIMEOUT_MS = 25_000
 
 // ─── System prompt do agente operacional ──────────────────────────────────────
 

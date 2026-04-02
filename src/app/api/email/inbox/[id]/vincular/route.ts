@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { getNomeFromDadosJson } from '@/lib/schemas/lead-dados-json'
 
 /** PATCH /api/email/inbox/[id]/vincular — vincula email não identificado a um cliente ou lead */
 export async function PATCH(
@@ -63,7 +64,7 @@ export async function PATCH(
   })
 
   const clienteNome = atualizado.cliente?.nome
-    ?? ((atualizado.lead?.dadosJson as any)?.nomeCompleto as string | undefined)
+    ?? getNomeFromDadosJson(atualizado.lead?.dadosJson)
     ?? atualizado.lead?.contatoEntrada
     ?? null
 

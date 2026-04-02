@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { formatDateTime } from '@/lib/utils'
 import { WhatsAppDrawer } from './whatsapp-drawer'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { getNomeFromDadosJson } from '@/lib/schemas/lead-dados-json'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -209,8 +210,7 @@ function ConversaCard({
 }) {
   const nomeExibido =
     c.cliente?.nome ??
-    ((c.lead?.dadosJson as any)?.nomeCompleto as string | undefined) ??
-    ((c.lead?.dadosJson as any)?.nome as string | undefined) ??
+    getNomeFromDadosJson(c.lead?.dadosJson) ??
     c.lead?.contatoEntrada ??
     c.remoteJid?.replace('@s.whatsapp.net', '') ??
     'Desconhecido'

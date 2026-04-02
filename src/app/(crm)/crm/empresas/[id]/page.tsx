@@ -6,6 +6,7 @@ import { formatCNPJ, formatCPF, formatBRL, formatDate, formatTelefone } from '@/
 import { PLANO_LABELS, PLANO_COLORS, FORMA_PAGAMENTO_LABELS } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
+import { BackButton } from '@/components/ui/back-button'
 import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { EditarEmpresaButton } from '@/components/crm/editar-empresa-button'
 import { PortalLinkButton } from '@/components/crm/portal-link-button'
@@ -115,12 +116,9 @@ export default async function EmpresaDetailPage({ params }: Props) {
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex items-start gap-4">
-        <Link
-          href="/crm/empresas"
-          className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container"
-        >
+        <BackButton className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container">
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
+        </BackButton>
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">

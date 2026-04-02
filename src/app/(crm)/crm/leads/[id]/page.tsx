@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { formatDateTime, formatBRL } from '@/lib/utils'
 import { CANAL_LABELS, STATUS_LEAD_LABELS, PLANO_LABELS, FORMA_PAGAMENTO_LABELS, STATUS_CONTRATO_LABELS } from '@/types'
 import Link from 'next/link'
+import { BackButton } from '@/components/ui/back-button'
 import { AvancarEtapaBtn } from '@/components/crm/avancar-etapa-btn'
 import { EditarLeadDrawer } from '@/components/crm/editar-lead-drawer'
 import { CopyFieldButton } from '@/components/crm/copy-field-button'
@@ -48,13 +49,10 @@ export default async function LeadDetailPage({ params }: Props) {
         <div className="space-y-3">
           {/* Back + reference */}
           <div className="flex items-center gap-3">
-            <Link
-              href={isProspecto ? '/crm/prospeccao' : '/crm/leads'}
-              className="flex items-center gap-1 text-sm font-semibold text-primary hover:opacity-80"
-            >
+            <BackButton className="flex items-center gap-1 text-sm font-semibold text-primary hover:opacity-80">
               <span className="material-symbols-outlined text-[16px]">arrow_back</span>
               {isProspecto ? 'Prospecção' : 'Onboarding'}
-            </Link>
+            </BackButton>
             <span className="text-on-surface-variant/30">·</span>
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
               <span className="material-symbols-outlined text-[13px]">folder_open</span>

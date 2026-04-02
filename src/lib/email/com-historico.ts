@@ -9,6 +9,7 @@
  */
 
 import * as Sentry from '@sentry/nextjs'
+import { nanoid } from 'nanoid'
 import { sendEmail } from '@/lib/email/send'
 import { wrapEmailHtml } from '@/lib/email/template'
 import { registrarInteracao } from '@/lib/services/interacoes'
@@ -27,7 +28,10 @@ export type EnviarEmailComHistoricoInput = {
   // Contexto de quem enviou
   origem?:    'usuario' | 'ia' | 'agente' | 'sistema'
   usuarioId?: string
+  interacaoOrigemId?: string
   metadados?: Record<string, unknown>
+  emailThreadId?:         string  // Thread a que este email pertence
+  inReplyToMessageId?:    string  // Message-ID do email ao qual estamos respondendo
 }
 
 export type EnviarEmailComHistoricoResult = {
@@ -39,6 +43,10 @@ export type EnviarEmailComHistoricoResult = {
 export async function enviarEmailComHistorico(
   input: EnviarEmailComHistoricoInput,
 ): Promise<EnviarEmailComHistoricoResult> {
+  // Gera Message-ID customizado para rastreamento de thread
+  const escritorioHost = process.env.EMAIL_REMETENTE?.split('@')[1] ?? 'avos.digital'
+  const customMessageId = `<${nanoid(16)}@${escritorioHost}>`
+
   // Busca nome do escritório para o template
   const escritorio = await prisma.escritorio.findFirst({ select: { nome: true } }).catch(() => null)
   const corpoHtml  = wrapEmailHtml(input.corpo, {
@@ -51,6 +59,8 @@ export async function enviarEmailComHistorico(
     assunto: input.assunto,
     corpo:   corpoHtml,
     replyTo: input.replyTo,
+    inReplyTo:       input.inReplyToMessageId,
+    customMessageId: customMessageId,
     anexos:  input.anexos,
   })
 
@@ -69,9 +79,13 @@ export async function enviarEmailComHistorico(
       leadId:    input.leadId,
       usuarioId: input.usuarioId,
       origem:    input.origem ?? 'sistema',
+      emailMessageId: customMessageId,
+      emailInReplyTo: input.inReplyToMessageId,
+      emailThreadId:  input.emailThreadId ?? input.inReplyToMessageId ?? customMessageId,
       metadados: {
         para:      input.para,
         messageId: resultado.messageId,
+        ...(input.interacaoOrigemId ? { interacaoOrigemId: input.interacaoOrigemId } : {}),
         ...(input.metadados ?? {}),
       },
     })

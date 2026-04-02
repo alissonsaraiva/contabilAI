@@ -4,6 +4,7 @@
  * Gera uma nova cobrança (segunda via) para uma cobrança vencida do cliente logado.
  * body: { cobrancaId: string }
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
@@ -44,7 +45,18 @@ export async function POST(req: Request) {
     )
   }
 
-  const resultado = await gerarSegundaVia(body.cobrancaId)
-
-  return NextResponse.json(resultado, { status: 201 })
+  try {
+    const resultado = await gerarSegundaVia(body.cobrancaId)
+    return NextResponse.json(resultado, { status: 201 })
+  } catch (err) {
+    console.error(`[portal/segunda-via] Erro ao gerar segunda via para cobrança ${body.cobrancaId}:`, err)
+    Sentry.captureException(err, {
+      tags:  { module: 'portal-api', operation: 'gerar-segunda-via' },
+      extra: { cobrancaId: body.cobrancaId, clienteId },
+    })
+    return NextResponse.json(
+      { error: 'Não foi possível gerar a segunda via. Tente novamente ou entre em contato com o escritório.' },
+      { status: 500 },
+    )
+  }
 }

@@ -1,9 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { BackButton } from '@/components/ui/back-button'
 import { formatDateTime } from '@/lib/utils'
 import { ConversaRodape } from '../../_components/conversa-rodape'
 import { ConversaRefresher } from './conversa-refresher'
+import { getNomeFromDadosJson } from '@/lib/schemas/lead-dados-json'
 
 export default async function ConversaDetalhe({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -21,8 +23,7 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
 
   const nomeExibido =
     conversa.cliente?.nome ??
-    ((conversa.lead?.dadosJson as any)?.nomeCompleto as string | undefined) ??
-    ((conversa.lead?.dadosJson as any)?.nome as string | undefined) ??
+    getNomeFromDadosJson(conversa.lead?.dadosJson) ??
     conversa.lead?.contatoEntrada ??
     conversa.remoteJid?.replace('@s.whatsapp.net', '') ??
     'Desconhecido'
@@ -39,12 +40,9 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
       <ConversaRefresher conversaId={id} />
       {/* Header */}
       <div className="flex items-start gap-4 px-1 pb-4">
-        <Link
-          href="/crm/atendimentos"
-          className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-on-surface transition-colors"
-        >
+        <BackButton className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-on-surface transition-colors">
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-        </Link>
+        </BackButton>
         <div className="flex-1">
           <h1 className="text-xl sm:text-2xl font-light tracking-tight text-on-surface">{nomeExibido}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[12px] text-on-surface-variant/60">

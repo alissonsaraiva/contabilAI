@@ -525,6 +525,10 @@ model Interacao {
   respondidoPorId  String?
   deletadoEm       DateTime?
   criadoEm         DateTime @default(now())
+  // Threading de e-mail — agrupa mensagens da mesma conversa
+  emailMessageId  String?   // Message-ID header deste e-mail
+  emailInReplyTo  String?   // In-Reply-To header (aponta para o email anterior)
+  emailThreadId   String?   // Root Message-ID da conversa (igual em todos da mesma thread)
 
   @@index([clienteId, criadoEm])
   @@index([leadId, criadoEm])
@@ -533,6 +537,8 @@ model Interacao {
   @@index([tipo, criadoEm])
   @@index([tipo, respondidoEm])
   @@index([clienteId, deletadoEm])
+  @@index([emailThreadId, criadoEm])
+  @@index([emailMessageId])
   @@map("interacoes")
 }
 

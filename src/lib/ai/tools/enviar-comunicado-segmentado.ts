@@ -116,9 +116,9 @@ Segmento pode filtrar por:
 
     if (clientes.length === 0) {
       return {
-        sucesso: true,
-        dados: { enviados: 0, falhas: 0 },
-        resumo: 'Nenhum cliente encontrado para o segmento especificado.',
+        sucesso: false,
+        erro:   'Nenhum cliente encontrado para o segmento especificado.',
+        resumo: 'Nenhum cliente encontrado para o segmento especificado. Verifique os filtros e tente novamente.',
       }
     }
 
@@ -165,16 +165,22 @@ Segmento pode filtrar por:
 
         try {
           if (toolWhatsapp) {
-            await toolWhatsapp.execute({ clienteId: cliente.id, mensagem }, ctx)
+            const result = await toolWhatsapp.execute({ clienteId: cliente.id, mensagem }, ctx)
+            if (result.sucesso) {
+              enviadosWhatsapp++
+            } else {
+              falhas++
+            }
+          } else {
+            falhas++
           }
-          enviadosWhatsapp++
         } catch {
           falhas++
         }
       }
     }
 
-    const totalEnviados = canais.includes('portal') ? enviadosPortal : enviadosWhatsapp
+    const totalEnviados = enviadosPortal + enviadosWhatsapp
     const canaisStr     = canais.join(' e ')
 
     return {

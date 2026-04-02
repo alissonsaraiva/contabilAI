@@ -18,6 +18,9 @@ export type RegistrarInteracaoInput = {
   origem?:           string          // 'usuario' | 'ia' | 'agente' | 'sistema' (default: 'sistema')
   escritorioEvento?: boolean         // aparece no feed global do dashboard
   metadados?:        Record<string, unknown>
+  emailMessageId?: string
+  emailInReplyTo?: string
+  emailThreadId?:  string
 }
 
 export async function registrarInteracao(input: RegistrarInteracaoInput): Promise<string> {
@@ -32,6 +35,9 @@ export async function registrarInteracao(input: RegistrarInteracaoInput): Promis
       origem:            input.origem ?? 'sistema',
       escritorioEvento:  input.escritorioEvento ?? false,
       metadados:         input.metadados as never,
+      emailMessageId: input.emailMessageId,
+      emailInReplyTo: input.emailInReplyTo,
+      emailThreadId:  input.emailThreadId,
     },
   })
 

@@ -22,15 +22,15 @@ function buildRemoteJid(phone: string): string {
   return `${withCountry}@s.whatsapp.net`
 }
 
-// Deduplicação: evita reenvio acidental da mesma mensagem para o mesmo número em 90s
-const _enviados = new Map<string, number>()
-function jáEnviado(phone: string, mensagem: string): boolean {
+// Dedup em memória — cobre reenvios rápidos no mesmo processo
+const _enviadosMemoria = new Map<string, number>()
+function jáEnviadoMemoria(phone: string, mensagem: string): boolean {
   const chave = `${phone.replace(/\D/g, '')}::${mensagem.slice(0, 40)}`
-  const ultimo = _enviados.get(chave)
+  const ultimo = _enviadosMemoria.get(chave)
   if (ultimo && Date.now() - ultimo < 90_000) return true
-  _enviados.set(chave, Date.now())
-  for (const [k, ts] of _enviados) {
-    if (Date.now() - ts > 90_000) _enviados.delete(k)
+  _enviadosMemoria.set(chave, Date.now())
+  for (const [k, ts] of _enviadosMemoria) {
+    if (Date.now() - ts > 90_000) _enviadosMemoria.delete(k)
   }
   return false
 }
@@ -93,13 +93,14 @@ const enviarWhatsAppLeadTool: Tool = {
       }
     }
 
-    if (jáEnviado(phone, mensagem)) {
-      const dados2 = lead.dadosJson as Record<string, unknown> | null
-      const nomeLead2 = (dados2?.nome as string | undefined) ?? lead.contatoEntrada
+    const dados2    = lead.dadosJson as Record<string, unknown> | null
+    const nomeLead2 = (dados2?.nome as string | undefined) ?? lead.contatoEntrada
+
+    if (jáEnviadoMemoria(phone, mensagem)) {
       return {
-        sucesso: true,
-        dados:   { deduplicado: true },
-        resumo:  `Mensagem idêntica para lead "${nomeLead2}" já enviada nos últimos 90 segundos — ignorado para evitar duplicata.`,
+        sucesso: false,
+        erro:    'Duplicata detectada em memória.',
+        resumo:  `Mensagem idêntica para lead "${nomeLead2}" já enviada nos últimos 90 segundos — ignorada para evitar duplicata.`,
       }
     }
 
@@ -130,6 +131,24 @@ const enviarWhatsAppLeadTool: Tool = {
         data:   { canal: 'whatsapp', remoteJid, leadId },
         select: { id: true },
       })
+    }
+
+    // Dedup via DB: persiste entre restarts
+    const duplicataDb = await prisma.mensagemIA.findFirst({
+      where: {
+        conversaId: conversa.id,
+        role:       'assistant',
+        conteudo:   { startsWith: mensagem.slice(0, 80) },
+        criadaEm:   { gte: new Date(Date.now() - 90_000) },
+      },
+      select: { id: true },
+    })
+    if (duplicataDb) {
+      return {
+        sucesso: false,
+        erro:    'Duplicata detectada no banco de dados.',
+        resumo:  `Mensagem idêntica para lead "${nomeLead2}" já foi enviada nos últimos 90 segundos (verificado no banco) — ignorada para evitar duplicata.`,
+      }
     }
 
     const sendResult = await sendText(

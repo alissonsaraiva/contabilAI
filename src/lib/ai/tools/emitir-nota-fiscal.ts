@@ -157,6 +157,27 @@ const emitirNotaFiscalTool: Tool = {
       return { sucesso: false, erro: 'clienteId obrigatório', resumo: 'Cliente não identificado.' }
     }
 
+    // Verifica se a integração NFS-e (Spedy) está configurada antes de coletar dados.
+    // Evita conduzir o fluxo inteiro e só falhar no momento da emissão.
+    try {
+      const escritorio = await prisma.escritorio.findFirst({
+        select: { spedyApiKey: true },
+      })
+      if (!escritorio?.spedyApiKey) {
+        return {
+          sucesso: false,
+          erro:    'Integração NFS-e não configurada.',
+          resumo:  'A emissão de nota fiscal não está disponível pois a integração com o provedor NFS-e (Spedy) não foi configurada. Acesse Configurações → Nota Fiscal para ativar.',
+        }
+      }
+    } catch (cfgErr) {
+      Sentry.captureException(cfgErr, {
+        tags:  { module: 'emitir-nota-fiscal-tool', operation: 'verificar-config-spedy' },
+        extra: { clienteId },
+      })
+      // Falha na verificação → deixa prosseguir; o serviço emitirNotaFiscal vai falhar com mensagem clara
+    }
+
     try {
       const resultado = await emitirNotaFiscal({
         clienteId,

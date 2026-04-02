@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
+import { DocumentoPicker, type DocSistema } from '@/components/crm/documento-picker'
+
+type ArquivoAnexo = {
+  url: string
+  type: 'image' | 'document'
+  name: string
+  mimeType: string
+  previewUrl?: string
+}
 
 type Mensagem = {
   id: string
@@ -14,10 +23,12 @@ type Mensagem = {
 export function PortalConversaPanel({
   conversaId,
   nomeExibido,
+  clienteId,
   onClose,
 }: {
   conversaId: string
   nomeExibido: string
+  clienteId?: string
   onClose: () => void
 }) {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
@@ -26,7 +37,11 @@ export function PortalConversaPanel({
   const [reativando, setReativando] = useState(false)
   const [texto, setTexto] = useState('')
   const [sending, setSending] = useState(false)
-  const [excluindo, setExcluindo] = useState<string | null>(null) // mensagemId em exclusão
+  const [excluindo, setExcluindo] = useState<string | null>(null)
+  const [arquivo, setArquivo] = useState<ArquivoAnexo | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const isFirstLoadRef = useRef(true)
 
@@ -153,8 +168,53 @@ export function PortalConversaPanel({
     }
   }
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!clienteId) { toast.error('Cliente não identificado para fazer upload.'); return }
+    if (file.size > 25 * 1024 * 1024) { toast.error('Arquivo muito grande. O limite é 25 MB.'); return }
+    setUploading(true)
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'outro', entidadeId: clienteId, entidadeTipo: 'cliente', contentType: file.type }),
+      })
+      if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
+      const { uploadUrl, publicUrl } = await res.json() as { uploadUrl: string; publicUrl: string }
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      const isImage = file.type.startsWith('image/')
+      setArquivo({
+        url: publicUrl,
+        type: isImage ? 'image' : 'document',
+        name: file.name,
+        mimeType: file.type,
+        previewUrl: isImage ? URL.createObjectURL(file) : undefined,
+      })
+    } catch {
+      toast.error('Erro ao fazer upload do arquivo')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function handleDocSistema(doc: DocSistema) {
+    setArquivo({
+      url:      doc.url,
+      type:     'document',
+      name:     doc.nome,
+      mimeType: doc.mimeType ?? 'application/octet-stream',
+    })
+  }
+
+  function removerArquivo() {
+    if (arquivo?.previewUrl) URL.revokeObjectURL(arquivo.previewUrl)
+    setArquivo(null)
+  }
+
   async function enviar() {
-    if (!texto.trim() || sending) return
+    if ((!texto.trim() && !arquivo) || sending) return
     const textoEnviar = texto.trim()
     setTexto('')
     setSending(true)
@@ -162,7 +222,15 @@ export function PortalConversaPanel({
       const res = await fetch(`/api/conversas/${conversaId}/mensagem`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto: textoEnviar }),
+        body: JSON.stringify({
+          texto: textoEnviar || undefined,
+          ...(arquivo && {
+            mediaUrl:      arquivo.url,
+            mediaType:     arquivo.type,
+            mediaFileName: arquivo.name,
+            mediaMimeType: arquivo.mimeType,
+          }),
+        }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -170,6 +238,7 @@ export function PortalConversaPanel({
         setTexto(textoEnviar)
         return
       }
+      removerArquivo()
       await carregar()
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao enviar mensagem:', { conversaId, err })
@@ -191,6 +260,12 @@ export function PortalConversaPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
+      <DocumentoPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handleDocSistema}
+        clienteId={clienteId}
+      />
       {/* Header */}
       <div className="flex shrink-0 items-center gap-2 lg:gap-3 border-b border-outline-variant/15 bg-card px-3 lg:px-4 py-3">
         <button
@@ -265,10 +340,52 @@ export function PortalConversaPanel({
       {/* Footer */}
       {pausada ? (
         <div className="shrink-0 space-y-2 border-t border-outline-variant/15 bg-card p-3">
+          {/* Preview de arquivo */}
+          {arquivo && (
+            <div className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2">
+              {arquivo.type === 'image' && arquivo.previewUrl ? (
+                <img src={arquivo.previewUrl} alt="preview" className="h-9 w-9 rounded-lg object-cover shrink-0" />
+              ) : (
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>
+              )}
+              <span className="flex-1 truncate text-[12px] text-on-surface">{arquivo.name}</span>
+              <button onClick={removerArquivo} className="shrink-0 text-on-surface-variant/50 hover:text-error transition-colors">
+                <span className="material-symbols-outlined text-[14px]">close</span>
+              </button>
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.*,text/plain,text/csv"
+            onChange={handleFileChange}
+          />
           <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-40"
+              title="Anexar arquivo do computador"
+            >
+              {uploading
+                ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
+                : <span className="material-symbols-outlined text-[18px]">attach_file</span>
+              }
+            </button>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              disabled={uploading}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-40"
+              title="Documentos do cliente"
+            >
+              <span className="material-symbols-outlined text-[18px]">folder_open</span>
+            </button>
             <input
               className="flex-1 rounded-xl border border-outline-variant/25 bg-surface-container-low px-3 py-2 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
-              placeholder="Digite uma resposta..."
+              placeholder={arquivo ? 'Legenda (opcional)...' : 'Digite uma resposta...'}
               value={texto}
               onChange={e => setTexto(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
@@ -276,7 +393,7 @@ export function PortalConversaPanel({
             />
             <button
               onClick={enviar}
-              disabled={!texto.trim() || sending}
+              disabled={(!texto.trim() && !arquivo) || sending || uploading}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white transition-colors hover:bg-violet-600 disabled:opacity-40"
             >
               <span

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
@@ -52,7 +53,13 @@ export async function POST(req: Request, { params }: Params) {
   // Cancela subscription no Asaas (fire and forget)
   import('@/lib/services/asaas-sync')
     .then(({ suspenderAsaas }) => suspenderAsaas(id))
-    .catch(err => console.error('[cancelar] Erro ao sincronizar Asaas:', err))
+    .catch((err: unknown) => {
+      console.error('[cancelar] Erro ao cancelar subscription no Asaas — cliente pode continuar sendo cobrado:', err)
+      Sentry.captureException(err, {
+        tags:  { module: 'clientes-api', operation: 'cancelar-asaas' },
+        extra: { clienteId: id },
+      })
+    })
 
   return NextResponse.json({ ok: true, status: 'cancelado' })
 }

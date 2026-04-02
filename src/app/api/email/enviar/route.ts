@@ -13,6 +13,8 @@ const schema = z.object({
   corpo:             z.string().min(1),
   // Quando responder a um email recebido — marca a interação origem como respondida
   interacaoOrigemId: z.string().uuid().optional(),
+  inReplyToMessageId: z.string().optional(),
+  emailThreadId:      z.string().optional(),
   // Anexos referenciando documentos já existentes no banco
   anexos: z.array(z.object({
     documentoId: z.string().uuid().optional(),  // documento existente
@@ -34,7 +36,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg || 'Dados inválidos' }, { status: 400 })
   }
 
-  const { clienteId, leadId, para, assunto, corpo, interacaoOrigemId, anexos } = parsed.data
+  const { clienteId, leadId, para, assunto, corpo, interacaoOrigemId, anexos, inReplyToMessageId, emailThreadId } = parsed.data
   const usuarioId = (session.user as any).id as string | undefined
 
   const resultado = await enviarEmailComHistorico({
@@ -45,6 +47,9 @@ export async function POST(req: Request) {
     leadId,
     usuarioId,
     origem: 'usuario',
+    interacaoOrigemId,
+    inReplyToMessageId,
+    emailThreadId,
     anexos: anexos?.map(a => ({ nome: a.nome, url: a.url, mimeType: a.mimeType })),
     metadados: {
       anexos: anexos?.map(a => ({ nome: a.nome, url: a.url, mimeType: a.mimeType })) ?? [],
@@ -57,20 +62,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 
-  // Se foi uma resposta a um email recebido, marca a interação origem como respondida
-  // Importante: await explícito — em serverless, Promise sem await pode ser abandonada antes de resolver
-  if (interacaoOrigemId) {
+  // Marca todos os email_recebido pendentes da thread como respondidos.
+  // Usa emailThreadId para cobrir threads multi-turno onde o cliente respondeu várias vezes.
+  // Fallback para interacaoOrigemId caso emailThreadId não esteja disponível.
+  const respondidoEm  = new Date()
+  if (emailThreadId || interacaoOrigemId) {
     try {
       await prisma.interacao.updateMany({
-        where: { id: interacaoOrigemId, tipo: 'email_recebido', respondidoEm: null },
-        data:  { respondidoEm: new Date(), respondidoPorId: usuarioId },
+        where: emailThreadId
+          ? { emailThreadId, tipo: 'email_recebido', respondidoEm: null }
+          : { id: interacaoOrigemId!, tipo: 'email_recebido', respondidoEm: null },
+        data: { respondidoEm, respondidoPorId: usuarioId },
       })
     } catch (err: unknown) {
-      // Não crítico para o retorno (email já foi enviado), mas deve ser rastreado
-      console.error('[email/enviar] erro ao marcar interação como respondida:', { interacaoOrigemId, err })
+      console.error('[email/enviar] erro ao marcar interações como respondidas:', { emailThreadId, interacaoOrigemId, err })
       Sentry.captureException(err, {
         tags:  { module: 'email-enviar', operation: 'marcar-respondida' },
-        extra: { interacaoOrigemId, usuarioId },
+        extra: { emailThreadId, interacaoOrigemId, usuarioId },
       })
     }
   }

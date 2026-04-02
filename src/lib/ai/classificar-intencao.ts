@@ -17,11 +17,24 @@ const SYSTEM_CLASSIFICADOR = `Você é um classificador de intenções para um s
 
 Classifique a mensagem como:
 - "pergunta": questão respondível por conhecimento (conceitos fiscais, regras, procedimentos, informações gerais do escritório)
-- "acao": requer consultar dados reais do sistema ou executar uma tarefa (quantidades, listas, busca de registros específicos, criar/atualizar dados, métricas, dashboards)
+- "acao": requer consultar dados reais do sistema ou executar uma tarefa (quantidades, listas, busca de registros específicos, criar/atualizar dados, métricas, dashboards, envio de arquivos)
 
 Responda APENAS com JSON válido, sem markdown.
 
-Exemplos:
+## Regra principal para envio de documentos via WhatsApp
+
+Quando o cliente pede para receber/enviar um documento (holerite, nota fiscal, boleto, contrato, guia, comprovante etc.), a instrucao DEVE incluir "enviar via WhatsApp usando enviarDocumentoWhatsApp". O agente buscará o documento e enviará na mesma execução — sem pedir confirmação.
+
+Exemplos diretos de envio:
+- "me manda o holerite" → {"tipo":"acao","instrucao":"Buscar holerite mais recente do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+- "pode me enviar o último holerite?" → {"tipo":"acao","instrucao":"Buscar holerite mais recente do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+- "quero minha nota fiscal" → {"tipo":"acao","instrucao":"Buscar nota fiscal mais recente do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+- "me envia o boleto" → {"tipo":"acao","instrucao":"Buscar boleto em aberto do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+- "cadê meu contrato?" → {"tipo":"acao","instrucao":"Buscar contrato do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+- "me manda a guia do DARF" → {"tipo":"acao","instrucao":"Buscar guia DARF do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+- "reenviar holerite de janeiro" → {"tipo":"acao","instrucao":"Buscar holerite de janeiro do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+
+Outros exemplos de ações:
 - "o que é MEI?" → {"tipo":"pergunta"}
 - "qual a alíquota do simples nacional?" → {"tipo":"pergunta"}
 - "como funciona o onboarding?" → {"tipo":"pergunta"}
@@ -35,11 +48,18 @@ Exemplos:
 - "me dá um resumo geral do escritório" → {"tipo":"acao","instrucao":"Consultar métricas gerais e publicar relatório resumo no painel usando publicarRelatorio"}
 - "quero um relatório de funil" → {"tipo":"acao","instrucao":"Consultar funil de prospecção e publicar relatório no painel usando publicarRelatorio"}
 
-IMPORTANTE: Quando o contexto indica que a assistente se ofereceu para fazer algo (verificar documentos, consultar dados, buscar informações), e o usuário confirma com frases curtas como "pode", "sim", "pode verificar", "ok", "vai lá", "pode fazer isso", classifique como "acao" repetindo a instrução da mensagem anterior da assistente.
+## Respostas positivas a uma ação prometida pela IA
+
+Quando o contexto mostra que a IA prometeu fazer algo, e o usuário responde de forma positiva (qualquer frase curta afirmativa, sem negação), classifique como "acao" reaproveitando a intenção original.
+A resposta positiva pode ser qualquer coisa: "pode", "sim", "manda", "ok", "vai", "manda sim", "por favor", "pode mandar", "quero", "tá bom", etc.
+
 Exemplos com contexto:
+- Contexto: assistente disse "posso reenviar o holerite de Janeiro/2026" → usuário: "pode mandar" → {"tipo":"acao","instrucao":"Buscar holerite de Janeiro/2026 do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
 - Contexto: assistente disse "posso verificar seus documentos" → usuário: "pode" → {"tipo":"acao","instrucao":"Buscar documentos disponíveis do cliente"}
 - Contexto: assistente disse "posso verificar declaração de 2024" → usuário: "pode verificar" → {"tipo":"acao","instrucao":"Buscar documentos do cliente filtrado por categoria imposto_renda"}
-- Contexto: assistente disse "posso abrir um chamado" → usuário: "sim" → {"tipo":"acao","instrucao":"Criar ordem de serviço para o cliente"}`
+- Contexto: assistente disse "posso abrir um chamado" → usuário: "sim" → {"tipo":"acao","instrucao":"Criar ordem de serviço para o cliente"}
+- Contexto: assistente disse "posso enviar a nota fiscal" → usuário: "manda logo" → {"tipo":"acao","instrucao":"Buscar nota fiscal do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+- Contexto: assistente disse "posso reenviar o boleto" → usuário: "vai lá" → {"tipo":"acao","instrucao":"Buscar boleto do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}`
 
 // ─── Fallback por keywords (quando nenhum provider disponível) ────────────────
 
@@ -53,25 +73,80 @@ const ACAO_KEYWORDS = [
   /\b(relat[oó]rio|relat[oó]rios?)\b/i,
   /\b(gera[r]?|cria[r]?|monta[r]?|publica[r]?)\b.*\b(relat[oó]rio|resumo|an[aá]lise)\b/i,
   /\b(documentos?|doc)\b/i,
-  /\b(boleto|nota\s*fiscal|contrato|comprovante)\b/i,
+  /\b(boleto|nota\s*fiscal|contrato|comprovante|holerite|guia|darf)\b/i,
   /\b(plano|mensalidade|vencimento|valor)\b/i,
   /\b(status|situa[çc][ãa]o|como\s*est[áa])\b/i,
+  /\b(manda[r]?|envia[r]?|reenv[ia]+[r]?|encaminha[r]?)\b/i,
 ]
 
-// Confirmações que indicam que o usuário está autorizando uma ação prometida pela IA
-const CONFIRMACAO_KEYWORDS = /^(pode|sim|pode\s+sim|pode\s+verificar|pode\s+fazer|pode\s+ir|ok|tá\s+bom|ta\s+bom|vai\s+lá|vai\s+la|claro|certo|ótimo|pode\s+ser|com\s+certeza|s[íi]|confirmo|confirma|por\s+favor|pf|plz|yes|go)[\s!.]*$/i
+// Keywords que indicam pedido direto de envio de documento
+const ENVIO_KEYWORDS = /\b(holerite|contr[ac]cheque|nota\s*fiscal|boleto|contrato|comprovante|guia|darf|imposto|declaração|declaracao|extrato)\b/i
+
+/**
+ * Avalia se a mensagem é uma resposta positiva a uma promessa da IA.
+ *
+ * Heurística semântica — não depende de palavras específicas:
+ *   1. Mensagem curta (< 60 chars) — mensagem longa provavelmente é nova instrução
+ *   2. Sem negações explícitas
+ *   3. A IA havia prometido fazer algo (verificar, enviar, buscar, etc.)
+ *
+ * Isso cobre qualquer variação afirmativa do português sem precisar enumerar palavras.
+ */
+function ehRespostaPositiva(mensagem: string, ultimaMsgIA: string): boolean {
+  const txt = mensagem.trim()
+
+  // Mensagem longa provavelmente é nova instrução, não confirmação
+  if (txt.length > 60) return false
+
+  // Termina com "?" → é pergunta, não confirmação
+  if (txt.endsWith('?')) return false
+
+  // Negação explícita
+  const negacoes = /\b(não|nao|nunca|jamais|negativo|n[ãa]o\s+quero|n[ãa]o\s+preciso|cancela|desist)\b/i
+  if (negacoes.test(txt)) return false
+
+  // A IA havia prometido executar uma ação
+  const iaPrometeuAcao = /\b(verificar|consultar|buscar|checar|ver|procurar|listar|mostrar|enviar|mandar|reenviar|encaminhar|abrir|criar|gerar|emitir|reenvio)\b/i
+  return iaPrometeuAcao.test(ultimaMsgIA)
+}
+
+/**
+ * Extrai a instrução relevante da última mensagem da IA para reusar em confirmações.
+ * Quando a IA prometeu enviar um documento, a instrução gerada já inclui enviarDocumentoWhatsApp.
+ */
+function extrairInstrucaoDaIA(ultimaMsgIA: string, mensagemUsuario: string): string {
+  const prometeuEnvio = /\b(enviar|mandar|reenviar|encaminhar)\b/i.test(ultimaMsgIA)
+  const mencionouDoc  = ENVIO_KEYWORDS.test(ultimaMsgIA)
+
+  if (prometeuEnvio && mencionouDoc) {
+    // Extrai o tipo de documento mencionado pela IA para tornar a instrução precisa
+    const match = ultimaMsgIA.match(ENVIO_KEYWORDS)
+    const tipoDoc = match ? match[0].toLowerCase() : 'documento'
+    return `Buscar ${tipoDoc} mais recente do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp. Contexto da IA: "${ultimaMsgIA.slice(0, 200)}"`
+  }
+
+  return `O usuário confirmou prosseguir com a ação prometida pela IA: "${ultimaMsgIA.slice(0, 200)}". Executar a ação correspondente.`
+}
 
 function classificarPorKeyword(mensagem: string, ultimaMsgIA?: string): Intencao {
   const ehRelatorio = /\b(relat[oó]rio|gera[r]?.*resumo|monta[r]?.*relat|cria[r]?.*relat)\b/i.test(mensagem)
 
-  // Se mensagem é uma confirmação curta E a IA havia prometido buscar dados → ação
-  if (CONFIRMACAO_KEYWORDS.test(mensagem.trim()) && ultimaMsgIA) {
-    const iapromessaBusca = /\b(verificar|consultar|buscar|checar|ver|procurar|listar|mostrar)\b/i.test(ultimaMsgIA)
-    if (iapromessaBusca) {
-      return {
-        tipo: 'acao',
-        instrucao: `O usuário confirmou que deseja prosseguir. Baseado na última resposta da IA: "${ultimaMsgIA.slice(0, 200)}" — executar a verificação/consulta prometida.`,
-      }
+  // Resposta positiva a uma promessa da IA → executa a ação prometida
+  if (ultimaMsgIA && ehRespostaPositiva(mensagem, ultimaMsgIA)) {
+    return {
+      tipo:      'acao',
+      instrucao: extrairInstrucaoDaIA(ultimaMsgIA, mensagem),
+    }
+  }
+
+  // Pedido direto de envio de documento → inclui enviarDocumentoWhatsApp na instrução
+  const pedidoEnvio = /\b(manda[r]?|envia[r]?|reenv[ia]+[r]?|encaminha[r]?|quero|preciso|me\s+passa)\b/i.test(mensagem)
+  if (pedidoEnvio && ENVIO_KEYWORDS.test(mensagem)) {
+    const match   = mensagem.match(ENVIO_KEYWORDS)
+    const tipoDoc = match ? match[0].toLowerCase() : 'documento'
+    return {
+      tipo:      'acao',
+      instrucao: `Buscar ${tipoDoc} mais recente do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp`,
     }
   }
 
@@ -83,6 +158,7 @@ function classificarPorKeyword(mensagem: string, ultimaMsgIA?: string): Intencao
       return { tipo: 'acao', instrucao }
     }
   }
+
   return { tipo: 'pergunta' }
 }
 
@@ -96,7 +172,7 @@ export async function classificarIntencao(
   try {
     const config = await getAiConfig()
 
-    // Sem Anthropic → tenta fallback por keywords (com contexto da última msg da IA)
+    // Sem Anthropic → fallback por heurística semântica
     if (!config.anthropicApiKey) return classificarPorKeyword(mensagem, ultimaMsgIA)
 
     const provider = getProvider('claude')
@@ -105,19 +181,19 @@ export async function classificarIntencao(
       : `Mensagem: "${mensagem}"`
 
     const result = await provider.complete({
-      system: SYSTEM_CLASSIFICADOR,
-      messages: [{ role: 'user', content: prompt }],
-      maxTokens: 80,
+      system:      SYSTEM_CLASSIFICADOR,
+      messages:    [{ role: 'user', content: prompt }],
+      maxTokens:   100,
       temperature: 0,
-      model: 'claude-haiku-4-5-20251001',  // sempre haiku — só precisa de velocidade
-      apiKey: config.anthropicApiKey,
+      model:       'claude-haiku-4-5-20251001',  // sempre haiku — só precisa de velocidade
+      apiKey:      config.anthropicApiKey,
     })
 
     const parsed = JSON.parse(result.text.trim()) as Intencao
     if (parsed.tipo !== 'pergunta' && parsed.tipo !== 'acao') return { tipo: 'pergunta' }
     return parsed
   } catch {
-    // Parse/rede falhou → tenta keywords antes de desistir
+    // Parse/rede falhou → heurística semântica como fallback
     return classificarPorKeyword(mensagem, ultimaMsgIA)
   }
 }

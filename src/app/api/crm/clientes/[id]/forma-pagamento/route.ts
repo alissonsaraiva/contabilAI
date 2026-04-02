@@ -4,6 +4,7 @@
  * Altera a forma de pagamento (apenas pix ou boleto).
  * Atualiza a subscription no Asaas e o banco local.
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -46,7 +47,15 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true, asaas: false })
   }
 
-  await alterarFormaPagamentoAsaas(clienteId, body.forma as 'pix' | 'boleto')
-
-  return NextResponse.json({ ok: true, asaas: true })
+  try {
+    await alterarFormaPagamentoAsaas(clienteId, body.forma as 'pix' | 'boleto')
+    return NextResponse.json({ ok: true, asaas: true })
+  } catch (err) {
+    console.error(`[crm/forma-pagamento] Erro ao alterar forma de pagamento no Asaas para cliente ${clienteId}:`, err)
+    Sentry.captureException(err, {
+      tags:  { module: 'crm-api', operation: 'alterar-forma-pagamento-asaas' },
+      extra: { clienteId, forma: body.forma },
+    })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Erro ao alterar forma de pagamento no Asaas.' }, { status: 500 })
+  }
 }

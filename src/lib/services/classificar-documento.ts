@@ -30,16 +30,20 @@ export type ClassificarDocumentoInput = {
 }
 
 const SYSTEM_PROMPT = `Você é um classificador de documentos para um escritório de contabilidade.
-Sua tarefa é determinar se um arquivo recebido deve ser arquivado na pasta de documentos do cliente.
+Sua tarefa é decidir se um arquivo recebido deve ser arquivado como documento do cliente.
 
-Devem ser ARQUIVADOS: nota fiscal (NFe/NFS-e), boleto, DAS, guia de imposto, DARF, GPS, contrato,
-procuração, declaração, comprovante de pagamento, extrato bancário, holerite, certidão, alvará,
-RG, CPF, CNH, CNPJ, balancete, DRE, balanço patrimonial, relatório contábil, escritura,
-recibo oficial, laudo, parecer técnico.
+NÃO arquive apenas se o arquivo for claramente um destes:
+- Foto casual sem valor documental (selfie, foto de produto, foto de fachada, imagem decorativa)
+- Captura de tela de conversa (WhatsApp, e-mail, chat, sistema)
+- Meme, clipart ou imagem meramente ilustrativa
+- Rascunho ou anotação pessoal informal sem cabeçalho ou assinatura
 
-NÃO devem ser arquivados: print de tela, captura de conversa, foto de fachada,
-meme, imagem ilustrativa sem valor documental, rascunho informal, screenshot de sistema
-solicitando ajuda, foto de produto.
+Em todos os outros casos, ARQUIVE — incluindo qualquer documento de identidade,
+comprovante de qualquer natureza (residência, endereço, pagamento, rendimento, matrícula,
+conta de água/luz/gás/telefone), correspondência oficial, certidão, contrato, relatório,
+guia, boleto, extrato, nota fiscal, declaração, laudo, licença, registro ou parecer.
+
+Em caso de dúvida, SEMPRE arquive. É mais seguro ter um arquivo a mais do que perder um documento.
 
 Responda APENAS com "sim" (arquivar) ou "não" (ignorar). Sem explicação.`
 

@@ -11,15 +11,16 @@ function buildRemoteJid(phone: string): string {
   return `${withCountry}@s.whatsapp.net`
 }
 
-// Deduplicação: evita reenvio acidental da mesma mensagem para o mesmo número em 90s
-const _enviados = new Map<string, number>()
-function jáEnviado(phone: string, mensagem: string): boolean {
+// Deduplicação em memória — cobre reenvios rápidos no mesmo processo (restart = limpa)
+// Complementada pela verificação no DB abaixo, que persiste entre restarts.
+const _enviadosMemoria = new Map<string, number>()
+function jáEnviadoMemoria(phone: string, mensagem: string): boolean {
   const chave = `${phone.replace(/\D/g, '')}::${mensagem.slice(0, 40)}`
-  const ultimo = _enviados.get(chave)
+  const ultimo = _enviadosMemoria.get(chave)
   if (ultimo && Date.now() - ultimo < 90_000) return true
-  _enviados.set(chave, Date.now())
-  for (const [k, ts] of _enviados) {
-    if (Date.now() - ts > 90_000) _enviados.delete(k)
+  _enviadosMemoria.set(chave, Date.now())
+  for (const [k, ts] of _enviadosMemoria) {
+    if (Date.now() - ts > 90_000) _enviadosMemoria.delete(k)
   }
   return false
 }
@@ -82,11 +83,12 @@ const enviarWhatsAppClienteTool: Tool = {
       }
     }
 
-    if (jáEnviado(phone, mensagem)) {
+    // Dedup rápido em memória (mesma instância do processo)
+    if (jáEnviadoMemoria(phone, mensagem)) {
       return {
-        sucesso: true,
-        dados:   { deduplicado: true },
-        resumo:  `Mensagem idêntica para "${cliente.nome}" já enviada nos últimos 90 segundos — ignorado para evitar duplicata.`,
+        sucesso: false,
+        erro:    'Duplicata detectada em memória.',
+        resumo:  `Mensagem idêntica para "${cliente.nome}" já enviada nos últimos 90 segundos — ignorada para evitar duplicata.`,
       }
     }
 
@@ -102,11 +104,11 @@ const enviarWhatsAppClienteTool: Tool = {
       }
     }
 
-    const rawKey   = row.evolutionApiKey
-    const apiKey   = isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
+    const rawKey    = row.evolutionApiKey
+    const apiKey    = isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
     const remoteJid = buildRemoteJid(phone)
 
-    // Busca ou cria conversa
+    // Busca ou cria conversa (movido para antes do envio para permitir dedup via DB)
     let conversa = await prisma.conversaIA.findFirst({
       where:   { canal: 'whatsapp', remoteJid },
       orderBy: { atualizadaEm: 'desc' },
@@ -118,6 +120,25 @@ const enviarWhatsAppClienteTool: Tool = {
         data:   { canal: 'whatsapp', remoteJid, clienteId },
         select: { id: true },
       })
+    }
+
+    // Dedup via DB: persiste entre restarts de servidor/deploy
+    // Verifica se já existe mensagem idêntica enviada nos últimos 90s nesta conversa
+    const duplicataDb = await prisma.mensagemIA.findFirst({
+      where: {
+        conversaId: conversa.id,
+        role:       'assistant',
+        conteudo:   { startsWith: mensagem.slice(0, 80) },
+        criadaEm:   { gte: new Date(Date.now() - 90_000) },
+      },
+      select: { id: true },
+    })
+    if (duplicataDb) {
+      return {
+        sucesso: false,
+        erro:    'Duplicata detectada no banco de dados.',
+        resumo:  `Mensagem idêntica para "${cliente.nome}" já foi enviada nos últimos 90 segundos (verificado no banco) — ignorada para evitar duplicata.`,
+      }
     }
 
     const sendResult = await sendText(

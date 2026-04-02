@@ -98,6 +98,24 @@ const enviarWhatsAppSocioTool: Tool = {
       })
     }
 
+    // Dedup via DB: evita duplicatas entre restarts de servidor
+    const duplicataDb = await prisma.mensagemIA.findFirst({
+      where: {
+        conversaId: conversa.id,
+        role:       'assistant',
+        conteudo:   { startsWith: mensagem.slice(0, 80) },
+        criadaEm:   { gte: new Date(Date.now() - 90_000) },
+      },
+      select: { id: true },
+    })
+    if (duplicataDb) {
+      return {
+        sucesso: false,
+        erro:    'Duplicata detectada no banco de dados.',
+        resumo:  `Mensagem idêntica para sócio "${socio.nome}" já foi enviada nos últimos 90 segundos — ignorada para evitar duplicata.`,
+      }
+    }
+
     const sendResult = await sendText(
       { baseUrl: row.evolutionApiUrl, apiKey, instance: row.evolutionInstance },
       remoteJid,

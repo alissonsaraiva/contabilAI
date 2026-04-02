@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getNomeFromDadosJson } from '@/lib/schemas/lead-dados-json'
 
 export type EmailInboxItem = {
   id: string
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
       clienteId:    i.clienteId,
       leadId:       i.leadId,
       clienteNome:  i.cliente?.nome
-        ?? ((i.lead?.dadosJson as any)?.nomeCompleto as string | undefined)
+        ?? getNomeFromDadosJson(i.lead?.dadosJson)
         ?? i.lead?.contatoEntrada
         ?? null,
       metadados: {

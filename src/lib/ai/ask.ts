@@ -219,7 +219,8 @@ Você pode emitir, consultar, cancelar e reenviar NFS-e em nome dos clientes do 
  * Trunca o histórico para não exceder o context window do modelo.
  * Mantém sempre as mensagens mais recentes — remove as mais antigas.
  */
-const MAX_HISTORICO_CHARS = 24_000  // ~6k tokens — seguro para todos os providers
+// ~4k tokens para histórico — reserva ~8k chars para system prompt + RAG + tools overhead
+const MAX_HISTORICO_CHARS = 16_000
 
 function truncarHistorico(historico: AIMessage[]): AIMessage[] {
   let total = 0

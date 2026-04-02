@@ -1,10 +1,10 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
-import Link from 'next/link'
 
 const TIPO_OPTIONS = [
   { value: 'duvida',      label: 'Dúvida',       icon: 'help' },
@@ -60,12 +60,12 @@ export default function NovaOSPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Link
-          href="/portal/suporte"
+        <button
+          onClick={() => router.back()}
           className="flex h-9 w-9 items-center justify-center rounded-xl border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container transition-colors"
         >
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-        </Link>
+        </button>
         <div>
           <h1 className="font-headline text-xl font-semibold text-on-surface">Abrir chamado</h1>
           <p className="text-[12px] text-on-surface-variant/60">

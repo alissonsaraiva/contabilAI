@@ -43,10 +43,24 @@ export async function POST(
   }
 
   const { id: clienteId } = await params
-  const { conversaId, mensagem } = await req.json() as { conversaId: string; mensagem: string }
+  const {
+    conversaId,
+    mensagem,
+    mediaUrl,
+    mediaType,
+    mediaFileName,
+    mediaMimeType,
+  } = await req.json() as {
+    conversaId: string
+    mensagem?: string
+    mediaUrl?: string
+    mediaType?: string
+    mediaFileName?: string
+    mediaMimeType?: string
+  }
 
-  if (!conversaId?.trim() || !mensagem?.trim()) {
-    return NextResponse.json({ error: 'conversaId e mensagem são obrigatórios' }, { status: 400 })
+  if (!conversaId?.trim() || (!mensagem?.trim() && !mediaUrl?.trim())) {
+    return NextResponse.json({ error: 'conversaId e mensagem ou arquivo são obrigatórios' }, { status: 400 })
   }
 
   // Valida que a conversa pertence ao cliente e é canal portal
@@ -56,15 +70,23 @@ export async function POST(
   })
   if (!conversa) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
 
+  const conteudo = mensagem?.trim() || ''
+
   // Salva mensagem como assistant e despausa a conversa (permite IA retomar)
   const [novaMensagem] = await Promise.all([
     prisma.mensagemIA.create({
       data: {
         conversaId,
-        role:      'assistant',
-        conteudo:  mensagem.trim(),
-        status:    'sent',
-        tentativas: 1,
+        role:          'assistant',
+        conteudo,
+        status:        'sent',
+        tentativas:    1,
+        ...(mediaUrl && {
+          mediaUrl,
+          mediaType:     mediaType ?? 'document',
+          mediaFileName: mediaFileName ?? 'arquivo',
+          mediaMimeType: mediaMimeType ?? 'application/octet-stream',
+        }),
       },
     }),
     prisma.conversaIA.update({
@@ -75,19 +97,27 @@ export async function POST(
 
   // Resolve escalação pendente deste chat (se houver)
   prisma.escalacao.updateMany({
-    where:  { conversaIAId: conversaId, canal: 'portal', status: 'pendente' },
-    data:   { status: 'resolvida', respostaEnviada: mensagem.trim(), operadorId: user.id },
+    where: { conversaIAId: conversaId, canal: 'portal', status: 'pendente' },
+    data:  { status: 'resolvida', respostaEnviada: conteudo || mediaFileName || 'arquivo', operadorId: user.id },
   }).catch((err: unknown) =>
     console.error('[crm/portal-chat] erro ao resolver escalação pendente:', { conversaId, err }),
   )
 
   // Notifica o portal do cliente via SSE
-  emitConversaMensagem(conversaId, { id: novaMensagem.id, role: 'assistant', conteudo: mensagem.trim() })
+  emitConversaMensagem(conversaId, {
+    id:            novaMensagem.id,
+    role:          'assistant',
+    conteudo,
+    mediaUrl:      mediaUrl ?? null,
+    mediaType:     mediaType ?? null,
+    mediaFileName: mediaFileName ?? null,
+  })
 
   // Push para o cliente
+  const pushBody = conteudo || (mediaFileName ? `Arquivo: ${mediaFileName}` : 'Arquivo enviado')
   sendPushToCliente(clienteId, {
     title: 'Nova mensagem da equipe',
-    body:  mensagem.trim().slice(0, 100),
+    body:  pushBody.slice(0, 100),
     url:   '/portal/suporte',
   }).catch((err: unknown) =>
     console.error('[crm/portal-chat] erro ao enviar push mensagem manual:', { clienteId, err }),

@@ -54,7 +54,10 @@ export async function GET(_req: Request, { params }: Params) {
     .reduce((acc, c) => acc + Number(c.valor), 0)
 
   return NextResponse.json({
-    asaasConfigurado: !!(cliente.asaasCustomerId && cliente.asaasSubscriptionId),
+    // asaasConfigurado = tem customer no Asaas (true mesmo quando subscription está suspensa/cancelada)
+    // Usar asaasSubscriptionAtiva para saber se há cobrança recorrente ativa
+    asaasConfigurado:       !!cliente.asaasCustomerId,
+    asaasSubscriptionAtiva: !!(cliente.asaasCustomerId && cliente.asaasSubscriptionId),
     asaasStatus:      cliente.asaasStatus,
     asaasUltimoSync:  cliente.asaasUltimoSync,
     resumo: { emAberto, emAtraso },

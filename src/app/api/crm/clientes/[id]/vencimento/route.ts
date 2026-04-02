@@ -4,6 +4,7 @@
  * Altera o dia de vencimento da mensalidade.
  * Atualiza a subscription no Asaas (cobranças em aberto + futuras) e o banco local.
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -41,7 +42,15 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true, asaas: false, proximoVencimento: null })
   }
 
-  const { proximoVencimento } = await atualizarVencimentoAsaas(clienteId, dia)
-
-  return NextResponse.json({ ok: true, asaas: true, proximoVencimento })
+  try {
+    const { proximoVencimento } = await atualizarVencimentoAsaas(clienteId, dia)
+    return NextResponse.json({ ok: true, asaas: true, proximoVencimento })
+  } catch (err) {
+    console.error(`[crm/vencimento] Erro ao atualizar vencimento no Asaas para cliente ${clienteId}:`, err)
+    Sentry.captureException(err, {
+      tags:  { module: 'crm-api', operation: 'atualizar-vencimento-asaas' },
+      extra: { clienteId, dia },
+    })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Erro ao atualizar vencimento no Asaas.' }, { status: 500 })
+  }
 }

@@ -53,7 +53,14 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // 2. Parse do payload
+  // 2. Valida Content-Type
+  const contentType = req.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    logger.warn('spedy-webhook-content-type-invalido', { contentType })
+    return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+  }
+
+  // 3. Parse do payload
   let payload: SpedyWebhookPayload
   try {
     payload = await req.json()
@@ -62,7 +69,7 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // 3. Idempotência — evita processar o mesmo evento duas vezes
+  // 4. Idempotência — evita processar o mesmo evento duas vezes
   //    A Spedy pode reenviar eventos em caso de falha de entrega.
   //    WebhookLog tem unique([provider, eventId]) — a criação falha com P2002 se já existir.
   try {
@@ -89,15 +96,17 @@ export async function POST(
       return NextResponse.json({ received: true, duplicate: true })
     }
 
-    // Erro inesperado ao registrar — loga mas processa assim mesmo para não perder o evento
+    // Erro inesperado ao registrar idempotência — não processa para evitar ações duplicadas
+    // A Spedy vai reenviar o evento e na próxima tentativa o DB deve estar disponível
     logger.error('spedy-webhook-log-error', { err, eventId: payload.id })
     Sentry.captureException(err, {
       tags:  { module: 'webhook-spedy', operation: 'criar-log-idempotencia' },
       extra: { eventId: payload.id, event: payload.event },
     })
+    return NextResponse.json({ error: 'Erro ao registrar evento — tente novamente' }, { status: 500 })
   }
 
-  // 4. Responde 200 imediatamente — processamento em background
+  // 5. Responde 200 imediatamente — processamento em background
   //    (Spedy exige resposta rápida para não marcar webhook como falho)
   const processamento = processarWebhookSpedy(payload)
     .then(async () => {

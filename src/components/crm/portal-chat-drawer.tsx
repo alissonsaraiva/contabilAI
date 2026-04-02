@@ -3,12 +3,25 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { formatDateTime } from '@/lib/utils'
+import { toast } from 'sonner'
+import { DocumentoPicker, type DocSistema } from '@/components/crm/documento-picker'
+
+type ArquivoAnexo = {
+  url: string
+  type: 'image' | 'document'
+  name: string
+  mimeType: string
+  previewUrl?: string
+}
 
 type Mensagem = {
   id: string
   role: string
   conteudo: string
   criadaEm: string | Date
+  mediaUrl?: string | null
+  mediaType?: string | null
+  mediaFileName?: string | null
 }
 
 type Conversa = {
@@ -33,6 +46,10 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
   const [conversaAberta, setConversaAberta] = useState<string | null>(null)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [arquivo, setArquivo] = useState<ArquivoAnexo | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
@@ -94,20 +111,74 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [conversaAberta, conversas])
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 25 * 1024 * 1024) { toast.error('Arquivo muito grande. O limite é 25 MB.'); return }
+    setUploading(true)
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'outro', entidadeId: clienteId, entidadeTipo: 'cliente', contentType: file.type }),
+      })
+      if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
+      const { uploadUrl, publicUrl } = await res.json() as { uploadUrl: string; publicUrl: string }
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      const isImage = file.type.startsWith('image/')
+      setArquivo({
+        url: publicUrl,
+        type: isImage ? 'image' : 'document',
+        name: file.name,
+        mimeType: file.type,
+        previewUrl: isImage ? URL.createObjectURL(file) : undefined,
+      })
+    } catch {
+      toast.error('Erro ao fazer upload do arquivo')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function handleDocSistema(doc: DocSistema) {
+    setArquivo({
+      url:      doc.url,
+      type:     'document',
+      name:     doc.nome,
+      mimeType: doc.mimeType ?? 'application/octet-stream',
+    })
+  }
+
+  function removerArquivo() {
+    if (arquivo?.previewUrl) URL.revokeObjectURL(arquivo.previewUrl)
+    setArquivo(null)
+  }
+
   async function handleEnviar() {
-    if (!texto.trim() || !conversaAberta || enviando) return
+    if ((!texto.trim() && !arquivo) || !conversaAberta || enviando) return
     setEnviando(true)
     try {
       const res = await fetch(`/api/crm/clientes/${clienteId}/portal-chat`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ conversaId: conversaAberta, mensagem: texto.trim() }),
+        body:    JSON.stringify({
+          conversaId: conversaAberta,
+          mensagem:   texto.trim() || undefined,
+          ...(arquivo && {
+            mediaUrl:      arquivo.url,
+            mediaType:     arquivo.type,
+            mediaFileName: arquivo.name,
+            mediaMimeType: arquivo.mimeType,
+          }),
+        }),
       })
       if (!res.ok) throw new Error()
       setTexto('')
-      load() // recarrega mensagens
+      removerArquivo()
+      load()
     } catch {
-      // falha silenciosa — o texto permanece no input para reenvio
+      toast.error('Erro ao enviar mensagem')
     } finally {
       setEnviando(false)
     }
@@ -118,6 +189,12 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
   return (
     <Sheet open={open} onOpenChange={v => { if (!v) onClose() }}>
       <SheetContent side="right" className="flex w-[420px] flex-col p-0 sm:max-w-[420px]" showCloseButton={false}>
+        <DocumentoPicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          onSelect={handleDocSistema}
+          clienteId={clienteId}
+        />
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-outline-variant/15 px-5 py-4">
@@ -246,18 +323,60 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
                     IA pausada · aguardando resposta humana
                   </p>
                 )}
+                {/* Preview de arquivo anexado */}
+                {arquivo && (
+                  <div className="mb-2 flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2">
+                    {arquivo.type === 'image' && arquivo.previewUrl ? (
+                      <img src={arquivo.previewUrl} alt="preview" className="h-9 w-9 rounded-lg object-cover shrink-0" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>
+                    )}
+                    <span className="flex-1 truncate text-[12px] text-on-surface">{arquivo.name}</span>
+                    <button onClick={removerArquivo} className="shrink-0 text-on-surface-variant/50 hover:text-error transition-colors">
+                      <span className="material-symbols-outlined text-[14px]">close</span>
+                    </button>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.*,text/plain,text/csv"
+                  onChange={handleFileChange}
+                />
                 <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-40"
+                    title="Anexar arquivo do computador"
+                  >
+                    {uploading
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
+                      : <span className="material-symbols-outlined text-[16px]">attach_file</span>
+                    }
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(true)}
+                    disabled={uploading}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-40"
+                    title="Documentos do cliente"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">folder_open</span>
+                  </button>
                   <textarea
                     value={texto}
                     onChange={e => setTexto(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() } }}
-                    placeholder="Responder ao cliente..."
+                    placeholder={arquivo ? 'Legenda (opcional)...' : 'Responder ao cliente...'}
                     rows={2}
                     className="flex-1 resize-none rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10"
                   />
                   <button
                     onClick={handleEnviar}
-                    disabled={!texto.trim() || enviando}
+                    disabled={(!texto.trim() && !arquivo) || enviando || uploading}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white disabled:opacity-40 hover:bg-primary/90 transition-colors"
                   >
                     {enviando

@@ -4,12 +4,16 @@
  * Envia mensagem de cobrança via WhatsApp para um ou mais clientes inadimplentes.
  * Body: { clienteIds: string[], nivel: 'gentil' | 'urgente' | 'reforco' }
  */
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { sendText } from '@/lib/evolution'
 import type { EvolutionConfig } from '@/lib/evolution'
+
+// PIX do Asaas expira em 24h — usamos 20h como margem de segurança
+const PIX_EXPIRACAO_MS = 20 * 60 * 60 * 1000
 
 type Nivel = 'gentil' | 'urgente' | 'reforco'
 
@@ -68,7 +72,7 @@ export async function POST(req: Request) {
         where:   { status: { in: ['PENDING', 'OVERDUE'] } },
         orderBy: { vencimento: 'asc' },
         take:    1,
-        select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true },
+        select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true, atualizadoEm: true },
       },
     },
   })
@@ -94,11 +98,17 @@ export async function POST(req: Request) {
     }
 
     try {
-      const pagStr = cobranca.pixCopiaECola
+      // M2: verifica expiração do PIX antes de incluir na mensagem
+      const pixValido =
+        !!cobranca.pixCopiaECola &&
+        !!cobranca.atualizadoEm &&
+        Date.now() - new Date(cobranca.atualizadoEm).getTime() < PIX_EXPIRACAO_MS
+
+      const pagStr = pixValido
         ? `*PIX Copia e Cola:*\n${cobranca.pixCopiaECola}`
         : cobranca.linkBoleto
         ? `Acesse o boleto: ${cobranca.linkBoleto}`
-        : 'Entre em contato para obter uma nova via.'
+        : 'Entre em contato com o escritório para obter uma nova via de pagamento.'
 
       const valor    = Number(cobranca.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       const dataVenc = new Date(cobranca.vencimento).toLocaleDateString('pt-BR')
@@ -123,6 +133,11 @@ export async function POST(req: Request) {
       results.push({ clienteId: c.id, ok: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[crm/inadimplentes/mensagem] Erro ao enviar para cliente ${c.id}:`, err)
+      Sentry.captureException(err, {
+        tags:  { module: 'crm-inadimplentes', operation: 'enviar-mensagem-whatsapp' },
+        extra: { clienteId: c.id, nivel },
+      })
       results.push({ clienteId: c.id, ok: false, erro: msg })
     }
   }

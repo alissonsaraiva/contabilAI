@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth-portal'
 import { redirect, notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
-import Link from 'next/link'
+import { BackButton } from '@/components/ui/back-button'
 
 const TIPO_COMUNICADO: Record<string, { label: string; color: string; icon: string }> = {
   informativo: { label: 'Informativo', color: 'text-blue-600 bg-blue-500/10', icon: 'info' },
@@ -53,13 +53,10 @@ export default async function ComunicadoDetailPage({ params }: Props) {
     <div className="mx-auto max-w-2xl px-4 py-6">
 
       {/* Voltar */}
-      <Link
-        href="/portal/suporte"
-        className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/70 hover:text-on-surface transition-colors"
-      >
+      <BackButton className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/70 hover:text-on-surface transition-colors">
         <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        Voltar para suporte
-      </Link>
+        Voltar
+      </BackButton>
 
       {/* Card principal */}
       <div className="rounded-[20px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">

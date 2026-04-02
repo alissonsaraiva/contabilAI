@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Component, type ReactNode, type ErrorInfo } from 'react'
 import { toast } from 'sonner'
+import { DocumentoPicker, type DocSistema } from '@/components/crm/documento-picker'
 
 type Mensagem = {
   id: string
@@ -84,6 +85,7 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
   const [arquivo, setArquivo] = useState<ArquivoAnexo | null>(null)
   const [uploading, setUploading] = useState(false)
   const [naoModoIA, setNaoModoIA] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -242,6 +244,15 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
     setArquivo(null)
   }
 
+  function handleDocSistema(doc: DocSistema) {
+    setArquivo({
+      url:      doc.url,
+      type:     'document',
+      name:     doc.nome,
+      mimeType: doc.mimeType ?? 'application/octet-stream',
+    })
+  }
+
   async function enviar() {
     if ((!texto.trim() && !arquivo) || sending) return
     setSending(true)
@@ -334,8 +345,17 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
     }
   }
 
+  const entity = parseEntityFromPath()
+
   return (
     <WhatsAppChatBoundary onClose={onClose}>
+      <DocumentoPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handleDocSistema}
+        clienteId={entity?.entidadeTipo === 'cliente' ? entity.entidadeId : undefined}
+        leadId={entity?.entidadeTipo === 'lead' ? entity.entidadeId : undefined}
+      />
       {/* Header */}
       <div className="flex shrink-0 flex-col gap-2 border-b border-outline-variant/15 px-4 lg:px-5 py-4">
         <div className="flex items-center gap-2 lg:gap-3">
@@ -568,13 +588,22 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:opacity-40"
-              title="Anexar arquivo"
+              title="Anexar arquivo do computador"
             >
               {uploading ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant" />
               ) : (
                 <span className="material-symbols-outlined text-[18px]">attach_file</span>
               )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              disabled={uploading}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:opacity-40"
+              title="Documentos do cliente"
+            >
+              <span className="material-symbols-outlined text-[18px]">folder_open</span>
             </button>
 
             <textarea

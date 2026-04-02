@@ -7,6 +7,8 @@ import { decrypt, isEncrypted } from '@/lib/crypto'
 export type EmailRecebido = {
   uid: number
   messageId: string
+  inReplyTo:  string | null
+  references: string[]
   de: string           // endereço de email do remetente
   nomeRemetente: string
   assunto: string
@@ -78,6 +80,8 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
   client.on('error', () => {})
 
   const emails: EmailRecebido[] = []
+  // UIDs coletados com sucesso — precisam ser marcados como lidos
+  const uidsColetados: number[] = []
 
   try {
     await client.connect()
@@ -109,6 +113,10 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
             const corpoHtml = typeof parsed.html === 'string' ? parsed.html : undefined
             const dataEnvio   = parsed.date    ?? new Date()
             const messageId   = parsed.messageId ?? `uid-${msg.uid}`
+            const inReplyTo   = parsed.inReplyTo ?? null
+            const references  = Array.isArray(parsed.references)
+              ? parsed.references
+              : parsed.references ? [parsed.references] : []
 
             const anexos: EmailRecebido['anexos'] = []
             for (const att of parsed.attachments ?? []) {
@@ -121,13 +129,15 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
               }
             }
 
-            emails.push({ uid: msg.uid, messageId, de, nomeRemetente, assunto, corpo, corpoHtml, dataEnvio, anexos })
+            emails.push({ uid: msg.uid, messageId, inReplyTo, references, de, nomeRemetente, assunto, corpo, corpoHtml, dataEnvio, anexos })
+            uidsColetados.push(msg.uid)
 
-            // Marca como lido somente após parsing bem-sucedido
-            // (mover para antes causaria perda silenciosa se processarEmailRecebido falhar)
+            // Tenta marcar como lido na conexão ativa
             try {
               await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'])
             } catch (flagErr) {
+              // Falha silenciosa aqui: se a conexão caiu, o handler de NoConnection
+              // abaixo reabre conexão e marca todos os uidsColetados em lote
               console.error('[imap] Falha ao marcar email como lido, uid:', msg.uid, flagErr)
             }
           } catch (parseErr) {
@@ -135,14 +145,20 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
           }
         }
       } catch (iterErr: any) {
-        // "Connection not available" pode ocorrer quando o socket fecha após a última
-        // mensagem ser entregue (ex: socket timeout do servidor). Os emails já coletados
-        // em `emails` são válidos — apenas abortamos o fetch sem propagar o erro.
+        // "Connection not available" ocorre quando o servidor IMAP fecha o socket após
+        // entregar a última mensagem (ou antes, em servidores com timeout curto).
+        // Os emails já coletados em `emails` são válidos.
         if (iterErr?.code !== 'NoConnection') {
           Sentry.captureException(iterErr, { tags: { module: 'email-imap', operation: 'fetch-messages' } })
           throw iterErr
         }
         console.error('[imap] Conexão encerrada durante fetch, emails parciais:', emails.length)
+
+        // Reconecta apenas para marcar os UIDs coletados como lidos — evita que o mesmo
+        // email fique preso em loop infinito por nunca receber o flag \Seen
+        if (uidsColetados.length > 0) {
+          await marcarComoLidosReconectando(config, uidsColetados)
+        }
       }
     } finally {
       lock.release()
@@ -152,4 +168,36 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
   }
 
   return emails
+}
+
+/** Abre nova conexão IMAP só para marcar UIDs como \Seen — usado após queda da conexão principal */
+async function marcarComoLidosReconectando(
+  config: NonNullable<Awaited<ReturnType<typeof getImapConfig>>>,
+  uids: number[],
+): Promise<void> {
+  const uidSeq = uids.join(',')
+  const client = new ImapFlow({
+    host:          config.imapHost,
+    port:          config.imapPort,
+    secure:        config.imapPort === 993,
+    auth:          { user: config.usuario, pass: config.senha },
+    logger:        false,
+    socketTimeout: 10_000,
+  })
+  client.on('error', () => {})
+  try {
+    await client.connect()
+    const lock = await client.getMailboxLock('INBOX')
+    try {
+      await client.messageFlagsAdd(uidSeq, ['\\Seen'], { uid: true })
+      console.log('[imap] Emails marcados como lidos após reconexão, uids:', uids)
+    } finally {
+      lock.release()
+    }
+  } catch (err) {
+    console.error('[imap] Falha ao marcar emails como lidos na reconexão:', err)
+    Sentry.captureException(err, { tags: { module: 'email-imap', operation: 'reconnect-mark-seen' } })
+  } finally {
+    try { await client.logout() } catch { /* ok */ }
+  }
 }

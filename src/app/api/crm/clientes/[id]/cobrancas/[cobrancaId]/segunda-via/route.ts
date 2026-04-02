@@ -4,6 +4,7 @@
  * Gera uma nova cobrança no Asaas (vencimento em 3 dias) para uma cobrança vencida.
  * Não altera a cobrança original — cria uma nova e devolve os dados de pagamento.
  */
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -33,7 +34,15 @@ export async function POST(_req: Request, { params }: Params) {
     )
   }
 
-  const resultado = await gerarSegundaVia(cobrancaId)
-
-  return NextResponse.json(resultado, { status: 201 })
+  try {
+    const resultado = await gerarSegundaVia(cobrancaId)
+    return NextResponse.json(resultado, { status: 201 })
+  } catch (err) {
+    console.error(`[crm/segunda-via] Erro ao gerar segunda via para cobrança ${cobrancaId}:`, err)
+    Sentry.captureException(err, {
+      tags:  { module: 'crm-api', operation: 'gerar-segunda-via' },
+      extra: { cobrancaId },
+    })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Erro ao gerar segunda via.' }, { status: 500 })
+  }
 }

@@ -141,42 +141,48 @@ export default function ConfiguracoesIAPage() {
 
   // Carrega config inicial
   useEffect(() => {
-    fetch('/api/configuracoes/ia').then(r => r.json()).then(data => {
-      reset({
-        nomeAssistenteOnboarding: data.nomeAssistenteOnboarding ?? '',
-        nomeAssistenteCrm: data.nomeAssistenteCrm ?? '',
-        nomeAssistentePortal: data.nomeAssistentePortal ?? '',
-        nomeAssistenteWhatsapp: data.nomeAssistenteWhatsapp ?? '',
-        anthropicApiKey: '',
-        voyageApiKey: '',
-        openaiApiKey: '',
-        openaiBaseUrl: data.openaiBaseUrl ?? '',
-        googleApiKey: '',
-        groqApiKey: '',
-        aiProviderOnboarding: data.aiProviderOnboarding ?? 'claude',
-        aiProviderCrm: data.aiProviderCrm ?? 'claude',
-        aiProviderPortal: data.aiProviderPortal ?? 'claude',
-        aiProviderWhatsapp: data.aiProviderWhatsapp ?? 'claude',
-        aiProviderAgente: data.aiProviderAgente ?? 'claude',
-        aiProviderDocumentoResumo: data.aiProviderDocumentoResumo ?? 'claude',
-        aiModelOnboarding: data.aiModelOnboarding ?? 'claude-haiku-4-5-20251001',
-        aiModelCrm: data.aiModelCrm ?? 'claude-haiku-4-5-20251001',
-        aiModelPortal: data.aiModelPortal ?? 'claude-haiku-4-5-20251001',
-        aiModelWhatsapp: data.aiModelWhatsapp ?? 'claude-haiku-4-5-20251001',
-        aiModelAgente: data.aiModelAgente ?? 'claude-haiku-4-5-20251001',
-        aiModelDocumentoResumo: data.aiModelDocumentoResumo ?? 'claude-haiku-4-5-20251001',
-        systemPromptOnboarding: data.systemPromptOnboarding ?? '',
-        systemPromptCrm: data.systemPromptCrm ?? '',
-        systemPromptPortal: data.systemPromptPortal ?? '',
+    fetch('/api/configuracoes/ia')
+      .then(r => r.json())
+      .then(data => {
+        reset({
+          nomeAssistenteOnboarding: data.nomeAssistenteOnboarding ?? '',
+          nomeAssistenteCrm: data.nomeAssistenteCrm ?? '',
+          nomeAssistentePortal: data.nomeAssistentePortal ?? '',
+          nomeAssistenteWhatsapp: data.nomeAssistenteWhatsapp ?? '',
+          anthropicApiKey: '',
+          voyageApiKey: '',
+          openaiApiKey: '',
+          openaiBaseUrl: data.openaiBaseUrl ?? '',
+          googleApiKey: '',
+          groqApiKey: '',
+          aiProviderOnboarding: data.aiProviderOnboarding ?? 'claude',
+          aiProviderCrm: data.aiProviderCrm ?? 'claude',
+          aiProviderPortal: data.aiProviderPortal ?? 'claude',
+          aiProviderWhatsapp: data.aiProviderWhatsapp ?? 'claude',
+          aiProviderAgente: data.aiProviderAgente ?? 'claude',
+          aiProviderDocumentoResumo: data.aiProviderDocumentoResumo ?? 'claude',
+          aiModelOnboarding: data.aiModelOnboarding ?? 'claude-haiku-4-5-20251001',
+          aiModelCrm: data.aiModelCrm ?? 'claude-haiku-4-5-20251001',
+          aiModelPortal: data.aiModelPortal ?? 'claude-haiku-4-5-20251001',
+          aiModelWhatsapp: data.aiModelWhatsapp ?? 'claude-haiku-4-5-20251001',
+          aiModelAgente: data.aiModelAgente ?? 'claude-haiku-4-5-20251001',
+          aiModelDocumentoResumo: data.aiModelDocumentoResumo ?? 'claude-haiku-4-5-20251001',
+          systemPromptOnboarding: data.systemPromptOnboarding ?? '',
+          systemPromptCrm: data.systemPromptCrm ?? '',
+          systemPromptPortal: data.systemPromptPortal ?? '',
+        })
+        setStatus({
+          anthropicApiKey: { configured: !!data.anthropicApiKeyConfigured, masked: data.anthropicApiKey },
+          voyageApiKey: { configured: !!data.voyageApiKeyConfigured, masked: data.voyageApiKey },
+          openaiApiKey: { configured: !!data.openaiApiKeyConfigured, masked: data.openaiApiKey },
+          googleApiKey: { configured: !!data.googleApiKeyConfigured, masked: data.googleApiKey },
+          groqApiKey: { configured: !!data.groqApiKeyConfigured, masked: data.groqApiKey },
+        })
       })
-      setStatus({
-        anthropicApiKey: { configured: !!data.anthropicApiKeyConfigured, masked: data.anthropicApiKey },
-        voyageApiKey: { configured: !!data.voyageApiKeyConfigured, masked: data.voyageApiKey },
-        openaiApiKey: { configured: !!data.openaiApiKeyConfigured, masked: data.openaiApiKey },
-        googleApiKey: { configured: !!data.googleApiKeyConfigured, masked: data.googleApiKey },
-        groqApiKey: { configured: !!data.groqApiKeyConfigured, masked: data.groqApiKey },
+      .catch((err: unknown) => {
+        console.error('[configuracoes/ia] erro ao carregar configurações:', err)
+        toast.error('Erro ao carregar configurações de IA')
       })
-    })
   }, [reset])
 
   // Busca modelos de todos os providers
@@ -191,7 +197,9 @@ export default function ConfiguracoesIAPage() {
           google: data.google ?? FALLBACK_MODELS.google,
         })
       })
-      .catch(() => { })
+      .catch((err: unknown) => {
+        console.warn('[configuracoes/ia] erro ao carregar modelos, usando fallback:', err)
+      })
       .finally(() => setModelsLoading(false))
   }
 

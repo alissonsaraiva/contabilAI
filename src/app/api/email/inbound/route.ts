@@ -18,6 +18,8 @@ type ResendInboundPayload = {
   text?:       string
   html?:       string
   messageId?:  string
+  inReplyTo?:  string
+  references?:  string | string[]
   date?:       string
   attachments?: ResendInboundAttachment[]
 }
@@ -71,6 +73,10 @@ export async function POST(req: Request) {
   const emailRecebido: EmailRecebido = {
     uid:            0,  // campo IMAP — não aplicável para inbound webhook
     messageId:      payload.messageId ?? `resend-${Date.now()}`,
+    inReplyTo:      payload.inReplyTo ?? null,
+    references:     Array.isArray(payload.references)
+      ? payload.references
+      : payload.references ? [payload.references] : [],
     de,
     nomeRemetente,
     assunto:        payload.subject   ?? '(sem assunto)',

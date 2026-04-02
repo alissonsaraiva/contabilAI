@@ -96,6 +96,7 @@ async function asaasFetch<T>(
 
   const response = await fetch(url, {
     ...options,
+    signal: AbortSignal.timeout(15_000),  // 15s — evita travar o worker indefinidamente
     headers: {
       'Content-Type': 'application/json',
       'access_token': apiKey,
@@ -232,6 +233,11 @@ export async function asaasCreatePayment(params: {
       description: params.description ?? 'Segunda via',
     }),
   })
+}
+
+/** Cancela uma cobrança avulsa no Asaas (POST /payments/{id}/cancel). */
+export async function asaasCancelPayment(paymentId: string): Promise<void> {
+  await asaasFetch<unknown>(`/payments/${paymentId}/cancel`, { method: 'POST' })
 }
 
 export async function asaasGetPixQrCode(paymentId: string): Promise<AsaasPixQrCode> {

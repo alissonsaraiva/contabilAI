@@ -100,25 +100,29 @@ const responderEscalacaoTool: Tool = {
           select:  { id: true },
         })
         if (conversaRow) {
-          prisma.mensagemIA.create({
-            data: {
-              conversaId: conversaRow.id,
-              role:       'assistant',
-              conteudo:   resposta,
-              status:     'sent',
-              tentativas: 1,
-            },
-          }).catch((err: unknown) =>
-            console.error('[tool/responder-escalacao] erro ao criar mensagemIA:', { conversaId: conversaRow.id, err }),
-          )
+          try {
+            await prisma.mensagemIA.create({
+              data: {
+                conversaId: conversaRow.id,
+                role:       'assistant',
+                conteudo:   resposta,
+                status:     'sent',
+                tentativas: 1,
+              },
+            })
+          } catch (err: unknown) {
+            console.error('[tool/responder-escalacao] erro ao criar mensagemIA:', { conversaId: conversaRow.id, err })
+          }
 
-          // Reativa a IA
-          prisma.conversaIA.update({
-            where: { id: conversaRow.id },
-            data:  { pausadaEm: null, pausadoPorId: null },
-          }).catch((err: unknown) =>
-            console.error('[tool/responder-escalacao] erro ao reativar conversa:', { conversaId: conversaRow.id, err }),
-          )
+          // Reativa a IA — deve completar antes de retornar sucesso
+          try {
+            await prisma.conversaIA.update({
+              where: { id: conversaRow.id },
+              data:  { pausadaEm: null, pausadoPorId: null },
+            })
+          } catch (err: unknown) {
+            console.error('[tool/responder-escalacao] erro ao reativar conversa:', { conversaId: conversaRow.id, err })
+          }
         }
       }
     }

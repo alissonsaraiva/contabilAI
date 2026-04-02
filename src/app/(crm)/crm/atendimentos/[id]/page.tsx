@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { formatDateTime } from '@/lib/utils'
 import Link from 'next/link'
+import { BackButton } from '@/components/ui/back-button'
 import { EscalacaoResponder } from '@/components/crm/escalacao-responder'
 import { getAiConfig } from '@/lib/ai/config'
 
@@ -29,13 +30,10 @@ export default async function AtendimentoDetailPage({ params }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
-          <Link
-            href="/crm/atendimentos"
-            className="flex items-center gap-1 text-sm font-semibold text-primary hover:opacity-80"
-          >
+          <BackButton className="flex items-center gap-1 text-sm font-semibold text-primary hover:opacity-80">
             <span className="material-symbols-outlined text-[16px]">arrow_back</span>
             Atendimentos
-          </Link>
+          </BackButton>
           <h1 className="text-3xl font-light tracking-tight text-on-surface">
             Atendimento — {CANAL_LABEL[esc.canal] ?? esc.canal}
           </h1>

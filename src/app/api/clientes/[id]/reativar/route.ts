@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
@@ -53,7 +54,13 @@ export async function POST(_req: Request, { params }: Params) {
   // Recria subscription no Asaas (fire and forget)
   import('@/lib/services/asaas-sync')
     .then(({ reativarAsaas }) => reativarAsaas(id))
-    .catch(err => console.error('[reativar] Erro ao sincronizar Asaas:', err))
+    .catch((err: unknown) => {
+      console.error('[reativar] Erro ao recriar subscription no Asaas — cliente sem cobrança ativa:', err)
+      Sentry.captureException(err, {
+        tags:  { module: 'clientes-api', operation: 'reativar-asaas' },
+        extra: { clienteId: id },
+      })
+    })
 
   return NextResponse.json({ ok: true, status: 'ativo' })
 }

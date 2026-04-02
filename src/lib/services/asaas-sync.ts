@@ -8,7 +8,7 @@
  *   alterarFormaPagamento    — altera billingType na subscription + banco
  *   suspenderAsaas           — cancela subscription no Asaas + cancela cobranças locais abertas
  *   reativarAsaas            — cria nova subscription (após reativação)
- *   gerarSegundaVia          — cria nova cobrança avulsa e cancela a original localmente
+ *   gerarSegundaVia          — cria nova cobrança avulsa, cancela a original no Asaas e localmente
  */
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
@@ -19,6 +19,7 @@ import {
   asaasCancelSubscription,
   asaasListPayments,
   asaasCreatePayment,
+  asaasCancelPayment,
   asaasGetPixQrCode,
   asaasGetBoletoBarcode,
   calcularProximoVencimento,
@@ -70,6 +71,8 @@ async function enriquecerPagamento(
 
 // ─── Sincronizar cobranças ────────────────────────────────────────────────────
 
+const SYNC_MAX_PAGES = 50  // guard de segurança: 50 × 24 = 1.200 cobranças máx por sync
+
 export async function sincronizarCobrancas(
   clienteId: string,
   subscriptionId: string,
@@ -77,8 +80,10 @@ export async function sincronizarCobrancas(
 ): Promise<void> {
   let offset = 0
   const limit = 24
+  let page    = 0
 
-  while (true) {
+  while (page < SYNC_MAX_PAGES) {
+    page++
     const lista = await asaasListPayments({ subscriptionId, limit, offset })
 
     for (const payment of lista.data) {
@@ -112,6 +117,18 @@ export async function sincronizarCobrancas(
 
     if (!lista.hasMore) break
     offset += limit
+  }
+
+  if (page >= SYNC_MAX_PAGES) {
+    console.warn(
+      `[asaas-sync] sincronizarCobrancas: limite de ${SYNC_MAX_PAGES} páginas atingido ` +
+      `para subscription ${subscriptionId} (cliente ${clienteId}). Verifique o Asaas.`,
+    )
+    Sentry.captureMessage('[asaas-sync] Limite de paginação atingido em sincronizarCobrancas', {
+      level: 'warning',
+      tags:  { module: 'asaas-sync', operation: 'sincronizar-cobrancas' },
+      extra: { subscriptionId, clienteId, maxPages: SYNC_MAX_PAGES },
+    })
   }
 
   await prisma.cliente.update({
@@ -422,9 +439,20 @@ export async function gerarSegundaVia(cobrancaId: string): Promise<{
     })
   }
 
-  // BUG 7: Salva nova cobrança e cancela a original em uma transação atômica.
-  // Sem isso, o portal sempre exibia a cobrança original (mais antiga) em vez da
-  // segunda via recém-criada, porque busca orderBy vencimento asc.
+  // Cancela a cobrança original no Asaas para evitar que o cliente receba lembretes
+  // duplicados e para impedir que um pagamento da original deixe a segunda via como PENDING.
+  // Best-effort: se falhar, o fluxo local continua (a original ainda será cancelada localmente).
+  try {
+    await asaasCancelPayment(cobranca.asaasId)
+  } catch (err) {
+    console.error('[asaas-sync] Não foi possível cancelar a cobrança original no Asaas:', err)
+    Sentry.captureException(err, {
+      tags:  { module: 'asaas-sync', operation: 'cancelar-original-asaas' },
+      extra: { cobrancaId: cobranca.id, asaasId: cobranca.asaasId },
+    })
+  }
+
+  // Salva nova cobrança e cancela a original em uma transação atômica.
   const [nova] = await prisma.$transaction([
     prisma.cobrancaAsaas.create({
       data: {

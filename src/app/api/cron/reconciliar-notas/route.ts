@@ -101,8 +101,10 @@ export async function POST(req: Request) {
         }
 
         // Monta um payload sintético igual ao que viria pelo webhook
+        // ID deterministico baseado em notaId+spedyId — garante que o WebhookLog
+        // bloqueie duplo processamento se dois workers do cron rodarem em paralelo
         const payloadSintetico: SpedyWebhookPayload = {
-          id:    `reconciliacao-${nota.id}-${Date.now()}`,
+          id:    `reconciliacao-${nota.id}-${nota.spedyId}`,
           event: spedyNota.status === 'authorized' ? 'invoice.authorized'
                 : spedyNota.status === 'rejected'  ? 'invoice.rejected'
                 : spedyNota.status === 'canceled'  ? 'invoice.canceled'

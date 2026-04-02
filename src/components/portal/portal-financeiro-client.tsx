@@ -18,6 +18,7 @@ type CobrancaAberta = {
   pixQrCode: string | null
   pixCopiaECola: string | null
   atualizadoEm: string | null
+  pixExpirado?: boolean
 }
 
 type CobrancaHistorico = {
@@ -60,7 +61,6 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
   const [loading, setLoading] = useState(true)
   const [copiado, setCopiado] = useState(false)
   const [segundaViaLoading, setSegundaViaLoading] = useState(false)
-  const [segundaVia, setSegundaVia] = useState<CobrancaAberta | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
   const carregarDados = useCallback(async () => {
@@ -79,11 +79,6 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
 
   useEffect(() => { carregarDados() }, [carregarDados])
 
-  function pixExpirado(cob: CobrancaAberta): boolean {
-    if (!cob.pixCopiaECola || !cob.atualizadoEm) return false
-    return (Date.now() - new Date(cob.atualizadoEm).getTime()) > 20 * 3600 * 1000
-  }
-
   async function copiar(texto: string) {
     await navigator.clipboard.writeText(texto)
     setCopiado(true)
@@ -101,7 +96,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? 'Erro ao gerar segunda via.')
-      setSegundaVia(body)
+      // Recarrega os dados: a nova cobrança (PENDING) estará em cobrancaAberta
       await carregarDados()
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao gerar segunda via.')
@@ -122,9 +117,6 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
       </div>
     )
   }
-
-  // Exibe segunda via gerada ao invés da original
-  const cobrancaExibida = segundaVia ?? cobrancaAberta
 
   return (
     <div className="space-y-6">
@@ -167,36 +159,36 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
       )}
 
       {/* Cobrança em aberto */}
-      {asaasAtivo && cobrancaExibida && (
+      {asaasAtivo && cobrancaAberta && (
         <Card className="border-outline-variant/15 bg-card shadow-sm overflow-hidden rounded-[16px]">
-          <div className={`p-4 sm:px-6 sm:py-4 border-b border-outline-variant/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cobrancaExibida.status === 'OVERDUE' ? 'bg-error/5' : ''}`}>
+          <div className={`p-4 sm:px-6 sm:py-4 border-b border-outline-variant/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cobrancaAberta.status === 'OVERDUE' ? 'bg-error/5' : ''}`}>
             <div className="flex items-center gap-3">
               <span
-                className={`material-symbols-outlined text-[20px] ${cobrancaExibida.status === 'OVERDUE' ? 'text-error' : 'text-primary'}`}
+                className={`material-symbols-outlined text-[20px] ${cobrancaAberta.status === 'OVERDUE' ? 'text-error' : 'text-primary'}`}
                 style={{ fontVariationSettings: "'FILL' 1" }}
               >
-                {cobrancaExibida.status === 'OVERDUE' ? 'warning' : 'receipt'}
+                {cobrancaAberta.status === 'OVERDUE' ? 'warning' : 'receipt'}
               </span>
               <div>
                 <h3 className="font-headline text-base font-semibold text-on-surface">
-                  {cobrancaExibida.status === 'OVERDUE' ? 'Cobrança vencida' : 'Cobrança atual'}
+                  {cobrancaAberta.status === 'OVERDUE' ? 'Cobrança vencida' : 'Cobrança atual'}
                 </h3>
                 <p className="text-[12px] text-on-surface-variant/70">
-                  Vencimento: {new Date(cobrancaExibida.vencimento).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  Vencimento: {new Date(cobrancaAberta.vencimento).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
                 </p>
               </div>
             </div>
             <div className="sm:text-right flex sm:block items-center justify-between">
-              <p className="text-xl font-bold text-on-surface">{formatBRL(cobrancaExibida.valor)}</p>
-              <span className={`text-[10px] font-bold uppercase px-2 py-[1px] rounded-full ${STATUS_COLOR[cobrancaExibida.status]}`}>
-                {STATUS_LABEL[cobrancaExibida.status]}
+              <p className="text-xl font-bold text-on-surface">{formatBRL(cobrancaAberta.valor)}</p>
+              <span className={`text-[10px] font-bold uppercase px-2 py-[1px] rounded-full ${STATUS_COLOR[cobrancaAberta.status]}`}>
+                {STATUS_LABEL[cobrancaAberta.status]}
               </span>
             </div>
           </div>
 
           <div className="p-4 sm:p-6 space-y-4">
-            {/* PIX expirado */}
-            {cobrancaExibida.formaPagamento === 'pix' && pixExpirado(cobrancaExibida) && (
+            {/* PIX expirado — usa flag do servidor (server já nulifica pixCopiaECola quando expirado) */}
+            {cobrancaAberta.formaPagamento === 'pix' && !!cobrancaAberta.pixExpirado && (
               <div className="flex items-start gap-2 rounded-xl bg-orange-50 px-4 py-3 text-sm text-orange-700 dark:bg-orange-950/30 dark:text-orange-400">
                 <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0">warning</span>
                 <span>O código PIX pode estar expirado. Gere uma segunda via para obter um novo código atualizado.</span>
@@ -204,12 +196,12 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
             )}
 
             {/* PIX válido */}
-            {cobrancaExibida.formaPagamento === 'pix' && cobrancaExibida.pixCopiaECola && !pixExpirado(cobrancaExibida) && (
+            {cobrancaAberta.formaPagamento === 'pix' && cobrancaAberta.pixCopiaECola && !cobrancaAberta.pixExpirado && (
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  {cobrancaExibida.pixQrCode && (
+                  {cobrancaAberta.pixQrCode && (
                     <img
-                      src={`data:image/png;base64,${cobrancaExibida.pixQrCode}`}
+                      src={`data:image/png;base64,${cobrancaAberta.pixQrCode}`}
                       alt="QR Code PIX"
                       className="h-36 w-36 shrink-0 rounded-xl border border-outline-variant/20 shadow-sm"
                     />
@@ -221,12 +213,12 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
                     <div className="flex items-center gap-2">
                       <div className="flex-1 overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container/50 px-3 py-2">
                         <p className="truncate text-[11px] font-mono text-on-surface-variant">
-                          {cobrancaExibida.pixCopiaECola.slice(0, 50)}…
+                          {cobrancaAberta.pixCopiaECola.slice(0, 50)}…
                         </p>
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => copiar(cobrancaExibida!.pixCopiaECola!)}
+                        onClick={() => copiar(cobrancaAberta!.pixCopiaECola!)}
                         className="shrink-0 gap-1.5"
                       >
                         <span className="material-symbols-outlined text-[14px]">
@@ -246,15 +238,15 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
             )}
 
             {/* Boleto */}
-            {cobrancaExibida.formaPagamento === 'boleto' && (
+            {cobrancaAberta.formaPagamento === 'boleto' && (
               <div className="space-y-3">
                 <p className="text-[13px] text-on-surface-variant/80">
                   Pague o boleto bancário no seu banco, lotérica ou pelo app do banco.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {cobrancaExibida.linkBoleto && (
+                  {cobrancaAberta.linkBoleto && (
                     <a
-                      href={cobrancaExibida.linkBoleto}
+                      href={cobrancaAberta.linkBoleto}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-medium text-on-primary shadow-sm hover:bg-primary/90 transition-colors"
@@ -263,11 +255,11 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
                       Abrir boleto
                     </a>
                   )}
-                  {cobrancaExibida.codigoBarras && (
+                  {cobrancaAberta.codigoBarras && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => copiar(cobrancaExibida!.codigoBarras!)}
+                      onClick={() => copiar(cobrancaAberta!.codigoBarras!)}
                       className="gap-1.5"
                     >
                       <span className="material-symbols-outlined text-[14px]">
@@ -281,12 +273,12 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
             )}
 
             {/* Segunda via — vencidas ou PIX expirado */}
-            {(cobrancaExibida.status === 'OVERDUE' || (cobrancaExibida.status === 'PENDING' && pixExpirado(cobrancaExibida))) && !segundaVia && (
+            {(cobrancaAberta.status === 'OVERDUE' || (cobrancaAberta.status === 'PENDING' && !!cobrancaAberta.pixExpirado)) && (
               <div className="border-t border-outline-variant/10 pt-4">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => gerarSegundaVia(cobrancaExibida.id)}
+                  onClick={() => gerarSegundaVia(cobrancaAberta.id)}
                   disabled={segundaViaLoading}
                   className="text-xs gap-1.5"
                 >
@@ -300,7 +292,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
       )}
 
       {/* Sem cobranças */}
-      {asaasAtivo && cobrancaExibida === null && (
+      {asaasAtivo && cobrancaAberta === null && (
         <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-6 rounded-[16px] shadow-sm">
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined text-[22px] text-green-status mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>

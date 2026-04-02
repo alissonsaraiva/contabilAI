@@ -3,7 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
 import { Card } from '@/components/ui/card'
-import Link from 'next/link'
+import { BackButton } from '@/components/ui/back-button'
 import { OSAvaliacaoForm } from '@/components/portal/os-avaliacao-form'
 import { OSCancelarBtn } from '@/components/portal/os-cancelar-btn'
 
@@ -65,12 +65,9 @@ export default async function OSDetailPage({ params }: Props) {
     <div className="space-y-6">
       {/* Back */}
       <div className="flex items-center gap-3">
-        <Link
-          href="/portal/suporte"
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container transition-colors"
-        >
+        <BackButton className="flex h-9 w-9 items-center justify-center rounded-xl border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container transition-colors">
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-        </Link>
+        </BackButton>
         <div className="min-w-0 flex-1">
           <h1 className="font-headline text-lg font-semibold text-on-surface truncate">{ordem.titulo}</h1>
           <p className="text-[12px] text-on-surface-variant/60">

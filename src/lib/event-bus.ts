@@ -30,6 +30,8 @@ export type EventConversaMensagem = {
   role: 'assistant' | 'user'
   conteudo: string
   mediaUrl?: string | null
+  mediaType?: string | null
+  mediaFileName?: string | null
 }
 
 export type EventEscalacaoResolvida = {
