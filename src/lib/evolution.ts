@@ -190,9 +190,8 @@ export async function sendMedia(
         mimetype:  opts.mimetype,
         caption:   opts.caption ?? '',
         fileName:  opts.fileName,
-        // Evolution aceita mediaUrl (direto) ou media (base64)
-        ...(opts.mediaUrl    && { mediaUrl: opts.mediaUrl }),
-        ...(opts.mediaBase64 && { media:    opts.mediaBase64 }),
+        // Evolution v2 aceita apenas 'media' tanto para URL quanto para base64
+        media: opts.mediaUrl ?? opts.mediaBase64,
       })
       circuitSuccess()
       return { ok: true }

@@ -123,6 +123,25 @@ const buscarDocumentosTool: Tool = {
       return `• [${data}] ${d.categoria ?? d.tipo} — ${d.nome} (enviado por: ${origem})${resumo} | id: ${d.id}`
     })
 
+    // Avisa quando o documento mais recente é antigo (> 6 meses) para o agente não
+    // enviá-lo como "mais recente" sem alertar o cliente da data.
+    const maisRecente    = documentos[0]
+    const idadeMeses     = maisRecente
+      ? (Date.now() - new Date(maisRecente.criadoEm).getTime()) / (1000 * 60 * 60 * 24 * 30)
+      : 0
+    const avisoAntiguidade = idadeMeses > 6
+      ? `\nATENÇÃO: o documento mais recente tem ${Math.round(idadeMeses)} meses. Informe a data ao cliente antes de enviar.`
+      : ''
+
+    // No portal, o cliente está autenticado — retorna links de download diretos.
+    // No CRM/WhatsApp, instrui o agente a usar enviarDocumentoWhatsApp.
+    const instrucaoEntrega = ctx.solicitanteAI === 'portal'
+      ? documentos.map(d =>
+          `• Para baixar "${d.nome}": /api/portal/documentos/${d.id}/download`
+        ).join('\n') +
+        '\n\nInclua esses links clicáveis na sua resposta para o cliente baixar diretamente.'
+      : 'Para enviar via WhatsApp, use enviarDocumentoWhatsApp com o id do documento.'
+
     return {
       sucesso: true,
       dados:   documentos,
@@ -130,7 +149,7 @@ const buscarDocumentosTool: Tool = {
         `${documentos.length} documento${documentos.length > 1 ? 's' : ''} encontrado${documentos.length > 1 ? 's' : ''}:`,
         ...linhas,
         '',
-        'Apresente os documentos como links clicáveis para o cliente baixar. Para enviar via WhatsApp, use enviarDocumentoWhatsApp com o id do documento.',
+        instrucaoEntrega + avisoAntiguidade,
       ].join('\n'),
     }
   },

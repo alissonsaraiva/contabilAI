@@ -17,9 +17,6 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
 
   // sessionId canônico vem do servidor — garante histórico unificado entre browser/PWA/dispositivos
   const [sessionId, setSessionId] = useState<string | null>(null)
-  // Rastreia quantas mensagens do DB já foram carregadas — usado no polling
-  const lastPollCountRef = useRef(0)
-
   const historyLoadedRef = useRef(false)
   const bottomRef        = useRef<HTMLDivElement>(null)
   const inputRef         = useRef<HTMLInputElement>(null)
@@ -74,7 +71,6 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         if (cid) setConversaId(cid)
         if (pausada) setEscalada(true)
         if (Array.isArray(mensagens) && mensagens.length > 0) {
-          lastPollCountRef.current = mensagens.length
           setMsgs(mensagens.map((m: { id: string; role: string; conteudo: string | null; excluido?: boolean }) => ({
             id:      m.id,
             role:    m.role as 'user' | 'assistant',
@@ -111,7 +107,6 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
           if (data.role && data.conteudo) {
             // Inclui o id para que exclusões futuras possam ser rastreadas
             setMsgs(prev => [...prev, { id: data.id, role: 'assistant', text: data.conteudo! }])
-            lastPollCountRef.current += 1  // evita duplicata no próximo poll
             if (!openRef.current) setUnread(n => n + 1)
           }
         } catch {}
@@ -150,7 +145,6 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
           mensagens: { id: string; role: string; conteudo: string | null; excluido?: boolean }[]
         }
         if (!Array.isArray(fetched)) return
-        lastPollCountRef.current = fetched.length
 
         setMsgs(prev => {
           const byId = new Map(fetched.map(m => [m.id, m]))
@@ -162,15 +156,38 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
             return (fresh?.excluido && !m.excluido) ? { ...m, excluido: true, text: '' } : m
           })
 
-          // 2. Acrescenta mensagens que ainda não estão no state (por ID)
+          // 2. Separa mensagens do DB que ainda não estão no state (por ID)
           const existingIds = new Set(updated.map(m => m.id).filter((x): x is string => !!x))
           const novas = fetched.filter(m => !existingIds.has(m.id))
           if (novas.length === 0) return updated.every((m, i) => m === prev[i]) ? prev : updated
 
-          if (!openRef.current) setUnread(n => n + novas.filter(m => !m.excluido).length)
+          // 3. Mensagens otimistas sem ID (adicionadas imediatamente no envio) devem ser
+          //    substituídas pela versão do DB (que tem ID) em vez de serem duplicadas.
+          //    Match por role + text — se encontrar, troca no lugar; senão, acrescenta.
+          const resultado = [...updated]
+          const realNovas: typeof novas = []
+          for (const nova of novas) {
+            const idxIdless = resultado.findIndex(
+              m => !m.id && m.role === nova.role && m.text === (nova.conteudo ?? '')
+            )
+            if (idxIdless !== -1) {
+              resultado[idxIdless] = {
+                id:       nova.id,
+                role:     nova.role as 'user' | 'assistant',
+                text:     nova.excluido ? '' : (nova.conteudo ?? ''),
+                excluido: nova.excluido ?? false,
+              }
+            } else {
+              realNovas.push(nova)
+            }
+          }
+
+          if (realNovas.length === 0) return resultado
+
+          if (!openRef.current) setUnread(n => n + realNovas.filter(m => !m.excluido).length)
           return [
-            ...updated,
-            ...novas.map(m => ({
+            ...resultado,
+            ...realNovas.map(m => ({
               id:       m.id,
               role:     m.role as 'user' | 'assistant',
               text:     m.excluido ? '' : (m.conteudo ?? ''),
@@ -222,9 +239,6 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         if (data.conversaId) setConversaId(data.conversaId)
         if (data.escalado || data.pausada) setEscalada(true)
         setMsgs(m => [...m, { role: 'assistant', text: data.reply }])
-        // Sincroniza o cursor do poll: user msg + IA response foram salvas no DB.
-        // Sem isso, o poll de 8s detectaria 2 "novas" mensagens e duplicaria.
-        lastPollCountRef.current += 2
       }
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Não consegui me conectar. Verifique sua conexão e tente novamente.' }])
