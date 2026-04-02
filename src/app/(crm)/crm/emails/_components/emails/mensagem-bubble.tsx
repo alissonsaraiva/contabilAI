@@ -77,9 +77,11 @@ export function MensagemBubble({ msg, thread, arquivandoAnexos, anexosArquivados
                 const arquivando = arquivandoAnexos.has(key)
                 const temVinculo = !!(thread.clienteId || thread.leadId)
 
+                const downloadUrl = `/api/email/anexo/download?url=${encodeURIComponent(a.url)}`
+
                 if (!rejeitado) {
                   return (
-                    <a key={i} href={a.url} target="_blank" rel="noopener noreferrer"
+                    <a key={i} href={downloadUrl} target="_blank" rel="noopener noreferrer"
                       className={`self-start flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
                         arquivado
                           ? 'border-green-500/30 bg-green-500/8 text-green-700 dark:text-green-400'
@@ -105,7 +107,7 @@ export function MensagemBubble({ msg, thread, arquivandoAnexos, anexosArquivados
                       </div>
                     </div>
                     <div className="mt-3 flex gap-2">
-                      <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-outline-variant/25 py-2.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container transition-colors min-h-[42px]">
+                      <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-outline-variant/25 py-2.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container transition-colors min-h-[42px]">
                         <span className="material-symbols-outlined text-[14px]">open_in_new</span>Abrir
                       </a>
                       {temVinculo ? (
