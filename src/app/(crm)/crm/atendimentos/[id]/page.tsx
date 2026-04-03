@@ -9,8 +9,9 @@ import { getAiConfig } from '@/lib/ai/config'
 type Props = { params: Promise<{ id: string }> }
 
 const CANAL_LABEL: Record<string, string> = {
-  whatsapp: 'WhatsApp',
+  whatsapp:   'WhatsApp',
   onboarding: 'Site (Onboarding)',
+  portal:     'Portal do Cliente',
 }
 
 export default async function AtendimentoDetailPage({ params }: Props) {
@@ -20,7 +21,11 @@ export default async function AtendimentoDetailPage({ params }: Props) {
     getAiConfig(),
   ])
   if (!esc) notFound()
-  const nomeIa = (esc.canal === 'whatsapp' ? aiConfig.nomeAssistentes.whatsapp : aiConfig.nomeAssistentes.onboarding) ?? 'Assistente'
+  const nomeIa = (
+    esc.canal === 'whatsapp'   ? aiConfig.nomeAssistentes.whatsapp :
+    esc.canal === 'portal'     ? aiConfig.nomeAssistentes.portal :
+                                  aiConfig.nomeAssistentes.onboarding
+  ) ?? 'Assistente'
 
   const historico = (esc.historico as { role: string; content: string }[]) ?? []
   const resolvida = esc.status === 'resolvida'

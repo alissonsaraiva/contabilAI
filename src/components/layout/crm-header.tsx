@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { cn, getInitials } from '@/lib/utils'
+import { useBadges } from '@/hooks/use-badges'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -151,6 +152,7 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
   const aiDown = useAiHealthAlert()
   const { items: notificacoes, descartar, descartarTudo } = useNotificacoes()
   const [notifOpen, setNotifOpen] = useState(false)
+  const badges = useBadges({ escalacoes: pendingEscalacoes, emails: pendingEmails, chamados: pendingChamados })
 
   function fecharNotif() {
     setNotifOpen(false)
@@ -354,9 +356,9 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
                   {group.items.map(({ href, icon, label }: NavItem) => {
                     const active = pathname === href || pathname.startsWith(href + '/')
                     const badgeCount =
-                      href === '/crm/atendimentos' ? pendingEscalacoes :
-                      href === '/crm/emails'        ? pendingEmails :
-                      href === '/crm/ordens-servico'? pendingChamados : 0
+                      href === '/crm/atendimentos'   ? badges.escalacoes :
+                      href === '/crm/emails'          ? badges.emails :
+                      href === '/crm/ordens-servico'  ? badges.chamados : 0
                     const showBadge = badgeCount > 0
                     return (
                       <Link

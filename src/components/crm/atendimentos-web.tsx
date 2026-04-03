@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { WhatsAppChatPanel } from './whatsapp-chat-panel'
 import { PortalConversaPanel } from './portal-conversa-panel'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { AutoRefresh } from '@/components/ui/auto-refresh'
 import { getNomeFromDadosJson } from '@/lib/schemas/lead-dados-json'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -100,6 +100,8 @@ export function AtendimentosWeb({
   escalacoesPendentes,
   escalacaoEmAtendimento,
   emailsPendentes,
+  truncado = false,
+  totalConversas24h = 0,
 }: {
   aguardandoResposta:     ConversaWebItem[]
   emAtendimentoHumano:    ConversaWebItem[]
@@ -107,30 +109,13 @@ export function AtendimentosWeb({
   escalacoesPendentes:    EscalacaoWebItem[]
   escalacaoEmAtendimento: EscalacaoWebItem[]
   emailsPendentes:        number
+  truncado?:              boolean
+  totalConversas24h?:     number
 }) {
   const [selected, setSelected]     = useState<SelectedConversation | null>(null)
   const [novaConversa, setNovaConversa] = useState(false)
   const [filtro, setFiltro]         = useState<FilterTab>('todas')
-  const [busca, setBusca]           = useState('')
-  const router = useRouter()
-
-  // ── Auto-refresh da lista a cada 30s quando o tab está visível ───────────────
-  // router.refresh() re-executa os server components (page.tsx) mas preserva
-  // todo o estado React deste client component — chat aberto, filtro, busca.
-  useEffect(() => {
-    const tick = () => {
-      if (!document.hidden) router.refresh()
-    }
-    // Atualiza quando o tab volta a ficar visível (ex: operador volta de outra aba)
-    document.addEventListener('visibilitychange', tick)
-    // Polling de 30s para manter a lista sincronizada
-    const id = setInterval(tick, 30_000)
-    return () => {
-      document.removeEventListener('visibilitychange', tick)
-      clearInterval(id)
-    }
-  }, [router])
-  // ─────────────────────────────────────────────────────────────────────────────
+  const [busca, setBusca] = useState('')
 
   function handleSelect(c: ConversaWebItem) {
     if (c.canal === 'portal') {
@@ -179,6 +164,7 @@ export function AtendimentosWeb({
 
   return (
     <div className="flex h-full overflow-hidden">
+      <AutoRefresh intervalMs={30_000} />
       {/* ─── Painel esquerdo — full width no mobile, 320px fixo no desktop ── */}
       <div className={`flex shrink-0 flex-col overflow-hidden border-r border-outline-variant/15 bg-card w-full lg:w-80 ${selected ? 'hidden lg:flex' : 'flex'}`}>
 
@@ -203,6 +189,18 @@ export function AtendimentosWeb({
             Nova
           </button>
         </div>
+
+        {/* Banner de truncamento */}
+        {truncado && (
+          <div className="flex items-center gap-2 border-b border-orange-status/15 bg-orange-status/5 px-4 py-2">
+            <span className="material-symbols-outlined text-[14px] text-orange-status shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
+              warning
+            </span>
+            <p className="text-[11px] text-orange-status/90 leading-snug">
+              Exibindo 100 de {totalConversas24h} conversas. Recarregue para ver as mais recentes.
+            </p>
+          </div>
+        )}
 
         {/* Banner de emails pendentes */}
         {emailsPendentes > 0 && (

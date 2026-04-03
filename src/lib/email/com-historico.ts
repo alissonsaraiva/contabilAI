@@ -54,12 +54,41 @@ export async function enviarEmailComHistorico(
     assunto:        input.assunto,
   })
 
+  // Monta o header References com toda a cadeia da thread (para agrupamento correto
+  // nos clientes de email do destinatário). Busca todos os messageIds da thread em ordem.
+  let referencesChain: string | undefined
+  const threadIdParaBusca = input.emailThreadId ?? input.inReplyToMessageId
+  if (threadIdParaBusca) {
+    try {
+      const mensagensDaThread = await prisma.interacao.findMany({
+        where: {
+          emailThreadId: threadIdParaBusca,
+          emailMessageId: { not: null },
+        },
+        orderBy: { criadoEm: 'asc' },
+        select: { emailMessageId: true },
+      })
+      const ids = mensagensDaThread
+        .map(m => m.emailMessageId)
+        .filter(Boolean) as string[]
+      // Inclui o inReplyTo caso não esteja na cadeia (pode ser o root antes de ter threadId)
+      if (input.inReplyToMessageId && !ids.includes(input.inReplyToMessageId)) {
+        ids.unshift(input.inReplyToMessageId)
+      }
+      if (ids.length > 0) referencesChain = ids.join(' ')
+    } catch {
+      // Falha ao buscar cadeia — usa apenas inReplyTo como fallback
+      referencesChain = input.inReplyToMessageId
+    }
+  }
+
   const resultado = await sendEmail({
     para:    input.para,
     assunto: input.assunto,
     corpo:   corpoHtml,
     replyTo: input.replyTo,
     inReplyTo:       input.inReplyToMessageId,
+    references:      referencesChain,
     customMessageId: customMessageId,
     anexos:  input.anexos,
   })

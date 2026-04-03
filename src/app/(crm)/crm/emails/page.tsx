@@ -34,9 +34,16 @@ export type ThreadItem = {
   mensagens:       MensagemThread[]
 }
 
-export default async function EmailsPage() {
+type Props = { searchParams: Promise<{ dias?: string }> }
+
+export default async function EmailsPage({ searchParams }: Props) {
   const session = await auth()
   if (!session) redirect('/login')
+
+  const sp       = await searchParams
+  const diasRaw  = parseInt(sp.dias ?? '90')
+  const diasFiltro = [90, 180, 365].includes(diasRaw) ? diasRaw : 90
+  const dataLimite = new Date(Date.now() - diasFiltro * 24 * 60 * 60 * 1000)
 
   const escritorio = await getEscritorioConfig()
 
@@ -45,20 +52,22 @@ export default async function EmailsPage() {
     lead:    { select: { id: true, contatoEntrada: true, dadosJson: true } },
   }
 
-  // Busca todos os emails recentes (recebidos e enviados) com suporte a thread
-  const [todosRecebidos, todosEnviados] = await Promise.all([
+  const whereRecebidos = { tipo: 'email_recebido' as const, deletadoEm: null, criadoEm: { gte: dataLimite } }
+  const whereEnviados  = { tipo: 'email_enviado'  as const, deletadoEm: null, criadoEm: { gte: dataLimite } }
+
+  // Busca emails do período selecionado com suporte a thread
+  const [todosRecebidos, todosEnviados, totalRecebidos] = await Promise.all([
     prisma.interacao.findMany({
-      where:   { tipo: 'email_recebido', deletadoEm: null },
+      where:   whereRecebidos,
       orderBy: { criadoEm: 'asc' },
-      take:    500,
       include,
     }),
     prisma.interacao.findMany({
-      where:   { tipo: 'email_enviado', deletadoEm: null },
+      where:   whereEnviados,
       orderBy: { criadoEm: 'asc' },
-      take:    500,
       include,
     }),
+    prisma.interacao.count({ where: whereRecebidos }),
   ])
 
   const clientes = await prisma.cliente.findMany({
@@ -170,6 +179,8 @@ export default async function EmailsPage() {
       clientes={clientes}
       operadorNome={session.user?.name ?? 'Equipe'}
       escritorioNome={escritorio.nomeFantasia ?? escritorio.nome}
+      diasFiltro={diasFiltro}
+      totalRecebidos={totalRecebidos}
     />
   )
 }

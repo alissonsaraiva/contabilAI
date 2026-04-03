@@ -15,6 +15,7 @@ export type SendEmailOpts = {
   corpo: string           // HTML ou texto plano
   replyTo?: string
   inReplyTo?:      string   // Message-ID do email sendo respondido
+  references?:     string   // Cadeia completa de Message-IDs da thread (espaço-separados)
   customMessageId?: string  // Nosso Message-ID para rastreamento de thread
   anexos?: Anexo[]
 }
@@ -106,7 +107,8 @@ async function sendViaResend(opts: SendEmailOpts): Promise<SendEmailResult> {
   if (attachments)    body.attachments = attachments
   const customHeaders: Record<string, string> = {}
   if (opts.inReplyTo)       customHeaders['In-Reply-To'] = opts.inReplyTo
-  if (opts.inReplyTo)       customHeaders['References']   = opts.inReplyTo
+  if (opts.references)      customHeaders['References']   = opts.references
+  else if (opts.inReplyTo)  customHeaders['References']   = opts.inReplyTo
   if (opts.customMessageId) customHeaders['Message-ID']   = opts.customMessageId
   if (Object.keys(customHeaders).length > 0) body.headers = customHeaders
 
@@ -188,7 +190,7 @@ async function sendViaSmtp(opts: SendEmailOpts): Promise<SendEmailResult> {
     html:        opts.corpo,
     replyTo:     opts.replyTo,
     inReplyTo:  opts.inReplyTo,
-    references: opts.inReplyTo,
+    references: opts.references ?? opts.inReplyTo,
     messageId:  opts.customMessageId,
     attachments,
   })

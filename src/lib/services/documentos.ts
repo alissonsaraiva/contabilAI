@@ -92,12 +92,24 @@ export async function criarDocumento(input: CriarDocumentoInput): Promise<CriarD
   // 4. Status default: aprovado para crm/integracao, pendente para portal
   const status = input.status ?? (input.origem === 'portal' ? 'pendente' : 'aprovado')
 
+  // 4b. Auto-fill empresaId a partir do cliente quando não fornecido explicitamente.
+  // Garante que documentos de clientes PJ apareçam tanto na aba do cliente quanto na empresa,
+  // independente de o caller lembrar de passar empresaId.
+  let empresaId = input.empresaId
+  if (!empresaId && input.clienteId) {
+    const clienteRow = await prisma.cliente.findUnique({
+      where:  { id: input.clienteId },
+      select: { empresaId: true },
+    })
+    empresaId = clienteRow?.empresaId ?? undefined
+  }
+
   // 5. Criação no banco
   const documento = await prisma.documento.create({
     data: {
       clienteId:      input.clienteId,
       leadId:         input.leadId,
-      empresaId:      input.empresaId,
+      empresaId,
       ordemServicoId: input.ordemServicoId,
       tipo:           input.tipo,
       categoria,
@@ -118,7 +130,7 @@ export async function criarDocumento(input: CriarDocumentoInput): Promise<CriarD
   indexarAsync('documento', {
     id:        documento.id,
     clienteId: input.clienteId,
-    empresaId: input.empresaId,
+    empresaId,
     leadId:    input.leadId,
     tipo:      input.tipo,
     nome,

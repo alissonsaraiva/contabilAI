@@ -141,10 +141,14 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       try {
         const res = await fetch(`/api/portal/chat?sessionId=${sessionId}`)
         if (!res.ok) return
-        const { mensagens: fetched } = await res.json() as {
+        const { mensagens: fetched, pausada } = await res.json() as {
           mensagens: { id: string; role: string; conteudo: string | null; excluido?: boolean }[]
+          pausada?: boolean
         }
         if (!Array.isArray(fetched)) return
+
+        // Atualiza badge IA ↔ Humano quando operador assume ou devolve para IA
+        if (typeof pausada === 'boolean') setEscalada(pausada)
 
         setMsgs(prev => {
           const byId = new Map(fetched.map(m => [m.id, m]))
@@ -362,6 +366,17 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
                         strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
                         ul:     ({ children }) => <ul className="ml-3 list-disc space-y-0.5">{children}</ul>,
                         li:     ({ children }) => <li>{children}</li>,
+                        a:      ({ href, children }) => (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-semibold text-primary underline underline-offset-2 hover:opacity-75"
+                          >
+                            {children}
+                            <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>download</span>
+                          </a>
+                        ),
                       }}
                     >
                       {m.text}

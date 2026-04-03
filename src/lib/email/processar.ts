@@ -28,7 +28,7 @@ export type ResultadoProcessamento = {
  * - Sem sugestão de resposta (não há contexto do cliente)
  */
 export async function processarEmailRecebido(email: EmailRecebido): Promise<ResultadoProcessamento> {
-  const { clienteId, leadId } = await identificarRemetente(email.de)
+  const { clienteId, leadId, empresaId } = await identificarRemetente(email.de)
   const associado = !!(clienteId || leadId)
 
   // Upload dos anexos e criação de Documento via service unificado
@@ -74,6 +74,7 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
         const doc = await criarDocumento({
           clienteId: clienteId ?? undefined,
           leadId:    leadId    ?? undefined,
+          empresaId: empresaId ?? undefined,
           arquivo: {
             buffer:   anexo.buffer,
             nome:     anexo.nome,
@@ -121,7 +122,7 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
     }
   }
 
-  // ── Threading por messageId/In-Reply-To ──────────────────────────────────
+  // ── Threading por messageId/In-Reply-To/References ───────────────────────
   let emailThreadId: string | null = null
 
   if (email.inReplyTo) {
@@ -133,10 +134,30 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
       },
       select: { emailThreadId: true, emailMessageId: true },
     })
-    emailThreadId = emailPai?.emailThreadId ?? emailPai?.emailMessageId ?? email.inReplyTo
+    if (emailPai) {
+      emailThreadId = emailPai.emailThreadId ?? emailPai.emailMessageId
+    }
   }
 
-  // Se não há inReplyTo ou não encontrou pai, este email é a raiz da thread
+  // Fallback via References — cobre o caso de o provedor (Resend/SMTP) sobrescrever o
+  // Message-ID do email enviado, fazendo o inReplyTo do cliente não bater com o que
+  // temos no banco. O header References contém toda a cadeia; o ID raiz da thread
+  // sempre está lá e foi salvo como emailMessageId do email_recebido original.
+  if (!emailThreadId && email.references.length > 0) {
+    const emailRef = await prisma.interacao.findFirst({
+      where: {
+        emailMessageId: { in: email.references },
+        tipo:           { in: ['email_recebido', 'email_enviado'] },
+      },
+      orderBy: { criadoEm: 'desc' },
+      select: { emailThreadId: true, emailMessageId: true },
+    })
+    if (emailRef) {
+      emailThreadId = emailRef.emailThreadId ?? emailRef.emailMessageId
+    }
+  }
+
+  // Se não há inReplyTo nem References com match, este email é a raiz de uma nova thread
   if (!emailThreadId && email.messageId && !email.messageId.startsWith('uid-')) {
     emailThreadId = email.messageId
   }
@@ -169,29 +190,29 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
   return { interacaoId, clienteId, leadId, associado, sugestao, documentosId }
 }
 
-async function identificarRemetente(emailRemetente: string): Promise<{ clienteId: string | null; leadId: string | null }> {
+async function identificarRemetente(emailRemetente: string): Promise<{ clienteId: string | null; leadId: string | null; empresaId: string | null }> {
   const emailNorm = emailRemetente.toLowerCase().trim()
 
   const cliente = await prisma.cliente.findFirst({
     where: { email: { equals: emailNorm, mode: 'insensitive' } },
-    select: { id: true },
+    select: { id: true, empresaId: true },
   })
-  if (cliente) return { clienteId: cliente.id, leadId: null }
+  if (cliente) return { clienteId: cliente.id, leadId: null, empresaId: cliente.empresaId }
 
   const lead = await prisma.lead.findFirst({
     where: { dadosJson: { path: ['email'], equals: emailNorm } },
     select: { id: true },
   })
-  if (lead) return { clienteId: null, leadId: lead.id }
+  if (lead) return { clienteId: null, leadId: lead.id, empresaId: null }
 
   // Fallback: contatoEntrada pode ser email
   const leadContato = await prisma.lead.findFirst({
     where: { contatoEntrada: { equals: emailNorm, mode: 'insensitive' } },
     select: { id: true },
   })
-  if (leadContato) return { clienteId: null, leadId: leadContato.id }
+  if (leadContato) return { clienteId: null, leadId: leadContato.id, empresaId: null }
 
-  return { clienteId: null, leadId: null }
+  return { clienteId: null, leadId: null, empresaId: null }
 }
 
 async function gerarSugestao(

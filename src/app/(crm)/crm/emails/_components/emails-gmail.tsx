@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { toast }                                from 'sonner'
+import Link                                     from 'next/link'
 import type { ThreadItem, MensagemThread, ClienteOpt, Aba, PainelDireito } from './emails/_shared'
 import { ThreadRow }    from './emails/thread-row'
 import { PainelVazio }  from './emails/painel-vazio'
@@ -15,6 +16,8 @@ export function EmailsGmail({
   clientes,
   operadorNome,
   escritorioNome,
+  diasFiltro = 90,
+  totalRecebidos = 0,
 }: {
   threadsEntrada:  ThreadItem[]
   threadsTratados: ThreadItem[]
@@ -22,6 +25,8 @@ export function EmailsGmail({
   clientes:        ClienteOpt[]
   operadorNome:    string
   escritorioNome:  string
+  diasFiltro?:     number
+  totalRecebidos?: number
 }) {
   const [entrada,  setEntrada]  = useState(initialEntrada)
   const [tratados, setTratados] = useState(initialTratados)
@@ -250,6 +255,26 @@ export function EmailsGmail({
             <span className="material-symbols-outlined text-[15px]">edit</span>
             Novo
           </button>
+        </div>
+
+        {/* Banner de período */}
+        <div className="flex items-center gap-1.5 border-b border-outline-variant/10 bg-surface-container-low/60 px-3 py-1.5">
+          <span className="material-symbols-outlined text-[13px] text-on-surface-variant/50">calendar_month</span>
+          <span className="text-[11px] text-on-surface-variant/60">
+            Últimos {diasFiltro === 365 ? '1 ano' : `${diasFiltro} dias`}
+            {' '}({totalRecebidos} recebido{totalRecebidos !== 1 ? 's' : ''})
+          </span>
+          <div className="ml-auto flex items-center gap-1">
+            {([90, 180, 365] as const).filter(d => d !== diasFiltro).map(d => (
+              <Link
+                key={d}
+                href={`/crm/emails?dias=${d}`}
+                className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-primary/70 hover:bg-primary/10 hover:text-primary transition-colors"
+              >
+                {d === 365 ? '1 ano' : `${d}d`}
+              </Link>
+            ))}
+          </div>
         </div>
 
         {/* Abas */}

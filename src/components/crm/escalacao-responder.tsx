@@ -37,7 +37,10 @@ export function EscalacaoResponder({ escalacaoId, canal, nomeIa = 'Clara', entid
   const [pickerOpen, setPickerOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const canalLabel = canal === 'whatsapp' ? 'WhatsApp' : 'widget do site'
+  const canalLabel =
+    canal === 'whatsapp' ? 'WhatsApp' :
+    canal === 'portal'   ? 'Portal do Cliente' :
+                           'widget do site'
   const podeAnexar = modo === 'direto' && canal === 'whatsapp' && !!entidadeId && !!entidadeTipo
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {

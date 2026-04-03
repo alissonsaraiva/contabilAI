@@ -141,11 +141,16 @@ export async function getAiConfig(): Promise<AiConfig> {
     }
   }
 
-  // Usa o modelo salvo, mas ignora nomes Claude quando o provider não é Anthropic
+  // Usa o modelo salvo, mas descarta nomes de um provider quando o provider ativo é outro
+  const isGoogleModel = (m: string) => m.startsWith('gemini-')
+  const isGroqModel   = (m: string) => m.startsWith('llama-') || m.startsWith('mixtral-') || m.startsWith('whisper-')
+  const isClaudeModel = (m: string) => m.startsWith('claude-')
+
   const resolveModel = (stored: string | null, provider: string, openaiModel: string | null): string => {
-    if (!stored || (stored.startsWith('claude-') && provider !== 'claude')) {
-      return defaultModelForProvider(provider, openaiModel)
-    }
+    if (!stored) return defaultModelForProvider(provider, openaiModel)
+    if (isClaudeModel(stored) && provider !== 'claude') return defaultModelForProvider(provider, openaiModel)
+    if (isGoogleModel(stored) && provider !== 'google') return defaultModelForProvider(provider, openaiModel)
+    if (isGroqModel(stored)   && provider !== 'groq')   return defaultModelForProvider(provider, openaiModel)
     return stored
   }
 

@@ -164,16 +164,33 @@ function classificarPorKeyword(mensagem: string, ultimaMsgIA?: string): Intencao
 
 // ─── Classificador principal ──────────────────────────────────────────────────
 
+/** Substitui instrução de envio WhatsApp por busca com link quando o canal é portal */
+function adaptarInstrucaoPortal(intencao: Intencao): Intencao {
+  if (!intencao.instrucao) return intencao
+  if (!intencao.instrucao.includes('enviarDocumentoWhatsApp')) return intencao
+  return {
+    ...intencao,
+    instrucao: intencao.instrucao.replace(
+      /enviar via WhatsApp usando enviarDocumentoWhatsApp/g,
+      'buscar e apresentar links de download usando buscarDocumentos',
+    ),
+  }
+}
+
 export async function classificarIntencao(
   mensagem: string,
   contexto?: string,
   ultimaMsgIA?: string,
+  canal?: string,
 ): Promise<Intencao> {
   try {
     const config = await getAiConfig()
 
     // Sem Anthropic → fallback por heurística semântica
-    if (!config.anthropicApiKey) return classificarPorKeyword(mensagem, ultimaMsgIA)
+    if (!config.anthropicApiKey) {
+      const r = classificarPorKeyword(mensagem, ultimaMsgIA)
+      return canal === 'portal' ? adaptarInstrucaoPortal(r) : r
+    }
 
     const provider = getProvider('claude')
     const prompt = contexto
@@ -191,9 +208,10 @@ export async function classificarIntencao(
 
     const parsed = JSON.parse(result.text.trim()) as Intencao
     if (parsed.tipo !== 'pergunta' && parsed.tipo !== 'acao') return { tipo: 'pergunta' }
-    return parsed
+    return canal === 'portal' ? adaptarInstrucaoPortal(parsed) : parsed
   } catch {
     // Parse/rede falhou → heurística semântica como fallback
-    return classificarPorKeyword(mensagem, ultimaMsgIA)
+    const r = classificarPorKeyword(mensagem, ultimaMsgIA)
+    return canal === 'portal' ? adaptarInstrucaoPortal(r) : r
   }
 }

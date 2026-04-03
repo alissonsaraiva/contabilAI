@@ -24,6 +24,17 @@ const schema = z.object({
   asaasWebhookToken: z.string().optional(),
   spedyApiKey: z.string().optional(),
   spedyAmbiente: z.enum(['sandbox', 'producao']).optional(),
+  // Configuração fiscal padrão (usada como fallback em toda emissão)
+  spedyFederalServiceCode: z.string().optional(),
+  spedyCityServiceCode: z.string().optional(),
+  spedyIssAliquotaPercent: z.number().min(0).max(100).optional(), // exibido em %; salvo como 0.0500
+  spedyTaxationType: z.enum(['taxationInMunicipality', 'exemptFromTaxation', 'notSubjectToTaxation', 'taxationOutsideMunicipality']).optional(),
+  spedyIssWithheld: z.boolean().optional(),
+  // Comportamento de entrega
+  spedyAutoEmitirOS: z.boolean().optional(),
+  spedyEnviarAoAutorizar: z.boolean().optional(),
+  spedyEnviarCanalPadrao: z.enum(['whatsapp', 'email', 'portal']).optional(),
+  spedyDescricaoTemplate: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -124,7 +135,7 @@ export default function IntegracoesPage() {
     asaasApiKey: false, asaasWebhookToken: false, spedyApiKey: false,
   })
 
-  const { register, handleSubmit, reset, watch } = useForm<FormData>({
+  const { register, handleSubmit, reset, watch, setValue } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { provedorAssinatura: 'zapsign' },
   })
@@ -132,19 +143,38 @@ export default function IntegracoesPage() {
   const provedor = watch('provedorAssinatura')
   const asaasAmbiente = watch('asaasAmbiente')
   const spedyAmbiente = watch('spedyAmbiente')
+  const spedyIssWithheld = watch('spedyIssWithheld')
+  const spedyAutoEmitirOS = watch('spedyAutoEmitirOS')
+  const spedyEnviarAoAutorizar = watch('spedyEnviarAoAutorizar')
+  const spedyEnviarCanalPadrao = watch('spedyEnviarCanalPadrao')
+  const spedyTaxationType = watch('spedyTaxationType')
 
   useEffect(() => {
     fetch('/api/escritorio')
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
         if (!data) return
+        // Converte alíquota de decimal (0.05) para % (5) para exibição
+        const issAliquotaDecimal = data.spedyIssAliquota != null ? Number(data.spedyIssAliquota) : null
         reset({
           provedorAssinatura: (data.provedorAssinatura as string) === 'clicksign' ? 'clicksign' : 'zapsign',
           asaasAmbiente: (data.asaasAmbiente as string) === 'producao' ? 'producao' : 'sandbox',
           spedyAmbiente: (data.spedyAmbiente as string) === 'producao' ? 'producao' : 'sandbox',
+          // Chaves — em branco (nunca relemos do backend)
           zapsignToken: '', clicksignKey: '', clicksignHmacSecret: '',
           zapiInstanceId: '', zapiToken: '', serproCpfToken: '', serproCnpjToken: '',
           asaasApiKey: '', asaasWebhookToken: '', spedyApiKey: '',
+          // Configuração fiscal Spedy
+          spedyFederalServiceCode: (data.spedyFederalServiceCode as string) ?? '',
+          spedyCityServiceCode: (data.spedyCityServiceCode as string) ?? '',
+          spedyIssAliquotaPercent: issAliquotaDecimal != null ? Math.round(issAliquotaDecimal * 10000) / 100 : 5,
+          spedyTaxationType: (data.spedyTaxationType as FormData['spedyTaxationType']) ?? 'taxationInMunicipality',
+          spedyIssWithheld: (data.spedyIssWithheld as boolean) ?? false,
+          // Entrega
+          spedyAutoEmitirOS: (data.spedyAutoEmitirOS as boolean) ?? false,
+          spedyEnviarAoAutorizar: (data.spedyEnviarAoAutorizar as boolean) ?? true,
+          spedyEnviarCanalPadrao: (data.spedyEnviarCanalPadrao as FormData['spedyEnviarCanalPadrao']) ?? 'whatsapp',
+          spedyDescricaoTemplate: (data.spedyDescricaoTemplate as string) ?? '',
         })
         setConfigured({
           zapsignToken: !!data.zapsignToken,
@@ -179,6 +209,20 @@ export default function IntegracoesPage() {
       if (data.asaasApiKey) payload.asaasApiKey = data.asaasApiKey
       if (data.asaasWebhookToken) payload.asaasWebhookToken = data.asaasWebhookToken
       if (data.spedyApiKey) payload.spedyApiKey = data.spedyApiKey
+
+      // Configuração fiscal Spedy — sempre salva (incluindo booleanos e zeros)
+      payload.spedyFederalServiceCode = data.spedyFederalServiceCode ?? ''
+      payload.spedyCityServiceCode    = data.spedyCityServiceCode ?? ''
+      payload.spedyIssAliquota        = data.spedyIssAliquotaPercent != null
+        ? Math.round(data.spedyIssAliquotaPercent * 100) / 10000  // % → decimal: 5 → 0.0500
+        : 0.05
+      payload.spedyTaxationType       = data.spedyTaxationType ?? 'taxationInMunicipality'
+      payload.spedyIssWithheld        = data.spedyIssWithheld ?? false
+      // Entrega
+      payload.spedyAutoEmitirOS       = data.spedyAutoEmitirOS ?? false
+      payload.spedyEnviarAoAutorizar  = data.spedyEnviarAoAutorizar ?? true
+      payload.spedyEnviarCanalPadrao  = data.spedyEnviarCanalPadrao ?? 'whatsapp'
+      payload.spedyDescricaoTemplate  = data.spedyDescricaoTemplate ?? ''
 
       const res = await fetch('/api/escritorio', {
         method: 'PUT',
@@ -427,6 +471,183 @@ export default function IntegracoesPage() {
           <p className="mt-1 text-[11px] text-on-surface-variant/60">
             Painel Spedy → Configurações → Integrações → API Keys → Owner Key. Essa chave permite criar empresas secundárias para cada cliente.
           </p>
+        </div>
+
+        {/* ─── Configuração Fiscal Padrão ───────────────────────────────── */}
+        <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low/40 p-4 space-y-4">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-on-surface-variant">Configuração Fiscal Padrão</p>
+          <p className="text-[11px] text-on-surface-variant/70 -mt-2">
+            Usados como fallback em toda emissão — podem ser sobrescritos por cliente.
+          </p>
+
+          {/* Códigos de serviço */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[13px] font-semibold text-on-surface-variant mb-1.5">Código LC 116/03</label>
+              <input
+                {...register('spedyFederalServiceCode')}
+                className={INPUT}
+                placeholder="ex: 1.07"
+              />
+              <p className="mt-1 text-[11px] text-on-surface-variant/60">Código federal de serviço (tabela LC 116)</p>
+            </div>
+            <div>
+              <label className="block text-[13px] font-semibold text-on-surface-variant mb-1.5">Código Municipal</label>
+              <input
+                {...register('spedyCityServiceCode')}
+                className={INPUT}
+                placeholder="ex: 0107"
+              />
+              <p className="mt-1 text-[11px] text-on-surface-variant/60">Código de serviço da prefeitura</p>
+            </div>
+          </div>
+
+          {/* Alíquota ISS + ISS retido */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[13px] font-semibold text-on-surface-variant mb-1.5">Alíquota ISS (%)</label>
+              <input
+                {...register('spedyIssAliquotaPercent', { valueAsNumber: true })}
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                className={INPUT}
+                placeholder="5"
+              />
+              <p className="mt-1 text-[11px] text-on-surface-variant/60">Ex: 5 = 5% de ISS. Padrão: 5%.</p>
+            </div>
+            <div>
+              <label className="block text-[13px] font-semibold text-on-surface-variant mb-1.5">ISS Retido na Fonte</label>
+              <div className="flex items-center gap-3 h-11">
+                <label className={cn(
+                  'flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 transition-colors text-[13px] font-semibold',
+                  spedyIssWithheld ? 'border-primary/50 bg-primary/5 text-primary ring-2 ring-primary/20' : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40',
+                )}>
+                  <input type="radio" value="true" checked={spedyIssWithheld === true} onChange={() => setValue('spedyIssWithheld', true)} className="accent-primary" />
+                  Retido
+                </label>
+                <label className={cn(
+                  'flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 transition-colors text-[13px] font-semibold',
+                  !spedyIssWithheld ? 'border-primary/50 bg-primary/5 text-primary ring-2 ring-primary/20' : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40',
+                )}>
+                  <input type="radio" value="false" checked={spedyIssWithheld !== true} onChange={() => setValue('spedyIssWithheld', false)} className="accent-primary" />
+                  Não retido
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Tipo de tributação */}
+          <div>
+            <label className="block text-[13px] font-semibold text-on-surface-variant mb-1.5">Tipo de Tributação</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'taxationInMunicipality',       label: 'Tributação no município',        sub: 'ISS recolhido no município do prestador' },
+                { value: 'taxationOutsideMunicipality',  label: 'Tributação fora do município',   sub: 'ISS recolhido no município do tomador' },
+                { value: 'exemptFromTaxation',           label: 'Isento',                         sub: 'Serviço isento de ISS' },
+                { value: 'notSubjectToTaxation',         label: 'Não incidência',                 sub: 'Fora do campo de incidência do ISS' },
+              ].map(opt => (
+                <label
+                  key={opt.value}
+                  className={cn(
+                    'flex cursor-pointer items-start gap-2 rounded-xl border p-3 transition-colors',
+                    spedyTaxationType === opt.value
+                      ? 'border-primary/50 bg-primary/5 ring-2 ring-primary/20'
+                      : 'border-outline-variant/20 hover:border-outline-variant/40',
+                  )}
+                >
+                  <input type="radio" value={opt.value} {...register('spedyTaxationType')} className="accent-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className={cn('text-[12px] font-semibold', spedyTaxationType === opt.value ? 'text-primary' : 'text-on-surface')}>{opt.label}</p>
+                    <p className="text-[10px] text-on-surface-variant/70">{opt.sub}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Entrega ─────────────────────────────────────────────────── */}
+        <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low/40 p-4 space-y-4">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-on-surface-variant">Entrega ao Cliente</p>
+
+          {/* Auto-emitir ao resolver OS + Enviar ao autorizar */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[13px] font-semibold text-on-surface-variant mb-2">Auto-emitir ao fechar OS</label>
+              <div className="flex items-center gap-3 h-11">
+                {[{ v: true, l: 'Sim' }, { v: false, l: 'Não' }].map(({ v, l }) => (
+                  <label key={String(v)} className={cn(
+                    'flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 transition-colors text-[13px] font-semibold',
+                    spedyAutoEmitirOS === v ? 'border-primary/50 bg-primary/5 text-primary ring-2 ring-primary/20' : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40',
+                  )}>
+                    <input type="radio" checked={spedyAutoEmitirOS === v} onChange={() => setValue('spedyAutoEmitirOS', v)} className="accent-primary" />
+                    {l}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-on-surface-variant/60">Emite a NFS-e automaticamente quando uma OS é resolvida</p>
+            </div>
+            <div>
+              <label className="block text-[13px] font-semibold text-on-surface-variant mb-2">Enviar PDF ao autorizar</label>
+              <div className="flex items-center gap-3 h-11">
+                {[{ v: true, l: 'Sim' }, { v: false, l: 'Não' }].map(({ v, l }) => (
+                  <label key={String(v)} className={cn(
+                    'flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 transition-colors text-[13px] font-semibold',
+                    spedyEnviarAoAutorizar === v ? 'border-primary/50 bg-primary/5 text-primary ring-2 ring-primary/20' : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40',
+                  )}>
+                    <input type="radio" checked={spedyEnviarAoAutorizar === v} onChange={() => setValue('spedyEnviarAoAutorizar', v)} className="accent-primary" />
+                    {l}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-on-surface-variant/60">Entrega o PDF da NFS-e ao cliente logo após a autorização da prefeitura</p>
+            </div>
+          </div>
+
+          {/* Canal padrão */}
+          <div>
+            <label className="block text-[13px] font-semibold text-on-surface-variant mb-2">Canal de entrega padrão</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 'whatsapp', label: 'WhatsApp', icon: 'chat' },
+                { value: 'email',    label: 'E-mail',   icon: 'mail' },
+                { value: 'portal',   label: 'Portal',   icon: 'open_in_browser' },
+              ].map(opt => (
+                <label
+                  key={opt.value}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2 rounded-xl border p-3 transition-colors',
+                    spedyEnviarCanalPadrao === opt.value
+                      ? 'border-primary/50 bg-primary/5 ring-2 ring-primary/20'
+                      : 'border-outline-variant/20 hover:border-outline-variant/40',
+                  )}
+                >
+                  <input type="radio" value={opt.value} {...register('spedyEnviarCanalPadrao')} className="accent-primary" />
+                  <span className="material-symbols-outlined text-[16px] text-on-surface-variant" style={{ fontVariationSettings: "'FILL' 1" }}>{opt.icon}</span>
+                  <p className={cn('text-[13px] font-semibold', spedyEnviarCanalPadrao === opt.value ? 'text-primary' : 'text-on-surface')}>{opt.label}</p>
+                </label>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-on-surface-variant/60">Canal usado quando a entrega é disparada automaticamente. Sempre disponível no portal independente da escolha.</p>
+          </div>
+
+          {/* Template de descrição */}
+          <div>
+            <label className="block text-[13px] font-semibold text-on-surface-variant mb-1.5">Template de descrição da NFS-e</label>
+            <textarea
+              {...register('spedyDescricaoTemplate')}
+              rows={3}
+              className="w-full resize-y rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[13px] font-mono text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans custom-scrollbar"
+              placeholder="Deixe em branco para usar a descrição informada em cada emissão."
+            />
+            <p className="mt-1 text-[11px] text-on-surface-variant/60">
+              Variáveis: <code className="rounded bg-surface-container px-1 py-0.5 text-[10px]">{'{{cliente.nome}}'}</code>{' '}
+              <code className="rounded bg-surface-container px-1 py-0.5 text-[10px]">{'{{os.numero}}'}</code>{' '}
+              <code className="rounded bg-surface-container px-1 py-0.5 text-[10px]">{'{{competencia}}'}</code>
+            </p>
+          </div>
         </div>
 
         {/* Informativo sobre o fluxo */}

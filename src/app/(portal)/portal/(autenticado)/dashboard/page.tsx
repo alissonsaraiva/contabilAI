@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { formatBRL, cn } from '@/lib/utils'
 import { PLANO_LABELS } from '@/types'
 import { DocItem } from './doc-item'
+import { AutoRefresh } from '@/components/ui/auto-refresh'
 
 /* ─── helpers de status ─── */
 const STATUS_OS: Record<string, { label: string; color: string }> = {
@@ -126,6 +127,7 @@ export default async function PortalDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <AutoRefresh intervalMs={60_000} />
 
       {/* ── Alerta status ── */}
       {(cliente.status === 'inadimplente' || cliente.status === 'suspenso') && (

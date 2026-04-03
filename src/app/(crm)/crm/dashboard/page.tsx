@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { startOfDayBrasilia, cn } from '@/lib/utils'
 import Link from 'next/link'
+import { AutoRefresh } from '@/components/ui/auto-refresh'
 
 const PLANO_LABEL: Record<string, string> = {
   essencial:     'Essencial',
@@ -113,6 +114,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <AutoRefresh intervalMs={60_000} />
 
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

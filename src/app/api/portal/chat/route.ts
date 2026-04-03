@@ -253,7 +253,7 @@ REGRAS DE ATENDIMENTO:
     ? `usuário: ${nomeUsuario}\núltima resposta da assistente: "${typeof ultimaMsgIA === 'string' ? ultimaMsgIA.slice(0, 300) : ''}"`
     : `usuário: ${nomeUsuario}`
   const ultimaMsgIAStr = typeof ultimaMsgIA === 'string' ? ultimaMsgIA : undefined
-  const intencao = await classificarIntencao(message, contextoClassificacao, ultimaMsgIAStr)
+  const intencao = await classificarIntencao(message, contextoClassificacao, ultimaMsgIAStr, 'portal')
 
   if (intencao.tipo === 'acao' && intencao.instrucao) {
     try {

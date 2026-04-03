@@ -4,19 +4,24 @@ import { AtendimentosWeb, type ConversaWebItem, type EscalacaoWebItem } from '@/
 export default async function AtendimentosPage() {
   const limite24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-  const [todasConversas, pendentes, emAtendimento, emailsPendentes] = await Promise.all([
+  const LIMITE_CONVERSAS = 100
+
+  const [todasConversas, totalConversas24h, pendentes, emAtendimento, emailsPendentes] = await Promise.all([
     prisma.conversaIA.findMany({
       where: {
         canal:        { not: 'crm' },
         atualizadaEm: { gte: limite24h },
       },
       orderBy: { atualizadaEm: 'desc' },
-      take: 100,
+      take: LIMITE_CONVERSAS,
       include: {
         cliente:   { select: { id: true, nome: true } },
         lead:      { select: { id: true, contatoEntrada: true, dadosJson: true } },
         mensagens: { orderBy: { criadaEm: 'desc' }, take: 1, select: { conteudo: true, role: true } },
       },
+    }),
+    prisma.conversaIA.count({
+      where: { canal: { not: 'crm' }, atualizadaEm: { gte: limite24h } },
     }),
     prisma.escalacao.findMany({
       where:   { status: 'pendente' },
@@ -87,6 +92,8 @@ export default async function AtendimentosPage() {
       status:         e.status,
     }))
 
+  const truncado = totalConversas24h > LIMITE_CONVERSAS
+
   return (
     // Cancela o padding do <main> para o layout ocupar toda a área disponível
     <div className="-m-4 md:-m-6 lg:-m-8 h-full overflow-hidden">
@@ -97,6 +104,8 @@ export default async function AtendimentosPage() {
         escalacoesPendentes={toEscalacao(pendentes)}
         escalacaoEmAtendimento={toEscalacao(emAtendimento)}
         emailsPendentes={emailsPendentes}
+        truncado={truncado}
+        totalConversas24h={totalConversas24h}
       />
     </div>
   )

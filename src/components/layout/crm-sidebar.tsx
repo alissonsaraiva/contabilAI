@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { cn, getInitials } from '@/lib/utils'
 import { AvosIcon } from '@/components/avos-logo'
+import { useBadges } from '@/hooks/use-badges'
 import type { SessionUser } from '@/types'
 
 type NavItem = {
@@ -75,13 +76,14 @@ type Props = {
 
 export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pendingChamados = 0, nomeEscritorio = 'Avos' }: Props) {
   const pathname = usePathname()
+  const badges   = useBadges({ escalacoes: pendingEscalacoes, emails: pendingEmails, chamados: pendingChamados })
 
   function getBadgeCount(item: NavItem): number {
-    if (item.badge)       return pendingEscalacoes
+    if (item.badge)       return badges.escalacoes
     if (item.badgeCount !== undefined) return item.badgeCount
     // E-mails: detecta pelo href
-    if (item.href === '/crm/emails')         return pendingEmails
-    if (item.href === '/crm/ordens-servico') return pendingChamados
+    if (item.href === '/crm/emails')         return badges.emails
+    if (item.href === '/crm/ordens-servico') return badges.chamados
     return 0
   }
 
