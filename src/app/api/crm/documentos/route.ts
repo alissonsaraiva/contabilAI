@@ -76,7 +76,7 @@ export async function GET(req: Request) {
 
   const [docsPrimarios, docsEmpresa] = await Promise.all([
     prisma.documento.findMany({
-      where,
+      where: { ...where, deletadoEm: null },
       orderBy: { criadoEm: 'desc' },
       take: 60,
       select: {
@@ -91,6 +91,7 @@ export async function GET(req: Request) {
       ? prisma.documento.findMany({
           where: {
             empresaId: empresaIdExtra,
+            deletadoEm: null,
             ...(categoria ? { categoria: categoria as CategoriaDocumento } : {}),
             ...(search ? {
               OR: [

@@ -83,7 +83,7 @@ export async function processarRespostaIA(input: ProcessarRespostaInput): Promis
         clienteId:      conversa.clienteId ?? null,
         leadId:         conversa.leadId    ?? null,
         remoteJid,
-        historico:      [...historico, { role: 'user', content: textoParaIA || textoAgregado }] as object[],
+        historico:      historico as object[],
         ultimaMensagem: textoParaIA || textoAgregado,
         motivoIA:       escalInfo.motivo,
       },

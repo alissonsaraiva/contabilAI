@@ -6,6 +6,7 @@ import { isEncrypted, decrypt } from '@/lib/crypto'
 import { sendHumanLike, } from '@/lib/whatsapp/human-like'
 import { sendMedia, type EvolutionConfig } from '@/lib/evolution'
 import { emitConversaMensagem } from '@/lib/event-bus'
+import { getDownloadUrl } from '@/lib/storage'
 
 export async function POST(
   req: Request,
@@ -96,13 +97,29 @@ export async function POST(
         apiKey: isEncrypted(row.evolutionApiKey) ? decrypt(row.evolutionApiKey) : row.evolutionApiKey,
         instance: row.evolutionInstance,
       }
-      const result = mediaUrl
+      // Se a URL for do R2 (bucket privado), gera URL assinada (5min) para a Evolution API conseguir baixar.
+      // URLs R2 diretas retornam 403 — o que causa falhas no circuit breaker.
+      let mediaUrlParaEnvio = mediaUrl
+      if (mediaUrl) {
+        const publicBase = (process.env.STORAGE_PUBLIC_URL ?? '').replace(/\/$/, '')
+        if (publicBase && mediaUrl.startsWith(publicBase)) {
+          const key = mediaUrl.slice(publicBase.length + 1)
+          try {
+            mediaUrlParaEnvio = await getDownloadUrl(key, 300)
+          } catch (err) {
+            console.error('[conversas/mensagem] erro ao gerar URL assinada para sendMedia:', { key, err })
+            Sentry.captureException(err, { tags: { module: 'conversas-mensagem', operation: 'gerar-signed-url' }, extra: { conversaId: id, key } })
+          }
+        }
+      }
+
+      const result = mediaUrlParaEnvio
         ? await sendMedia(cfg, conversa.remoteJid, {
             mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
             mimetype:  mediaMimeType ?? 'application/octet-stream',
             fileName:  mediaFileName ?? 'arquivo',
             caption:   texto || undefined,
-            mediaUrl,
+            mediaUrl:  mediaUrlParaEnvio,
           })
         : await sendHumanLike(cfg, conversa.remoteJid, texto)
       const ultima = await prisma.mensagemIA.findFirst({

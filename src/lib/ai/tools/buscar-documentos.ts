@@ -81,6 +81,7 @@ const buscarDocumentosTool: Tool = {
     const documentos = await prisma.documento.findMany({
       where: {
         OR: orConditions,
+        deletadoEm: null,
         ...(categoria && { categoria: categoria as never }),
       },
       orderBy: { criadoEm: 'desc' },
@@ -135,11 +136,12 @@ const buscarDocumentosTool: Tool = {
 
     // No portal, o cliente está autenticado — retorna links de download diretos.
     // No CRM/WhatsApp, instrui o agente a usar enviarDocumentoWhatsApp.
+    const portalBase = (process.env.NEXT_PUBLIC_PORTAL_URL ?? '').replace(/\/$/, '')
     const instrucaoEntrega = ctx.solicitanteAI === 'portal'
       ? documentos.map(d =>
-          `• Para baixar "${d.nome}": /api/portal/documentos/${d.id}/download`
+          `• "${d.nome}": ${portalBase}/api/portal/documentos/${d.id}/download`
         ).join('\n') +
-        '\n\nInclua esses links clicáveis na sua resposta para o cliente baixar diretamente.'
+        '\n\nApresente cada link acima exatamente como está (URL completa). Não modifique as URLs. Use formato: [nome do documento](url completa).'
       : 'Para enviar via WhatsApp, use enviarDocumentoWhatsApp com o id do documento.'
 
     return {

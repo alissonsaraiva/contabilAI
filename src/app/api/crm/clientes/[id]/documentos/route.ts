@@ -87,7 +87,7 @@ export async function GET(_req: Request, { params }: Params) {
   if (cliente?.empresaId) orConditions.push({ empresaId: cliente.empresaId })
 
   const documentos = await prisma.documento.findMany({
-    where:   { OR: orConditions },
+    where:   { OR: orConditions, deletadoEm: null },
     orderBy: { criadoEm: 'desc' },
     select: {
       id: true, nome: true, tipo: true, categoria: true,

@@ -1,5 +1,5 @@
 # AVOS — Documentação Completa do Sistema
-> **Gerado em**: 2026-04-02 | **Versão**: v3.10.7 | **Fonte da verdade**: código-fonte
+> **Gerado em**: 2026-04-03 | **Versão**: v3.10.10 | **Fonte da verdade**: código-fonte
 
 ---
 
@@ -222,13 +222,19 @@ contabilAI/
 ```
 1. Cron job /api/email/sync (autenticado com CRON_SECRET)
 2. Conectar IMAP (imapflow) → buscar UNSEEN
-3. Parser (mailparser): texto, HTML, attachments
+3. Parser (mailparser): texto, HTML, attachments, inReplyTo, references
 4. Threading: messageId + inReplyTo + threadId
 5. Buscar cliente por email FROM
 6. Criar Interacao (tipo: email_recebido, origem: sistema)
 7. Notificar operador responsável
 8. Agente pode responder via tool enviarEmail()
 ```
+
+**Resiliência IMAP** (v3.10.10): `imap.ts` trata desconexão mid-fetch sem perder emails já coletados.
+- `client.on('error', () => {})` evita `uncaughtException` quando servidor fecha socket
+- Erro `NoConnection` durante iteração → emails parciais são válidos; reconecta apenas para marcar `\Seen`
+- `getImapConfig()` retorna `null` (sem throw) se credenciais ausentes — sync pula silenciosamente
+- `testarConexaoImap()` disponível para diagnóstico via UI
 
 ### 5. Fluxo de Escalação
 
@@ -400,8 +406,10 @@ BUSCA (Híbrida):
 ### Cloudflare R2 (Storage)
 - **Tipo**: S3-compatible
 - **Auth**: `STORAGE_ACCESS_KEY_ID` + `STORAGE_SECRET_ACCESS_KEY`
-- **URLs**: públicas via `STORAGE_PUBLIC_URL` ou assinadas (5 min expiry)
-- **Ponto de falha**: URL pública pode mudar; downloads com URL assinada têm timeout
+- **URLs**: bucket privado — sempre usar URL assinada (`getDownloadUrl(key, segundos)`) para envio externo
+- **⚠️ URLs públicas brutas retornam 403** — Evolution API e qualquer serviço externo precisa de URL assinada
+- **Fluxo humano→WhatsApp** (`/api/conversas/[id]/mensagem`): detecta URL R2 pelo prefixo `STORAGE_PUBLIC_URL` e converte para signed URL (5 min) antes de chamar `sendMedia`
+- **Ponto de falha**: signed URLs expiram — não armazenar nem reusar; sempre gerar na hora do envio
 
 ### Zapsign / Clicksign (Assinatura Eletrônica)
 - **Tipo**: REST API (selecionável por escritório)
@@ -661,6 +669,15 @@ CanalEscalacao: whatsapp | onboarding | portal
 8. **Embeddings sem fallback** — se Voyage AI cair e não há Anthropic como fallback configurado, RAG para
 9. **Sem rate limiting** no endpoint `/api/agente/crm` — agente pode ser chamado em loop
 10. **`atudalizarDadosCliente`** — nome com typo no código (deveria ser `atualizar`)
+
+### Bugs corrigidos em v3.10.x
+
+| Versão | Bug | Correção |
+|--------|-----|----------|
+| v3.10.9 | Envio de arquivo pelo humano no chat WhatsApp falha (circuit breaker) | `conversas/[id]/mensagem`: gera URL assinada R2 antes de chamar `sendMedia` |
+| v3.10.9 | Mensagens duplicadas no escalonamento WhatsApp | `enviar-resposta.ts`: removida duplicação do histórico de mensagens |
+| v3.10.9 | Links de documentos no chat do portal malformados (`https://api/...`) | `buscar-documentos.ts`: usa `NEXT_PUBLIC_PORTAL_URL` para construir URL completa |
+| v3.10.9 | Documentos excluídos aparecendo no picker e nos resultados | `buscar-documentos.ts`, `crm/documentos`, `crm/clientes/[id]/documentos`: adiciona `deletadoEm: null` |
 
 ---
 
