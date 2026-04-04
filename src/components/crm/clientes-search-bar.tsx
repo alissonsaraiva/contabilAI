@@ -5,16 +5,16 @@ import { useEffect, useState } from 'react'
 import { PLANO_LABELS, PLANO_COLORS, STATUS_CLIENTE_LABELS, STATUS_CLIENTE_COLORS } from '@/types'
 
 const STATUS_OPTIONS = Object.entries(STATUS_CLIENTE_LABELS) as [string, string][]
-const PLANO_OPTIONS  = Object.entries(PLANO_LABELS) as [string, string][]
+const PLANO_OPTIONS = Object.entries(PLANO_LABELS) as [string, string][]
 
 export function ClientesSearchBar() {
-  const router       = useRouter()
-  const pathname     = usePathname()
+  const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const [value,  setValue]  = useState(searchParams.get('q')      ?? '')
+  const [value, setValue] = useState(searchParams.get('q') ?? '')
   const [status, setStatus] = useState(searchParams.get('status') ?? '')
-  const [plano,  setPlano]  = useState(searchParams.get('plano')  ?? '')
+  const [plano, setPlano] = useState(searchParams.get('plano') ?? '')
 
   // Sync URL whenever any filter changes (debounce only on text)
   useEffect(() => {
@@ -26,9 +26,9 @@ export function ClientesSearchBar() {
 
   function push(q: string, s: string, p: string) {
     const params = new URLSearchParams(searchParams.toString())
-    q ? params.set('q', q)      : params.delete('q')
+    q ? params.set('q', q) : params.delete('q')
     s ? params.set('status', s) : params.delete('status')
-    p ? params.set('plano', p)  : params.delete('plano')
+    p ? params.set('plano', p) : params.delete('plano')
     params.delete('page')
     router.push(`${pathname}?${params.toString()}`)
   }
@@ -42,11 +42,11 @@ export function ClientesSearchBar() {
   const hasFilters = !!value || !!status || !!plano
 
   return (
-    <div className="space-y-3">
-      {/* Linha 1: input */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <span className="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[20px] text-primary/60">
+    <div className="flex flex-col gap-4">
+      {/* Search input - Sleek and minimalistic */}
+      <div className="flex w-full gap-3">
+        <div className="group relative flex-1">
+          <span className="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant/40 transition-colors group-focus-within:text-primary">
             search
           </span>
           <input
@@ -54,14 +54,14 @@ export function ClientesSearchBar() {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="Buscar por nome, e-mail, CPF, CNPJ, razão social ou telefone…"
-            className="h-11 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low pl-10 pr-9 text-[14px] text-on-surface placeholder:text-on-surface-variant/50 shadow-sm focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
+            className="h-12 w-full rounded-2xl border border-transparent bg-surface-container-lowest/80 pl-11 pr-10 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5"
           />
           {value && (
             <button
               onClick={() => setValue('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full text-on-surface-variant/40 transition-colors hover:bg-surface-container hover:text-on-surface"
             >
-              <span className="material-symbols-outlined text-[18px]">close</span>
+              <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
           )}
         </div>
@@ -70,68 +70,82 @@ export function ClientesSearchBar() {
         {hasFilters && (
           <button
             onClick={clearAll}
-            className="flex h-11 items-center gap-1.5 rounded-xl border border-outline-variant/40 bg-surface-container-low px-3.5 text-[13px] text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all"
+            className="flex h-12 w-12 sm:w-auto items-center justify-center gap-1.5 rounded-2xl border border-outline-variant/15 bg-card px-0 sm:px-4 text-[13px] font-semibold tracking-wide text-on-surface-variant shadow-sm transition-all hover:border-outline-variant/30 hover:bg-surface-container-lowest hover:text-on-surface"
           >
-            <span className="material-symbols-outlined text-[16px]">filter_list_off</span>
-            <span className="hidden sm:inline">Limpar</span>
+            <span className="material-symbols-outlined text-[18px]">filter_list_off</span>
+            <span className="hidden sm:inline">Limpar filtros</span>
           </button>
         )}
       </div>
 
-      {/* Linha 2: filtros rápidos */}
-      <div className="flex flex-wrap gap-x-6 gap-y-2">
+      {/* Segmented Controls */}
+      <div className="flex flex-wrap gap-4">
         {/* Status */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/60 select-none">
-            Status
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {STATUS_OPTIONS.map(([key, label]) => {
-              const active = status === key
-              const color  = STATUS_CLIENTE_COLORS[key as keyof typeof STATUS_CLIENTE_COLORS] ?? ''
-              return (
-                <button
-                  key={key}
-                  onClick={() => setStatus(active ? '' : key)}
-                  className={[
-                    'inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider transition-all border',
-                    active
-                      ? `${color} border-transparent ring-2 ring-offset-1 ring-current/30`
-                      : 'border-outline-variant/30 bg-surface-container-low text-on-surface-variant/70 hover:bg-surface-container',
-                  ].join(' ')}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
+        <div className="flex w-full overflow-x-auto custom-scrollbar sm:w-auto items-center rounded-2xl bg-surface-container-lowest/80 p-1 border border-outline-variant/10 shadow-sm">
+          <button
+            onClick={() => setStatus('')}
+            className={[
+              'shrink-0 rounded-xl px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest transition-all',
+              !status
+                ? 'bg-card text-on-surface shadow-sm ring-1 ring-outline-variant/5'
+                : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-low/50',
+            ].join(' ')}
+          >
+            Todos os status
+          </button>
+
+          {STATUS_OPTIONS.map(([key, label]) => {
+            const active = status === key
+            const color = STATUS_CLIENTE_COLORS[key as keyof typeof STATUS_CLIENTE_COLORS]?.split(' ').slice(0, 2).join(' ') ?? ''
+            return (
+              <button
+                key={key}
+                onClick={() => setStatus(active ? '' : key)}
+                className={[
+                  'shrink-0 rounded-xl px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest transition-all border',
+                  active
+                    ? `${color} shadow-sm ring-1 ring-outline-variant/5 border-transparent`
+                    : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-low/50 border-transparent',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
 
         {/* Plano */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/60 select-none">
-            Plano
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {PLANO_OPTIONS.map(([key, label]) => {
-              const active = plano === key
-              const color  = PLANO_COLORS[key as keyof typeof PLANO_COLORS] ?? ''
-              return (
-                <button
-                  key={key}
-                  onClick={() => setPlano(active ? '' : key)}
-                  className={[
-                    'inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider transition-all border',
-                    active
-                      ? `${color} border-transparent ring-2 ring-offset-1 ring-current/30`
-                      : 'border-outline-variant/30 bg-surface-container-low text-on-surface-variant/70 hover:bg-surface-container',
-                  ].join(' ')}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
+        <div className="flex w-full overflow-x-auto custom-scrollbar sm:w-auto items-center rounded-2xl bg-surface-container-lowest/80 p-1 border border-outline-variant/10 shadow-sm">
+          <button
+            onClick={() => setPlano('')}
+            className={[
+              'shrink-0 rounded-xl px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest transition-all',
+              !plano
+                ? 'bg-card text-on-surface shadow-sm ring-1 ring-outline-variant/5'
+                : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-low/50',
+            ].join(' ')}
+          >
+            Todos os planos
+          </button>
+
+          {PLANO_OPTIONS.map(([key, label]) => {
+            const active = plano === key
+            const color = PLANO_COLORS[key as keyof typeof PLANO_COLORS]?.split(' ').slice(0, 2).join(' ') ?? ''
+            return (
+              <button
+                key={key}
+                onClick={() => setPlano(active ? '' : key)}
+                className={[
+                  'shrink-0 rounded-xl px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest transition-all border',
+                  active
+                    ? `${color} shadow-sm ring-1 ring-outline-variant/5 border-transparent`
+                    : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-low/50 border-transparent',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>

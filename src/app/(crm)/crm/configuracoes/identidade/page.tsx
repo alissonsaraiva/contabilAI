@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCNPJ } from '@/lib/utils'
 
-const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
+const INPUT = 'w-full rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 py-3 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
 
 const schema = z.object({
   nome: z.string().min(1, 'Nome obrigatório'),
@@ -58,10 +58,10 @@ export default function IdentidadePage() {
   }
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-8 shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-8 shadow-sm">
       <div className="mb-8">
-        <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">Dados Básicos</h2>
-        <p className="mt-1 text-[13px] text-on-surface-variant/80">
+        <h2 className="font-headline text-[24px] font-semibold tracking-tight text-on-surface">Dados Básicos</h2>
+        <p className="mt-1.5 text-[13px] font-medium text-on-surface-variant/70">
           Informações cadastrais e identidade visual do escritório.
         </p>
       </div>
@@ -70,7 +70,7 @@ export default function IdentidadePage() {
 
         {/* Identificação */}
         <div>
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Identificação</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-4">Identificação</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div className="md:col-span-2 space-y-1.5">
               <label className="block text-[13px] font-semibold text-on-surface-variant">
@@ -99,7 +99,7 @@ export default function IdentidadePage() {
 
         {/* Registro */}
         <div>
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Registro</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-4">Registro</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div className="space-y-1.5">
               <label className="block text-[13px] font-semibold text-on-surface-variant">CNPJ</label>
@@ -126,13 +126,13 @@ export default function IdentidadePage() {
 
         {/* Identidade visual */}
         <div>
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Identidade Visual</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-4">Identidade Visual</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div className="space-y-1.5">
               <label className="block text-[13px] font-semibold text-on-surface-variant">
                 Cor principal
               </label>
-              <div className="flex h-11 items-center gap-2 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-2 shadow-sm transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-[3px] focus-within:ring-primary/10">
+              <div className="flex h-11 items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-low px-2 shadow-sm transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-[3px] focus-within:ring-primary/10">
                 <input type="color" className="h-7 w-8 cursor-pointer rounded bg-transparent border-0 p-0" {...register('corPrimaria')} />
                 <input
                   {...register('corPrimaria')}
@@ -146,7 +146,7 @@ export default function IdentidadePage() {
               <label className="block text-[13px] font-semibold text-on-surface-variant">
                 Cor secundária
               </label>
-              <div className="flex h-11 items-center gap-2 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-2 shadow-sm transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-[3px] focus-within:ring-primary/10">
+              <div className="flex h-11 items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-low px-2 shadow-sm transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-[3px] focus-within:ring-primary/10">
                 <input type="color" className="h-7 w-8 cursor-pointer rounded bg-transparent border-0 p-0" {...register('corSecundaria')} />
                 <input
                   {...register('corSecundaria')}
@@ -162,7 +162,7 @@ export default function IdentidadePage() {
               </label>
               <input
                 {...register('fraseBemVindo')}
-                className="w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
+                className="w-full h-11 rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
                 placeholder="Bem-vindo! Vamos cuidar da sua contabilidade."
               />
             </div>
@@ -174,7 +174,7 @@ export default function IdentidadePage() {
               <textarea
                 {...register('metaDescricao')}
                 rows={3}
-                className="w-full resize-none rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 custom-scrollbar"
+                className="w-full resize-none rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 custom-scrollbar"
                 placeholder="Contabilidade digital com IA para MEI, EPP e autônomos."
               />
             </div>

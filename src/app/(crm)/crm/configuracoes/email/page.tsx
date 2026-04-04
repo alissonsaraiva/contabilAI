@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
-const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const INPUT = 'w-full rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 py-3 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
+const LABEL = 'block text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2'
 
 type EmailConfig = {
   emailRemetente: string
@@ -123,7 +123,7 @@ export default function EmailPage() {
 
   return (
     <div className="space-y-5">
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>mail</span>
@@ -164,7 +164,7 @@ export default function EmailPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>outgoing_mail</span>
@@ -190,7 +190,7 @@ export default function EmailPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>inbox</span>
@@ -218,7 +218,7 @@ export default function EmailPage() {
 
       {/* ── Saúde do e-mail ── */}
       {emailHealth && (
-        <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
           <div className="flex items-center gap-3 border-b border-outline-variant/10 px-6 py-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
               <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>monitor_heart</span>

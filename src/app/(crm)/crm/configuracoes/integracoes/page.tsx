@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
+const INPUT = 'w-full h-12 rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 text-[14px] font-mono text-on-surface shadow-sm placeholder:text-on-surface-variant/40 placeholder:font-sans transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
 
 const schema = z.object({
   provedorAssinatura: z.enum(['zapsign', 'clicksign']).optional(),
@@ -66,7 +66,7 @@ function Section({
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
       {/* Header clicável */}
       <button
         type="button"
@@ -639,7 +639,7 @@ export default function IntegracoesPage() {
             <textarea
               {...register('spedyDescricaoTemplate')}
               rows={3}
-              className="w-full resize-y rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[13px] font-mono text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans custom-scrollbar"
+              className="w-full resize-y rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[13px] font-mono text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans custom-scrollbar"
               placeholder="Deixe em branco para usar a descrição informada em cada emissão."
             />
             <p className="mt-1 text-[11px] text-on-surface-variant/60">

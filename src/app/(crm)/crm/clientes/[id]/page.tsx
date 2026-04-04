@@ -83,26 +83,26 @@ export default async function ClienteDetailPage({ params }: Props) {
   ])
 
   if (!cliente) notFound()
-  const nomeIa       = aiConfig.nomeAssistentes.crm    ?? 'Assistente'
+  const nomeIa = aiConfig.nomeAssistentes.crm ?? 'Assistente'
   const nomeIaPortal = aiConfig.nomeAssistentes.portal ?? 'Assistente'
 
 
   const socios: NonNullable<typeof cliente.empresa>['socios'] = cliente.empresa?.socios ?? []
-  const contratos  = cliente.contratos
-  const isPJ       = cliente.tipoContribuinte === 'pj' || !!cliente.empresa?.cnpj
+  const contratos = cliente.contratos
+  const isPJ = cliente.tipoContribuinte === 'pj' || !!cliente.empresa?.cnpj
 
   // PJ: busca docs da empresa também; PF: só cliente
   const empresaDocs = (isPJ && cliente.empresa?.id)
     ? await prisma.documento.findMany({
-        where:   { empresaId: cliente.empresa.id, deletadoEm: null },
-        orderBy: { criadoEm: 'desc' },
-      })
+      where: { empresaId: cliente.empresa.id, deletadoEm: null },
+      orderBy: { criadoEm: 'desc' },
+    })
     : []
   const documentos = [...cliente.documentos, ...empresaDocs]
     .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
 
-  const escritorioSpedyOk   = !!escritorio?.spedyApiKey
-  const spedyConfigurado    = !!cliente?.empresa?.spedyConfigurado
+  const escritorioSpedyOk = !!escritorio?.spedyApiKey
+  const spedyConfigurado = !!cliente?.empresa?.spedyConfigurado
 
   const tabs = [
     { value: 'dados', label: 'Dados', count: null },
@@ -115,7 +115,7 @@ export default async function ClienteDetailPage({ params }: Props) {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex items-start gap-4">
         <BackButton className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container">
@@ -123,10 +123,10 @@ export default async function ClienteDetailPage({ params }: Props) {
         </BackButton>
 
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-headline text-2xl font-semibold text-on-surface">{cliente.nome}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-headline text-[24px] font-semibold tracking-tight text-on-surface">{cliente.nome}</h1>
             <ClienteStatusSelect clienteId={cliente.id} status={cliente.status} />
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${PLANO_COLORS[cliente.planoTipo]}`}>
+            <span className={`rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest ${PLANO_COLORS[cliente.planoTipo]} border border-current/10`}>
               {PLANO_LABELS[cliente.planoTipo]}
             </span>
           </div>
@@ -164,33 +164,33 @@ export default async function ClienteDetailPage({ params }: Props) {
 
           <div className="mt-3 flex items-center gap-2">
             <EditarClienteButton cliente={{
-              id:                  cliente.id,
-              nome:                cliente.nome,
-              cpf:                 cliente.cpf,
-              email:               cliente.email,
-              telefone:            cliente.telefone,
-              whatsapp:            cliente.whatsapp,
-              rg:                  cliente.rg,
-              dataNascimento:      cliente.dataNascimento ? cliente.dataNascimento.toISOString() : null,
-              estadoCivil:         cliente.estadoCivil,
-              profissao:           cliente.profissao,
-              nacionalidade:       cliente.nacionalidade,
-              tipoContribuinte:    cliente.tipoContribuinte,
-              planoTipo:           cliente.planoTipo,
-              valorMensal:         Number(cliente.valorMensal),
-              vencimentoDia:       cliente.vencimentoDia,
-              formaPagamento:      cliente.formaPagamento,
-              cnpj:                cliente.empresa?.cnpj ?? null,
-              razaoSocial:         cliente.empresa?.razaoSocial ?? null,
-              regime:              cliente.empresa?.regime ?? null,
-              cep:                 cliente.cep,
-              logradouro:          cliente.logradouro,
-              numero:              cliente.numero,
-              complemento:         cliente.complemento,
-              bairro:              cliente.bairro,
-              cidade:              cliente.cidade,
-              uf:                  cliente.uf,
-              status:              cliente.status,
+              id: cliente.id,
+              nome: cliente.nome,
+              cpf: cliente.cpf,
+              email: cliente.email,
+              telefone: cliente.telefone,
+              whatsapp: cliente.whatsapp,
+              rg: cliente.rg,
+              dataNascimento: cliente.dataNascimento ? cliente.dataNascimento.toISOString() : null,
+              estadoCivil: cliente.estadoCivil,
+              profissao: cliente.profissao,
+              nacionalidade: cliente.nacionalidade,
+              tipoContribuinte: cliente.tipoContribuinte,
+              planoTipo: cliente.planoTipo,
+              valorMensal: Number(cliente.valorMensal),
+              vencimentoDia: cliente.vencimentoDia,
+              formaPagamento: cliente.formaPagamento,
+              cnpj: cliente.empresa?.cnpj ?? null,
+              razaoSocial: cliente.empresa?.razaoSocial ?? null,
+              regime: cliente.empresa?.regime ?? null,
+              cep: cliente.cep,
+              logradouro: cliente.logradouro,
+              numero: cliente.numero,
+              complemento: cliente.complemento,
+              bairro: cliente.bairro,
+              cidade: cliente.cidade,
+              uf: cliente.uf,
+              status: cliente.status,
               observacoesInternas: cliente.observacoesInternas,
             }} />
             <WhatsAppDrawerButton clienteId={cliente.id} clienteNome={cliente.nome} />
@@ -210,8 +210,8 @@ export default async function ClienteDetailPage({ params }: Props) {
       {/* ── Tabs ───────────────────────────────────────────── */}
       <Tabs defaultValue="dados" className="w-full">
         {/* Tab bar (Sleek Pills) */}
-        <div className="mb-6 overflow-x-auto custom-scrollbar pb-2">
-          <TabsList className="inline-flex h-12 min-w-max items-center justify-start gap-1 rounded-full bg-surface-container/80 p-1 text-on-surface-variant ring-1 ring-inset ring-outline-variant/20">
+        <div className="mb-8 overflow-x-auto custom-scrollbar pb-2">
+          <TabsList className="inline-flex h-12 min-w-max items-center justify-start gap-1 rounded-full bg-surface-container-lowest/80 p-1 text-on-surface-variant ring-1 ring-inset ring-outline-variant/10">
             {tabs.map(({ value, label, count }) => (
               <TabsTrigger
                 key={value}
@@ -526,17 +526,16 @@ export default async function ClienteDetailPage({ params }: Props) {
 
 function InfoCard({ title, icon, children }: { title: string; icon: string; children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm flex flex-col h-full">
-      <div className="flex items-center gap-3 px-6 pb-2 pt-6">
+    <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm flex flex-col h-full transition-colors hover:border-outline-variant/40">
+      <div className="flex items-center gap-2.5 px-6 pb-2 pt-6 border-b border-outline-variant/5">
         <span
-          className="material-symbols-outlined text-[20px] text-primary/80"
-          style={{ fontVariationSettings: "'FILL' 1" }}
+          className="material-symbols-outlined text-[18px] text-on-surface-variant/50"
         >
           {icon}
         </span>
-        <h2 className="font-headline text-base font-semibold text-on-surface">{title}</h2>
+        <h2 className="font-headline text-[13px] font-bold uppercase tracking-widest text-on-surface-variant">{title}</h2>
       </div>
-      <div className="flex-1 px-6 pb-6 pt-2">{children}</div>
+      <div className="flex-1 px-6 pb-6 pt-3">{children}</div>
     </div>
   )
 }

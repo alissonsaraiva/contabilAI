@@ -7,8 +7,8 @@ import { useForm } from 'react-hook-form'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
-const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const INPUT = 'w-full rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 py-3 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
+const LABEL = 'block text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2'
 
 type FormData = {
   evolutionApiUrl: string
@@ -222,7 +222,7 @@ export default function WhatsAppPage() {
     <form onSubmit={handleSubmit(onSaveConfig)} className="space-y-5">
 
       {/* Config Evolution API */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#25D366]/15">
             <span className="material-symbols-outlined text-[18px] text-[#25D366]" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -268,7 +268,7 @@ export default function WhatsAppPage() {
       </div>
 
       {/* Status + Ações */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
@@ -347,7 +347,7 @@ export default function WhatsAppPage() {
       </div>
 
       {/* IA no WhatsApp */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
@@ -370,7 +370,7 @@ export default function WhatsAppPage() {
             <textarea
               {...register('systemPromptWhatsapp')}
               rows={4}
-              className="w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 resize-y min-h-[96px]"
+              className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 resize-y min-h-[96px]"
               placeholder="Você é o assistente do escritório ContabAI via WhatsApp. Responda de forma concisa e direta, sem formatação markdown..."
             />
             <p className="text-[11px] text-on-surface-variant/50">Deixe em branco para usar o prompt padrão do sistema.</p>
@@ -379,7 +379,7 @@ export default function WhatsAppPage() {
       </div>
 
       {/* Webhook */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>webhook</span>
@@ -414,7 +414,7 @@ export default function WhatsAppPage() {
       </div>
 
       {/* Enviar mensagem de teste */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#25D366]/15">
             <span className="material-symbols-outlined text-[18px] text-[#25D366]" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
@@ -427,7 +427,7 @@ export default function WhatsAppPage() {
         <div className="flex gap-2">
           <input
             type="tel"
-            className="flex-1 h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
+            className="flex-1 h-11 rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40"
             placeholder="5511999999999 (com DDI)"
             value={testNumber}
             onChange={e => setTestNumber(e.target.value)}

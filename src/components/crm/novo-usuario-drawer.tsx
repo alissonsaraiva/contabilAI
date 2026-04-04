@@ -6,8 +6,8 @@ import { toast } from 'sonner'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { TIPOS } from '@/lib/usuarios/constants'
 
-const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
-const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const INPUT = 'w-full h-12 rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
+const LABEL = 'block text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2'
 const SELECT = INPUT + ' appearance-none cursor-pointer pr-10'
 
 const INIT = { nome: '', email: '', tipo: 'assistente', whatsapp: '' }
@@ -215,10 +215,10 @@ export function NovoUsuarioDrawer() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low p-4">
-                <div className="flex items-start gap-2.5">
-                  <span className="material-symbols-outlined text-[16px] text-on-surface-variant/50 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
-                  <p className="text-[12px] leading-relaxed text-on-surface-variant/70">
+              <div className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest/40 p-5">
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-[16px] text-primary/60 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+                  <p className="text-[12px] font-medium leading-relaxed text-on-surface-variant/70">
                     Uma senha temporária será gerada automaticamente. O usuário precisará criar uma nova senha no primeiro acesso.
                   </p>
                 </div>

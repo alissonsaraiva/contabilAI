@@ -43,11 +43,11 @@ const REGIME_COLORS: Record<string, string> = {
 }
 
 const STATUS_CHAMADO: Record<string, { label: string; color: string; icon: string }> = {
-  aberta:             { label: 'Aberta',         color: 'text-blue-600 bg-blue-500/10',                    icon: 'radio_button_unchecked' },
-  em_andamento:       { label: 'Em andamento',   color: 'text-primary bg-primary/10',                      icon: 'autorenew' },
-  aguardando_cliente: { label: 'Aguardando',     color: 'text-yellow-600 bg-yellow-500/10',                icon: 'pending' },
-  resolvida:          { label: 'Resolvida',      color: 'text-green-status bg-green-status/10',            icon: 'task_alt' },
-  cancelada:          { label: 'Cancelada',      color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
+  aberta: { label: 'Aberta', color: 'text-blue-600 bg-blue-500/10', icon: 'radio_button_unchecked' },
+  em_andamento: { label: 'Em andamento', color: 'text-primary bg-primary/10', icon: 'autorenew' },
+  aguardando_cliente: { label: 'Aguardando', color: 'text-yellow-600 bg-yellow-500/10', icon: 'pending' },
+  resolvida: { label: 'Resolvida', color: 'text-green-status bg-green-status/10', icon: 'task_alt' },
+  cancelada: { label: 'Cancelada', color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
 }
 
 const TIPO_CHAMADO: Record<string, string> = {
@@ -84,6 +84,11 @@ export default async function EmpresaDetailPage({ params }: Props) {
           orderBy: { criadoEm: 'desc' },
           include: { cliente: { select: { nome: true } } },
         },
+        notasFiscais: {
+          orderBy: { criadoEm: 'desc' as const },
+          take: 20,
+          select: { id: true, status: true, valorTotal: true, autorizadaEm: true, criadoEm: true, numero: true },
+        },
       },
     }),
     prisma.escritorio.findFirst({ select: { spedyApiKey: true } }),
@@ -92,40 +97,51 @@ export default async function EmpresaDetailPage({ params }: Props) {
   if (!empresa) notFound()
 
   const cliente = empresa.cliente
-  const socios  = empresa.socios
+  const socios = empresa.socios
   const nomeDisplay = empresa.razaoSocial ?? empresa.nomeFantasia ?? '(sem nome)'
   const nomeIaPortal = aiConfig.nomeAssistentes.portal ?? 'Assistente'
 
   const documentos = empresa.documentos
-  const chamados   = empresa.chamados
+  const chamados = empresa.chamados
+
+  // NFS-e stats para o card de resumo
+  const nfseAutorizadas = empresa.notasFiscais.filter(n => n.status === 'autorizada')
+  const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  const nfseMesValor = nfseAutorizadas
+    .filter(n => (n.autorizadaEm ?? n.criadoEm) >= inicioMes)
+    .reduce((acc, n) => acc + Number(n.valorTotal), 0)
+  const nfseUltima = nfseAutorizadas[0] ?? null
+
+  // Chamados em aberto (excluindo resolvidos/cancelados)
+  const chamadosAbertos = chamados.filter(c => !['resolvida', 'cancelada'].includes(c.status)).length
 
   const conversas = cliente
     ? await prisma.conversaIA.findMany({
-        where: {
-          OR: [
-            { clienteId: cliente.id },
-            ...(cliente.leadId ? [{ leadId: cliente.leadId }] : []),
-          ],
-        },
-        orderBy: { atualizadaEm: 'desc' },
-        include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
-      })
+      where: {
+        OR: [
+          { clienteId: cliente.id },
+          ...(cliente.leadId ? [{ leadId: cliente.leadId }] : []),
+        ],
+      },
+      orderBy: { atualizadaEm: 'desc' },
+      include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
+    })
     : []
 
   const tabs = [
-    { value: 'visao-geral', label: 'Visão Geral',  count: null },
-    { value: 'titular',     label: 'Titular',       count: null },
-    { value: 'socios',      label: 'Sócios',        count: socios.length },
-    { value: 'chamados',    label: 'Chamados',      count: chamados.length },
-    { value: 'documentos',  label: 'Documentos',    count: documentos.length },
-    { value: 'portal',      label: 'Portal',        count: null },
-    { value: 'conversas',   label: 'Conversas IA',  count: conversas.length },
-    { value: 'financeiro',  label: 'Financeiro',    count: null },
-    { value: 'fiscal',      label: 'Fiscal',        count: null },
+    { value: 'visao-geral', label: 'Visão Geral', count: null },
+    { value: 'titular', label: 'Titular', count: null },
+    { value: 'socios', label: 'Sócios', count: socios.length },
+    { value: 'chamados', label: 'Chamados', count: chamados.length },
+    { value: 'documentos', label: 'Documentos', count: documentos.length },
+    { value: 'portal', label: 'Portal', count: null },
+    { value: 'conversas', label: 'Conversas IA', count: conversas.length },
+    { value: 'financeiro', label: 'Financeiro', count: null },
+    { value: 'fiscal', label: 'Fiscal', count: null },
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex items-start gap-4">
         <BackButton className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container">
@@ -222,6 +238,8 @@ export default async function EmpresaDetailPage({ params }: Props) {
         {/* ── Visão Geral ─────────────────────────────────── */}
         <TabsContent value="visao-geral" className="m-0 focus-visible:outline-none">
           <div className="grid gap-4 md:grid-cols-2">
+
+            {/* Dados da empresa */}
             <InfoCard title="Dados da empresa" icon="domain">
               {empresa.razaoSocial && <InfoRow label="Razão social" value={empresa.razaoSocial} />}
               {empresa.nomeFantasia && <InfoRow label="Nome fantasia" value={empresa.nomeFantasia} />}
@@ -231,27 +249,72 @@ export default async function EmpresaDetailPage({ params }: Props) {
               <InfoRow label="Cadastrada em" value={formatDate(empresa.criadoEm)} />
             </InfoCard>
 
-            <InfoCard title="Composição societária" icon="group">
-              {socios.length === 0 ? (
-                <p className="text-sm text-on-surface-variant py-2">Nenhum sócio cadastrado.</p>
+            {/* Contrato & contato */}
+            <InfoCard title="Contrato" icon="contract">
+              {!cliente ? (
+                <p className="text-sm text-on-surface-variant py-2">Nenhum titular vinculado a esta empresa.</p>
               ) : (
-                <div className="space-y-3 pt-1">
-                  {socios.map(s => (
-                    <div key={s.id} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-on-surface">{s.nome}</p>
-                        {s.qualificacao && <p className="text-xs text-on-surface-variant">{s.qualificacao}</p>}
-                      </div>
-                      {s.participacao && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-                          {Number(s.participacao)}%
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <InfoRow label="Plano" value={PLANO_LABELS[cliente.planoTipo]} />
+                  <InfoRow label="Valor mensal" value={formatBRL(Number(cliente.valorMensal))} />
+                  <InfoRow label="Vencimento" value={`Dia ${cliente.vencimentoDia}`} />
+                  <InfoRow label="Pagamento" value={FORMA_PAGAMENTO_LABELS[cliente.formaPagamento]} />
+                  {cliente.email && <InfoRow label="E-mail" value={cliente.email} />}
+                  {(cliente.whatsapp || cliente.telefone) && (
+                    <InfoRow label="Telefone" value={formatTelefone((cliente.whatsapp ?? cliente.telefone)!)} />
+                  )}
+                  {cliente.responsavel?.nome && <InfoRow label="Responsável" value={cliente.responsavel.nome} />}
+                  <div className="pt-3 flex justify-end">
+                    <Link href={`/crm/clientes/${cliente.id}`} className="text-[12px] font-semibold text-primary hover:opacity-80 flex items-center gap-1">
+                      Ver perfil completo
+                      <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                    </Link>
+                  </div>
+                </>
               )}
             </InfoCard>
+
+            {/* NFS-e resumo */}
+            <InfoCard title="NFS-e" icon="receipt_long">
+              <div className="flex items-center justify-between py-2 border-b border-outline-variant/5">
+                <span className="text-sm text-on-surface-variant/80">Spedy</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${empresa.spedyConfigurado ? 'bg-green-status/10 text-green-status' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {empresa.spedyConfigurado ? 'Configurada' : 'Não configurada'}
+                </span>
+              </div>
+              {empresa.spedyConfigurado ? (
+                <>
+                  <InfoRow label="Emitidas (total)" value={nfseAutorizadas.length > 0 ? String(nfseAutorizadas.length) : '—'} />
+                  <InfoRow label="Valor no mês" value={nfseMesValor > 0 ? formatBRL(nfseMesValor) : '—'} />
+                  {nfseUltima ? (
+                    <InfoRow
+                      label="Última nota"
+                      value={`${nfseUltima.numero ? `NF-${nfseUltima.numero}` : 'RPS'} · ${formatBRL(Number(nfseUltima.valorTotal))}`}
+                    />
+                  ) : (
+                    <p className="text-sm text-on-surface-variant/60 py-2">Nenhuma nota emitida ainda.</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-on-surface-variant/60 py-3">
+                  Configure a emissão de NFS-e na aba <span className="font-medium text-on-surface">Fiscal</span>.
+                </p>
+              )}
+            </InfoCard>
+
+            {/* Atividade */}
+            <InfoCard title="Atividade" icon="analytics">
+              <InfoRow label="Chamados em aberto" value={chamadosAbertos > 0 ? String(chamadosAbertos) : '—'} />
+              <InfoRow label="Total de chamados" value={chamados.length > 0 ? String(chamados.length) : '—'} />
+              <InfoRow label="Documentos" value={documentos.length > 0 ? String(documentos.length) : '—'} />
+              <InfoRow label="Conversas IA" value={conversas.length > 0 ? String(conversas.length) : '—'} />
+              {chamadosAbertos > 0 && (
+                <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-orange-status">
+                  {chamadosAbertos} chamado{chamadosAbertos !== 1 ? 's' : ''} aguardando atenção
+                </p>
+              )}
+            </InfoCard>
+
           </div>
         </TabsContent>
 
@@ -263,105 +326,105 @@ export default async function EmpresaDetailPage({ params }: Props) {
             <>
               <div className="mb-4 flex items-center justify-end">
                 <EditarClienteButton cliente={{
-                  id:                  cliente.id,
-                  nome:                cliente.nome,
-                  cpf:                 cliente.cpf,
-                  email:               cliente.email,
-                  telefone:            cliente.telefone,
-                  whatsapp:            cliente.whatsapp,
-                  rg:                  cliente.rg,
-                  dataNascimento:      cliente.dataNascimento ? cliente.dataNascimento.toISOString() : null,
-                  estadoCivil:         (cliente as any).estadoCivil ?? null,
-                  profissao:           (cliente as any).profissao ?? null,
-                  nacionalidade:       (cliente as any).nacionalidade ?? null,
-                  tipoContribuinte:    cliente.tipoContribuinte,
-                  planoTipo:           cliente.planoTipo,
-                  valorMensal:         Number(cliente.valorMensal),
-                  vencimentoDia:       cliente.vencimentoDia,
-                  formaPagamento:      cliente.formaPagamento,
-                  cnpj:                empresa.cnpj ?? null,
-                  razaoSocial:         empresa.razaoSocial ?? null,
-                  regime:              empresa.regime ?? null,
-                  cep:                 cliente.cep,
-                  logradouro:          cliente.logradouro,
-                  numero:              cliente.numero,
-                  complemento:         cliente.complemento,
-                  bairro:              cliente.bairro,
-                  cidade:              cliente.cidade,
-                  uf:                  cliente.uf,
-                  status:              cliente.status,
+                  id: cliente.id,
+                  nome: cliente.nome,
+                  cpf: cliente.cpf,
+                  email: cliente.email,
+                  telefone: cliente.telefone,
+                  whatsapp: cliente.whatsapp,
+                  rg: cliente.rg,
+                  dataNascimento: cliente.dataNascimento ? cliente.dataNascimento.toISOString() : null,
+                  estadoCivil: (cliente as any).estadoCivil ?? null,
+                  profissao: (cliente as any).profissao ?? null,
+                  nacionalidade: (cliente as any).nacionalidade ?? null,
+                  tipoContribuinte: cliente.tipoContribuinte,
+                  planoTipo: cliente.planoTipo,
+                  valorMensal: Number(cliente.valorMensal),
+                  vencimentoDia: cliente.vencimentoDia,
+                  formaPagamento: cliente.formaPagamento,
+                  cnpj: empresa.cnpj ?? null,
+                  razaoSocial: empresa.razaoSocial ?? null,
+                  regime: empresa.regime ?? null,
+                  cep: cliente.cep,
+                  logradouro: cliente.logradouro,
+                  numero: cliente.numero,
+                  complemento: cliente.complemento,
+                  bairro: cliente.bairro,
+                  cidade: cliente.cidade,
+                  uf: cliente.uf,
+                  status: cliente.status,
                   observacoesInternas: cliente.observacoesInternas,
                 }} />
               </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <InfoCard title="Dados pessoais" icon="person">
-                <InfoRow label="Nome completo" value={cliente.nome} />
-                <InfoRow label="CPF" value={formatCPF(cliente.cpf)} />
-                {cliente.rg && <InfoRow label="RG" value={cliente.rg} />}
-                {(cliente as any).dataNascimento && <InfoRow label="Nascimento" value={formatDate((cliente as any).dataNascimento)} />}
-                {(cliente as any).estadoCivil && <InfoRow label="Estado civil" value={(cliente as any).estadoCivil} />}
-                <InfoRow label="E-mail" value={cliente.email} />
-                <InfoRow label="Telefone" value={formatTelefone(cliente.telefone)} />
-                {cliente.whatsapp && <InfoRow label="WhatsApp" value={formatTelefone(cliente.whatsapp)} />}
-              </InfoCard>
-
-              <InfoCard title="Contrato" icon="contract">
-                <InfoRow label="Plano" value={PLANO_LABELS[cliente.planoTipo]} />
-                <InfoRow label="Valor mensal" value={formatBRL(Number(cliente.valorMensal))} />
-                <InfoRow label="Vencimento" value={`Dia ${cliente.vencimentoDia}`} />
-                <InfoRow label="Pagamento" value={FORMA_PAGAMENTO_LABELS[cliente.formaPagamento]} />
-                <div className="pt-2 flex items-center justify-between">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${PLANO_COLORS[cliente.planoTipo]}`}>
-                    {PLANO_LABELS[cliente.planoTipo]}
-                  </span>
-                  <Link
-                    href={`/crm/clientes/${cliente.id}`}
-                    className="text-[12px] font-semibold text-primary hover:opacity-80 flex items-center gap-1"
-                  >
-                    Ver perfil completo
-                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                  </Link>
-                </div>
-              </InfoCard>
-
-              {(cliente.cep || cliente.cidade) && (
-                <InfoCard title="Endereço" icon="location_on">
-                  {cliente.logradouro && (
-                    <InfoRow
-                      label="Logradouro"
-                      value={`${cliente.logradouro}, ${cliente.numero ?? 's/n'}${cliente.complemento ? ` — ${cliente.complemento}` : ''}`}
-                    />
-                  )}
-                  {cliente.bairro && <InfoRow label="Bairro" value={cliente.bairro} />}
-                  {cliente.cidade && <InfoRow label="Cidade" value={[cliente.cidade, cliente.uf].filter(Boolean).join('/')} />}
-                  {cliente.cep && <InfoRow label="CEP" value={cliente.cep} />}
+              <div className="grid gap-4 md:grid-cols-2">
+                <InfoCard title="Dados pessoais" icon="person">
+                  <InfoRow label="Nome completo" value={cliente.nome} />
+                  <InfoRow label="CPF" value={formatCPF(cliente.cpf)} />
+                  {cliente.rg && <InfoRow label="RG" value={cliente.rg} />}
+                  {(cliente as any).dataNascimento && <InfoRow label="Nascimento" value={formatDate((cliente as any).dataNascimento)} />}
+                  {(cliente as any).estadoCivil && <InfoRow label="Estado civil" value={(cliente as any).estadoCivil} />}
+                  <InfoRow label="E-mail" value={cliente.email} />
+                  <InfoRow label="Telefone" value={formatTelefone(cliente.telefone)} />
+                  {cliente.whatsapp && <InfoRow label="WhatsApp" value={formatTelefone(cliente.whatsapp)} />}
                 </InfoCard>
-              )}
 
-              <InfoCard title="Gestão" icon="manage_accounts">
-                <InfoRow label="Status" value={STATUS_CLIENTE_LABELS[cliente.status] ?? cliente.status} />
-                {cliente.responsavel && <InfoRow label="Responsável" value={cliente.responsavel.nome ?? ''} />}
-                {cliente.dataInicio && <InfoRow label="Cliente desde" value={formatDate(cliente.dataInicio)} />}
-                {(cliente as any).inativadoEm && (
-                  <InfoRow label="Inativado em" value={formatDate((cliente as any).inativadoEm)} />
-                )}
-                {(cliente as any).reativadoEm && (
-                  <InfoRow label="Reativado em" value={formatDate((cliente as any).reativadoEm)} />
-                )}
-                {(cliente as any).motivoInativacao && (
-                  <div className="pt-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Motivo inativação</p>
-                    <p className="mt-1 text-sm leading-relaxed text-on-surface">{(cliente as any).motivoInativacao}</p>
+                <InfoCard title="Contrato" icon="contract">
+                  <InfoRow label="Plano" value={PLANO_LABELS[cliente.planoTipo]} />
+                  <InfoRow label="Valor mensal" value={formatBRL(Number(cliente.valorMensal))} />
+                  <InfoRow label="Vencimento" value={`Dia ${cliente.vencimentoDia}`} />
+                  <InfoRow label="Pagamento" value={FORMA_PAGAMENTO_LABELS[cliente.formaPagamento]} />
+                  <div className="pt-2 flex items-center justify-between">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${PLANO_COLORS[cliente.planoTipo]}`}>
+                      {PLANO_LABELS[cliente.planoTipo]}
+                    </span>
+                    <Link
+                      href={`/crm/clientes/${cliente.id}`}
+                      className="text-[12px] font-semibold text-primary hover:opacity-80 flex items-center gap-1"
+                    >
+                      Ver perfil completo
+                      <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                    </Link>
                   </div>
+                </InfoCard>
+
+                {(cliente.cep || cliente.cidade) && (
+                  <InfoCard title="Endereço" icon="location_on">
+                    {cliente.logradouro && (
+                      <InfoRow
+                        label="Logradouro"
+                        value={`${cliente.logradouro}, ${cliente.numero ?? 's/n'}${cliente.complemento ? ` — ${cliente.complemento}` : ''}`}
+                      />
+                    )}
+                    {cliente.bairro && <InfoRow label="Bairro" value={cliente.bairro} />}
+                    {cliente.cidade && <InfoRow label="Cidade" value={[cliente.cidade, cliente.uf].filter(Boolean).join('/')} />}
+                    {cliente.cep && <InfoRow label="CEP" value={cliente.cep} />}
+                  </InfoCard>
                 )}
-                {cliente.observacoesInternas && (
-                  <div className="pt-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Observações</p>
-                    <p className="mt-1 text-sm leading-relaxed text-on-surface">{cliente.observacoesInternas}</p>
-                  </div>
-                )}
-              </InfoCard>
-            </div>
+
+                <InfoCard title="Gestão" icon="manage_accounts">
+                  <InfoRow label="Status" value={STATUS_CLIENTE_LABELS[cliente.status] ?? cliente.status} />
+                  {cliente.responsavel && <InfoRow label="Responsável" value={cliente.responsavel.nome ?? ''} />}
+                  {cliente.dataInicio && <InfoRow label="Cliente desde" value={formatDate(cliente.dataInicio)} />}
+                  {(cliente as any).inativadoEm && (
+                    <InfoRow label="Inativado em" value={formatDate((cliente as any).inativadoEm)} />
+                  )}
+                  {(cliente as any).reativadoEm && (
+                    <InfoRow label="Reativado em" value={formatDate((cliente as any).reativadoEm)} />
+                  )}
+                  {(cliente as any).motivoInativacao && (
+                    <div className="pt-1">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Motivo inativação</p>
+                      <p className="mt-1 text-sm leading-relaxed text-on-surface">{(cliente as any).motivoInativacao}</p>
+                    </div>
+                  )}
+                  {cliente.observacoesInternas && (
+                    <div className="pt-1">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Observações</p>
+                      <p className="mt-1 text-sm leading-relaxed text-on-surface">{cliente.observacoesInternas}</p>
+                    </div>
+                  )}
+                </InfoCard>
+              </div>
             </>
           )}
         </TabsContent>
@@ -376,8 +439,8 @@ export default async function EmpresaDetailPage({ params }: Props) {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {socios.map((s) => (
-                <div key={s.id} className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
-                  <div className="flex items-center gap-3 px-5 py-4">
+                <div key={s.id} className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
+                  <div className="flex items-center gap-3 px-5 py-4 bg-surface-container-lowest/40">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
                       <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
                     </div>
@@ -409,15 +472,15 @@ export default async function EmpresaDetailPage({ params }: Props) {
                         whatsapp={s.whatsapp}
                       />
                       <EditarSocioDrawer socio={{
-                        id:           s.id,
-                        nome:         s.nome,
-                        cpf:          s.cpf,
+                        id: s.id,
+                        nome: s.nome,
+                        cpf: s.cpf,
                         qualificacao: s.qualificacao,
                         participacao: s.participacao != null ? Number(s.participacao) : null,
-                        email:        s.email,
-                        telefone:     s.telefone,
-                        whatsapp:     s.whatsapp,
-                        principal:    s.principal,
+                        email: s.email,
+                        telefone: s.telefone,
+                        whatsapp: s.whatsapp,
+                        principal: s.principal,
                       }} />
                     </div>
                   </div>
@@ -443,11 +506,11 @@ export default async function EmpresaDetailPage({ params }: Props) {
           {chamados.length === 0 ? (
             <EmptyState icon="inbox" msg="Nenhum chamado registrado para esta empresa" />
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-outline-variant/10">
+                    <tr className="border-b border-outline-variant/10 bg-surface-container-lowest/40">
                       <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 w-[60px]">#</th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">Chamado</th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 hidden md:table-cell">Tipo</th>
@@ -458,7 +521,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
                   </thead>
                   <tbody>
                     {chamados.map(c => {
-                      const s         = STATUS_CHAMADO[c.status] ?? STATUS_CHAMADO.aberta
+                      const s = STATUS_CHAMADO[c.status] ?? STATUS_CHAMADO.aberta
                       const prioClass = PRIORIDADE_COLOR[c.prioridade] ?? 'text-on-surface-variant/50'
                       return (
                         <tr key={c.id} className="border-b border-outline-variant/10 last:border-0 hover:bg-surface-container/40 transition-colors">
@@ -516,8 +579,8 @@ export default async function EmpresaDetailPage({ params }: Props) {
           <div className="space-y-3">
             {/* Titular */}
             {cliente && (
-              <div className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
-                <div className="flex items-center justify-between gap-4 px-5 py-4">
+              <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
+                <div className="flex items-center justify-between gap-4 px-5 py-4 bg-surface-container-lowest/40">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
                       <span className="material-symbols-outlined text-[16px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
@@ -534,8 +597,8 @@ export default async function EmpresaDetailPage({ params }: Props) {
 
             {/* Sócios */}
             {socios.map(s => (
-              <div key={s.id} className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
-                <div className="flex items-center justify-between gap-4 px-5 py-4">
+              <div key={s.id} className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
+                <div className="flex items-center justify-between gap-4 px-5 py-4 bg-surface-container-lowest/40">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-container">
                       <span className="material-symbols-outlined text-[16px] text-on-surface-variant" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
@@ -616,21 +679,21 @@ export default async function EmpresaDetailPage({ params }: Props) {
 
 function InfoCard({ title, icon, children }: { title: string; icon: string; children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm flex flex-col h-full">
-      <div className="flex items-center gap-3 px-6 pb-2 pt-6">
-        <span className="material-symbols-outlined text-[20px] text-primary/80" style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
-        <h2 className="font-headline text-base font-semibold text-on-surface">{title}</h2>
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
+      <div className="flex items-center gap-2 border-b border-outline-variant/5 bg-surface-container-lowest/40 px-5 py-4">
+        <span className="material-symbols-outlined text-[18px] text-primary/80">{icon}</span>
+        <h2 className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/80">{title}</h2>
       </div>
-      <div className="flex-1 px-6 pb-6 pt-2">{children}</div>
+      <div className="flex-1 px-5 py-5">{children}</div>
     </div>
   )
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2 border-b border-outline-variant/5 last:border-0">
-      <span className="shrink-0 text-sm text-on-surface-variant/80">{label}</span>
-      <span className="text-right text-sm font-medium text-on-surface">{value}</span>
+    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-outline-variant/5 last:border-b-0">
+      <span className="shrink-0 text-[12px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{label}</span>
+      <span className="text-right text-[13px] font-medium text-on-surface">{value}</span>
     </div>
   )
 }

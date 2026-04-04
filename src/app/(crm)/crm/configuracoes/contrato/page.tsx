@@ -7,8 +7,8 @@ import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
-const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const INPUT = 'w-full rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 py-3 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
+const LABEL = 'block text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2'
 const HINT = 'mt-1 text-[11px] text-on-surface-variant/60'
 
 const schema = z.object({
@@ -75,10 +75,10 @@ export default function ContratoPage() {
   }
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-8 shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-8 shadow-sm">
       <div className="mb-8">
-        <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">Contrato de Prestação de Serviços</h2>
-        <p className="mt-1 text-[13px] text-on-surface-variant/80">
+        <h2 className="font-headline text-[24px] font-semibold tracking-tight text-on-surface">Contrato de Prestação de Serviços</h2>
+        <p className="mt-1.5 text-[13px] font-medium text-on-surface-variant/70">
           Termos contratuais, condições de pagamento e template do contrato gerado no onboarding.
         </p>
       </div>
@@ -87,7 +87,7 @@ export default function ContratoPage() {
 
         {/* Termos contratuais */}
         <div>
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Termos do Contrato</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-4">Termos do Contrato</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
             <div className="space-y-1.5">
               <label className={LABEL}>Multa por atraso (%)</label>
@@ -164,7 +164,7 @@ export default function ContratoPage() {
 
         {/* Condições de pagamento */}
         <div>
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Condições de Pagamento</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-4">Condições de Pagamento</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div className="space-y-1.5">
               <label className={LABEL}>Desconto PIX (%)</label>
@@ -193,12 +193,12 @@ export default function ContratoPage() {
 
         {/* Template de contrato */}
         <div>
-          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant mb-4">Template de Contrato</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-4">Template de Contrato</h3>
           <div className="space-y-3">
             <p className="text-[12px] text-on-surface-variant/60">
               Texto base opcional. Deixe em branco para usar o contrato padrão. Use as variáveis abaixo — elas são substituídas automaticamente ao gerar o contrato.
             </p>
-            <div className="rounded-[10px] border border-outline-variant/20 bg-surface-container-low/50 p-4">
+            <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-3">Variáveis do cliente</p>
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {[
@@ -255,7 +255,7 @@ export default function ContratoPage() {
             <textarea
               {...register('contratoTemplate')}
               rows={12}
-              className="w-full resize-y rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[13px] font-mono text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 custom-scrollbar"
+              className="w-full resize-y rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[13px] font-mono text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 custom-scrollbar"
               placeholder="Deixe em branco para usar o contrato padrão gerado automaticamente."
             />
           </div>

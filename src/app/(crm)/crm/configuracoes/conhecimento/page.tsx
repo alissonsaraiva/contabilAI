@@ -34,8 +34,8 @@ const TIPOS: { value: TipoConhecimento; label: string }[] = [
   { value: 'template', label: 'Template' },
 ]
 
-const INPUT = 'w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
-const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const INPUT = 'w-full rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 py-3 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
+const LABEL = 'block text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2'
 
 export default function ConhecimentoPage() {
   const [activeCanal, setActiveCanal] = useState<CanalRAG>('onboarding')
@@ -193,7 +193,7 @@ export default function ConhecimentoPage() {
     <div className="space-y-5">
 
       {/* Header */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
@@ -268,7 +268,7 @@ export default function ConhecimentoPage() {
 
       {/* Formulário PDF */}
       {pdfOpen && (
-        <div className="space-y-4 rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm">
+        <div className="space-y-4 rounded-xl border border-outline-variant/20 bg-card p-5 shadow-sm">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={LABEL}>Título <span className="text-error">*</span></label>
@@ -293,7 +293,7 @@ export default function ConhecimentoPage() {
           <div>
             <label className={LABEL}>Arquivo PDF <span className="text-error">*</span></label>
             <label className={cn(
-              'flex cursor-pointer items-center gap-3 rounded-[10px] border-2 border-dashed px-4 py-5 transition-colors',
+              'flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed px-4 py-5 transition-colors',
               pdfFile ? 'border-primary/40 bg-primary/5' : 'border-outline-variant/30 hover:border-primary/30 hover:bg-surface-container-low/50',
             )}>
               <span className="material-symbols-outlined text-[22px] text-primary/60">picture_as_pdf</span>
@@ -344,7 +344,7 @@ export default function ConhecimentoPage() {
 
       {/* Formulário de criação / edição (texto) */}
       {formOpen && (
-        <div className="space-y-4 rounded-[14px] border border-outline-variant/15 bg-card p-5 shadow-sm">
+        <div className="space-y-4 rounded-xl border border-outline-variant/20 bg-card p-5 shadow-sm">
           {editingSourceId && (
             <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
               <span className="material-symbols-outlined text-[15px] text-amber-600">edit_note</span>
@@ -428,7 +428,7 @@ export default function ConhecimentoPage() {
       )}
 
       {/* Lista de artigos */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
         {loadingList ? (
           <div className="flex items-center justify-center py-16 gap-3 text-on-surface-variant">
             <Loader2 className="h-5 w-5 animate-spin" />

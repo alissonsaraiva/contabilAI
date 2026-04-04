@@ -62,17 +62,19 @@ export default async function ClientesPage({ searchParams }: Props) {
   const totalPages = Math.ceil(total / PER_PAGE)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex flex-wrap items-center gap-x-3 gap-y-2 text-2xl font-semibold tracking-tight text-on-surface">
-            Clientes
-            <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20 whitespace-nowrap">
-              {total} total
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-headline text-[24px] font-semibold tracking-tight text-on-surface">
+              Clientes
+            </h1>
+            <span className="mt-0.5 rounded-full border border-outline-variant/10 bg-surface-container-lowest px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant/70 shadow-sm whitespace-nowrap">
+              {total} Total
             </span>
-          </h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
+          </div>
+          <p className="mt-1.5 text-[13px] font-medium text-on-surface-variant/70">
             Gerenciamento completo da base de clientes ativos e inativos.
           </p>
         </div>
@@ -85,29 +87,30 @@ export default async function ClientesPage({ searchParams }: Props) {
       </Suspense>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
         {clientes.length === 0 ? (
-          <div className="flex h-32 flex-col items-center justify-center">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
-              {q ? 'Nenhum cliente encontrado.' : 'Nenhum cliente ainda.'}
+          <div className="flex h-40 flex-col items-center justify-center gap-3 bg-surface-container-lowest/30">
+            <span className="material-symbols-outlined text-[32px] text-on-surface-variant/20">search_off</span>
+            <span className="text-[12px] font-medium text-on-surface-variant/50">
+              {q ? 'Nenhum cliente encontrado para esta busca.' : 'Nenhum cliente cadastrado ainda.'}
             </span>
           </div>
         ) : (
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full border-collapse text-left whitespace-nowrap">
               <thead>
-                <tr className="border-b border-outline-variant/15">
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Nome</th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Documento</th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Cidade/UF</th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Plano</th>
-                  <th className="px-6 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Valor/mês</th>
-                  <th className="px-6 py-3.5 text-center text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Status</th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Desde</th>
-                  <th className="px-6 py-3.5" />
+                <tr className="border-b border-outline-variant/10 bg-surface-container-lowest/40">
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nome</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Documento</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Cidade/UF</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Plano</th>
+                  <th className="px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Valor/mês</th>
+                  <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Status</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Desde</th>
+                  <th className="px-6 py-4" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-outline-variant/15">
+              <tbody className="divide-y divide-outline-variant/5">
                 {clientes.map((c) => (
                   <ClienteRow key={c.id} href={`/crm/clientes/${c.id}`}>
                     <td className="px-6 py-3.5">

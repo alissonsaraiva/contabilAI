@@ -14,39 +14,39 @@ type Cliente = { id: string; nome: string }
 type Props = { clientes: Cliente[] }
 
 const TIPOS = [
-  { value: 'duvida',               label: 'Dúvida' },
-  { value: 'solicitacao',          label: 'Solicitação' },
-  { value: 'reclamacao',           label: 'Reclamação' },
-  { value: 'documento',            label: 'Documento' },
-  { value: 'emissao_documento',    label: 'Emissão de documento' },
-  { value: 'correcao_documento',   label: 'Correção de documento' },
-  { value: 'solicitacao_documento',label: 'Solicitação de documento' },
-  { value: 'tarefa_interna',       label: 'Tarefa interna' },
-  { value: 'outros',               label: 'Outros' },
+  { value: 'duvida', label: 'Dúvida' },
+  { value: 'solicitacao', label: 'Solicitação' },
+  { value: 'reclamacao', label: 'Reclamação' },
+  { value: 'documento', label: 'Documento' },
+  { value: 'emissao_documento', label: 'Emissão de documento' },
+  { value: 'correcao_documento', label: 'Correção de documento' },
+  { value: 'solicitacao_documento', label: 'Solicitação de documento' },
+  { value: 'tarefa_interna', label: 'Tarefa interna' },
+  { value: 'outros', label: 'Outros' },
 ]
 
 const PRIORIDADES = [
-  { value: 'baixa',   label: 'Baixa' },
-  { value: 'media',   label: 'Média' },
-  { value: 'alta',    label: 'Alta' },
+  { value: 'baixa', label: 'Baixa' },
+  { value: 'media', label: 'Média' },
+  { value: 'alta', label: 'Alta' },
   { value: 'urgente', label: 'Urgente' },
 ]
 
 const INIT = {
-  clienteId:    '',
-  tipo:         'solicitacao',
-  titulo:       '',
-  descricao:    '',
-  prioridade:   'media',
+  clienteId: '',
+  tipo: 'solicitacao',
+  titulo: '',
+  descricao: '',
+  prioridade: 'media',
   visivelPortal: true,
 }
 
 export function NovoChamadoDrawer({ clientes }: Props) {
   const router = useRouter()
-  const [open, setOpen]       = useState(false)
+  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [form, setForm]       = useState(INIT)
-  const [erros, setErros]     = useState<Record<string, string>>({})
+  const [form, setForm] = useState(INIT)
+  const [erros, setErros] = useState<Record<string, string>>({})
 
   function set(field: string, value: string | boolean) {
     setForm(f => ({ ...f, [field]: value }))
@@ -61,17 +61,17 @@ export function NovoChamadoDrawer({ clientes }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const newErros: Record<string, string> = {}
-    if (!form.clienteId)              newErros.clienteId = 'Selecione o cliente'
+    if (!form.clienteId) newErros.clienteId = 'Selecione o cliente'
     if (!form.titulo.trim() || form.titulo.length < 3) newErros.titulo = 'Título muito curto (mín. 3 caracteres)'
-    if (!form.descricao.trim())       newErros.descricao = 'Descrição obrigatória'
+    if (!form.descricao.trim()) newErros.descricao = 'Descrição obrigatória'
     if (Object.keys(newErros).length) { setErros(newErros); return }
 
     setLoading(true)
     try {
       const res = await fetch('/api/crm/chamados', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(form),
+        body: JSON.stringify(form),
       })
       if (!res.ok) throw new Error()
       toast.success('Chamado criado!')
@@ -89,9 +89,9 @@ export function NovoChamadoDrawer({ clientes }: Props) {
     <Sheet open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+        className="group flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-[13px] font-bold tracking-wide text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow"
       >
-        <span className="material-symbols-outlined text-[18px]">add</span>
+        <span className="material-symbols-outlined text-[18px] transition-transform group-hover:scale-110">add</span>
         Novo Chamado
       </button>
 

@@ -3,7 +3,6 @@ import { formatCNPJ } from '@/lib/utils'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { EmpresasSearchBar } from '@/components/crm/empresas-search-bar'
-import { EmpresasFiltros } from '@/components/crm/empresas-filtros'
 import { EmpresasPaginacao } from '@/components/crm/empresas-paginacao'
 import { STATUS_CLIENTE_LABELS, STATUS_CLIENTE_COLORS } from '@/types'
 
@@ -77,17 +76,19 @@ export default async function EmpresasPage({ searchParams }: Props) {
   const hasFilters = q || regime || status
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex flex-wrap items-center gap-x-3 gap-y-2 text-2xl font-semibold tracking-tight text-on-surface">
-            Empresas
-            <span className="rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-bold text-on-surface-variant border border-outline-variant/20 whitespace-nowrap">
-              {total} total
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-headline text-[24px] font-semibold tracking-tight text-on-surface">
+              Empresas
+            </h1>
+            <span className="mt-0.5 rounded-full border border-outline-variant/10 bg-surface-container-lowest px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant/70 shadow-sm whitespace-nowrap">
+              {total} Total
             </span>
-          </h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
+          </div>
+          <p className="mt-1.5 text-[13px] font-medium text-on-surface-variant/70">
             Todas as empresas vinculadas à carteira de clientes.
           </p>
         </div>
@@ -95,83 +96,90 @@ export default async function EmpresasPage({ searchParams }: Props) {
 
       {/* Search + Filters */}
       <Suspense>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <EmpresasSearchBar />
-          <EmpresasFiltros />
-        </div>
+        <EmpresasSearchBar />
       </Suspense>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
-        {empresas.length === 0 ? (
-          <div className="flex h-40 flex-col items-center justify-center gap-2">
-            <span className="material-symbols-outlined text-[40px] text-on-surface-variant/25">
-              {hasFilters ? 'search_off' : 'domain'}
-            </span>
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
-              {hasFilters ? 'Nenhuma empresa encontrada.' : 'Nenhuma empresa ainda.'}
-            </span>
-          </div>
-        ) : (
+      {empresas.length === 0 ? (
+        <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-xl border border-outline-variant/20 bg-surface-container-lowest/30 shadow-sm text-center">
+          <span className="material-symbols-outlined text-[32px] text-on-surface-variant/20">
+            {hasFilters ? 'search_off' : 'domain'}
+          </span>
+          <p className="text-[12px] font-medium text-on-surface-variant/50">
+            {hasFilters
+              ? 'Nenhuma empresa encontrada para essa busca.'
+              : 'Nenhuma empresa cadastrada.'}
+          </p>
+          {hasFilters && (
+            <Link
+              href="/crm/empresas"
+              className="text-[11px] font-bold uppercase tracking-widest text-primary transition-colors hover:text-primary/80"
+            >
+              Limpar filtros
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full border-collapse text-left whitespace-nowrap">
               <thead>
-                <tr className="border-b border-outline-variant/15">
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Empresa</th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">CNPJ</th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Regime</th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Titular</th>
-                  <th className="px-6 py-3.5 text-center text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Sócios</th>
-                  <th className="px-6 py-3.5 text-center text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">Status</th>
+                <tr className="border-b border-outline-variant/10 bg-surface-container-lowest/40">
+                  <th className="px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Empresa</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 hidden md:table-cell">CNPJ</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 hidden lg:table-cell">Regime</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 hidden lg:table-cell">Titular</th>
+                  <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Sócios</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-outline-variant/15">
+              <tbody className="divide-y divide-outline-variant/5">
                 {empresas.map((e) => (
-                  <tr key={e.id} className="group hover:bg-surface-container-low/40 transition-colors">
-                    <td className="px-6 py-3.5">
+                  <tr key={e.id} className="group transition-colors duration-200 hover:bg-surface-container-lowest/80">
+                    <td className="px-6 py-4">
                       <Link href={`/crm/empresas/${e.id}`} className="block">
-                        <span className="block text-[14px] font-semibold text-on-surface group-hover:text-primary transition-colors">
+                        <span className="block text-[13px] font-medium text-on-surface group-hover:text-primary transition-colors">
                           {e.razaoSocial ?? e.nomeFantasia ?? '(sem nome)'}
                         </span>
                         {e.nomeFantasia && e.razaoSocial && (
-                          <span className="block text-xs text-on-surface-variant/80 mt-0.5">{e.nomeFantasia}</span>
+                          <span className="block text-[11px] text-on-surface-variant/60 mt-0.5">{e.nomeFantasia}</span>
                         )}
                       </Link>
                     </td>
-                    <td className="px-6 py-3.5">
-                      <span className="font-mono text-[13px] text-on-surface-variant/90">
+                    <td className="px-6 py-4 hidden md:table-cell">
+                      <span className="font-mono text-[12px] text-on-surface-variant/60">
                         {e.cnpj ? formatCNPJ(e.cnpj) : '—'}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5">
+                    <td className="px-6 py-4 hidden lg:table-cell">
                       {e.regime ? (
-                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${REGIME_COLORS[e.regime] ?? 'bg-surface-container text-on-surface-variant'}`}>
+                        <span className={`rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest border border-current/10 ${REGIME_COLORS[e.regime]?.replace('bg-', 'bg-').split(' ')[0]} ${REGIME_COLORS[e.regime]?.split(' ')[1]}`}>
                           {REGIME_LABELS[e.regime] ?? e.regime}
                         </span>
                       ) : (
-                        <span className="text-[13px] text-on-surface-variant/40">—</span>
+                        <span className="text-[12px] font-medium text-on-surface-variant/40">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-3.5">
+                    <td className="px-6 py-4 hidden lg:table-cell">
                       {e.cliente ? (
                         <div>
                           <span className="block text-[13px] font-medium text-on-surface">{e.cliente.nome}</span>
-                          <span className="block text-xs text-on-surface-variant/70">{e.cliente.email}</span>
+                          <span className="block text-[11px] text-on-surface-variant/60 mt-0.5">{e.cliente.email}</span>
                         </div>
                       ) : (
-                        <span className="text-[13px] text-on-surface-variant/40">—</span>
+                        <span className="text-[12px] font-medium text-on-surface-variant/40">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-3.5 text-center">
-                      <span className="text-[13px] font-semibold text-on-surface-variant">{e.socios.length}</span>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-[12px] font-medium text-on-surface-variant/60">{e.socios.length}</span>
                     </td>
-                    <td className="px-6 py-3.5 text-center">
+                    <td className="px-6 py-4">
                       {e.cliente?.status ? (
-                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_CLIENTE_COLORS[e.cliente.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
+                        <span className={`rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest border border-current/10 ${STATUS_CLIENTE_COLORS[e.cliente.status]?.split(' ').slice(0, 2).join(' ')}`}>
                           {STATUS_CLIENTE_LABELS[e.cliente.status] ?? e.cliente.status}
                         </span>
                       ) : (
-                        <span className="text-[13px] text-on-surface-variant/40">—</span>
+                        <span className="text-[12px] font-medium text-on-surface-variant/40">—</span>
                       )}
                     </td>
                   </tr>
@@ -179,8 +187,8 @@ export default async function EmpresasPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

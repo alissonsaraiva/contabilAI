@@ -6,8 +6,8 @@ import { toast } from 'sonner'
 import { Loader2, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface font-mono shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 placeholder:font-sans'
-const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const INPUT = 'w-full h-12 rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 text-[14px] font-mono text-on-surface shadow-sm placeholder:text-on-surface-variant/40 placeholder:font-sans transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
+const LABEL = 'block text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2'
 const SELECT = `${INPUT} cursor-pointer`
 
 
@@ -320,7 +320,7 @@ export default function ConfiguracoesIAPage() {
             type="button"
             onClick={() => setTab(t.key)}
             className={cn(
-              'flex items-center gap-2 flex-1 justify-center rounded-[10px] px-4 py-2.5 text-[13px] font-semibold transition-all',
+              'flex items-center gap-2 flex-1 justify-center rounded-xl px-4 py-2.5 text-[13px] font-semibold transition-all',
               tab === t.key
                 ? 'bg-card text-primary shadow-sm border border-outline-variant/15'
                 : 'text-on-surface-variant hover:text-on-surface',
@@ -335,7 +335,7 @@ export default function ConfiguracoesIAPage() {
       {/* ── Tab: Chaves de API ── */}
       {tab === 'chaves' && (
         <>
-          <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
                 <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>key</span>
@@ -470,7 +470,7 @@ export default function ConfiguracoesIAPage() {
                 const isCollapsed = !!collapsed[providerField]
 
                 return (
-                  <div key={providerField} className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+                  <div key={providerField} className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card shadow-sm">
                     {/* Header — sempre visível, clicável para colapsar */}
                     <button
                       type="button"
@@ -572,7 +572,7 @@ export default function ConfiguracoesIAPage() {
                             <textarea
                               {...register(promptField)}
                               rows={4}
-                              className="w-full rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 resize-y min-h-[96px]"
+                              className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40 resize-y min-h-[96px]"
                               placeholder="Deixe em branco para usar o prompt padrão"
                             />
                           </div>

@@ -77,7 +77,7 @@ export function NovoClienteDrawer() {
   const [form, setForm] = useState(INIT)
   const [erros, setErros] = useState<Record<string, string>>({})
   const { buscarCnpj, loading: cnpjLoading } = useCnpj()
-  const { buscarCep,  loading: cepLoading  } = useCep()
+  const { buscarCep, loading: cepLoading } = useCep()
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -89,9 +89,9 @@ export function NovoClienteDrawer() {
       setForm(f => ({
         ...f,
         logradouro: d.logradouro || f.logradouro,
-        bairro:     d.bairro     || f.bairro,
-        cidade:     d.cidade     || f.cidade,
-        uf:         d.uf         || f.uf,
+        bairro: d.bairro || f.bairro,
+        cidade: d.cidade || f.cidade,
+        uf: d.uf || f.uf,
       }))
     })
   }
@@ -102,8 +102,8 @@ export function NovoClienteDrawer() {
     setForm(f => ({
       ...f,
       razaoSocial: dados.razaoSocial || f.razaoSocial,
-      cidade:      dados.municipio   || f.cidade,
-      uf:          dados.uf          || f.uf,
+      cidade: dados.municipio || f.cidade,
+      uf: dados.uf || f.uf,
       regime: dados.regime !== 'outro' ? dados.regime : f.regime,
     }))
   }
@@ -177,9 +177,9 @@ export function NovoClienteDrawer() {
     <Sheet open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+        className="group flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-[13px] font-bold tracking-wide text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow"
       >
-        <span className="material-symbols-outlined text-[18px]">person_add</span>
+        <span className="material-symbols-outlined text-[18px] transition-transform group-hover:scale-110">person_add</span>
         Novo Cliente
       </button>
 
@@ -206,11 +206,10 @@ export function NovoClienteDrawer() {
                   key={t}
                   type="button"
                   onClick={() => set('tipoContribuinte', t)}
-                  className={`flex-1 rounded-xl border py-2.5 text-[13px] font-semibold transition-all ${
-                    form.tipoContribuinte === t
+                  className={`flex-1 rounded-xl border py-2.5 text-[13px] font-semibold transition-all ${form.tipoContribuinte === t
                       ? 'border-primary/40 bg-primary/8 text-primary ring-2 ring-primary/20'
                       : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:border-outline-variant/40'
-                  }`}
+                    }`}
                 >
                   {t === 'pj' ? '🏢 Empresa / PJ' : '👤 Autônomo / PF'}
                 </button>

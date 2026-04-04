@@ -13,11 +13,11 @@ export default async function PlanosPage() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-6 shadow-sm">
+      <div className="rounded-xl border border-outline-variant/20 bg-card p-4 md:p-6 shadow-sm">
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">Planos Disponíveis</h2>
-            <p className="mt-1 text-[13px] text-on-surface-variant/80">
+            <h2 className="font-headline text-[24px] font-semibold tracking-tight text-on-surface">Planos Disponíveis</h2>
+            <p className="mt-1.5 text-[13px] font-medium text-on-surface-variant/70">
               Planos exibidos no onboarding e na landing page.
             </p>
           </div>

@@ -4,67 +4,41 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 const STATUS_OPTIONS: [string, string][] = [
-  ['aberta',             'Aberta'],
-  ['em_andamento',       'Em andamento'],
+  ['aberta', 'Aberta'],
+  ['em_andamento', 'Em andamento'],
   ['aguardando_cliente', 'Aguardando'],
-  ['resolvida',          'Resolvida'],
-  ['cancelada',          'Cancelada'],
+  ['resolvida', 'Resolvida'],
+  ['cancelada', 'Cancelada'],
 ]
 
 const STATUS_COLORS: Record<string, string> = {
-  aberta:             'text-blue-600 bg-blue-500/10 border-blue-500/30',
-  em_andamento:       'text-primary bg-primary/10 border-primary/30',
+  aberta: 'text-blue-600 bg-blue-500/10 border-blue-500/30',
+  em_andamento: 'text-primary bg-primary/10 border-primary/30',
   aguardando_cliente: 'text-yellow-600 bg-yellow-500/10 border-yellow-500/30',
-  resolvida:          'text-green-600 bg-green-500/10 border-green-500/30',
-  cancelada:          'text-on-surface-variant/60 bg-surface-container border-outline-variant/30',
-}
-
-const TIPO_OPTIONS: [string, string][] = [
-  ['duvida',      'Dúvida'],
-  ['solicitacao', 'Solicitação'],
-  ['reclamacao',  'Reclamação'],
-  ['documento',   'Documento'],
-  ['outros',      'Outros'],
-]
-
-const PRIORIDADE_OPTIONS: [string, string][] = [
-  ['baixa',   'Baixa'],
-  ['media',   'Média'],
-  ['alta',    'Alta'],
-  ['urgente', 'Urgente'],
-]
-
-const PRIORIDADE_COLORS: Record<string, string> = {
-  baixa:   'text-on-surface-variant/60 bg-surface-container border-outline-variant/30',
-  media:   'text-blue-600 bg-blue-500/10 border-blue-500/30',
-  alta:    'text-yellow-600 bg-yellow-500/10 border-yellow-500/30',
-  urgente: 'text-error bg-error/10 border-error/30',
+  resolvida: 'text-green-600 bg-green-500/10 border-green-500/30',
+  cancelada: 'text-on-surface-variant/60 bg-surface-container border-outline-variant/30',
 }
 
 export function ChamadosSearchBar() {
-  const router       = useRouter()
-  const pathname     = usePathname()
+  const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const [q,          setQ]          = useState(searchParams.get('q')          ?? '')
-  const [status,     setStatus]     = useState(searchParams.get('status')     ?? '')
-  const [tipo,       setTipo]       = useState(searchParams.get('tipo')       ?? '')
-  const [prioridade, setPrioridade] = useState(searchParams.get('prioridade') ?? '')
+  const [q, setQ] = useState(searchParams.get('q') ?? '')
+  const [status, setStatus] = useState(searchParams.get('status') ?? '')
 
   // Debounce só no texto; filtros de chip navegam imediato
   useEffect(() => {
-    const timer = setTimeout(() => push(q, status, tipo, prioridade), q !== (searchParams.get('q') ?? '') ? 400 : 0)
+    const timer = setTimeout(() => push(q, status), q !== (searchParams.get('q') ?? '') ? 400 : 0)
     return () => clearTimeout(timer)
   }, [q]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { push(q, status, tipo, prioridade) }, [status, tipo, prioridade]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { push(q, status) }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function push(q_: string, s: string, t: string, p: string) {
+  function push(q_: string, s: string) {
     const params = new URLSearchParams(searchParams.toString())
-    q_ ? params.set('q', q_)               : params.delete('q')
-    s  ? params.set('status', s)           : params.delete('status')
-    t  ? params.set('tipo', t)             : params.delete('tipo')
-    p  ? params.set('prioridade', p)       : params.delete('prioridade')
+    q_ ? params.set('q', q_) : params.delete('q')
+    s ? params.set('status', s) : params.delete('status')
     params.delete('page')
     router.push(`${pathname}?${params.toString()}`)
   }
@@ -72,18 +46,16 @@ export function ChamadosSearchBar() {
   function clearAll() {
     setQ('')
     setStatus('')
-    setTipo('')
-    setPrioridade('')
   }
 
-  const hasFilters = !!q || !!status || !!tipo || !!prioridade
+  const hasFilters = !!q || !!status
 
   return (
-    <div className="space-y-3">
-      {/* Linha 1: input de busca */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <span className="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[20px] text-primary/60">
+    <div className="flex flex-col gap-4">
+      {/* Search input - Sleek and minimalistic */}
+      <div className="flex w-full gap-3">
+        <div className="group relative flex-1">
+          <span className="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant/40 transition-colors group-focus-within:text-primary">
             search
           </span>
           <input
@@ -91,14 +63,14 @@ export function ChamadosSearchBar() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar por #número, título, cliente ou empresa…"
-            className="h-11 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low pl-10 pr-9 text-[14px] text-on-surface placeholder:text-on-surface-variant/50 shadow-sm focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
+            className="h-12 w-full rounded-2xl border border-transparent bg-surface-container-lowest/80 pl-11 pr-10 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5"
           />
           {q && (
             <button
               onClick={() => setQ('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full text-on-surface-variant/40 transition-colors hover:bg-surface-container hover:text-on-surface"
             >
-              <span className="material-symbols-outlined text-[18px]">close</span>
+              <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
           )}
         </div>
@@ -106,97 +78,46 @@ export function ChamadosSearchBar() {
         {hasFilters && (
           <button
             onClick={clearAll}
-            className="flex h-11 items-center gap-1.5 rounded-xl border border-outline-variant/40 bg-surface-container-low px-3.5 text-[13px] text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all"
+            className="flex h-12 w-12 sm:w-auto items-center justify-center gap-1.5 rounded-2xl border border-outline-variant/15 bg-card px-0 sm:px-4 text-[13px] font-semibold tracking-wide text-on-surface-variant shadow-sm transition-all hover:border-outline-variant/30 hover:bg-surface-container-lowest hover:text-on-surface"
           >
-            <span className="material-symbols-outlined text-[16px]">filter_list_off</span>
-            <span className="hidden sm:inline">Limpar</span>
+            <span className="material-symbols-outlined text-[18px]">filter_list_off</span>
+            <span className="hidden sm:inline">Limpar filtros</span>
           </button>
         )}
       </div>
 
-      {/* Linha 2: chips de filtro */}
-      <div className="flex flex-wrap gap-x-6 gap-y-2">
+      {/* Segmented Control Filter */}
+      <div className="flex w-full overflow-x-auto custom-scrollbar items-center rounded-2xl bg-surface-container-lowest/80 p-1 border border-outline-variant/10 shadow-sm">
+        <button
+          onClick={() => setStatus('')}
+          className={[
+            'shrink-0 rounded-xl px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest transition-all',
+            !status
+              ? 'bg-card text-on-surface shadow-sm ring-1 ring-outline-variant/5'
+              : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-low/50',
+          ].join(' ')}
+        >
+          Todos
+        </button>
 
-        {/* Status */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/60 select-none">
-            Status
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {STATUS_OPTIONS.map(([key, label]) => {
-              const active = status === key
-              const color  = STATUS_COLORS[key] ?? ''
-              return (
-                <button
-                  key={key}
-                  onClick={() => setStatus(active ? '' : key)}
-                  className={[
-                    'inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider transition-all border',
-                    active
-                      ? `${color} ring-2 ring-offset-1 ring-current/30`
-                      : 'border-outline-variant/30 bg-surface-container-low text-on-surface-variant/70 hover:bg-surface-container',
-                  ].join(' ')}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Tipo */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/60 select-none">
-            Tipo
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {TIPO_OPTIONS.map(([key, label]) => {
-              const active = tipo === key
-              return (
-                <button
-                  key={key}
-                  onClick={() => setTipo(active ? '' : key)}
-                  className={[
-                    'inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider transition-all border',
-                    active
-                      ? 'text-primary bg-primary/10 border-primary/30 ring-2 ring-offset-1 ring-primary/20'
-                      : 'border-outline-variant/30 bg-surface-container-low text-on-surface-variant/70 hover:bg-surface-container',
-                  ].join(' ')}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Prioridade */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/60 select-none">
-            Prioridade
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {PRIORIDADE_OPTIONS.map(([key, label]) => {
-              const active = prioridade === key
-              const color  = PRIORIDADE_COLORS[key] ?? ''
-              return (
-                <button
-                  key={key}
-                  onClick={() => setPrioridade(active ? '' : key)}
-                  className={[
-                    'inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider transition-all border',
-                    active
-                      ? `${color} ring-2 ring-offset-1 ring-current/30`
-                      : 'border-outline-variant/30 bg-surface-container-low text-on-surface-variant/70 hover:bg-surface-container',
-                  ].join(' ')}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
+        {STATUS_OPTIONS.map(([key, label]) => {
+          const active = status === key
+          const colorBase = STATUS_COLORS[key]?.split(' ').slice(0, 2).join(' ') ?? ''
+          return (
+            <button
+              key={key}
+              onClick={() => setStatus(active ? '' : key)}
+              className={[
+                'shrink-0 rounded-xl px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest transition-all',
+                active
+                  ? `${colorBase} shadow-sm ring-1 ring-outline-variant/5`
+                  : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-low/50 border border-transparent',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

@@ -24,19 +24,19 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Comercial',
     items: [
-      { href: '/crm/dashboard',  icon: 'dashboard',     label: 'Dashboard' },
+      { href: '/crm/dashboard', icon: 'dashboard', label: 'Dashboard' },
       { href: '/crm/prospeccao', icon: 'contact_phone', label: 'Prospecção' },
-      { href: '/crm/leads',      icon: 'rocket_launch', label: 'Onboarding' },
-      { href: '/crm/clientes',   icon: 'group',         label: 'Clientes' },
-      { href: '/crm/empresas',   icon: 'business',      label: 'Empresas' },
+      { href: '/crm/leads', icon: 'rocket_launch', label: 'Onboarding' },
+      { href: '/crm/clientes', icon: 'group', label: 'Clientes' },
+      { href: '/crm/empresas', icon: 'business', label: 'Empresas' },
     ],
   },
   {
     label: 'Atendimento',
     items: [
-      { href: '/crm/atendimentos',   icon: 'support_agent', label: 'Atendimentos' },
-      { href: '/crm/chamados', icon: 'assignment',    label: 'Chamados' },
-      { href: '/crm/emails',         icon: 'mail',          label: 'E-mails' },
+      { href: '/crm/atendimentos', icon: 'support_agent', label: 'Atendimentos' },
+      { href: '/crm/chamados', icon: 'assignment', label: 'Chamados' },
+      { href: '/crm/emails', icon: 'mail', label: 'E-mails' },
     ],
   },
   {
@@ -159,7 +159,7 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
   }
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-outline-variant/15 bg-card/80 px-4 md:px-8 backdrop-blur-md">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-outline-variant/10 bg-card/95 px-4 md:px-8 backdrop-blur-md">
       {/* Mobile: hambúrguer + título */}
       <div className="flex items-center gap-3">
         <button
@@ -169,36 +169,36 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
         >
           <span className="material-symbols-outlined text-[22px]">menu</span>
         </button>
-        <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">{title}</h2>
+        <h2 className="font-headline text-[15px] font-semibold tracking-wide text-on-surface">{title}</h2>
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {/* Search — oculto no mobile */}
-        <div className="relative mr-2 hidden md:block">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/60">
+        <div className="relative mr-2 hidden md:block group">
+          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/40 transition-colors group-focus-within:text-primary">
             search
           </span>
           <input
-            className="h-9 w-64 rounded-[10px] border border-outline-variant/20 bg-surface-container-low/50 pl-9 pr-4 text-[13px] text-on-surface shadow-sm placeholder:text-on-surface-variant/60 transition-all hover:bg-surface-container-low focus:w-80 focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10"
+            className="h-[36px] w-64 rounded-full border border-transparent bg-surface-container-lowest/80 pl-10 pr-4 text-[13px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/50 transition-all hover:bg-surface-container-lowest focus:w-80 focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5"
             placeholder="Pressione ⌘K para buscar..."
             type="text"
           />
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {aiDown && (
             <Link
               href="/crm/configuracoes/ia"
               title="Uma ou mais IAs estão fora do ar — clique para verificar"
-              className="hidden md:flex h-9 items-center gap-1.5 rounded-lg bg-error/10 px-2.5 text-error hover:bg-error/20 transition-colors"
+              className="hidden md:flex h-9 items-center gap-1.5 rounded-full bg-error/10 px-3 text-error hover:bg-error/15 transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">warning</span>
-              <span className="text-[12px] font-semibold">IA offline</span>
+              <span className="text-[12px] font-bold tracking-wide uppercase">IA offline</span>
             </Link>
           )}
           <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
-            <DropdownMenuTrigger className="hidden md:flex relative h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
+            <DropdownMenuTrigger className="hidden md:flex relative h-[36px] w-[36px] items-center justify-center rounded-full text-on-surface-variant/50 transition-colors hover:bg-surface-container-lowest hover:text-on-surface">
               <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: notifOpen ? "'FILL' 1" : "'FILL' 0" }}>notifications</span>
               {notificacoes.length > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9px] font-bold text-white">
@@ -250,10 +250,10 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
                         className="mt-0.5 shrink-0 material-symbols-outlined text-[16px] text-error"
                         style={{ fontVariationSettings: "'FILL' 1" }}
                       >
-                        {n.tipo === 'escalacao'      ? 'escalator_warning'
-                        : n.tipo === 'ia_offline'    ? 'cloud_off'
-                        : n.tipo === 'agente_falhou' ? 'smart_toy'
-                        : 'warning'}
+                        {n.tipo === 'escalacao' ? 'escalator_warning'
+                          : n.tipo === 'ia_offline' ? 'cloud_off'
+                            : n.tipo === 'agente_falhou' ? 'smart_toy'
+                              : 'warning'}
                       </span>
 
                       {/* Conteúdo */}
@@ -291,21 +291,21 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
 
             </DropdownMenuContent>
           </DropdownMenu>
-          <button className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface">
+          <button className="hidden md:flex h-[36px] w-[36px] items-center justify-center rounded-full text-on-surface-variant/50 transition-colors hover:bg-surface-container-lowest hover:text-on-surface">
             <span className="material-symbols-outlined text-[20px]">help_outline</span>
           </button>
 
-          <div className="mx-2 hidden md:block h-6 w-px bg-outline-variant/20" />
+          <div className="mx-3 hidden md:block h-6 w-px bg-outline-variant/15" />
 
           <DropdownMenu>
-            <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ring-offset-2 ring-offset-card transition-all">
-              <Avatar className="h-8 w-8 cursor-pointer ring-1 ring-outline-variant/20">
-                <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+            <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-4 focus-visible:ring-primary/10 transition-all">
+              <Avatar className="h-9 w-9 cursor-pointer transition-transform hover:scale-105 active:scale-95 border border-transparent hover:border-primary/20">
+                <AvatarFallback className="bg-primary/10 text-[11px] font-bold tracking-widest text-primary">
                   {getInitials(user.name ?? 'U')}
                 </AvatarFallback>
               </Avatar>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-outline-variant/15">
+            <DropdownMenuContent align="end" className="w-56 mt-2 rounded-xl p-2 shadow-lg border-outline-variant/10 bg-card">
               <div className="px-2.5 py-2">
                 <div className="flex flex-col space-y-1">
                   <p className="text-[14px] font-semibold text-on-surface">{user.name}</p>
@@ -356,9 +356,9 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
                   {group.items.map(({ href, icon, label }: NavItem) => {
                     const active = pathname === href || pathname.startsWith(href + '/')
                     const badgeCount =
-                      href === '/crm/atendimentos'   ? badges.escalacoes :
-                      href === '/crm/emails'          ? badges.emails :
-                      href === '/crm/chamados'  ? badges.chamados : 0
+                      href === '/crm/atendimentos' ? badges.escalacoes :
+                        href === '/crm/emails' ? badges.emails :
+                          href === '/crm/chamados' ? badges.chamados : 0
                     const showBadge = badgeCount > 0
                     return (
                       <Link

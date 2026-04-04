@@ -8,8 +8,8 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
-const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
-const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
+const INPUT = 'w-full rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 py-3 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
+const LABEL = 'block text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2'
 
 const schema = z.object({
   email: z.string().email('E-mail inválido').optional().or(z.literal('')),
@@ -74,10 +74,10 @@ export default function ContatoPage() {
   }
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card p-4 md:p-8 shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card p-4 md:p-8 shadow-sm">
       <div className="mb-8">
-        <h2 className="font-headline text-lg font-semibold tracking-tight text-on-surface">Contato e Endereço</h2>
-        <p className="mt-1 text-[13px] text-on-surface-variant/80">
+        <h2 className="font-headline text-[24px] font-semibold tracking-tight text-on-surface">Contato e Endereço</h2>
+        <p className="mt-1.5 text-[13px] font-medium text-on-surface-variant/70">
           Informações de contato exibidas no portal do cliente e nos contratos.
         </p>
       </div>
@@ -122,7 +122,7 @@ export default function ContatoPage() {
                   type="button"
                   onClick={buscarCep}
                   disabled={loadingCep}
-                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] font-medium text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-50"
+                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-outline-variant/30 bg-surface-container-low px-3 text-[13px] font-medium text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-50"
                 >
                   {loadingCep ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">search</span>}
                 </button>
