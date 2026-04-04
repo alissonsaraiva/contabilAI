@@ -35,8 +35,6 @@ export async function POST(req: Request) {
     }
   }
 
-  void hc.start(process.env.HC_AGENTE)
-
   const agora = new Date()
 
   // ── Manutenção: expirar leads antigos (roda a cada tick, é idempotente) ────

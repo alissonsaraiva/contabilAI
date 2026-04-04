@@ -29,7 +29,6 @@ export async function POST(req: Request) {
     }
   }
 
-  void hc.start(process.env.HC_PROCESSAR_PENDENTES)
   try {
     const result = await processarMensagensPendentes()
     void hc.ok(process.env.HC_PROCESSAR_PENDENTES)
