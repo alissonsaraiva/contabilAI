@@ -10,12 +10,12 @@ const REGIMES = [
   { value: 'Autonomo', label: 'Autônomo' },
 ]
 
+// Filtra por cliente.status — valores válidos do enum StatusCliente
 const STATUSES = [
-  { value: 'ativo', label: 'Ativo' },
-  { value: 'inativo', label: 'Inativo' },
+  { value: 'ativo',        label: 'Ativo' },
   { value: 'inadimplente', label: 'Inadimplente' },
-  { value: 'suspenso', label: 'Suspenso' },
-  { value: 'rescindido', label: 'Rescindido' },
+  { value: 'suspenso',     label: 'Suspenso' },
+  { value: 'cancelado',    label: 'Cancelado' },
 ]
 
 export function EmpresasFiltros() {

@@ -19,21 +19,12 @@ const REGIMES: { value: Regime; label: string }[] = [
   { value: 'Autonomo',       label: 'Autônomo' },
 ]
 
-const STATUS_OPTIONS = [
-  { value: 'ativo',        label: 'Ativo' },
-  { value: 'inativo',      label: 'Inativo' },
-  { value: 'inadimplente', label: 'Inadimplente' },
-  { value: 'suspenso',     label: 'Suspenso' },
-  { value: 'rescindido',   label: 'Rescindido' },
-]
-
 export type EmpresaEditData = {
   id: string
   razaoSocial: string | null
   nomeFantasia: string | null
   cnpj: string | null
   regime: Regime | null
-  status: string
 }
 
 type Props = { empresa: EmpresaEditData; open: boolean; onClose: () => void }
@@ -46,7 +37,6 @@ export function EditarEmpresaDrawer({ empresa, open, onClose }: Props) {
     nomeFantasia: empresa.nomeFantasia ?? '',
     cnpj: empresa.cnpj ?? '',
     regime: empresa.regime ?? '',
-    status: empresa.status,
   })
 
   function set(field: string, value: string) {
@@ -65,7 +55,6 @@ export function EditarEmpresaDrawer({ empresa, open, onClose }: Props) {
           nomeFantasia: form.nomeFantasia || null,
           cnpj: form.cnpj || null,
           regime: form.regime || null,
-          status: form.status,
         }),
       })
       if (!res.ok) throw new Error()
@@ -122,15 +111,6 @@ export function EditarEmpresaDrawer({ empresa, open, onClose }: Props) {
               </div>
             </div>
 
-            <div>
-              <label className={LABEL}>Status</label>
-              <div className="relative">
-                <select className={SELECT} value={form.status} onChange={e => set('status', e.target.value)}>
-                  {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/50">expand_more</span>
-              </div>
-            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 border-t border-outline-variant/15 px-6 py-4">

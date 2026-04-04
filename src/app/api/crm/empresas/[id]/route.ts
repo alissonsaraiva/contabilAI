@@ -18,7 +18,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Captura estado anterior para detectar mudanças relevantes para a Spedy
   const anterior = await prisma.empresa.findUnique({
     where:  { id },
-    select: { cnpj: true, razaoSocial: true, nomeFantasia: true, regime: true, spedyConfigurado: true, spedyCompanyId: true },
+    select: { cnpj: true, razaoSocial: true, nomeFantasia: true, regime: true, spedyConfigurado: true, spedyCompanyId: true },  // status removido — usa cliente.status
   })
 
   const empresa = await prisma.empresa.update({
@@ -28,7 +28,6 @@ export async function PATCH(req: Request, { params }: Params) {
       razaoSocial:  body.razaoSocial  || null,
       nomeFantasia: body.nomeFantasia  || null,
       regime:       body.regime       || null,
-      status:       body.status       || undefined,
     },
     include: { cliente: true, socios: true },
   })
@@ -39,7 +38,6 @@ export async function PATCH(req: Request, { params }: Params) {
     razaoSocial:  empresa.razaoSocial,
     nomeFantasia: empresa.nomeFantasia,
     regime:       empresa.regime,
-    status:       empresa.status,
     socios:       empresa.socios,
   })
 

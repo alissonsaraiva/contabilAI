@@ -5,6 +5,7 @@ import { Suspense } from 'react'
 import { EmpresasSearchBar } from '@/components/crm/empresas-search-bar'
 import { EmpresasFiltros } from '@/components/crm/empresas-filtros'
 import { EmpresasPaginacao } from '@/components/crm/empresas-paginacao'
+import { STATUS_CLIENTE_LABELS, STATUS_CLIENTE_COLORS } from '@/types'
 
 const PER_PAGE = 15
 
@@ -22,22 +23,6 @@ const REGIME_COLORS: Record<string, string> = {
   LucroPresumido: 'bg-tertiary/10 text-tertiary',
   LucroReal: 'bg-orange-status/10 text-orange-status',
   Autonomo: 'bg-surface-container text-on-surface-variant',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  ativo: 'bg-green-status/10 text-green-status',
-  inativo: 'bg-error/10 text-error',
-  inadimplente: 'bg-orange-status/10 text-orange-status',
-  rescindido: 'bg-surface-container text-on-surface-variant',
-  suspenso: 'bg-tertiary/10 text-tertiary',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  ativo: 'Ativo',
-  inativo: 'Inativo',
-  inadimplente: 'Inadimplente',
-  rescindido: 'Rescindido',
-  suspenso: 'Suspenso',
 }
 
 type Props = {
@@ -70,7 +55,7 @@ export default async function EmpresasPage({ searchParams }: Props) {
         }
         : {},
       regime ? { regime: regime as any } : {},
-      status ? { status: status as any } : {},
+      status ? { cliente: { status: status as any } } : {},
     ],
   }
 
@@ -181,9 +166,13 @@ export default async function EmpresasPage({ searchParams }: Props) {
                       <span className="text-[13px] font-semibold text-on-surface-variant">{e.socios.length}</span>
                     </td>
                     <td className="px-6 py-3.5 text-center">
-                      <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[e.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
-                        {STATUS_LABELS[e.status] ?? e.status}
-                      </span>
+                      {e.cliente?.status ? (
+                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_CLIENTE_COLORS[e.cliente.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
+                          {STATUS_CLIENTE_LABELS[e.cliente.status] ?? e.cliente.status}
+                        </span>
+                      ) : (
+                        <span className="text-[13px] text-on-surface-variant/40">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

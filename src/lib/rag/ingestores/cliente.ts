@@ -147,7 +147,6 @@ type EmpresaData = {
   razaoSocial?: string | null
   nomeFantasia?: string | null
   regime?: string | null
-  status?: string | null
   socios?: SocioData[]
 }
 
@@ -171,7 +170,6 @@ export async function indexarEmpresa(empresa: EmpresaData): Promise<void> {
     empresa.nomeFantasia ? `Nome Fantasia: ${empresa.nomeFantasia}` : '',
     empresa.cnpj         ? `CNPJ: ${empresa.cnpj}` : '',
     empresa.regime       ? `Regime tributário: ${empresa.regime}` : '',
-    empresa.status       ? `Status: ${empresa.status}` : '',
     ...(sociosLinhas.length ? [`Sócios (${sociosLinhas.length}):`, ...sociosLinhas] : []),
   ].filter(Boolean).join('\n')
 

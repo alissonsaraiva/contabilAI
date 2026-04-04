@@ -39,7 +39,7 @@
 | IA | Claude Haiku 4.5 (padrão) + OpenAI/Groq/Gemini | — |
 | Storage | Cloudflare R2 (S3-compatible) | — |
 | Deploy | Docker + VPS (6 containers) via ghcr.io | — |
-| Monitoramento | Sentry (client + server + edge) | — |
+| Monitoramento | Sentry (client + server + edge) + healthchecks.io (crons) | — |
 | Auth CRM | NextAuth.js (credentials) | — |
 | Auth Portal | Magic link + OTP WhatsApp + sessions | — |
 
@@ -521,6 +521,26 @@ BUSCA (Híbrida):
 | `/api/crm/clientes/[id]/portal-chat` | GET/POST | Clara para o cliente |
 | `/api/crm/clientes/[id]/provisionar` | POST | Criar no Asaas |
 
+### CRM — Empresas e Sócios
+
+| Rota | Método | Descrição |
+|------|--------|-----------|
+| `/api/crm/empresas/[id]` | PATCH | Atualizar dados da empresa (razão social, CNPJ, regime, nome fantasia) |
+| `/api/crm/empresas/[id]/socios` | POST | Adicionar sócio à empresa |
+| `/api/crm/socios/[id]` | PATCH | Editar dados do sócio (nome, CPF, email, telefone, whatsapp, qualificação, participação, principal) |
+| `/api/crm/socios/[id]` | DELETE | Remover sócio (revoga portal access automaticamente) |
+| `/api/crm/socios/[id]/portal-access` | PATCH | Habilitar/desabilitar acesso ao portal |
+| `/api/crm/socios/[id]/enviar-convite` | POST | Enviar convite de acesso ao portal |
+
+**Decisão de arquitetura (2026-04-04):** `Empresa.status` foi removido do schema (migration `20260404010142_remove_empresa_status`). O status exibido em `/crm/empresas` agora vem de `empresa.cliente.status` — única fonte de verdade. Os valores válidos do enum `StatusCliente` são: `ativo | inadimplente | suspenso | cancelado`.
+
+**Página `/crm/empresas/[id]` — abas disponíveis:**
+- Visão Geral: dados da empresa + composição societária
+- Titular: dados completos do cliente com `EditarClienteButton`
+- Sócios: CRUD completo (adicionar, editar, remover) + portal controls
+- Chamados: lista filtrada por empresa com botão "Novo Chamado"
+- Documentos, Portal, Conversas IA, Financeiro (placeholder), Fiscal
+
 ### CRM — NFS-e
 
 | Rota | Método | Descrição |
@@ -607,12 +627,15 @@ BUSCA (Híbrida):
 
 ### Cron Jobs (precisam `CRON_SECRET` no header)
 
-| Rota | Frequência sugerida | Descrição |
-|------|--------------------|-----------|
-| `/api/email/sync` | A cada 5 min | Sincronizar IMAP |
-| `/api/whatsapp/processar-pendentes` | A cada minuto | Processar fila WA |
-| `/api/cron/reconciliar-notas` | A cada hora (`0 * * * *`) | Fallback de reconciliação de NFS-e (webhook é o canal principal) |
-| `/api/agente/cron` | Conforme `AgendamentoAgente` | Disparar agendamentos do agente |
+| Rota | Frequência | Descrição | Monitor |
+|------|-----------|-----------|---------|
+| `/api/email/sync` | A cada 5 min (`*/5 * * * *`) | Sincronizar IMAP | `HC_EMAIL_SYNC` |
+| `/api/whatsapp/processar-pendentes` | 5× por minuto | Processar fila WA (debounce) | `HC_PROCESSAR_PENDENTES` |
+| `/api/agente/cron` | A cada minuto (`* * * * *`) | Disparar agendamentos do agente | `HC_AGENTE` |
+| `/api/cron/reconciliar-notas` | A cada hora (`0 * * * *`) | Fallback de reconciliação de NFS-e | `HC_RECONCILIAR_NOTAS` |
+| `/api/cron/retry-documentos` | A cada hora (`0 * * * *`) | Retry de resumo IA em documentos que falharam | `HC_RETRY_DOCUMENTOS` |
+
+Todos os crons fazem ping no **healthchecks.io** (start/ok/fail) via `src/lib/healthchecks.ts`. UUIDs configurados via vars `HC_*` no `.env`. Conta: alissonsaraiva@gmail.com.
 
 ---
 
@@ -637,7 +660,7 @@ BUSCA (Híbrida):
 - **Reconciliação**: cron `0 * * * *` → `/api/cron/reconciliar-notas` — dois batches:
   - **Batch 1**: notas em `enviando` sem `spedyId` há >10 min → marca `erro_interno` + abre chamado
   - **Batch 2**: notas em `enviando`/`processando` com `spedyId` há >10 min → consulta status atual na Spedy via `consultarNfse`, constrói payload sintético e repassa para `processarWebhookSpedy`; ID deterministico (`reconciliacao-{notaId}-{spedyId}`) garante idempotência contra duplo processamento
-- **Monitoramento**: Sentry Cron Monitoring (`cron-reconciliar-notas`) — alerta se o cron parar de rodar
+- **Monitoramento**: healthchecks.io (`HC_RECONCILIAR_NOTAS`) — alerta se o cron parar de rodar
 - **Limite de paginação**: `pageSize` máximo = **100** por página (API rejeita valores maiores)
 - **Municípios CE (sandbox)**: 15 cidades — Aquiraz, Eusébio, Fortaleza, Horizonte, Ipu, Jaguaruana, Juazeiro do Norte, Missão Velha, Pacajus, Russas, Sobral, Tianguá, Ubajara, Viçosa do Ceará, Várzea Alegre
 - **Arquivo principal**: `src/lib/services/notas-fiscais.ts`, `src/lib/services/nfse/`
@@ -756,6 +779,14 @@ VAPID_SUBJECT="mailto:contato@avos.digital"
 
 # ─── Cron Jobs ───────────────────────────────────────────
 CRON_SECRET="openssl rand -base64 32"
+
+# ─── Healthchecks.io (monitoramento de crons) ────────────
+# UUIDs em https://healthchecks.io — conta alissonsaraiva@gmail.com
+HC_EMAIL_SYNC=""
+HC_RECONCILIAR_NOTAS=""
+HC_RETRY_DOCUMENTOS=""
+HC_AGENTE=""
+HC_PROCESSAR_PENDENTES=""
 
 # ─── URLs Públicas ───────────────────────────────────────
 NEXT_PUBLIC_APP_URL="https://avos.digital"
@@ -994,8 +1025,8 @@ CanalEscalacao: whatsapp | onboarding | portal
 | Fluxo | Risco | Motivo |
 |-------|-------|--------|
 | WhatsApp webhook | Alto | Sem validação de autenticidade do payload |
-| Processamento de NFS-e | Médio | Webhook assíncrono sem retry; cron de reconciliação (1h) é o fallback |
-| Sincronização de email | Médio | Cron manual na VPS, sem monitoramento |
+| Processamento de NFS-e | Médio | Webhook assíncrono sem retry; cron de reconciliação (1h) é o fallback — monitorado via healthchecks.io |
+| Sincronização de email | Baixo | Cron manual na VPS — monitorado via healthchecks.io (alerta se parar) |
 | Conversão Lead→Cliente | Médio | 3 pontos de conversão distintos (leads/assinado, contrato/webhook, manual) — podem criar duplicatas; idempotência reforçada no webhook ZapSign (v3.10.15) |
 | Magic links do portal | Médio | Token hash SHA-256, mas sem rate limit no `/api/portal/magic-link` |
 | Lead assinado sem dados completos | Baixo | Webhook marca como assinado mas não cria cliente; requer intervenção manual; alerta Sentry configurado (v3.10.15) |

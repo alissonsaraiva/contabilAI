@@ -194,7 +194,6 @@ model Empresa {
   razaoSocial  String?
   nomeFantasia String?
   regime       Regime?
-  status       StatusCliente @default(ativo)
   criadoEm     DateTime      @default(now())
   atualizadoEm DateTime      @updatedAt
 

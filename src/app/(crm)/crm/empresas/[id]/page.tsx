@@ -3,12 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { getAiConfig } from '@/lib/ai/config'
 import { formatCNPJ, formatCPF, formatBRL, formatDate, formatTelefone } from '@/lib/utils'
-import { PLANO_LABELS, PLANO_COLORS, FORMA_PAGAMENTO_LABELS } from '@/types'
+import { PLANO_LABELS, PLANO_COLORS, FORMA_PAGAMENTO_LABELS, STATUS_CLIENTE_LABELS, STATUS_CLIENTE_COLORS, type StatusCliente } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
 import { BackButton } from '@/components/ui/back-button'
 import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { EditarEmpresaButton } from '@/components/crm/editar-empresa-button'
+import { EditarClienteButton } from '@/components/crm/editar-cliente-button'
 import { PortalLinkButton } from '@/components/crm/portal-link-button'
 import { PortalChatButton } from '@/components/crm/portal-chat-button'
 import { WhatsAppDrawerButton } from '@/components/crm/whatsapp-drawer-button'
@@ -19,6 +20,9 @@ import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
 import { NotasFiscaisTabContent } from '@/components/crm/notas-fiscais-tab'
+import { NovoChamadoDrawer } from '@/components/crm/novo-chamado-drawer'
+import { AdicionarSocioDrawer } from '@/components/crm/adicionar-socio-drawer'
+import { EditarSocioDrawer, type SocioEditData } from '@/components/crm/editar-socio-drawer'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -38,20 +42,22 @@ const REGIME_COLORS: Record<string, string> = {
   Autonomo: 'bg-surface-container text-on-surface-variant',
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  ativo: 'bg-green-status/10 text-green-status',
-  inativo: 'bg-error/10 text-error',
-  inadimplente: 'bg-orange-status/10 text-orange-status',
-  rescindido: 'bg-surface-container text-on-surface-variant',
-  suspenso: 'bg-tertiary/10 text-tertiary',
+const STATUS_CHAMADO: Record<string, { label: string; color: string; icon: string }> = {
+  aberta:             { label: 'Aberta',         color: 'text-blue-600 bg-blue-500/10',                    icon: 'radio_button_unchecked' },
+  em_andamento:       { label: 'Em andamento',   color: 'text-primary bg-primary/10',                      icon: 'autorenew' },
+  aguardando_cliente: { label: 'Aguardando',     color: 'text-yellow-600 bg-yellow-500/10',                icon: 'pending' },
+  resolvida:          { label: 'Resolvida',      color: 'text-green-status bg-green-status/10',            icon: 'task_alt' },
+  cancelada:          { label: 'Cancelada',      color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  ativo: 'Ativo',
-  inativo: 'Inativo',
-  inadimplente: 'Inadimplente',
-  rescindido: 'Rescindido',
-  suspenso: 'Suspenso',
+const TIPO_CHAMADO: Record<string, string> = {
+  duvida: 'Dúvida', solicitacao: 'Solicitação', reclamacao: 'Reclamação',
+  documento: 'Documento', emissao_documento: 'Emissão', correcao_documento: 'Correção',
+  solicitacao_documento: 'Solicitar doc.', tarefa_interna: 'Interna', outros: 'Outros',
+}
+
+const PRIORIDADE_COLOR: Record<string, string> = {
+  baixa: 'text-on-surface-variant/50', media: 'text-blue-600', alta: 'text-yellow-600', urgente: 'text-error',
 }
 
 export default async function EmpresaDetailPage({ params }: Props) {
@@ -74,6 +80,10 @@ export default async function EmpresaDetailPage({ params }: Props) {
           where: { expiresAt: { gt: new Date() } },
           orderBy: { criadoEm: 'desc' },
         },
+        chamados: {
+          orderBy: { criadoEm: 'desc' },
+          include: { cliente: { select: { nome: true } } },
+        },
       },
     }),
     prisma.escritorio.findFirst({ select: { spedyApiKey: true } }),
@@ -87,6 +97,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
   const nomeIaPortal = aiConfig.nomeAssistentes.portal ?? 'Assistente'
 
   const documentos = empresa.documentos
+  const chamados   = empresa.chamados
 
   const conversas = cliente
     ? await prisma.conversaIA.findMany({
@@ -105,6 +116,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
     { value: 'visao-geral', label: 'Visão Geral',  count: null },
     { value: 'titular',     label: 'Titular',       count: null },
     { value: 'socios',      label: 'Sócios',        count: socios.length },
+    { value: 'chamados',    label: 'Chamados',      count: chamados.length },
     { value: 'documentos',  label: 'Documentos',    count: documentos.length },
     { value: 'portal',      label: 'Portal',        count: null },
     { value: 'conversas',   label: 'Conversas IA',  count: conversas.length },
@@ -123,9 +135,11 @@ export default async function EmpresaDetailPage({ params }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-headline text-2xl font-semibold text-on-surface">{nomeDisplay}</h1>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[empresa.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
-              {STATUS_LABELS[empresa.status] ?? empresa.status}
-            </span>
+            {cliente && (
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_CLIENTE_COLORS[cliente.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
+                {STATUS_CLIENTE_LABELS[cliente.status] ?? cliente.status}
+              </span>
+            )}
             {empresa.regime && (
               <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${REGIME_COLORS[empresa.regime] ?? 'bg-surface-container text-on-surface-variant'}`}>
                 {REGIME_LABELS[empresa.regime] ?? empresa.regime}
@@ -165,7 +179,6 @@ export default async function EmpresaDetailPage({ params }: Props) {
               nomeFantasia: empresa.nomeFantasia,
               cnpj: empresa.cnpj,
               regime: empresa.regime,
-              status: empresa.status,
             }} />
             {cliente && (
               <>
@@ -214,7 +227,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
               {empresa.nomeFantasia && <InfoRow label="Nome fantasia" value={empresa.nomeFantasia} />}
               {empresa.cnpj && <InfoRow label="CNPJ" value={formatCNPJ(empresa.cnpj)} />}
               {empresa.regime && <InfoRow label="Regime tributário" value={REGIME_LABELS[empresa.regime] ?? empresa.regime} />}
-              <InfoRow label="Status" value={STATUS_LABELS[empresa.status] ?? empresa.status} />
+              {cliente && <InfoRow label="Status" value={STATUS_CLIENTE_LABELS[cliente.status] ?? cliente.status} />}
               <InfoRow label="Cadastrada em" value={formatDate(empresa.criadoEm)} />
             </InfoCard>
 
@@ -247,14 +260,49 @@ export default async function EmpresaDetailPage({ params }: Props) {
           {!cliente ? (
             <EmptyState icon="person" msg="Nenhum titular vinculado a esta empresa" />
           ) : (
+            <>
+              <div className="mb-4 flex items-center justify-end">
+                <EditarClienteButton cliente={{
+                  id:                  cliente.id,
+                  nome:                cliente.nome,
+                  cpf:                 cliente.cpf,
+                  email:               cliente.email,
+                  telefone:            cliente.telefone,
+                  whatsapp:            cliente.whatsapp,
+                  rg:                  cliente.rg,
+                  dataNascimento:      cliente.dataNascimento ? cliente.dataNascimento.toISOString() : null,
+                  estadoCivil:         (cliente as any).estadoCivil ?? null,
+                  profissao:           (cliente as any).profissao ?? null,
+                  nacionalidade:       (cliente as any).nacionalidade ?? null,
+                  tipoContribuinte:    cliente.tipoContribuinte,
+                  planoTipo:           cliente.planoTipo,
+                  valorMensal:         Number(cliente.valorMensal),
+                  vencimentoDia:       cliente.vencimentoDia,
+                  formaPagamento:      cliente.formaPagamento,
+                  cnpj:                empresa.cnpj ?? null,
+                  razaoSocial:         empresa.razaoSocial ?? null,
+                  regime:              empresa.regime ?? null,
+                  cep:                 cliente.cep,
+                  logradouro:          cliente.logradouro,
+                  numero:              cliente.numero,
+                  complemento:         cliente.complemento,
+                  bairro:              cliente.bairro,
+                  cidade:              cliente.cidade,
+                  uf:                  cliente.uf,
+                  status:              cliente.status,
+                  observacoesInternas: cliente.observacoesInternas,
+                }} />
+              </div>
             <div className="grid gap-4 md:grid-cols-2">
               <InfoCard title="Dados pessoais" icon="person">
                 <InfoRow label="Nome completo" value={cliente.nome} />
                 <InfoRow label="CPF" value={formatCPF(cliente.cpf)} />
+                {cliente.rg && <InfoRow label="RG" value={cliente.rg} />}
+                {(cliente as any).dataNascimento && <InfoRow label="Nascimento" value={formatDate((cliente as any).dataNascimento)} />}
+                {(cliente as any).estadoCivil && <InfoRow label="Estado civil" value={(cliente as any).estadoCivil} />}
                 <InfoRow label="E-mail" value={cliente.email} />
                 <InfoRow label="Telefone" value={formatTelefone(cliente.telefone)} />
-                {cliente.responsavel && <InfoRow label="Responsável" value={cliente.responsavel.nome ?? ''} />}
-                {cliente.dataInicio && <InfoRow label="Cliente desde" value={formatDate(cliente.dataInicio)} />}
+                {cliente.whatsapp && <InfoRow label="WhatsApp" value={formatTelefone(cliente.whatsapp)} />}
               </InfoCard>
 
               <InfoCard title="Contrato" icon="contract">
@@ -275,12 +323,54 @@ export default async function EmpresaDetailPage({ params }: Props) {
                   </Link>
                 </div>
               </InfoCard>
+
+              {(cliente.cep || cliente.cidade) && (
+                <InfoCard title="Endereço" icon="location_on">
+                  {cliente.logradouro && (
+                    <InfoRow
+                      label="Logradouro"
+                      value={`${cliente.logradouro}, ${cliente.numero ?? 's/n'}${cliente.complemento ? ` — ${cliente.complemento}` : ''}`}
+                    />
+                  )}
+                  {cliente.bairro && <InfoRow label="Bairro" value={cliente.bairro} />}
+                  {cliente.cidade && <InfoRow label="Cidade" value={[cliente.cidade, cliente.uf].filter(Boolean).join('/')} />}
+                  {cliente.cep && <InfoRow label="CEP" value={cliente.cep} />}
+                </InfoCard>
+              )}
+
+              <InfoCard title="Gestão" icon="manage_accounts">
+                <InfoRow label="Status" value={STATUS_CLIENTE_LABELS[cliente.status] ?? cliente.status} />
+                {cliente.responsavel && <InfoRow label="Responsável" value={cliente.responsavel.nome ?? ''} />}
+                {cliente.dataInicio && <InfoRow label="Cliente desde" value={formatDate(cliente.dataInicio)} />}
+                {(cliente as any).inativadoEm && (
+                  <InfoRow label="Inativado em" value={formatDate((cliente as any).inativadoEm)} />
+                )}
+                {(cliente as any).reativadoEm && (
+                  <InfoRow label="Reativado em" value={formatDate((cliente as any).reativadoEm)} />
+                )}
+                {(cliente as any).motivoInativacao && (
+                  <div className="pt-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Motivo inativação</p>
+                    <p className="mt-1 text-sm leading-relaxed text-on-surface">{(cliente as any).motivoInativacao}</p>
+                  </div>
+                )}
+                {cliente.observacoesInternas && (
+                  <div className="pt-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Observações</p>
+                    <p className="mt-1 text-sm leading-relaxed text-on-surface">{cliente.observacoesInternas}</p>
+                  </div>
+                )}
+              </InfoCard>
             </div>
+            </>
           )}
         </TabsContent>
 
         {/* ── Sócios ──────────────────────────────────────── */}
         <TabsContent value="socios" className="m-0 focus-visible:outline-none">
+          <div className="mb-4 flex items-center justify-end">
+            <AdicionarSocioDrawer empresaId={empresa.id} />
+          </div>
           {socios.length === 0 ? (
             <EmptyState icon="group" msg="Nenhum sócio cadastrado nesta empresa" />
           ) : (
@@ -311,15 +401,104 @@ export default async function EmpresaDetailPage({ params }: Props) {
                   </div>
                   <div className="flex items-center justify-between gap-2 border-t border-outline-variant/10 px-5 py-3">
                     <SocioPortalControls socioId={s.id} temEmail={!!s.email} portalAccess={s.portalAccess} />
-                    <SocioWhatsAppButton
-                      socioId={s.id}
-                      socioNome={s.nome}
-                      telefone={s.telefone}
-                      whatsapp={s.whatsapp}
-                    />
+                    <div className="flex items-center gap-1">
+                      <SocioWhatsAppButton
+                        socioId={s.id}
+                        socioNome={s.nome}
+                        telefone={s.telefone}
+                        whatsapp={s.whatsapp}
+                      />
+                      <EditarSocioDrawer socio={{
+                        id:           s.id,
+                        nome:         s.nome,
+                        cpf:          s.cpf,
+                        qualificacao: s.qualificacao,
+                        participacao: s.participacao != null ? Number(s.participacao) : null,
+                        email:        s.email,
+                        telefone:     s.telefone,
+                        whatsapp:     s.whatsapp,
+                        principal:    s.principal,
+                      }} />
+                    </div>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Chamados ────────────────────────────────────── */}
+        <TabsContent value="chamados" className="m-0 focus-visible:outline-none">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-[13px] text-on-surface-variant">
+              {chamados.length === 0
+                ? 'Nenhum chamado registrado para esta empresa.'
+                : `${chamados.length} chamado${chamados.length !== 1 ? 's' : ''}`}
+            </p>
+            {cliente && (
+              <NovoChamadoDrawer clientes={[{ id: cliente.id, nome: cliente.nome }]} />
+            )}
+          </div>
+
+          {chamados.length === 0 ? (
+            <EmptyState icon="inbox" msg="Nenhum chamado registrado para esta empresa" />
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-outline-variant/10">
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 w-[60px]">#</th>
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">Chamado</th>
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 hidden md:table-cell">Tipo</th>
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50">Status</th>
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/50 hidden lg:table-cell">Data</th>
+                      <th className="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chamados.map(c => {
+                      const s         = STATUS_CHAMADO[c.status] ?? STATUS_CHAMADO.aberta
+                      const prioClass = PRIORIDADE_COLOR[c.prioridade] ?? 'text-on-surface-variant/50'
+                      return (
+                        <tr key={c.id} className="border-b border-outline-variant/10 last:border-0 hover:bg-surface-container/40 transition-colors">
+                          <td className="px-4 py-3.5 text-[12px] font-mono text-on-surface-variant/50 tabular-nums">
+                            #{c.numero}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className={`material-symbols-outlined text-[14px] shrink-0 ${prioClass}`} style={{ fontVariationSettings: "'FILL' 1" }}>circle</span>
+                              <p className="text-[13px] font-medium text-on-surface truncate max-w-[240px]">{c.titulo}</p>
+                            </div>
+                            <p className="text-[11px] text-on-surface-variant/60 ml-5">{c.cliente.nome}</p>
+                          </td>
+                          <td className="px-5 py-3.5 hidden md:table-cell">
+                            <span className="text-[12px] text-on-surface-variant">{TIPO_CHAMADO[c.tipo] ?? c.tipo}</span>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>
+                              {s.label}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 hidden lg:table-cell">
+                            <span className="text-[12px] text-on-surface-variant/60">
+                              {new Date(c.criadoEm).toLocaleDateString('pt-BR')}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <Link
+                              href={`/crm/chamados/${c.id}`}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-primary transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                            </Link>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </TabsContent>
