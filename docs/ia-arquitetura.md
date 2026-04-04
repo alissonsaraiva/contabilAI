@@ -258,8 +258,8 @@ Fire-and-forget em background após writes no banco — não bloqueia a resposta
 | Email enviado pelo contador | `POST /api/email/enviar` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
 | Email recebido do cliente (IMAP polling) | `processarEmailRecebido` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
 | Anexo recebido por email | upload S3 → cria `Documento` → `indexarInteracao` | `crm` + `portal` | `cliente` ou `lead` |
-| OS criada/atualizada | `indexarOrdemServico` | `crm` ou `geral` | `cliente` |
-| OS resolvida (PATCH multipart) | `indexarOrdemServico` (via `resolverOS`) | `geral` | `cliente` |
+| Chamado criado/atualizado | `indexarChamado` | `crm` ou `geral` | `cliente` |
+| Chamado resolvido (PATCH multipart) | `indexarChamado` (via `resolverChamado`) | `geral` | `cliente` |
 | Comunicado publicado | `indexarComunicado` | `geral` | `global` |
 | Comunicado despublicado | remove do índice | — | — |
 | Escalação resolvida | `indexarEscalacao` (inclui resolução) | `crm` ou `geral` | `cliente`/`lead` |
@@ -534,9 +534,9 @@ Sem contexto, exige `search` com 2+ caracteres.
 
 1. Usuário clica "Do sistema" → `DocumentoPicker` abre com docs do cliente
 2. Seleciona doc → form envia `documento_id`, `documento_url`, `documento_nome`, `documento_mime` no FormData
-3. Route PATCH `/api/crm/ordens-servico/[id]` extrai os campos e monta `documentoExistente`
-4. `resolverOS()` usa a URL existente (sem upload) para envio por email/WhatsApp
-5. Vincula o `Documento` existente à OS via `update({ ordemServicoId })`
+3. Route PATCH `/api/crm/chamados/[id]` extrai os campos e monta `documentoExistente`
+4. `resolverChamado()` usa a URL existente (sem upload) para envio por email/WhatsApp
+5. Vincula o `Documento` existente ao chamado via `update({ ordemServicoId })`
 
 ### Fluxo de documento existente no Comunicado
 
@@ -592,9 +592,9 @@ pergunta do operador
 #### Escrita CRM (11)
 | Tool | Descrição |
 |---|---|
-| `criarTarefa` | Cria tarefa (deprecada — usar `criarOrdemServico`) |
-| `concluirTarefa` | Conclui tarefa (deprecada — usar `criarOrdemServico`) |
-| `criarOrdemServico` | Cria OS vinculada ao cliente |
+| `criarTarefa` | Cria tarefa (deprecada — usar `criarChamado`) |
+| `concluirTarefa` | Conclui tarefa (deprecada — usar `criarChamado`) |
+| `criarChamado` | Cria chamado vinculado ao cliente |
 | `registrarInteracao` | Registra nota/ligação/interação no histórico |
 | `atualizarStatusLead` | Atualiza status de um lead no funil |
 | `avancarLead` | Avança lead para a próxima etapa do onboarding |
@@ -642,8 +642,8 @@ pergunta do operador
 #### Portal do cliente (5)
 | Tool | Descrição |
 |---|---|
-| `listarOrdensServico` | Lista OS do cliente no portal |
-| `responderOrdemServico` | Responde OS com texto e/ou documento |
+| `listarChamados` | Lista chamados do cliente no portal |
+| `responderChamado` | Responde chamado com texto e/ou documento |
 | `publicarComunicado` | Publica comunicado no portal (todos os clientes ou segmento) |
 | `enviarMensagemPortal` | Envia mensagem privada no portal para cliente específico |
 | `listarComunicados` | Lista comunicados publicados não expirados |

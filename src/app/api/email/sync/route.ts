@@ -25,6 +25,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
+  // Sentry Cron Monitoring
+  const checkIn = Sentry.captureCheckIn(
+    { monitorSlug: 'cron-email-sync', status: 'in_progress' },
+    { schedule: { type: 'crontab', value: '*/5 * * * *' }, checkinMargin: 2, maxRuntime: 4, timezone: 'America/Sao_Paulo' },
+  )
+
   let processados = 0
   let associados  = 0
   let erros       = 0
@@ -54,8 +60,10 @@ export async function POST(req: Request) {
     }
 
     setImapSyncOk(processados, associados)
+    Sentry.captureCheckIn({ monitorSlug: 'cron-email-sync', checkInId: checkIn, status: 'ok' })
   } catch (err) {
     const mensagem = err instanceof Error ? err.message : 'Erro no IMAP'
+    Sentry.captureCheckIn({ monitorSlug: 'cron-email-sync', checkInId: checkIn, status: 'error' })
     Sentry.captureException(err, { tags: { module: 'email-sync', operation: 'buscar-emails' } })
     setImapSyncErro(mensagem)
 

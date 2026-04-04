@@ -165,8 +165,8 @@ O escritório oferece emissão de NFS-e diretamente pelo assistente. Você pode 
 - Use \`consultarNotasFiscais\` para responder perguntas como "qual minha última nota?", "emitiu nota em janeiro?", "preciso do número da nota".
 
 ### Se não conseguir emitir
-- Se \`verificarConfiguracaoNfse\` retornar que o cliente não está habilitado, explique os motivos e abra um chamado via \`criarOrdemServico\` com tipo \`emissao_documento\` com todos os dados coletados.
-- Se a emissão falhar, abra automaticamente um chamado via \`criarOrdemServico\` incluindo todos os dados e o motivo do erro — nunca deixe o cliente sem resposta.`
+- Se \`verificarConfiguracaoNfse\` retornar que o cliente não está habilitado, explique os motivos e abra um chamado via \`criarChamado\` com tipo \`emissao_documento\` com todos os dados coletados.
+- Se a emissão falhar, abra automaticamente um chamado via \`criarChamado\` incluindo todos os dados e o motivo do erro — nunca deixe o cliente sem resposta.`
 
 /** Para WhatsApp (cliente como solicitante via WhatsApp) */
 export const SYSTEM_NFSE_INSTRUCOES_WHATSAPP = NFSE_BASE + `
@@ -211,7 +211,7 @@ Você pode emitir, consultar, cancelar e reenviar NFS-e em nome dos clientes do 
 - Confirme os dados extraídos com o operador antes de prosseguir.
 
 ### Se a emissão falhar
-- Abra automaticamente um chamado via \`criarOrdemServico\` com tipo \`emissao_documento\`, incluindo todos os dados coletados, o motivo do erro e a mensagem original retornada pela Spedy.`
+- Abra automaticamente um chamado via \`criarChamado\` com tipo \`emissao_documento\`, incluindo todos os dados coletados, o motivo do erro e a mensagem original retornada pela Spedy.`
 
 // ─── Helpers internos ────────────────────────────────────────────────────────
 

@@ -18,7 +18,7 @@ const REGIME_LABEL: Record<string, string> = {
   Autonomo:        'Autônomo',
 }
 
-const STATUS_OS_LABEL: Record<string, string> = {
+const STATUS_CHAMADO_LABEL: Record<string, string> = {
   aberta:             'Aberta',
   em_andamento:       'Em andamento',
   aguardando_cliente: 'Aguardando',
@@ -26,7 +26,7 @@ const STATUS_OS_LABEL: Record<string, string> = {
   cancelada:          'Cancelada',
 }
 
-const STATUS_OS_COLOR: Record<string, string> = {
+const STATUS_CHAMADO_COLOR: Record<string, string> = {
   aberta:             'bg-primary/10 text-primary',
   em_andamento:       'bg-orange-status/10 text-orange-status',
   aguardando_cliente: 'bg-yellow-500/10 text-yellow-700',
@@ -62,11 +62,14 @@ async function getDashboardData() {
     escalacaoHojeTotal,
     escalacaoHojeResolvidas,
     leadsHoje,
+    clientesInadimplentes,
+    valorTotalAtraso,
+    inadimplentesRecentes,
   ] = await Promise.all([
     prisma.cliente.count({ where: { status: 'ativo' } }),
     prisma.cliente.count({ where: { status: 'ativo', criadoEm: { gte: trintaDiasAtras } } }),
     prisma.conversaIA.count({ where: { criadaEm: { gte: hoje } } }),
-    prisma.ordemServico.count({ where: { status: { in: ['aberta', 'em_andamento', 'aguardando_cliente'] } } }),
+    prisma.chamado.count({ where: { status: { in: ['aberta', 'em_andamento', 'aguardando_cliente'] } } }),
     prisma.escalacao.findMany({
       where:   { status: 'pendente' },
       orderBy: { criadoEm: 'desc' },
@@ -78,7 +81,7 @@ async function getDashboardData() {
       take:    8,
       include: { empresa: { select: { nomeFantasia: true, razaoSocial: true, regime: true } } },
     }),
-    prisma.ordemServico.findMany({
+    prisma.chamado.findMany({
       orderBy: { criadoEm: 'desc' },
       take:    5,
       include: { cliente: { select: { id: true, nome: true } } },
@@ -87,6 +90,28 @@ async function getDashboardData() {
     prisma.escalacao.count({ where: { criadoEm: { gte: hoje } } }),
     prisma.escalacao.count({ where: { criadoEm: { gte: hoje }, status: 'resolvida' } }),
     prisma.lead.count({ where: { criadoEm: { gte: hoje } } }),
+    prisma.cliente.count({ where: { status: 'inadimplente' } }),
+    prisma.cobrancaAsaas.aggregate({
+      where: { status: 'OVERDUE' },
+      _sum:  { valor: true },
+    }),
+    prisma.cliente.findMany({
+      where:   { status: 'inadimplente' },
+      orderBy: { inativadoEm: 'desc' },
+      take:    5,
+      select: {
+        id:          true,
+        nome:        true,
+        inativadoEm: true,
+        empresa:     { select: { nomeFantasia: true, razaoSocial: true } },
+        cobrancasAsaas: {
+          where:   { status: 'OVERDUE' },
+          orderBy: { vencimento: 'asc' },
+          take:    1,
+          select:  { valor: true, vencimento: true },
+        },
+      },
+    }),
   ])
 
   // Manual join: Escalacao → Cliente (no formal @relation)
@@ -106,6 +131,9 @@ async function getDashboardData() {
     escalacoesPendentes, clienteMap,
     clientesRecentes, osRecentes,
     taxaResolucaoIA, convHojeTotal, escalacaoHojeTotal,
+    clientesInadimplentes,
+    valorTotalAtraso: Number(valorTotalAtraso._sum.valor ?? 0),
+    inadimplentesRecentes,
   }
 }
 
@@ -138,10 +166,10 @@ export default async function DashboardPage() {
           {
             label: 'Chamados abertos',
             value: d.chamadosAbertos,
-            sub:   'OS em andamento',
+            sub:   'Chamados em andamento',
             icon:  '📋',
             color: 'bg-orange-status/8',
-            href:  '/crm/ordens-servico',
+            href:  '/crm/chamados',
           },
           {
             label: 'Leads hoje',
@@ -262,6 +290,81 @@ export default async function DashboardPage() {
         {/* ── COLUNA DIREITA ── */}
         <div className="flex flex-col gap-5">
 
+          {/* Inadimplência */}
+          <div className="rounded-[14px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between border-b border-outline-variant/10 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[18px]">💸</span>
+                <h2 className="font-headline text-[14px] font-semibold text-on-surface">Inadimplência</h2>
+                {d.clientesInadimplentes > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
+                    {d.clientesInadimplentes}
+                  </span>
+                )}
+              </div>
+              <Link href="/crm/financeiro/inadimplentes" className="text-[12px] font-semibold text-primary hover:underline">
+                Ver →
+              </Link>
+            </div>
+
+            {d.clientesInadimplentes === 0 ? (
+              <div className="flex flex-col items-center gap-1 py-6 text-center">
+                <span className="text-2xl">✅</span>
+                <p className="text-[12px] text-on-surface-variant/50">Nenhum inadimplente</p>
+              </div>
+            ) : (
+              <>
+                {/* Total em atraso */}
+                <div className="border-b border-outline-variant/10 bg-error/5 px-5 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-error/70">Total em atraso</p>
+                  <p className="mt-0.5 text-[20px] font-bold text-error leading-none">
+                    {d.valorTotalAtraso.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                </div>
+                {/* Lista */}
+                <ul className="divide-y divide-outline-variant/8">
+                  {d.inadimplentesRecentes.map(c => {
+                    const cobranca  = c.cobrancasAsaas[0]
+                    const nomeExib  = c.empresa?.nomeFantasia ?? c.empresa?.razaoSocial ?? c.nome
+                    const diasAtraso = cobranca
+                      ? Math.max(0, Math.floor((Date.now() - new Date(cobranca.vencimento).getTime()) / 86_400_000))
+                      : null
+                    return (
+                      <li key={c.id}>
+                        <Link
+                          href={`/crm/clientes/${c.id}`}
+                          className="flex items-center gap-3 px-5 py-3 hover:bg-surface-container-lowest/40 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-medium text-on-surface truncate">{nomeExib}</p>
+                            {cobranca && (
+                              <p className="text-[11px] text-error/80">
+                                {Number(cobranca.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                {diasAtraso !== null && diasAtraso > 0 && (
+                                  <span className="ml-1 text-on-surface-variant/50">· {diasAtraso}d</span>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                          <span className={cn(
+                            'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                            diasAtraso !== null && diasAtraso >= 15
+                              ? 'bg-error/15 text-error'
+                              : diasAtraso !== null && diasAtraso >= 7
+                              ? 'bg-orange-status/15 text-orange-status'
+                              : 'bg-yellow-500/15 text-yellow-700',
+                          )}>
+                            {diasAtraso !== null ? `D+${diasAtraso}` : 'Vencido'}
+                          </span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
+          </div>
+
           {/* Escalações pendentes */}
           <div className="rounded-[14px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b border-outline-variant/10 px-5 py-4">
@@ -318,7 +421,7 @@ export default async function DashboardPage() {
                 <span className="text-[18px]">📋</span>
                 <h2 className="font-headline text-[14px] font-semibold text-on-surface">Chamados recentes</h2>
               </div>
-              <Link href="/crm/ordens-servico" className="text-[12px] font-semibold text-primary hover:underline">
+              <Link href="/crm/chamados" className="text-[12px] font-semibold text-primary hover:underline">
                 Ver →
               </Link>
             </div>
@@ -333,7 +436,7 @@ export default async function DashboardPage() {
                 {d.osRecentes.map(o => (
                   <li key={o.id}>
                     <Link
-                      href={`/crm/ordens-servico/${o.id}`}
+                      href={`/crm/chamados/${o.id}`}
                       className="flex items-center gap-3 px-5 py-3 hover:bg-surface-container-lowest/40 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
@@ -342,9 +445,9 @@ export default async function DashboardPage() {
                       </div>
                       <span className={cn(
                         'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                        STATUS_OS_COLOR[o.status] ?? 'bg-surface-container text-on-surface-variant',
+                        STATUS_CHAMADO_COLOR[o.status] ?? 'bg-surface-container text-on-surface-variant',
                       )}>
-                        {STATUS_OS_LABEL[o.status] ?? o.status}
+                        {STATUS_CHAMADO_LABEL[o.status] ?? o.status}
                       </span>
                     </Link>
                   </li>

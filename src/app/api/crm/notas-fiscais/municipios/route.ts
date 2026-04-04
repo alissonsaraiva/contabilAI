@@ -46,7 +46,7 @@ export async function GET(req: Request) {
       code:     codigoIbge ?? undefined,
       state:    estado     ?? undefined,
       page:     parseInt(page),
-      pageSize: parseInt(pageSize),
+      pageSize: Math.min(parseInt(pageSize), 100), // Spedy limita a 100 por página
     })
 
     _cache.set(cacheKey, { data: resultado, expiresAt: Date.now() + 24 * 60 * 60 * 1000 })

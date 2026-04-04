@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEscritorioConfig } from '@/lib/escritorio'
@@ -37,9 +38,13 @@ export async function POST(req: Request) {
     })
   }
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10_000)
+
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
@@ -76,10 +81,20 @@ Planos disponíveis:
     const text = data.content?.[0]?.text ?? '{}'
     const result = JSON.parse(text)
     return NextResponse.json(result)
-  } catch {
+  } catch (err) {
+    const isTimeout = err instanceof Error && err.name === 'AbortError'
+    console.error('[onboarding/recomendar-plano] Falha na recomendação de plano:', {
+      tipo: isTimeout ? 'timeout' : 'erro',
+      err,
+    })
+    Sentry.captureException(err, {
+      tags: { module: 'onboarding-recomendar-plano', operation: 'claude-api', tipo: isTimeout ? 'timeout' : 'erro' },
+    })
     return NextResponse.json({
       plano: 'profissional',
       justificativa: 'Recomendamos o plano Profissional como ponto de partida ideal para o seu negócio.',
     })
+  } finally {
+    clearTimeout(timeoutId)
   }
 }

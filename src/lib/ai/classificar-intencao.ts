@@ -57,7 +57,7 @@ Exemplos com contexto:
 - Contexto: assistente disse "posso reenviar o holerite de Janeiro/2026" → usuário: "pode mandar" → {"tipo":"acao","instrucao":"Buscar holerite de Janeiro/2026 do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
 - Contexto: assistente disse "posso verificar seus documentos" → usuário: "pode" → {"tipo":"acao","instrucao":"Buscar documentos disponíveis do cliente"}
 - Contexto: assistente disse "posso verificar declaração de 2024" → usuário: "pode verificar" → {"tipo":"acao","instrucao":"Buscar documentos do cliente filtrado por categoria imposto_renda"}
-- Contexto: assistente disse "posso abrir um chamado" → usuário: "sim" → {"tipo":"acao","instrucao":"Criar ordem de serviço para o cliente"}
+- Contexto: assistente disse "posso abrir um chamado" → usuário: "sim" → {"tipo":"acao","instrucao":"Criar chamado para o cliente"}
 - Contexto: assistente disse "posso enviar a nota fiscal" → usuário: "manda logo" → {"tipo":"acao","instrucao":"Buscar nota fiscal do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
 - Contexto: assistente disse "posso reenviar o boleto" → usuário: "vai lá" → {"tipo":"acao","instrucao":"Buscar boleto do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}`
 

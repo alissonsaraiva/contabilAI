@@ -6,7 +6,7 @@ import { getAiConfig } from '@/lib/ai/config'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
 
-const STATUS_OS: Record<string, { label: string; color: string; icon: string }> = {
+const STATUS_CHAMADO: Record<string, { label: string; color: string; icon: string }> = {
   aberta: { label: 'Aberta', color: 'text-blue-600 bg-blue-500/10', icon: 'radio_button_unchecked' },
   em_andamento: { label: 'Em andamento', color: 'text-primary bg-primary/10', icon: 'autorenew' },
   aguardando_cliente: { label: 'Aguardando você', color: 'text-yellow-600 bg-yellow-500/10', icon: 'pending' },
@@ -14,7 +14,7 @@ const STATUS_OS: Record<string, { label: string; color: string; icon: string }> 
   cancelada: { label: 'Cancelada', color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
 }
 
-const TIPO_OS: Record<string, string> = {
+const TIPO_CHAMADO: Record<string, string> = {
   duvida: 'Dúvida',
   solicitacao: 'Solicitação',
   reclamacao: 'Reclamação',
@@ -40,7 +40,7 @@ export default async function PortalSuportePage() {
   const now = new Date()
   const [aiConfig, ordensRecentes, comunicados] = await Promise.all([
     getAiConfig(),
-    prisma.ordemServico.findMany({
+    prisma.chamado.findMany({
       where: { clienteId },
       orderBy: { criadoEm: 'desc' },
       take: 5,
@@ -70,7 +70,7 @@ export default async function PortalSuportePage() {
         </div>
         <div className="w-full sm:w-auto">
           <Link
-            href="/portal/suporte/os/nova"
+            href="/portal/suporte/chamados/nova"
             className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors w-full sm:w-auto"
           >
             <span className="material-symbols-outlined text-[16px]">add</span>
@@ -111,11 +111,11 @@ export default async function PortalSuportePage() {
           <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
             <ul className="divide-y divide-outline-variant/10">
               {osAberta.map(o => {
-                const s = STATUS_OS[o.status] ?? STATUS_OS.aberta
+                const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
                 return (
                   <li key={o.id}>
                     <Link
-                      href={`/portal/suporte/os/${o.id}`}
+                      href={`/portal/suporte/chamados/${o.id}`}
                       className="flex items-start gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container/50 transition-colors"
                     >
                       <span
@@ -127,7 +127,7 @@ export default async function PortalSuportePage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-on-surface truncate">{o.titulo}</p>
                         <p className="text-[11px] text-on-surface-variant/60">
-                          {TIPO_OS[o.tipo] ?? o.tipo} · {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
+                          {TIPO_CHAMADO[o.tipo] ?? o.tipo} · {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>
@@ -151,7 +151,7 @@ export default async function PortalSuportePage() {
             Abra um chamado para solicitar suporte, tirar dúvidas ou enviar documentos.
           </p>
           <Link
-            href="/portal/suporte/os/nova"
+            href="/portal/suporte/chamados/nova"
             className="mt-2 flex w-full sm:w-auto justify-center items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">add</span>
@@ -169,11 +169,11 @@ export default async function PortalSuportePage() {
           <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
             <ul className="divide-y divide-outline-variant/10">
               {ordensRecentes.map(o => {
-                const s = STATUS_OS[o.status] ?? STATUS_OS.aberta
+                const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
                 return (
                   <li key={o.id}>
                     <Link
-                      href={`/portal/suporte/os/${o.id}`}
+                      href={`/portal/suporte/chamados/${o.id}`}
                       className="flex items-start gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container/50 transition-colors"
                     >
                       <span
@@ -185,7 +185,7 @@ export default async function PortalSuportePage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-on-surface truncate">{o.titulo}</p>
                         <p className="text-[11px] text-on-surface-variant/60">
-                          {TIPO_OS[o.tipo] ?? o.tipo} · {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
+                          {TIPO_CHAMADO[o.tipo] ?? o.tipo} · {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>

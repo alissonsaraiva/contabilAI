@@ -35,7 +35,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Atendimento',
     items: [
       { href: '/crm/atendimentos',   icon: 'support_agent', label: 'Atendimentos' },
-      { href: '/crm/ordens-servico', icon: 'assignment',    label: 'Chamados' },
+      { href: '/crm/chamados', icon: 'assignment',    label: 'Chamados' },
       { href: '/crm/emails',         icon: 'mail',          label: 'E-mails' },
     ],
   },
@@ -69,7 +69,7 @@ function resolveTitle(pathname: string): string {
   if (pathname === '/crm/empresas') return 'Empresas'
   if (/^\/crm\/empresas\/.+/.test(pathname)) return 'Detalhes da Empresa'
   if (pathname === '/crm/atendimentos') return 'Atendimentos'
-  if (pathname === '/crm/ordens-servico') return 'Chamados'
+  if (pathname === '/crm/chamados') return 'Chamados'
   if (pathname === '/crm/emails') return 'E-mails'
   if (pathname === '/crm/comunicados') return 'Comunicados'
   if (pathname === '/crm/relatorios') return 'Relatórios IA'
@@ -358,7 +358,7 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
                     const badgeCount =
                       href === '/crm/atendimentos'   ? badges.escalacoes :
                       href === '/crm/emails'          ? badges.emails :
-                      href === '/crm/ordens-servico'  ? badges.chamados : 0
+                      href === '/crm/chamados'  ? badges.chamados : 0
                     const showBadge = badgeCount > 0
                     return (
                       <Link

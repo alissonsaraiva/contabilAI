@@ -235,9 +235,9 @@ export async function asaasCreatePayment(params: {
   })
 }
 
-/** Cancela uma cobrança avulsa no Asaas (POST /payments/{id}/cancel). */
+/** Cancela uma cobrança no Asaas (DELETE /payments/{id}). */
 export async function asaasCancelPayment(paymentId: string): Promise<void> {
-  await asaasFetch<unknown>(`/payments/${paymentId}/cancel`, { method: 'POST' })
+  await asaasFetch<unknown>(`/payments/${paymentId}`, { method: 'DELETE' })
 }
 
 export async function asaasGetPixQrCode(paymentId: string): Promise<AsaasPixQrCode> {

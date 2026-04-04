@@ -11,9 +11,9 @@
  *   3. Se a Spedy retornar erro ou a nota não for encontrada, marca como erro_interno
  *      e abre OS de escalonamento
  *
- * Setup crontab (VPS) — a cada 5 minutos (linha fora do bloco de comentário):
+ * Setup crontab (VPS) — a cada hora (fallback; webhook é o canal principal):
  */
-// CRON: */5 * * * * curl -s -X POST https://dominio/api/cron/reconciliar-notas -H "Authorization: Bearer $CRON_SECRET"
+// CRON: 0 * * * * curl -s -X POST https://dominio/api/cron/reconciliar-notas -H "Authorization: Bearer $CRON_SECRET"
 
 import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
@@ -39,10 +39,42 @@ export async function POST(req: Request) {
 
   const limite = new Date(Date.now() - MINUTOS_PRESA * 60 * 1000)
 
+  // Sentry Cron Monitoring — alerta se o cron parar de rodar
+  const checkIn = Sentry.captureCheckIn(
+    { monitorSlug: 'cron-reconciliar-notas', status: 'in_progress' },
+    { schedule: { type: 'crontab', value: '0 * * * *' }, checkinMargin: 5, maxRuntime: 55, timezone: 'America/Sao_Paulo' },
+  )
+
   let reconciliadas = 0
   let erros         = 0
 
   try {
+    // Batch 1: notas presas em enviando SEM spedyId — falha ocorreu antes de registrar na Spedy
+    const notasSemSpedyId = await prisma.notaFiscal.findMany({
+      where: {
+        status:      'enviando',
+        spedyId:     null,
+        atualizadoEm: { lt: limite },
+      },
+      select: { id: true, clienteId: true },
+      take: MAX_BATCH,
+    })
+
+    for (const nota of notasSemSpedyId) {
+      try {
+        await prisma.notaFiscal.update({
+          where: { id: nota.id },
+          data:  { status: 'erro_interno', erroMensagem: 'Nota não registrada na Spedy — falha de comunicação durante a emissão', tentativas: 1, atualizadoEm: new Date() },
+        })
+        await abrirOsReconciliacao(nota.id, nota.clienteId, 'NFS-e não chegou à Spedy (sem spedyId após timeout). Reemita manualmente.')
+        erros++
+        logger.warn('cron-reconciliar-nota-sem-spedy-id', { notaId: nota.id })
+      } catch (err) {
+        logger.error('cron-reconciliar-sem-spedy-id-erro', { notaId: nota.id, err })
+      }
+    }
+
+    // Batch 2: notas presas com spedyId — consulta status atual na Spedy
     const notasPresas = await prisma.notaFiscal.findMany({
       where: {
         status:      { in: ['enviando', 'processando'] },
@@ -132,10 +164,12 @@ export async function POST(req: Request) {
     }
 
     logger.info('cron-reconciliar-notas-concluido', { reconciliadas, erros })
+    Sentry.captureCheckIn({ monitorSlug: 'cron-reconciliar-notas', checkInId: checkIn, status: 'ok' })
     return NextResponse.json({ reconciliadas, erros })
 
   } catch (err) {
     logger.error('cron-reconciliar-notas-falhou', { err })
+    Sentry.captureCheckIn({ monitorSlug: 'cron-reconciliar-notas', checkInId: checkIn, status: 'error' })
     Sentry.captureException(err, { tags: { module: 'cron-reconciliar-notas', operation: 'main' } })
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
@@ -147,7 +181,7 @@ async function abrirOsReconciliacao(notaId: string, clienteId: string, motivo: s
       where:  { id: clienteId },
       select: { empresaId: true },
     })
-    await prisma.ordemServico.create({
+    await prisma.chamado.create({
       data: {
         clienteId,
         empresaId:    cliente?.empresaId ?? undefined,

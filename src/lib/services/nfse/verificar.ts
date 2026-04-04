@@ -48,7 +48,7 @@ export async function verificarConfiguracaoNfse(clienteId: string): Promise<{
         let found   = false
         let hasNext = true
         while (hasNext && !found) {
-          const res = await client.listarMunicipios({ state: cliente.uf, page, pageSize: 200 })
+          const res = await client.listarMunicipios({ state: cliente.uf, page, pageSize: 100 })
           found = res.items.some(m =>
             m.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === nomeNormalizado
             && m.state === cliente.uf

@@ -20,7 +20,7 @@ import './listar-planos'
 import './resumo-dashboard'
 
 // ─── Tools internas — Escrita CRM ─────────────────────────────────────────────
-import './criar-ordem-servico'
+import './criar-chamado'
 import './registrar-interacao'
 import './atualizar-status-lead'
 import './avancar-lead'
@@ -64,9 +64,9 @@ import './enviar-cobranca-inadimplente'
 import './gerar-segunda-via-asaas'
 
 // ─── Tools do portal do cliente ───────────────────────────────────────────────
-import './buscar-ordem-servico'
-import './listar-ordens-servico'
-import './responder-ordem-servico'
+import './buscar-chamado'
+import './listar-chamados'
+import './responder-chamado'
 import './publicar-comunicado'
 import './enviar-mensagem-portal'
 import './listar-comunicados'
@@ -90,6 +90,7 @@ import './reemitir-nota-fiscal'
 import './consultar-notas-fiscais'
 import './cancelar-nota-fiscal'
 import './enviar-nota-fiscal-cliente'
+import './reenviar-email-nota-fiscal'
 import './buscar-tomadores-recorrentes'
 
 // ─── Tools externas ───────────────────────────────────────────────────────────

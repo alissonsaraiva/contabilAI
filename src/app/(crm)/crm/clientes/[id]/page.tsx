@@ -498,6 +498,12 @@ export default async function ClienteDetailPage({ params }: Props) {
 
         {/* ── Notas Fiscais ────────────────────────────────── */}
         <TabsContent value="nfse" className="m-0 focus-visible:outline-none">
+          {!isPJ && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-orange-status/20 bg-orange-status/10 px-4 py-3 text-sm text-orange-status">
+              <span className="material-symbols-outlined shrink-0 text-[18px]">info</span>
+              NFS-e não se aplica a pessoas físicas. Este cliente não possui CNPJ.
+            </div>
+          )}
           <NotasFiscaisTabContent
             clienteId={cliente.id}
             spedyConfigurado={spedyConfigurado}

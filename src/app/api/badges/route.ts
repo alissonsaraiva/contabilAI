@@ -11,7 +11,7 @@ export async function GET() {
   const [escalacoes, emails, chamados] = await Promise.all([
     prisma.escalacao.count({ where: { status: 'pendente' } }).catch(() => 0),
     prisma.interacao.count({ where: { tipo: 'email_recebido', respondidoEm: null } }).catch(() => 0),
-    prisma.ordemServico.count({ where: { status: 'aberta' } }).catch(() => 0),
+    prisma.chamado.count({ where: { status: 'aberta' } }).catch(() => 0),
   ])
 
   return NextResponse.json({ escalacoes, emails, chamados })

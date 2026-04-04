@@ -1,13 +1,15 @@
 /**
- * GET /api/portal/notas-fiscais/[id]/pdf — proxy autenticado para PDF da Spedy
- * Necessário porque o cliente não tem acesso direto à API Spedy
+ * GET /api/portal/notas-fiscais/[id]/pdf — proxy autenticado para PDF da NFS-e
+ *
+ * Estratégia: R2 (cópia salva ao autorizar) → fallback Spedy.
+ * Garante disponibilidade mesmo se a Spedy estiver temporariamente indisponível.
  */
 import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
-import { getSpedyClienteClient } from '@/lib/spedy'
+import { buscarPdfXml } from '@/lib/services/nfse/backup'
 import { logger } from '@/lib/logger'
 
 export async function GET(
@@ -26,7 +28,7 @@ export async function GET(
   const { id } = await params
   const nota = await prisma.notaFiscal.findUnique({
     where:   { id },
-    include: { empresa: true },
+    include: { empresa: { select: { spedyApiKey: true } } },
   })
 
   if (!nota || nota.clienteId !== clienteId) {
@@ -36,33 +38,23 @@ export async function GET(
     return NextResponse.json({ error: 'PDF não disponível' }, { status: 422 })
   }
 
-  const config = await prisma.escritorio.findFirst({
-    select: { spedyAmbiente: true },
-  })
-
-  const empresa = nota.empresa
-  if (!empresa?.spedyApiKey) {
-    return NextResponse.json({ error: 'Configuração fiscal indisponível' }, { status: 422 })
-  }
-
   try {
-    const spedyClient = getSpedyClienteClient({
-      spedyApiKey:   empresa.spedyApiKey,
-      spedyAmbiente: config?.spedyAmbiente,
+    const { pdfBuffer } = await buscarPdfXml({
+      id:      nota.id,
+      pdfUrl:  nota.pdfUrl,
+      xmlUrl:  nota.xmlUrl,
+      spedyId: nota.spedyId,
+      empresa: nota.empresa,
     })
 
-    const pdfUrl = spedyClient.pdfUrl(nota.spedyId)
-    const pdfResponse = await fetch(pdfUrl)
-
-    if (!pdfResponse.ok) {
-      logger.warn('portal-nfse-pdf-spedy-erro', { notaId: nota.id, status: pdfResponse.status })
-      return NextResponse.json({ error: 'PDF indisponível na Spedy' }, { status: 502 })
+    if (!pdfBuffer) {
+      logger.warn('portal-nfse-pdf-indisponivel', { notaId: nota.id })
+      return NextResponse.json({ error: 'PDF indisponível no momento — tente novamente em instantes' }, { status: 502 })
     }
 
-    const pdfBuffer = await pdfResponse.arrayBuffer()
     const numero = nota.numero ? `NFS-e-${nota.numero}` : 'NFS-e'
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type':        'application/pdf',
         'Content-Disposition': `inline; filename="${numero}.pdf"`,

@@ -1,5 +1,5 @@
 # AVOS — Documentação Completa do Sistema
-> **Gerado em**: 2026-04-03 | **Versão**: v3.10.10 | **Fonte da verdade**: código-fonte
+> **Gerado em**: 2026-04-03 | **Versão**: v3.10.16 | **Fonte da verdade**: código-fonte
 
 ---
 
@@ -14,10 +14,10 @@
 ### Principais responsabilidades
 
 - Gestão completa de leads → clientes (funil de onboarding com IA)
-- Cobrança recorrente integrada com Asaas (PIX, boleto, cartão)
+- Cobrança recorrente integrada com Asaas (PIX e boleto — cartão fora do escopo)
 - Emissão de NFS-e via Spedy com entrega multicanal
 - IA conversacional em 4 canais: WhatsApp, onboarding, CRM e portal
-- 38+ tools operacionais executáveis pela IA do CRM
+- 59 tools operacionais executáveis pela IA do CRM
 - RAG (Retrieval-Augmented Generation) com busca híbrida (embeddings + full-text)
 - Sistema de emails com inbox IMAP e threading completo
 - Assinatura eletrônica de contratos (Zapsign / Clicksign / DocuSeal)
@@ -92,8 +92,8 @@
 ```
 contabilAI/
 ├── prisma/
-│   ├── schema.prisma          # Schema unificado (~996 linhas, 30+ modelos)
-│   ├── migrations/            # 35+ arquivos SQL (histórico desde v1.0)
+│   ├── schema.prisma          # Schema unificado (~1010 linhas, 31+ modelos)
+│   ├── migrations/            # 36+ arquivos SQL (histórico desde v1.0)
 │   ├── seed.ts                # Seed de planos iniciais
 │   └── init-vectors.sql       # Setup pgvector + índices HNSW
 ├── scripts/
@@ -137,6 +137,7 @@ contabilAI/
 │   │   │   ├── asaas-sync.ts  # Sincronização de cobranças Asaas
 │   │   │   ├── interacoes.ts  # Registro de interações no feed
 │   │   │   ├── notas-fiscais.ts  # Emissão NFS-e Spedy
+│   │   │   ├── chamados.ts    # Orquestrador de resolução de chamado
 │   │   │   ├── classificar-documento.ts  # IA classifica docs
 │   │   │   └── nfse/          # Módulo completo de NFS-e
 │   │   ├── schemas/           # Schemas Zod de validação
@@ -162,19 +163,131 @@ contabilAI/
 
 ### 1. Fluxo de Onboarding (Lead → Cliente)
 
+#### Visão geral das etapas
+
 ```
-1. Prospect acessa widget público
-2. Chat com IA (Anthropic Claude Haiku)
-   └── IA coleta: nome, email, telefone, CNPJ, tipo empresa
-   └── IA recomenda plano baseado no perfil
-3. Lead criado via POST /api/onboarding/salvar-progresso (SEM AUTH)
-4. Etapas: iniciado → simulador → plano_escolhido → dados_preenchidos → revisao
-5. Contrato gerado (PDF renderizado via puppeteer/wkhtmltopdf)
-6. Lead recebe link de assinatura (Zapsign ou Clicksign)
-7. Webhook de assinatura → status: assinado
-8. Lead promovido a Cliente automaticamente
-9. Asaas provisionado: createCustomer + createSubscription
-10. Magic link enviado para portal do cliente
+stepAtual  status                Página                         Descrição
+─────────────────────────────────────────────────────────────────────────────
+0          iniciado              /onboarding                    Landing + chat IA
+1          chat_iniciado         /onboarding                    Chat em andamento
+2          simulador             /onboarding/simulador          Simulador financeiro
+3          plano_escolhido       /onboarding/plano              Seleção de plano
+4          dados_preenchidos     /onboarding/dados              Formulário pessoal/empresa
+5          revisao               /onboarding/revisao            Vencimento + forma de pagamento
+6          contrato_enviado      /onboarding/contrato           Aceite + envio para assinatura
+6          assinado              /onboarding/confirmacao        Aguardando ativação
+—          convertido            —                              Cliente criado (webhook ZapSign)
+```
+
+#### Fluxo detalhado
+
+```
+1. Prospect acessa widget público (avos.digital/onboarding)
+2. Chat com IA (Claude Haiku 4.5)
+   └── Prompt personalizado pelo escritório (iaPromptOnboarding no CRM)
+   └── IA coleta: nome, email/telefone, tipo de empresa, necessidades
+   └── Cria Lead via POST /api/leads com contatoEntrada validado (email ou telefone com DDD)
+   └── Rate limit: 10 leads/IP/hora
+3. Simulador: prospect escolhe regime tributário, faturamento estimado, funcionários
+4. Recomendação de plano: POST /api/onboarding/recomendar-plano
+   └── IA (Claude Haiku) analisa e sugere: essencial | profissional | empresarial | startup
+   └── Timeout: 10s com AbortController; fallback estático se IA falhar
+   └── Rate limit: 5 recomendações/IP/hora
+5. Dados pessoais/empresa: /onboarding/dados
+   └── Campos obrigatórios: nome completo (≥2 palavras), CPF (com dígito verificador), e-mail, telefone
+   └── Campos condicionais: CNPJ (com dígito verificador) — planos profissional/empresarial/startup
+   └── Auto-save a cada 1.5s via useAutoSave() → POST /api/onboarding/salvar-progresso
+       └── Retry automático: 2 tentativas com backoff (2s, 4s) em caso de falha de rede
+   └── Lookup automático: CEP (8s timeout) e CNPJ (preenchimento automático via useCnpj)
+   └── Restaura dados ao recarregar: GET /api/onboarding/lead/:id (público, sem auth)
+6. Revisão: escolha de vencimento (dias configurados no escritório) e forma de pagamento
+7. Contrato: exibição do contrato com dados reais do lead + escritório
+   └── Aceite de checkbox obrigatório para habilitar botão
+   └── POST /api/leads/:id/contrato/enviar → cria contrato + envia para ZapSign/Clicksign
+8. Confirmação: página aguardando assinatura
+   └── Estado "aguardando": instrui verificar e-mail para assinar
+   └── Estado "assinado" (legado): exibe link para download do PDF assinado
+```
+
+#### APIs do Onboarding
+
+| Endpoint | Método | Auth | Rate Limit | Descrição |
+|----------|--------|------|-----------|-----------|
+| `/api/leads` | POST | Não | 10/IP/hora | Cria lead; valida email ou telefone (DDD) |
+| `/api/onboarding/lead/:id` | GET | Não | 60/IP/hora | Lê dados do lead (wizard público) |
+| `/api/onboarding/salvar-progresso` | POST | Não | 120/IP/hora | Salva etapa do wizard; merge de dadosJson |
+| `/api/onboarding/recomendar-plano` | POST | Não | 5/IP/hora | IA recomenda plano; timeout 10s |
+| `/api/onboarding/chat` | POST | Não | 30 msgs/sessão/hora | Chat IA de onboarding |
+| `/api/onboarding/config` | GET | Não | — | Config pública do escritório para o widget |
+| `/api/leads/:id/contrato/enviar` | POST | Não | — | Gera contrato + envia para assinatura eletrônica |
+| `/api/webhooks/zapsign` | POST | Header X-ZapSign-Secret | — | Processa assinatura; converte Lead → Cliente |
+
+**⚠️ Endpoint `/api/leads/:id` (GET/PUT) requer autenticação** — nunca usar direto no wizard público. Usar sempre `/api/onboarding/lead/:id` (GET) e `/api/onboarding/salvar-progresso` (POST).
+
+#### Validações implementadas
+
+**Frontend (dados/page.tsx)**:
+- Nome: mínimo 2 palavras
+- CPF: comprimento 11 dígitos + algoritmo de dígito verificador (detecta CPFs falsos como `111.111.111-11`)
+- CNPJ: comprimento 14 dígitos + algoritmo de dígito verificador
+- E-mail: regex básico de formato
+- Telefone: mínimo 10 dígitos (com DDD)
+- CEP: 8 dígitos → lookup automático com AbortController de 8s
+
+**Backend (POST /api/leads)**:
+- `contatoEntrada`: formato de e-mail válido OU telefone com DDD (≥10 dígitos numéricos)
+- Campos opcionais com max() para evitar payloads abusivos
+
+**Webhook ZapSign (conversão Lead→Cliente)**:
+- Valida presença e formato de nome, CPF (11 dígitos), e-mail e telefone antes de tentar criar cliente
+- Se dados faltam: marca contrato como assinado + dispara alerta Sentry operacional + retorna 200 (sem retry inútil)
+- Lead com dados incompletos requer intervenção manual pelo contador
+
+#### Segurança do Webhook ZapSign
+
+```
+Autenticação: header X-ZapSign-Secret (preferencial) ou ?secret= (query param, legado compatível)
+Idempotência: check de status DENTRO da $transaction previne race conditions
+Race P2002: recuperação via $transaction atômica (não duas queries separadas)
+Dados pessoais: CPF/email/nome NÃO enviados como extra no Sentry (LGPD)
+```
+
+**Configuração no painel ZapSign**: URL `https://seudominio/api/webhooks/zapsign` com header `X-ZapSign-Secret: {valor_do_zapsignWebhookSecret}`. Query param `?secret=` ainda funciona por compatibilidade mas é desaconselhado (aparece em logs de acesso).
+
+#### Conversão Lead → Cliente (webhook ZapSign)
+
+```
+1. ZapSign dispara POST após todos assinarem (event_type=doc_signed, status=signed)
+2. Verifica secret de autenticação
+3. Localiza Contrato pelo zapsignDocToken
+4. Check de idempotência DENTRO da $transaction:
+   └── Já processado + cliente existe → retorna 200 imediatamente
+   └── Já processado + cliente NÃO existe → retenta conversão
+5. Valida dados obrigatórios (nome, CPF, e-mail, telefone)
+   └── Se faltam dados → marca assinado + alerta Sentry + retorna 200
+6. $transaction atômica:
+   └── Atualiza Contrato (status=assinado, assinadoEm, pdfUrl)
+   └── Atualiza Lead (status=assinado, stepAtual=6)
+   └── cria Cliente via criarClienteDeContrato()
+   └── Vincula clienteId no Contrato
+7. P2002 (unique constraint): recuperação atômica via $transaction
+8. Efeitos colaterais (fora da transaction):
+   └── indexarAsync('cliente') → RAG
+   └── enviarBoasVindas() → e-mail de boas-vindas com magic link do portal
+   └── provisionarClienteAsaas() → createCustomer + createSubscription
+```
+
+#### Auto-save (useAutoSave hook)
+
+```typescript
+// src/hooks/use-auto-save.ts
+useAutoSave(leadId, payloadJson, delay=1500)
+// ↓
+// Debounce 1.5s após última alteração de formulário
+// POST /api/onboarding/salvar-progresso com { leadId, ...payload }
+// Retry: 2 tentativas com backoff (2s × (attempt+1))
+// Estados: idle | saving | saved | error
+// Indicador visual na tela: "Salvando..." / "Salvo automaticamente"
 ```
 
 ### 2. Fluxo de WhatsApp
@@ -211,10 +324,16 @@ contabilAI/
 6. Webhook /api/webhooks/spedy/[token]:
    └── autorizada → atualiza status, salva numero/xml/pdf URLs
    └── rejeitada → registra erro, permite reemissão
-7. Se autorizada: entregar ao cliente
-   └── WhatsApp: sendMedia (PDF)
-   └── Email: attachment SMTP
-   └── Portal: disponível na tab de NFS-e
+7. Se autorizada: onNotaAutorizada()
+   a. Salva PDF+XML no R2 (backup local — R2-first, Spedy fallback)
+   b. Indexa no RAG
+   c. Notifica equipe CRM
+   d. Se spedyEnviarAoAutorizar = true → entregarNotaCliente(canal)
+      └── WhatsApp: texto + PDF + XML (retry 3x com backoff 2s)
+      └── Email: assunto + PDF + XML em anexo
+      └── Portal: Chamado visível no portal (visivelPortal: true) +
+                  nota disponível em /portal/notas-fiscais (PDF e XML)
+8. Portal: badge "NFS-e" no header conta notas autorizadas nos últimos 30 dias
 ```
 
 ### 4. Fluxo de Email (IMAP Sync)
@@ -236,7 +355,40 @@ contabilAI/
 - `getImapConfig()` retorna `null` (sem throw) se credenciais ausentes — sync pula silenciosamente
 - `testarConexaoImap()` disponível para diagnóstico via UI
 
-### 5. Fluxo de Escalação
+### 5. Fluxo de Chamado (Suporte)
+
+```
+ABERTURA:
+1. Cliente abre chamado no portal (/portal/suporte/chamados/nova)
+   └── Ou operador/IA cria via CRM / tool criarChamado()
+2. Chamado criado com status: aberta, origem: cliente|crm|agente
+
+ATENDIMENTO (CRM /crm/chamados/[id]):
+3. Operador visualiza timeline: solicitação + resposta + notas internas
+4. Pode atualizar status, responder e/ou adicionar nota interna em um submit:
+   └── status → salva no Chamado
+   └── resposta → visível ao cliente no portal
+   └── nota_interna → cria ChamadoNota (só CRM, nunca enviado ao cliente)
+   └── Label do botão muda dinamicamente: Salvar | Salvar nota | Enviar resposta | Resolver chamado
+
+RESOLUÇÃO (status = resolvida):
+5. PATCH multipart com canais de entrega opcionais:
+   └── Portal: documento disponível automaticamente
+   └── Email: SMTP com PDF como anexo
+   └── WhatsApp: sendMedia para titular + sócios selecionados
+6. Push notification para cliente no portal
+7. Interação registrada no histórico (tipo: os_resolvida)
+
+AVALIAÇÃO:
+8. Cliente avalia chamado no portal (1-5 estrelas + comentário)
+```
+
+**Modelo `ChamadoNota`** (`chamado_notas`):
+- `chamadoId`, `conteudo`, `autorId`, `criadoEm`
+- Exibida na timeline com fundo âmbar e ícone de cadeado
+- Nunca exposta no portal do cliente
+
+### 6. Fluxo de Escalação
 
 ```
 1. IA detecta caso complexo → ##HUMANO## no texto
@@ -249,21 +401,75 @@ contabilAI/
 8. IA retoma conversa se necessário
 ```
 
+**Badge IA/Humano no portal** (v3.10.12): `portal-clara.tsx` atualiza o indicador de status a cada 8s via polling do GET `/api/portal/chat`. O campo `pausada` é lido nos dois sentidos — quando operador assume **e** quando devolve para IA.
+
 ### 6. Fluxo de Cobrança (Asaas)
 
 ```
-1. Cliente provisionado: createCustomer()
-2. Subscription criada: createSubscription() (mensal)
+1. Cliente provisionado: createCustomer() → salva asaasCustomerId
+2. Subscription criada: createSubscription() (cycle=MONTHLY obrigatório) → salva asaasSubscriptionId
 3. Asaas gera cobranças automaticamente
-4. Webhook /api/webhooks/asaas:
-   └── PAYMENT_RECEIVED → status: ativo
-   └── PAYMENT_OVERDUE → status: inadimplente
+4. Webhook /api/webhooks/asaas (header: access_token):
+   └── PAYMENT_CREATED   → upsert CobrancaAsaas + enriquece PIX/boleto em background
+   └── PAYMENT_RECEIVED  → marca RECEIVED, reativa inadimplente se aplicável
+   └── PAYMENT_CONFIRMED → idem RECEIVED (Asaas envia um ou outro por forma de pagamento)
+   └── PAYMENT_OVERDUE   → status: inadimplente + notifica equipe
+   └── PAYMENT_UPDATED   → atualiza data/valor + re-enriquece
+   └── PAYMENT_DELETED   → cancela cobrança local
+   └── PAYMENT_REFUNDED  → marca REFUNDED
 5. Se inadimplente:
    └── Automático: notificar operador
    └── Manual: operador usa ferramenta de cobrança
    └── IA usa enviarCobrancaInadimplente()
-6. Segunda via: gerarSegundaViaAsaas() → novo QR code PIX / código barras
+6. Segunda via: gerarSegundaVia() → cria nova cobrança avulsa no Asaas + cancela original
 ```
+
+**Comportamentos importantes da API Asaas (validados em sandbox 2026-04-03):**
+- `cycle` é **obrigatório** na criação de subscription. O código usa sempre `MONTHLY`.
+- `value` deve ser **> 0** — API retorna `invalid_value` para valor zero.
+- Cancelar cobrança: usar **`DELETE /payments/{id}`** (retorna `{deleted:true}`). O endpoint `POST /payments/{id}/cancel` retorna 404 — corrigido no código.
+- `GET /payments/{id}/pixQrCode` funciona mesmo para cobranças BOLETO (Asaas gera QR para tudo). O código verifica `forma === 'pix'` antes de chamar — correto.
+- `GET /payments/{id}/identificationField` retorna HTTP 400 para cobranças PIX.
+- CPF/CNPJ duplicado: sandbox permite; produção pode rejeitar. Idempotência garantida via `asaasCustomerId` persistido antes da subscription.
+- `nextDueDate` na resposta de subscription = vencimento da **próxima** cobrança após a primeira gerada.
+- Webhook header: Asaas envia no header **`access_token`**. O código aceita também `asaas-access-token` como fallback.
+- `invoiceUrl` é **público** (sem auth) — link direto de pagamento. Pode ser enviado ao cliente via WhatsApp sem precisar do portal.
+- `GET /payments?customer=...&status=PENDING` — filtro por status funciona.
+
+**Notificações nativas do Asaas (automáticas por customer — email e SMS):**
+| Evento | scheduleOffset | Destinatários |
+|---|---|---|
+| `PAYMENT_CREATED` | 0 | Cliente (email+SMS) |
+| `PAYMENT_DUEDATE_WARNING` | 10 dias antes | Cliente (email+SMS) |
+| `PAYMENT_DUEDATE_WARNING` | 0 (dia do vencimento) | Cliente (email+SMS) |
+| `SEND_LINHA_DIGITAVEL` | 0 | Cliente (email+SMS) — boleto |
+| `PAYMENT_OVERDUE` | 0 | Escritório + cliente (email+SMS) |
+| `PAYMENT_OVERDUE` | 7 dias após | Cliente (email+SMS) |
+| `PAYMENT_RECEIVED` | 0 | Escritório + cliente (email+SMS) |
+| `PAYMENT_UPDATED` | 0 | Cliente (email+SMS) |
+
+- `scheduleOffset` válidos para `DUEDATE_WARNING`: 5, 10, 15, 30 dias (3 dias não suportado)
+- WhatsApp nativo do Asaas: desabilitado por padrão (`whatsappEnabledForCustomer: false`) — requer plano adicional
+- `notificationDisabled: true` no customer desabilita todos os emails/SMS do Asaas
+
+**Divisão de responsabilidades (decisão fechada):**
+- **Asaas cuida:** todas as notificações automáticas ao cliente (email D-10, D-0, D+7, confirmação de pagamento)
+- **AVOS cuida:** sincronizar status no CRM via webhook + notificação interna da equipe (bell) quando inadimplente
+- **Operator/IA:** tools manuais `enviarCobrancaInadimplente` e `enviarLembreteVencimento` para WhatsApp on-demand
+- **`buscarCobrancaAberta` (IA):** retorna cobrança PENDING/OVERDUE com PIX/boleto. Quando não há cobrança em aberto, retorna também o último pagamento recebido (RECEIVED) com valor e data — permite confirmar pagamentos via WhatsApp/portal ("confirmou meu pagamento?")
+- **Cron D-3 automático:** ❌ não implementar — Asaas cobre
+- **Multa/juros:** ❌ não configurar por enquanto
+
+**Telas implementadas (auditado 2026-04-03):**
+- `src/components/crm/cliente-financeiro-tab.tsx` — aba Financeiro no detalhe do cliente: resumo (4 cards), alterar vencimento/forma, QR code PIX, código de barras boleto, segunda via, histórico 24 cobranças, sync manual, provisionar
+- `src/app/(crm)/crm/financeiro/inadimplentes/page.tsx` + `src/components/crm/inadimplentes-client.tsx` — lista de inadimplentes com cobrança individual e em lote (3 níveis: gentil/urgente/reforço) via WhatsApp
+- `src/components/portal/portal-financeiro-client.tsx` — portal do cliente: cobrança em aberto com QR/boleto, alerta PIX expirado, segunda via, histórico 12 cobranças
+- Badge "Inadimplente" na lista de clientes: ✅ já renderizado via `STATUS_CLIENTE_COLORS` (vermelho)
+- Filtro por status=inadimplente na lista de clientes: ✅ search bar inclui todos os status automaticamente
+- Config Asaas em `/crm/configuracoes/integracoes`: ✅ campos API key, ambiente (sandbox/producao), webhook token
+
+**Único gap restante:**
+- Widget de inadimplência no dashboard CRM (`/crm/dashboard`) — sem dados financeiros/Asaas atualmente
 
 ### 7. Fluxo de RAG (Indexação + Busca)
 
@@ -328,6 +534,26 @@ BUSCA (Híbrida):
 | `/api/crm/notas-fiscais/[id]/reemitir` | POST | Reemitir |
 | `/api/crm/notas-fiscais/[id]/entregar` | POST | Enviar ao cliente |
 
+### CRM — Chamados
+
+| Rota | Método | Descrição |
+|------|--------|-----------|
+| `/api/crm/chamados` | GET/POST | Listar / criar chamado |
+| `/api/crm/chamados/[id]` | GET | Detalhe do chamado |
+| `/api/crm/chamados/[id]` | PATCH (JSON) | Atualizar status, resposta, nota interna |
+| `/api/crm/chamados/[id]` | PATCH (multipart) | Resolver com arquivo + canais de entrega |
+
+**PATCH JSON aceita:**
+- `status` — novo status (`em_andamento`, `aguardando_cliente`, `resolvida`, `cancelada`)
+- `resposta` — texto visível ao cliente no portal
+- `nota_interna` — cria um `ChamadoNota` (só visível no CRM, nunca enviado ao cliente)
+- `prioridade` — `baixa`, `media`, `alta`
+
+**PATCH multipart** (resolução completa):
+- `resposta`, `categoria`, `arquivo` (File) ou `documento_id/url/nome/mime` (doc existente)
+- `canal_email=1`, `email_assunto`, `email_corpo`
+- `canal_whatsapp=1`, `wpp_mensagem`, `wpp_destinatarios` (JSON array de sócios)
+
 ### CRM — Email
 
 | Rota | Método | Descrição |
@@ -348,6 +574,12 @@ BUSCA (Híbrida):
 | `/api/agente/acoes` | GET | Histórico de ações executadas |
 | `/api/agente/agendamentos` | GET/POST | Crons do agente |
 
+### CRM — UI em Tempo Real
+
+| Rota | Método | Descrição |
+|------|--------|-----------|
+| `/api/badges` | GET | Contadores sidebar: escalações pendentes, emails, chamados abertos |
+
 ### Webhooks Recebidos
 
 | Rota | Validação | Descrição |
@@ -367,7 +599,9 @@ BUSCA (Híbrida):
 | `/api/portal/documentos` | Portal session | Listar/upload documentos |
 | `/api/portal/documentos/[id]/download` | Portal session | Download com URL assinada R2 |
 | `/api/portal/notas-fiscais` | Portal session | Listar NFS-e |
-| `/api/portal/ordens-servico` | Portal session | Listar/criar chamados |
+| `/api/portal/notas-fiscais/[id]/pdf` | Portal session | Download PDF (R2-first → Spedy fallback) |
+| `/api/portal/notas-fiscais/[id]/xml` | Portal session | Download XML (R2-first → Spedy fallback) |
+| `/api/portal/chamados` | Portal session | Listar/criar chamados |
 | `/api/portal/chat` | Portal session | Clara (IA) |
 | `/api/portal/push/subscribe` | Portal session | Registrar web push |
 
@@ -377,7 +611,7 @@ BUSCA (Híbrida):
 |------|--------------------|-----------|
 | `/api/email/sync` | A cada 5 min | Sincronizar IMAP |
 | `/api/whatsapp/processar-pendentes` | A cada minuto | Processar fila WA |
-| `/api/cron/reconciliar-notas` | Diário | Reconciliar status NFS-e com Spedy |
+| `/api/cron/reconciliar-notas` | A cada hora (`0 * * * *`) | Fallback de reconciliação de NFS-e (webhook é o canal principal) |
 | `/api/agente/cron` | Conforme `AgendamentoAgente` | Disparar agendamentos do agente |
 
 ---
@@ -386,16 +620,60 @@ BUSCA (Híbrida):
 
 ### Asaas (Cobrança)
 - **Tipo**: REST API externa
-- **Auth**: `asaasApiKey` salvo por escritório no banco
-- **Webhook**: `asaasWebhookToken` + `/api/webhooks/asaas`
+- **Auth**: `asaasApiKey` salvo por escritório no banco (`asaasAmbiente`: `sandbox` | `producao`)
+- **Webhook**: `asaasWebhookToken` no header `access_token` → `/api/webhooks/asaas`
+- **Formas suportadas**: apenas PIX e boleto (cartão fora do escopo)
 - **Ponto de falha**: Asaas offline → cobranças não atualizadas. Sem retry automático.
 - **Arquivo principal**: `src/lib/asaas.ts`, `src/lib/services/asaas-sync.ts`
+- **Cancelar cobrança**: `DELETE /payments/{id}` (não usar `POST /payments/{id}/cancel` — retorna 404)
+- **Cron D-3**: pendente de implementação em `/api/cron/lembrete-cobranca`
+- **Provisionar manualmente**: `POST /api/crm/clientes/[id]/provisionar` — idempotente, reutiliza IDs existentes
 
 ### Spedy (NFS-e)
 - **Tipo**: REST API por empresa (cada empresa tem sua própria `spedyApiKey`)
+- **Autenticação**: header `X-Api-Key` (não `Authorization`)
 - **Webhook**: token = SHA-256 da API key → `/api/webhooks/spedy/[token]`
-- **Ponto de falha**: Webhook pode chegar fora de ordem; sem mecanismo de retry explícito
+- **Ponto de falha**: Webhook pode chegar fora de ordem; cron de reconciliação atua como fallback
+- **Reconciliação**: cron `0 * * * *` → `/api/cron/reconciliar-notas` — dois batches:
+  - **Batch 1**: notas em `enviando` sem `spedyId` há >10 min → marca `erro_interno` + abre chamado
+  - **Batch 2**: notas em `enviando`/`processando` com `spedyId` há >10 min → consulta status atual na Spedy via `consultarNfse`, constrói payload sintético e repassa para `processarWebhookSpedy`; ID deterministico (`reconciliacao-{notaId}-{spedyId}`) garante idempotência contra duplo processamento
+- **Monitoramento**: Sentry Cron Monitoring (`cron-reconciliar-notas`) — alerta se o cron parar de rodar
+- **Limite de paginação**: `pageSize` máximo = **100** por página (API rejeita valores maiores)
+- **Municípios CE (sandbox)**: 15 cidades — Aquiraz, Eusébio, Fortaleza, Horizonte, Ipu, Jaguaruana, Juazeiro do Norte, Missão Velha, Pacajus, Russas, Sobral, Tianguá, Ubajara, Viçosa do Ceará, Várzea Alegre
 - **Arquivo principal**: `src/lib/services/notas-fiscais.ts`, `src/lib/services/nfse/`
+- **Cobertura de município**: `GET /api/crm/clientes/[id]/spedy` retorna `municipioIntegrado: boolean | null`. Estratégia: se cliente tem CEP → ViaCEP → código IBGE → `verificarMunicipio(ibge)` (match exato); fallback: scan paginado por nome normalizado com cache 24h por UF. Apenas informativo — não bloqueia emissão.
+- **`useCep` hook**: `src/hooks/use-cep.ts` — auto-fill de endereço via ViaCEP ao digitar 8 dígitos do CEP. Retorna `{ logradouro, bairro, cidade, uf, cep, ibge }`. Usado em: `novo-cliente-drawer.tsx`, `editar-cliente-drawer.tsx`, `portal-contato-edit.tsx`.
+- **Webhook Spedy** (obrigatório para produção): `GET /api/crm/configuracoes/spedy/webhook` — checa se está registrado/ativo na Spedy; `POST` — registra ou reativa. Sem webhook, autorizações chegam apenas via cron (latência de até 1h). Registrar uma única vez por conta Owner.
+- **Reenvio de e-mail ao tomador**: `POST /api/crm/notas-fiscais/[id]/reenviar-email` — chama `POST /service-invoices/{id}/resend-email` na Spedy. Requer nota `autorizada` + `tomadorEmail` preenchido. Tool IA: `reenviarEmailNotaFiscal`.
+- **Notas presas sem spedyId**: cron de reconciliação detecta notas `enviando` com `spedyId = null` após 10 min → marca `erro_interno` + abre Chamado de escalação automática.
+- **Entrega ao cliente (canal portal)**: cria `Chamado` com `visivelPortal: true` notificando que a NFS-e está disponível. O cliente baixa PDF e XML diretamente em `/portal/notas-fiscais`. Badge "NFS-e" aparece no header do portal para notas dos últimos 30 dias.
+- **Download PDF/XML no portal**: endpoints `GET /api/portal/notas-fiscais/[id]/pdf` e `/xml` usam estratégia R2-first → fallback Spedy. Garante download mesmo se a Spedy estiver offline, desde que o backup R2 tenha sido salvo na autorização.
+- **Backup PDF/XML no R2**: `salvarPdfXmlNoR2()` em `src/lib/services/nfse/backup.ts` — chamado imediatamente ao autorizar. URLs salvas em `notaFiscal.pdfUrl` e `xmlUrl` como chaves R2 (não URLs diretas da Spedy).
+
+#### Comportamento dos endpoints — validado em 2026-04-03 (sandbox)
+
+| Endpoint | Método | Body | Observação |
+|---|---|---|---|
+| `/service-invoices` | POST | JSON completo | `taxationType` aceito: `taxationInMunicipality`, `exemptFromTaxation`, `notSubjectToTaxation`, `taxationOutsideMunicipality` |
+| `/service-invoices/{id}` | GET | — | `processingDetail` é `null` quando status = `enqueued`; usar `?.` |
+| `/service-invoices/{id}` | DELETE | `{ Reason: string }` | Campo é `Reason` (maiúsculo); `justification` é rejeitado |
+| `/service-invoices/{id}/issue` | POST | `{}` | Body vazio `{}` obrigatório; sem body retorna 400 |
+| `/service-invoices/{id}/check-status` | POST | — | Funciona sem body |
+| `/service-invoices/{id}/pdf` | GET | — | Não exige `X-Api-Key`; retorna 400 se nota não estiver `authorized` |
+| `/service-invoices/{id}/xml` | GET | — | Idem PDF |
+| `/service-invoices/cities` | GET | — | `pageSize` máx 100; resposta usa chave `items` (não `data`) |
+| `/companies` | GET/POST | — | `taxRegime` pode retornar `null`; `apiCredentials.apiKey` vem mascarado na listagem |
+| `/webhooks` | GET | — | Resposta: `{ items: SpedyWebhook[] }` |
+
+#### Campos da resposta de NFS-e — divergências com a interface TypeScript
+
+| Campo API | Interface TS | Observação |
+|---|---|---|
+| `number: 0` | `number \| null` | API retorna `0` (não `null`) quando nota ainda não tem número — usar `\|\| null` ao salvar |
+| `rps.number: 0` | `number` | Idem — `0` = ainda não protocolado |
+| `rps.series: null` | `string` | Pode ser `null` |
+| `processingDetail.on` | não mapeado | Campo extra na resposta, ignorado sem impacto |
+| `authorization.date/protocol: null` | `string` | Null quando não autorizado ainda |
 
 ### Evolution API (WhatsApp)
 - **Tipo**: REST API self-hosted (provavelmente na VPS ou terceiro)
@@ -535,20 +813,20 @@ git push origin v3.x.y  # CI só dispara com tag v*
 | Canal | Arquivo | Contexto | Tools | Escalação |
 |-------|---------|---------|-------|-----------|
 | **Onboarding** | `ask.ts` | Lead + planos | Limitadas (criar lead) | Não |
-| **CRM** | `ask.ts` + `agent.ts` | Cliente + global | 38+ tools | Sim |
-| **Portal (Clara)** | `ask.ts` | Cliente + comunicados | Limitadas (OS, docs) | `##HUMANO##` → Escalação |
+| **CRM** | `ask.ts` + `agent.ts` | Cliente + global | 60 tools | Sim |
+| **Portal (Clara)** | `ask.ts` | Cliente + comunicados | Leitura + docs (links de download) | `##HUMANO##` → Escalação |
 | **WhatsApp** | `ask.ts` | Cliente/lead + histórico 20 msgs | Moderadas | `##HUMANO##` → Escalação |
 
-### Agente Operacional — 38 Tools
+### Agente Operacional — 60 Tools
 
-**Leitura de Dados (15)**:
-`buscarDadosCliente`, `buscarDadosOperador`, `consultarDados`, `buscarHistorico`, `buscarDocumentos`, `buscarOrdenServico`, `buscarEmailInbox`, `buscarTomadoresRecorrentes`, `buscarCobrancaAberta`, `listarLeadsInativos`, `listarComunicados`, `listarPlanos`, `listarAgendamentos`, `listarDocumentosPendentes`, `listarEmailsPendentes`
+**Leitura de Dados (17)**:
+`buscarDadosCliente`, `buscarDadosOperador`, `consultarDados`, `buscarHistorico`, `buscarDocumentos`, `buscarChamado`, `buscarEmailInbox`, `buscarTomadoresRecorrentes`, `buscarCobrancaAberta`, `listarLeadsInativos`, `listarComunicados`, `listarPlanos`, `listarAgendamentos`, `listarDocumentosPendentes`, `listarEmailsPendentes`, `listarChamados`, `verificarStatusContrato`
 
-**Escrita/Mutação (20)**:
-`criarLead`, `criarCliente`, `atualizarDadosCliente`, `atualizarStatusLead`, `avancarLead`, `criarOrdenServico`, `responderOrdenServico`, `registrarInteracao`, `enviarEmail`, `enviarWhatsappCliente`, `enviarWhatsappLead`, `enviarWhatsappSocio`, `enviarDocumentoWhatsapp`, `enviarMensagemPortal`, `enviarComunicadoSegmentado`, `enviarCobrancaInadimplente`, `enviarLembreteVencimento`, `enviarNotaFiscalCliente`, `reativarCliente`, `transferirCliente`
+**Escrita/Mutação (24)**:
+`criarLead`, `criarCliente`, `atualizarDadosCliente`, `atualizarStatusLead`, `avancarLead`, `criarChamado`, `responderChamado`, `registrarInteracao`, `enviarEmail`, `enviarWhatsAppCliente`, `enviarWhatsAppLead`, `enviarWhatsAppSocio`, `enviarDocumentoWhatsApp`, `enviarMensagemPortal`, `enviarComunicadoSegmentado`, `enviarCobrancaInadimplente`, `enviarLembreteVencimento`, `enviarNotaFiscalCliente`, `reativarCliente`, `transferirCliente`, `gerarContrato`, `enviarContrato`, `aprovarDocumento`, `publicarComunicado`
 
-**NFS-e (5)**:
-`emitirNotaFiscal`, `consultarNotasFiscais`, `reemitirNotaFiscal`, `cancelarNotaFiscal`, `verificarConfiguracaoNfse`
+**NFS-e (8)**:
+`emitirNotaFiscal`, `consultarNotasFiscais`, `reemitirNotaFiscal`, `cancelarNotaFiscal`, `verificarConfiguracaoNfse`, `enviarNotaFiscalCliente`, `reenviarEmailNotaFiscal`, `buscarTomadoresRecorrentes`
 
 **Cobrança (3)**:
 `gerarSegundaViaAsaas`, `buscarCobrancaAberta`, `gerarRelatorioInadimplencia`
@@ -560,7 +838,10 @@ git push origin v3.x.y  # CI só dispara com tag v*
 `responderEscalacao`, `convidarSocioPortal`
 
 **IA/Análise (3)**:
-`resumirDocumento`, `classificarEmail`, `resumoFunil`
+`resumirDocumento`, `classificarEmail`, `resumirFunil`
+
+**Documentos (1)**:
+`anexarDocumentoChat` _(retorna link de download para WhatsApp/portal — não envia via WA)_
 
 **Misc (3)**:
 `publicarRelatorio`, `resumoDashboard`, `buscarCnpjExterno`
@@ -577,6 +858,7 @@ git push origin v3.x.y  # CI só dispara com tag v*
 | `comunicado` | Publicações e alertas |
 | `escritorio` | Dados do escritório (endereço, termos, contatos) |
 | `agente` | Log de ações executadas (AgenteAcao) |
+| `conversa` | Histórico de ConversaIA (WhatsApp, portal, onboarding) |
 
 ### Configurações da IA (por escritório)
 
@@ -607,7 +889,8 @@ Escritorio (1)
     │       ├── Empresa (1) — PJ obrigatória
     │       │       └── Socio (N) — sócios com acesso portal
     │       ├── Documento (N)
-    │       ├── OrdemServico (N)
+    │       ├── Chamado (N)
+    │       │       └── ChamadoNota (N) — notas internas do escritório
     │       ├── CobrancaAsaas (N)
     │       ├── NotaFiscal (N)
     │       ├── Interacao (N)
@@ -628,7 +911,7 @@ StatusCliente: ativo | inadimplente | suspenso | cancelado
 StatusNotaFiscal: rascunho | enviando | processando | autorizada | rejeitada |
                   cancelada | erro_interno
 
-StatusOS: aberta | em_andamento | aguardando_cliente | resolvida | cancelada
+StatusOS (Chamado): aberta | em_andamento | aguardando_cliente | resolvida | cancelada
 
 StatusEscalacao: pendente | em_atendimento | resolvida
 
@@ -660,7 +943,7 @@ CanalEscalacao: whatsapp | onboarding | portal
 ### Identificadas no código
 
 1. **`src/middleware.ts` descontinuado** — coexiste com `src/proxy.ts`, causa build error se ativado
-2. **Sem retry automático** para Spedy webhooks — se o servidor cair durante emissão, NFS-e fica em `enviando` para sempre
+2. **Sem retry automático** para Spedy webhooks — se o servidor cair durante emissão, NFS-e fica em `enviando`; mitigado pelo cron de reconciliação (1h) e detecção de notas sem `spedyId`
 3. **Lock de WhatsApp** (`processandoEm`) não tem timeout — se a instância cair mid-processing, conversa fica bloqueada indefinidamente
 4. **Sem health check** para Evolution API — instância desconectada não é detectada proativamente
 5. **DocuSeal self-hosted** (`82.25.79.193:32825`) — single point of failure na VPS
@@ -678,6 +961,29 @@ CanalEscalacao: whatsapp | onboarding | portal
 | v3.10.9 | Mensagens duplicadas no escalonamento WhatsApp | `enviar-resposta.ts`: removida duplicação do histórico de mensagens |
 | v3.10.9 | Links de documentos no chat do portal malformados (`https://api/...`) | `buscar-documentos.ts`: usa `NEXT_PUBLIC_PORTAL_URL` para construir URL completa |
 | v3.10.9 | Documentos excluídos aparecendo no picker e nos resultados | `buscar-documentos.ts`, `crm/documentos`, `crm/clientes/[id]/documentos`: adiciona `deletadoEm: null` |
+| v3.10.12 | IA do portal não conseguia enviar documentos ao cliente | `classificarIntencao` agora recebe `canal`; portal usa `buscarDocumentos` em vez de `enviarDocumentoWhatsApp` |
+| v3.10.12 | Badge IA/Humano no portal não revertia ao devolver para IA | Polling 8s do `portal-clara` agora lê `pausada` nos dois sentidos |
+| v3.10.12 | Canal "portal" sem label nos atendimentos e responder | `[id]/page.tsx` e `escalacao-responder.tsx` corrigidos |
+| v3.10.12 | Badges sidebar/header estáticos após carregamento | `useBadges` hook com polling 30s via `/api/badges` |
+| v3.10.12 | Emails CRM limitados a 500 registros mais antigos | Substituído por janela de tempo (90/180/365 dias) |
+| v3.10.13 | `emissao_documento` exibido cru na tela de chamado | Adicionado ao mapa `TIPO_CHAMADO` em `/crm/chamados/[id]/page.tsx` |
+| v3.10.13 | Refatoração: `OrdemServico` → `Chamado` | Modelo, rotas, componentes e service renomeados; tabela mantém `ordens_servico` via `@@map` |
+| v3.10.13 | Notas internas de chamado | Novo modelo `ChamadoNota` + migration; API aceita `nota_interna`; timeline no CRM com visual âmbar |
+| v3.10.13 | Label do botão sempre "Enviar resposta" mesmo sem resposta | Label dinâmico: Salvar / Salvar nota / Enviar resposta / Resolver chamado |
+| v3.10.14 | PDF/XML do portal buscavam sempre da Spedy (502 se offline) | Proxies agora usam `buscarPdfXml()` com R2-first → Spedy fallback |
+| v3.10.14 | Canal `portal` não notificava o cliente ao autorizar NFS-e | `entregarNotaCliente('portal')` cria Chamado visível no portal |
+| v3.10.14 | Sem indicador visual de notas novas no portal | Badge `notasNovas` (30 dias) no item "Notas Fiscais" do header |
+| v3.10.15 | `GET /api/leads/:id` exigia autenticação — wizard público não carregava dados ao recarregar | Novo endpoint público `GET /api/onboarding/lead/:id` com rate limit 60/IP/hora |
+| v3.10.15 | Auto-save chamava `PUT /api/leads/:id` (exige auth) — todos os saves falhavam com 401 silenciosamente | `useAutoSave` agora usa `POST /api/onboarding/salvar-progresso` com retry 2x backoff |
+| v3.10.15 | `salvar-progresso` sem try/catch — falha de DB gerava 500 silencioso, usuário perdia progresso | Adicionado try/catch completo + Sentry + rate limit 120/IP/hora |
+| v3.10.15 | `POST /api/leads` aceitava qualquer string com 3+ chars em `contatoEntrada` | Validação Zod: e-mail regex OU telefone com DDD (≥10 dígitos numéricos) |
+| v3.10.15 | Webhook ZapSign: CPF/email ausente só verificava CPF; cliente não criado sem alerta operacional | Validação completa (nome+CPF+email+telefone); alerta Sentry operacional quando faltam dados |
+| v3.10.15 | Webhook ZapSign: race condition P2002 — recuperação fora da transaction era insegura | Recuperação P2002 agora usa `$transaction` atômica |
+| v3.10.15 | Webhook ZapSign: secret enviado em query param (exposto em logs de acesso) | Aceita `X-ZapSign-Secret` header (preferencial); query param mantido por compatibilidade |
+| v3.10.15 | Dados pessoais (nome, e-mail) enviados no `extra` do Sentry | Removido; apenas `leadId` e `camposFaltando` são enviados (LGPD) |
+| v3.10.15 | CEP/CNPJ lookup sem timeout — campo congelava se API demorava | `AbortController` com timeout de 8s em `buscarCEP` |
+| v3.10.15 | Validação de CPF/CNPJ só verificava comprimento — CPFs falsos passavam | Algoritmo de dígito verificador implementado em `validarCPF()` e `validarCNPJ()` |
+| v3.10.15 | `recomendar-plano` engolia erros silenciosamente sem Sentry | try/catch com `Sentry.captureException` + AbortController de 10s na API Anthropic |
 
 ---
 
@@ -688,10 +994,11 @@ CanalEscalacao: whatsapp | onboarding | portal
 | Fluxo | Risco | Motivo |
 |-------|-------|--------|
 | WhatsApp webhook | Alto | Sem validação de autenticidade do payload |
-| Processamento de NFS-e | Alto | Webhook assíncrono sem retry, lock sem timeout |
+| Processamento de NFS-e | Médio | Webhook assíncrono sem retry; cron de reconciliação (1h) é o fallback |
 | Sincronização de email | Médio | Cron manual na VPS, sem monitoramento |
-| Conversão Lead→Cliente | Alto | 3 pontos de conversão distintos (leads/assinado, contrato/webhook, manual) — podem criar duplicatas |
+| Conversão Lead→Cliente | Médio | 3 pontos de conversão distintos (leads/assinado, contrato/webhook, manual) — podem criar duplicatas; idempotência reforçada no webhook ZapSign (v3.10.15) |
 | Magic links do portal | Médio | Token hash SHA-256, mas sem rate limit no `/api/portal/magic-link` |
+| Lead assinado sem dados completos | Baixo | Webhook marca como assinado mas não cria cliente; requer intervenção manual; alerta Sentry configurado (v3.10.15) |
 
 ### Áreas com Pouco Log/Rastreamento
 
@@ -727,6 +1034,7 @@ CanalEscalacao: whatsapp | onboarding | portal
 2. **`src/lib/schemas/`** — schemas Zod centralizados, sem docs
 3. **`src/lib/services/nfse/`** — módulo completo de NFS-e extraído, sem docs
 4. **`src/components/crm/notas-fiscais/`** — componentes novos de NFS-e
+5. **`src/app/(crm)/crm/chamados/`** — listagem e detalhe de chamados (refatorado de ordens-servico)
 5. **`src/lib/whatsapp/arquivar-midia.ts`** — arquivamento de mídia recebida no R2
 6. **`src/lib/whatsapp/identificar-contato.ts`** — identificação de contato com cache
 7. **`src/lib/whatsapp/constants.ts`** — constantes centralizadas
@@ -741,16 +1049,24 @@ CanalEscalacao: whatsapp | onboarding | portal
 ### Segurança
 1. **Adicionar HMAC/auth no webhook WhatsApp** — qualquer um pode POSTar para `/api/whatsapp/webhook`
 2. **Rate limit no magic link** — `api/portal/magic-link` sem proteção contra enumeração
-3. **Rate limit no agente** — `/api/agente/crm` pode ser abusado
+3. ~~**Rate limit no agente**~~ — ✅ implementado: 60 req/userId/hora em `/api/agente/crm`
+4. ~~**Migrar ZapSign para header**~~ — ✅ implementado: `X-ZapSign-Secret` é o único mecanismo; query param removido
 
 ### Confiabilidade
-1. **Timeout no lock de WhatsApp** — `processandoEm` deveria expirar após X minutos
-2. **Retry para webhooks Spedy** — NFS-e pode ficar em `enviando` para sempre
+1. ~~**Timeout no lock de WhatsApp**~~ — ✅ já implementado: `LOCK_TIMEOUT = 30s` em `processar-pendentes.ts`
+2. ~~**Retry para webhooks Spedy**~~ — ✅ cron de reconciliação (`/api/cron/reconciliar-notas`) cobre ambos os casos (sem/com `spedyId`)
 3. **Health check Evolution API** — detectar instância desconectada proativamente
+
+### Onboarding — Melhorias Implementadas (v3.10.16)
+1. ~~**Verificação de e-mail por OTP**~~ — ✅ nova etapa `/onboarding/verificar-email` com OTP de 6 dígitos (10 min), rate limit duplo (IP + leadId), auto-verificação ao completar
+2. ~~**Notificação de conversão por WhatsApp**~~ — ✅ `enviarBoasVindasWhatsApp()` disparado após conversão ZapSign; gera token de portal de 48h
+3. **Prova de leitura do contrato** — exigir scroll até o fim antes de habilitar checkbox de aceite
+4. **Histórico de tentativas de assinatura** — tabela `ContratoTentativa` para auditar falhas recorrentes
+5. **Rollback automático de escalação** — conversa escalada para humano nunca retorna para IA; timeout de 30min sem resposta deveria reativar IA
 
 ### Observabilidade
 1. **Adicionar testes automatizados** — ao menos para os webhooks críticos
-2. **Monitorar cron jobs** — CRON_SECRET é seguro mas sem alertas de falha
+2. ~~**Monitorar cron jobs**~~ — ✅ Sentry Cron Monitoring implementado em todos os crons (`cron-reconciliar-notas`, `cron-retry-documentos`, `cron-email-sync`)
 3. **Métricas de RAG** — taxa de hit, latência de busca
 
 ### Code Quality

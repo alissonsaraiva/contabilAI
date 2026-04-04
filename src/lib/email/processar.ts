@@ -246,7 +246,7 @@ async function gerarSugestao(
             where: { id: clienteId },
             select: { nome: true, status: true, planoTipo: true },
           }),
-          prisma.ordemServico.findFirst({
+          prisma.chamado.findFirst({
             where: { clienteId, status: { in: ['aberta', 'em_andamento'] } },
             select: { titulo: true, status: true },
             orderBy: { criadoEm: 'desc' },

@@ -51,9 +51,9 @@ export async function indexarDocumento(doc: DocumentoData): Promise<void> {
   }, keys)
 }
 
-// ─── Ordem de Serviço ─────────────────────────────────────────────────────────
+// ─── Chamado ──────────────────────────────────────────────────────────────────
 
-type OrdemServicoData = {
+type ChamadoData = {
   id: string
   clienteId: string
   tipo: string
@@ -70,10 +70,10 @@ type OrdemServicoData = {
   criadoEm?: Date
 }
 
-// Indexa OS no canal CRM para que o assistente conheça os chamados abertos.
+// Indexa o chamado no canal CRM para que o assistente conheça os chamados abertos.
 // Se visivelPortal=true, indexa também no canal portal (cliente pode perguntar).
 // Inclui campo `resposta` para que o histórico de resolução fique acessível via RAG.
-export async function indexarOrdemServico(os: OrdemServicoData): Promise<void> {
+export async function indexarChamado(os: ChamadoData): Promise<void> {
   const keys = await getEmbeddingKeys()
   if (!keys.openai && !keys.voyage) return
 
@@ -104,8 +104,8 @@ export async function indexarOrdemServico(os: OrdemServicoData): Promise<void> {
     documentoId: `os:${os.id}`,
   }
 
-  // OS visível no portal → canal 'geral' (1 entrada cobre CRM + portal)
-  // OS interna         → canal 'crm' apenas
+  // Chamado visível no portal → canal 'geral' (1 entrada cobre CRM + portal)
+  // Chamado interno           → canal 'crm' apenas
   const canalOs = os.visivelPortal ? 'geral' : 'crm'
   await indexar(linhas, { ...base, canal: canalOs }, keys)
 }

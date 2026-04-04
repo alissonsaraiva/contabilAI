@@ -4,6 +4,29 @@ import { useEffect, useRef, useState } from 'react'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
+const MAX_RETRIES = 2
+const RETRY_DELAY_MS = 2000
+
+async function salvarProgresso(leadId: string, dataJson: string, attempt = 0): Promise<void> {
+  // Injeta leadId no payload (o dataJson vem do componente sem o leadId)
+  const parsed = JSON.parse(dataJson) as Record<string, unknown>
+  const body = JSON.stringify({ leadId, ...parsed })
+
+  const res = await fetch('/api/onboarding/salvar-progresso', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  })
+
+  if (!res.ok) {
+    if (attempt < MAX_RETRIES) {
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)))
+      return salvarProgresso(leadId, dataJson, attempt + 1)
+    }
+    throw new Error(`Falha ao salvar (status ${res.status})`)
+  }
+}
+
 export function useAutoSave(
   leadId: string | null | undefined,
   dataJson: string,
@@ -19,11 +42,8 @@ export function useAutoSave(
     setStatus('saving')
     timer.current = setTimeout(async () => {
       try {
-        await fetch(`/api/leads/${leadId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: dataJson,
-        })
+        // O payload já contém o leadId dentro do dataJson (montado pela página)
+        await salvarProgresso(leadId, dataJson)
         lastSaved.current = dataJson
         setStatus('saved')
       } catch {

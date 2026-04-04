@@ -25,7 +25,7 @@ export default function ConfirmacaoPage({ searchParams }: Props) {
 
   useEffect(() => {
     if (!leadId || isAguardando) return
-    fetch(`/api/leads/${leadId}`)
+    fetch(`/api/onboarding/lead/${leadId}`)
       .then(r => r.json())
       .then((data: { contrato?: { pdfUrl?: string } }) => {
         if (data.contrato?.pdfUrl) setPdfUrl(`/api/leads/${leadId}/contrato/download`)

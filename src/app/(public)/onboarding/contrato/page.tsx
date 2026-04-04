@@ -58,7 +58,7 @@ export default function ContratoPage({ searchParams }: Props) {
 
   useEffect(() => {
     if (!leadId) return
-    fetch(`/api/leads/${leadId}`)
+    fetch(`/api/onboarding/lead/${leadId}`)
       .then(r => r.json())
       .then((data: LeadData) => setLead(data))
       .catch(() => toast.error('Erro ao carregar dados.'))

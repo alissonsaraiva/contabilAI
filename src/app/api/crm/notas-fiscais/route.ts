@@ -41,7 +41,7 @@ export async function GET(req: Request) {
       take:    pageSize,
       include: {
         cliente:      { select: { nome: true, email: true } },
-        ordemServico: { select: { numero: true, titulo: true } },
+        chamado: { select: { numero: true, titulo: true } },
       },
     }),
   ])

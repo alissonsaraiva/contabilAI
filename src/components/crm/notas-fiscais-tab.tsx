@@ -31,6 +31,8 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
   const [reemitirForm, setReemitirForm]             = useState<FormState>(INITIAL_FORM)
   const [reemitirSaving, setReemitirSaving]         = useState(false)
   const [entregando, setEntregando]                 = useState<string | null>(null)
+  const [municipioIntegrado, setMunicipioIntegrado] = useState<boolean | null>(null)
+  const [municipioNome, setMunicipioNome]           = useState<string | null>(null)
 
   const fetchNotas = useCallback(async (silencioso = false) => {
     if (!silencioso) setLoading(true)
@@ -48,6 +50,18 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
   }, [clienteId])
 
   useEffect(() => { fetchNotas() }, [fetchNotas])
+
+  useEffect(() => {
+    if (!spedyOk) return
+    fetch(`/api/crm/clientes/${clienteId}/spedy`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        setMunicipioIntegrado(data.municipioIntegrado ?? null)
+        setMunicipioNome(data.municipioNome ?? null)
+      })
+      .catch(() => {/* silencioso */})
+  }, [clienteId, spedyOk])
 
   // Polling automático quando há notas em processamento — evita o usuário ter que recarregar manualmente
   useEffect(() => {
@@ -211,6 +225,24 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
 
   return (
     <div className="space-y-4">
+      {/* Badge de cobertura do município na Spedy */}
+      {municipioIntegrado === false && municipioNome && (
+        <div className="flex items-center gap-2 rounded-xl border border-orange-status/30 bg-orange-status/10 px-4 py-2.5">
+          <span className="material-symbols-outlined text-[16px] text-orange-status" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+          <p className="text-[13px] text-orange-status">
+            Município <span className="font-semibold">{municipioNome}</span> não possui integração NFS-e na Spedy. A emissão pode falhar.
+          </p>
+        </div>
+      )}
+      {municipioIntegrado === true && municipioNome && (
+        <div className="flex items-center gap-2 rounded-xl border border-green-status/30 bg-green-status/10 px-4 py-2.5">
+          <span className="material-symbols-outlined text-[16px] text-green-status" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          <p className="text-[13px] text-green-status">
+            Município <span className="font-semibold">{municipioNome}</span> com emissão NFS-e disponível na Spedy.
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <p className="text-[13px] text-on-surface-variant">

@@ -267,7 +267,7 @@ export async function notificarDocumentoFalhou(opts: {
 
     // Abre OS se houver cliente vinculado
     if (opts.clienteId) {
-      await prisma.ordemServico.create({
+      await prisma.chamado.create({
         data: {
           clienteId:  opts.clienteId,
           tipo:       'documento',

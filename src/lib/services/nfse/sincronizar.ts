@@ -22,11 +22,12 @@ export async function sincronizarEmpresaNaSpedy(empresaId: string): Promise<{
 }> {
   const empresa = await prisma.empresa.findUnique({
     where:   { id: empresaId },
-    include: { cliente: { select: { nome: true } } },
+    include: { cliente: { select: { nome: true, logradouro: true, numero: true, complemento: true, bairro: true, cidade: true, uf: true, cep: true } } },
   })
 
   if (!empresa) return { sucesso: false, acao: 'noop', detalhe: 'Empresa não encontrada' }
   if (!empresa.cnpj) return { sucesso: false, acao: 'noop', detalhe: 'Empresa sem CNPJ cadastrado' }
+  if (!empresa.cliente?.cidade || !empresa.cliente?.uf) return { sucesso: false, acao: 'noop', detalhe: 'Empresa sem cidade/UF cadastrados — obrigatório para a Spedy' }
 
   const escritorio = await prisma.escritorio.findFirst({
     select: { spedyApiKey: true, spedyAmbiente: true },
@@ -45,10 +46,20 @@ export async function sincronizarEmpresaNaSpedy(empresaId: string): Promise<{
   const legalName = empresa.razaoSocial  ?? empresa.cliente?.nome ?? ''
   const cnpj      = empresa.cnpj.replace(/\D/g, '')
 
+  const c = empresa.cliente
+  const address = (c?.cidade && c?.uf) ? {
+    street:    c.logradouro ?? 'Não informado',
+    number:    c.numero     ?? 'S/N',
+    district:  c.bairro     ?? 'Não informado',
+    postalCode: (c.cep ?? '').replace(/\D/g, '') || '00000000',
+    additionalInformation: c.complemento ?? undefined,
+    city: { name: c.cidade, state: c.uf },
+  } : undefined
+
   try {
     // Atualização: empresa já existe na Spedy
     if (empresa.spedyCompanyId) {
-      await ownerClient.atualizarEmpresa(empresa.spedyCompanyId, { name, legalName, taxRegime })
+      await ownerClient.atualizarEmpresa(empresa.spedyCompanyId, { name, legalName, federalTaxNumber: cnpj, taxRegime, address })
       await prisma.empresa.update({
         where: { id: empresaId },
         data:  { spedyConfigurado: true, spedyConfiguradoEm: new Date() },
@@ -58,7 +69,7 @@ export async function sincronizarEmpresaNaSpedy(empresaId: string): Promise<{
     }
 
     // Criação: registra empresa na Spedy pela primeira vez
-    const spedyEmpresa    = await ownerClient.criarEmpresa({ name, legalName, federalTaxNumber: cnpj, taxRegime })
+    const spedyEmpresa    = await ownerClient.criarEmpresa({ name, legalName, federalTaxNumber: cnpj, taxRegime, address })
     const apiKeyEncrypted = encrypt(spedyEmpresa.apiCredentials.apiKey)
 
     await prisma.empresa.update({

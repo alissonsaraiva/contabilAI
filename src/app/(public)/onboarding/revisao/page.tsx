@@ -52,7 +52,7 @@ export default function RevisaoPage({ searchParams }: Props) {
 
   useEffect(() => {
     if (!leadId) return
-    fetch(`/api/leads/${leadId}`)
+    fetch(`/api/onboarding/lead/${leadId}`)
       .then(r => r.json())
       .then((lead: { vencimentoDia?: number; formaPagamento?: string }) => {
         if (lead.vencimentoDia) setVencimento(lead.vencimentoDia)

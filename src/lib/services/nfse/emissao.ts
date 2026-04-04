@@ -120,8 +120,8 @@ export async function emitirNotaFiscal(input: EmitirNotaInput): Promise<EmitirNo
     const updateComSpedy: Record<string, unknown> = {
       spedyId:      nfse.id,
       status:       statusMapeado,
-      rpsNumero:    nfse.rps?.number ?? null,
-      rpsSerie:     nfse.rps?.series ?? null,
+      rpsNumero:    nfse.rps?.number || null,
+      rpsSerie:     nfse.rps?.series || null,
       atualizadoEm: new Date(),
     }
     if (statusMapeado === 'autorizada') {

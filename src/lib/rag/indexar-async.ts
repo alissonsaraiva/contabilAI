@@ -42,7 +42,7 @@ export function indexarAsync(tipo: TipoIndexacao, dados: unknown): void {
         case 'documento':       return (mod as any).indexarDocumento?.(dados)
         case 'escritorio':      return (mod as any).indexarEscritorio?.(dados)
         case 'planos':          return (mod as any).indexarPlanos?.(dados)
-        case 'os':              return (mod as any).indexarOrdemServico?.(dados)
+        case 'os':              return (mod as any).indexarChamado?.(dados)
         case 'comunicado':      return (mod as any).indexarComunicado?.(dados)
         case 'statusHistorico': return (mod as any).indexarStatusHistorico?.(dados)
         case 'empresa':         return (mod as any).indexarEmpresa?.(dados)

@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth-portal'
 import { redirect } from 'next/navigation'
+import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
 import { PortalNotasFiscaisClient } from '@/components/portal/portal-notas-fiscais-client'
 
@@ -10,6 +11,10 @@ export default async function PortalNotasFiscaisPage() {
 
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
+
+  // NFS-e não se aplica a pessoas físicas — redireciona para o dashboard
+  const cliente = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { tipoContribuinte: true } })
+  if (cliente?.tipoContribuinte === 'pf') redirect('/portal/dashboard')
 
   return (
     <div className="space-y-6">

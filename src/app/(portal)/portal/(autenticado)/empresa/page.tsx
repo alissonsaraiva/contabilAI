@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
 import { Card } from '@/components/ui/card'
 import { formatCNPJ, formatTelefone } from '@/lib/utils'
-import { PortalContatoEdit } from '@/components/portal/portal-contato-edit'
 
 const REGIME_LABELS: Record<string, string> = {
   MEI: 'MEI',
@@ -129,24 +128,9 @@ export default async function PortalEmpresaPage() {
       {/* Titular / Responsável (só PJ) */}
       {!isPF && (
         <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">person</span>
-              <h2 className="text-[14px] font-semibold text-on-surface">Titular / Responsável</h2>
-            </div>
-            <PortalContatoEdit initial={{
-              email: cliente.email,
-              estadoCivil: cliente.estadoCivil,
-              telefone: cliente.telefone,
-              whatsapp: cliente.whatsapp,
-              cep: cliente.cep,
-              logradouro: cliente.logradouro,
-              numero: cliente.numero,
-              complemento: cliente.complemento,
-              bairro: cliente.bairro,
-              cidade: cliente.cidade,
-              uf: cliente.uf,
-            }} />
+          <div className="mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">person</span>
+            <h2 className="text-[14px] font-semibold text-on-surface">Titular / Responsável</h2>
           </div>
           <div>
             <InfoRow label="Nome" value={cliente.nome} />
@@ -175,24 +159,9 @@ export default async function PortalEmpresaPage() {
       {/* PF: contato */}
       {isPF && (
         <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">contact_phone</span>
-              <h2 className="text-[14px] font-semibold text-on-surface">Contato</h2>
-            </div>
-            <PortalContatoEdit initial={{
-              email: cliente.email,
-              estadoCivil: cliente.estadoCivil,
-              telefone: cliente.telefone,
-              whatsapp: cliente.whatsapp,
-              cep: cliente.cep,
-              logradouro: cliente.logradouro,
-              numero: cliente.numero,
-              complemento: cliente.complemento,
-              bairro: cliente.bairro,
-              cidade: cliente.cidade,
-              uf: cliente.uf,
-            }} />
+          <div className="mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">contact_phone</span>
+            <h2 className="text-[14px] font-semibold text-on-surface">Contato</h2>
           </div>
           <div>
             <InfoRow label="E-mail" value={cliente.email} />

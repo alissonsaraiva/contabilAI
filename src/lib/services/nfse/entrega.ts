@@ -166,8 +166,31 @@ export async function entregarNotaCliente(
       await notificarEquipeEntregaFalhou(nota.id, nota.clienteId, 'email', 'Cliente não possui e-mail cadastrado')
       return
     }
+  } else if (canal === 'portal') {
+    // Canal portal: cria chamado visível no portal notificando que a nota está disponível
+    try {
+      await prisma.chamado.create({
+        data: {
+          clienteId:    nota.clienteId,
+          empresaId:    nota.empresa?.id ?? undefined,
+          tipo:         'emissao_documento',
+          origem:       'ia',
+          visivelPortal: true,
+          titulo:       `NFS-e ${numero} disponível para download`,
+          descricao:    `Sua Nota Fiscal de Serviço ${numero} foi autorizada pela prefeitura e está disponível na seção "Notas Fiscais" do portal.${nota.descricao ? `\n\nServiço: ${nota.descricao}` : ''}\nValor: R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`,
+          prioridade:   'baixa',
+          status:       'aberta',
+        },
+      })
+      logger.info('nfse-entrega-portal-chamado-criado', { notaId: nota.id, clienteId: nota.clienteId })
+    } catch (chamadoErr) {
+      logger.error('nfse-entrega-portal-chamado-falhou', { notaId: nota.id, err: chamadoErr })
+      Sentry.captureException(chamadoErr, {
+        tags:  { module: 'nfse-service', operation: 'entrega-portal-chamado' },
+        extra: { notaId: nota.id },
+      })
+    }
   }
-  // canal portal: não é necessário envio ativo — o arquivo já estará disponível no portal
 
   // Atualiza registro de entrega — só chega aqui se a entrega foi bem-sucedida
   await prisma.notaFiscal.update({

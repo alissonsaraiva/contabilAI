@@ -36,7 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Atendimento',
     items: [
       { href: '/crm/atendimentos',   icon: '💬', label: 'Atendimentos', badge: true },
-      { href: '/crm/ordens-servico', icon: '📋', label: 'Chamados' },
+      { href: '/crm/chamados', icon: '📋', label: 'Chamados' },
       { href: '/crm/emails',         icon: '📧', label: 'E-mails' },
     ],
   },
@@ -83,7 +83,7 @@ export function CrmSidebar({ user, pendingEscalacoes = 0, pendingEmails = 0, pen
     if (item.badgeCount !== undefined) return item.badgeCount
     // E-mails: detecta pelo href
     if (item.href === '/crm/emails')         return badges.emails
-    if (item.href === '/crm/ordens-servico') return badges.chamados
+    if (item.href === '/crm/chamados') return badges.chamados
     return 0
   }
 

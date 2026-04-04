@@ -32,7 +32,7 @@ const buscarCobrancaAbertaTool: Tool = {
       }
     }
 
-    const [cobranca, totalAberto, cliente] = await Promise.all([
+    const [cobranca, totalAberto, cliente, ultimoPago] = await Promise.all([
       prisma.cobrancaAsaas.findFirst({
         where:   { clienteId, status: { in: ['PENDING', 'OVERDUE'] } },
         orderBy: { vencimento: 'asc' },
@@ -51,18 +51,34 @@ const buscarCobrancaAbertaTool: Tool = {
         where:  { id: clienteId },
         select: { vencimentoDia: true, valorMensal: true },
       }),
+      prisma.cobrancaAsaas.findFirst({
+        where:   { clienteId, status: 'RECEIVED' },
+        orderBy: { vencimento: 'desc' },
+        select:  { valor: true, vencimento: true, pagoEm: true },
+      }),
     ])
 
     if (!cobranca) {
-      // Sem cobrança registrada — informa dia de vencimento do próximo ciclo se souber
-      const diaVenc = cliente?.vencimentoDia
+      // Sem cobrança registrada — informa último pagamento e próximo vencimento
+      const diaVenc      = cliente?.vencimentoDia
       const proxVencInfo = diaVenc
         ? ` Seu vencimento mensal é dia ${diaVenc}. A cobrança do próximo mês será gerada automaticamente.`
         : ''
+
+      const ultimoPagoInfo = ultimoPago
+        ? (() => {
+            const dataPag = ultimoPago.pagoEm
+              ? new Date(ultimoPago.pagoEm).toLocaleDateString('pt-BR')
+              : new Date(ultimoPago.vencimento).toLocaleDateString('pt-BR')
+            const valorPag = Number(ultimoPago.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+            return ` Seu último pagamento foi de ${valorPag}, recebido em ${dataPag}.`
+          })()
+        : ''
+
       return {
         sucesso: true,
-        dados:  { vencimentoDia: diaVenc ?? null },
-        resumo: `Nenhuma cobrança em aberto encontrada. Sua situação está regularizada! ✅${proxVencInfo}`,
+        dados:   { vencimentoDia: diaVenc ?? null, ultimoPago: ultimoPago ?? null },
+        resumo:  `Nenhuma cobrança em aberto. Situação regularizada! ✅${ultimoPagoInfo}${proxVencInfo}`,
       }
     }
 

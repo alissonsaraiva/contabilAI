@@ -7,6 +7,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import type { PlanoTipo, FormaPagamento, Regime, StatusCliente } from '@prisma/client'
 import { formatCNPJ, formatTelefone } from '@/lib/utils'
 import { useCnpj } from '@/hooks/use-cnpj'
+import { useCep } from '@/hooks/use-cep'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
@@ -70,6 +71,7 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const { buscarCnpj, loading: cnpjLoading } = useCnpj()
+  const { buscarCep,  loading: cepLoading  } = useCep()
   const [form, setForm] = useState({
     nome: cliente.nome,
     email: cliente.email,
@@ -100,6 +102,18 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
+  }
+
+  async function preencherCEP(cep: string) {
+    await buscarCep(cep, (d) => {
+      setForm(f => ({
+        ...f,
+        logradouro: d.logradouro || f.logradouro,
+        bairro:     d.bairro     || f.bairro,
+        cidade:     d.cidade     || f.cidade,
+        uf:         d.uf         || f.uf,
+      }))
+    })
   }
 
   async function preencherCNPJ(cnpj: string) {
@@ -303,7 +317,18 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className={LABEL}>CEP</label>
-                <input className={INPUT} value={form.cep} onChange={e => set('cep', e.target.value)} inputMode="numeric" maxLength={9} />
+                <input
+                  className={INPUT}
+                  value={form.cep}
+                  onChange={e => {
+                    const v = e.target.value
+                    set('cep', v)
+                    if (v.replace(/\D/g, '').length === 8) preencherCEP(v)
+                  }}
+                  inputMode="numeric"
+                  maxLength={9}
+                  disabled={cepLoading}
+                />
               </div>
               <div className="col-span-2">
                 <label className={LABEL}>Logradouro</label>

@@ -28,6 +28,12 @@ export async function POST(req: Request) {
     }
   }
 
+  // Sentry Cron Monitoring
+  const checkIn = Sentry.captureCheckIn(
+    { monitorSlug: 'cron-retry-documentos', status: 'in_progress' },
+    { schedule: { type: 'crontab', value: '0 * * * *' }, checkinMargin: 5, maxRuntime: 55, timezone: 'America/Sao_Paulo' },
+  )
+
   try {
     // Inclui docs presos em 'processando' há mais de 30min (servidor caiu durante o processo)
     const trintaMinAtras = new Date(Date.now() - 30 * 60_000)
@@ -72,10 +78,12 @@ export async function POST(req: Request) {
       }
     }
 
+    Sentry.captureCheckIn({ monitorSlug: 'cron-retry-documentos', checkInId: checkIn, status: 'ok' })
     return NextResponse.json({ ok: true, processados: docs.length, sucessos: ok, falhou, erros })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[retry-documentos] erro geral:', msg)
+    Sentry.captureCheckIn({ monitorSlug: 'cron-retry-documentos', checkInId: checkIn, status: 'error' })
     Sentry.captureException(err, { tags: { module: 'cron-retry-documentos' } })
     return NextResponse.json({ ok: false, erro: msg }, { status: 500 })
   }

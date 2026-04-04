@@ -16,7 +16,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const [pendingEscalacoes, pendingEmails, pendingChamados, escritorio, aiConfig] = await Promise.all([
     prisma.escalacao.count({ where: { status: 'pendente' } }).catch(() => 0),
     prisma.interacao.count({ where: { tipo: 'email_recebido', respondidoEm: null } }).catch(() => 0),
-    prisma.ordemServico.count({ where: { status: 'aberta' } }).catch(() => 0),
+    prisma.chamado.count({ where: { status: 'aberta' } }).catch(() => 0),
     getEscritorioConfig(),
     getAiConfig(),
   ])

@@ -6,31 +6,31 @@ import { registrarTool } from './registry'
 import { emitirNotaFiscal } from '@/lib/services/notas-fiscais'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
-/** Abre OS de escalonamento garantido — não depende da IA chamar criarOrdemServico */
+/** Abre chamado de escalonamento garantido — não depende da IA chamar criarChamado */
 async function escalarParaHumano(
   clienteId: string,
-  tituloOS: string,
-  descricaoOS: string,
+  tituloChamado: string,
+  descricaoChamado: string,
 ): Promise<void> {
   try {
     const cliente = await prisma.cliente.findUnique({
       where:  { id: clienteId },
       select: { empresaId: true },
     })
-    await prisma.ordemServico.create({
+    await prisma.chamado.create({
       data: {
         clienteId,
         empresaId:    cliente?.empresaId ?? undefined,
         tipo:         'emissao_documento',
         origem:       'ia',
         visivelPortal: false,
-        titulo:       tituloOS,
-        descricao:    descricaoOS,
+        titulo:       tituloChamado,
+        descricao:    descricaoChamado,
         prioridade:   'alta',
         status:       'aberta',
       },
     })
-    logger.info('nfse-escalacao-garantida', { clienteId, titulo: tituloOS })
+    logger.info('nfse-escalacao-garantida', { clienteId, titulo: tituloChamado })
   } catch (escErr) {
     // Nunca deixa o escalonamento derrubar a resposta — apenas loga
     logger.error('nfse-escalacao-falhou', { clienteId, escErr })
@@ -52,7 +52,7 @@ const emitirNotaFiscalTool: Tool = {
       '4) Confirme os dados com o solicitante antes de emitir. ' +
       'LEITURA DE IMAGEM: se o solicitante enviou imagem (proposta, contrato), extraia os dados visíveis. Se campo crítico ilegível, pergunte. ' +
       'LEITURA DE ÁUDIO: o áudio já chegou transcrito — trate como texto normalmente. ' +
-      'SE RETORNAR ERRO: chame imediatamente criarOrdemServico com tipo emissao_documento, incluindo todos os dados coletados, o motivo do erro e a mensagem original.',
+      'SE RETORNAR ERRO: chame imediatamente criarChamado com tipo emissao_documento, incluindo todos os dados coletados, o motivo do erro e a mensagem original.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -62,7 +62,7 @@ const emitirNotaFiscalTool: Tool = {
         },
         ordemServicoId: {
           type: 'string',
-          description: 'ID da OS que originou a emissão (opcional).',
+          description: 'ID do chamado que originou a emissão (opcional).',
         },
         descricao: {
           type: 'string',
@@ -198,7 +198,7 @@ const emitirNotaFiscalTool: Tool = {
       })
 
       if (!resultado.sucesso) {
-        // Escalonamento garantido por código — não depende da IA chamar criarOrdemServico
+        // Escalonamento garantido por código — não depende da IA chamar criarChamado
         await escalarParaHumano(
           clienteId,
           `Falha na emissão de NFS-e — ${resultado.motivo}`,
@@ -209,7 +209,7 @@ const emitirNotaFiscalTool: Tool = {
           `• Tomador: ${parsed.data.tomadorNome} (${parsed.data.tomadorCpfCnpj})\n` +
           `• Email tomador: ${parsed.data.tomadorEmail ?? '—'}\n` +
           `• Município/UF: ${parsed.data.tomadorMunicipio ?? '—'}/${parsed.data.tomadorEstado ?? '—'}\n` +
-          `• OS origem: ${parsed.data.ordemServicoId ?? '—'}`,
+          `• Chamado origem: ${parsed.data.ordemServicoId ?? '—'}`,
         )
         return {
           sucesso: false,

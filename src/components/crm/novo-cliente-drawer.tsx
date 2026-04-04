@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { formatCPF, formatCNPJ, formatTelefone } from '@/lib/utils'
 import { useCnpj } from '@/hooks/use-cnpj'
+import { useCep } from '@/hooks/use-cep'
 
 const INPUT = 'w-full h-11 rounded-[10px] border border-outline-variant/30 bg-surface-container-low px-4 text-[14px] text-on-surface shadow-sm transition-colors focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-[3px] focus:ring-primary/10 placeholder:text-on-surface-variant/40'
 const LABEL = 'block text-[13px] font-semibold text-on-surface-variant mb-1.5'
@@ -76,10 +77,23 @@ export function NovoClienteDrawer() {
   const [form, setForm] = useState(INIT)
   const [erros, setErros] = useState<Record<string, string>>({})
   const { buscarCnpj, loading: cnpjLoading } = useCnpj()
+  const { buscarCep,  loading: cepLoading  } = useCep()
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
     setErros(e => ({ ...e, [field]: '' }))
+  }
+
+  async function preencherCEP(cep: string) {
+    await buscarCep(cep, (d) => {
+      setForm(f => ({
+        ...f,
+        logradouro: d.logradouro || f.logradouro,
+        bairro:     d.bairro     || f.bairro,
+        cidade:     d.cidade     || f.cidade,
+        uf:         d.uf         || f.uf,
+      }))
+    })
   }
 
   async function preencherCNPJ(cnpj: string) {
@@ -440,9 +454,14 @@ export function NovoClienteDrawer() {
                   className={INPUT}
                   placeholder="00000-000"
                   value={form.cep}
-                  onChange={e => set('cep', e.target.value)}
+                  onChange={e => {
+                    const v = e.target.value
+                    set('cep', v)
+                    if (v.replace(/\D/g, '').length === 8) preencherCEP(v)
+                  }}
                   inputMode="numeric"
                   maxLength={9}
+                  disabled={cepLoading}
                 />
               </div>
               <div>

@@ -56,7 +56,7 @@ export async function GET(req: Request) {
         spedyId:       true,
         tomadorNome:   true,
         protocolo:     true,
-        ordemServico:  { select: { numero: true, titulo: true } },
+        chamado:  { select: { numero: true, titulo: true } },
       },
     }),
   ])

@@ -73,7 +73,9 @@ export default async function PortalAutenticadoLayout({ children }: { children: 
   }
 
   const clienteId = await resolveClienteId(user)
-  const [aiConfig, escritorio, clienteRow, docsNovos] = await Promise.all([
+  const janelaNovos = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
+  const [aiConfig, escritorio, clienteRow, docsNovos, notasNovas] = await Promise.all([
     getAiConfig(),
     getEscritorioConfig(),
     clienteId
@@ -82,11 +84,14 @@ export default async function PortalAutenticadoLayout({ children }: { children: 
     clienteId
       ? prisma.documento.count({ where: { clienteId, origem: 'crm', visualizadoEm: null, deletadoEm: null } })
       : Promise.resolve(0),
+    clienteId
+      ? prisma.notaFiscal.count({ where: { clienteId, status: 'autorizada', autorizadaEm: { gte: janelaNovos } } })
+      : Promise.resolve(0),
   ])
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-surface-container-lowest">
-      <PortalHeader user={user} nomeEscritorio={escritorio.nome} tipoContribuinte={clienteRow?.tipoContribuinte ?? 'pj'} docsNovos={docsNovos} />
+      <PortalHeader user={user} nomeEscritorio={escritorio.nome} tipoContribuinte={clienteRow?.tipoContribuinte ?? 'pj'} docsNovos={docsNovos} notasNovas={notasNovas} />
       <main className="mx-auto max-w-5xl px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">{children}</main>
       <PortalClara nomeIa={aiConfig.nomeAssistentes.portal ?? 'Clara'} />
       <PortalPWA />

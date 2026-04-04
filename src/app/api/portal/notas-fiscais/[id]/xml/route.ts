@@ -1,12 +1,15 @@
 /**
- * GET /api/portal/notas-fiscais/[id]/xml — proxy autenticado para XML da Spedy
+ * GET /api/portal/notas-fiscais/[id]/xml — proxy autenticado para XML da NFS-e
+ *
+ * Estratégia: R2 (cópia salva ao autorizar) → fallback Spedy.
+ * Garante disponibilidade mesmo se a Spedy estiver temporariamente indisponível.
  */
 import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
-import { getSpedyClienteClient } from '@/lib/spedy'
+import { buscarPdfXml } from '@/lib/services/nfse/backup'
 import { logger } from '@/lib/logger'
 
 export async function GET(
@@ -25,7 +28,7 @@ export async function GET(
   const { id } = await params
   const nota = await prisma.notaFiscal.findUnique({
     where:   { id },
-    include: { empresa: true },
+    include: { empresa: { select: { spedyApiKey: true } } },
   })
 
   if (!nota || nota.clienteId !== clienteId) {
@@ -35,33 +38,23 @@ export async function GET(
     return NextResponse.json({ error: 'XML não disponível' }, { status: 422 })
   }
 
-  const config = await prisma.escritorio.findFirst({
-    select: { spedyAmbiente: true },
-  })
-
-  const empresa = nota.empresa
-  if (!empresa?.spedyApiKey) {
-    return NextResponse.json({ error: 'Configuração fiscal indisponível' }, { status: 422 })
-  }
-
   try {
-    const spedyClient = getSpedyClienteClient({
-      spedyApiKey:   empresa.spedyApiKey,
-      spedyAmbiente: config?.spedyAmbiente,
+    const { xmlBuffer } = await buscarPdfXml({
+      id:      nota.id,
+      pdfUrl:  nota.pdfUrl,
+      xmlUrl:  nota.xmlUrl,
+      spedyId: nota.spedyId,
+      empresa: nota.empresa,
     })
 
-    const xmlUrl = spedyClient.xmlUrl(nota.spedyId)
-    const xmlResponse = await fetch(xmlUrl)
-
-    if (!xmlResponse.ok) {
-      logger.warn('portal-nfse-xml-spedy-erro', { notaId: nota.id, status: xmlResponse.status })
-      return NextResponse.json({ error: 'XML indisponível na Spedy' }, { status: 502 })
+    if (!xmlBuffer) {
+      logger.warn('portal-nfse-xml-indisponivel', { notaId: nota.id })
+      return NextResponse.json({ error: 'XML indisponível no momento — tente novamente em instantes' }, { status: 502 })
     }
 
-    const xmlBuffer = await xmlResponse.arrayBuffer()
     const numero = nota.numero ? `NFS-e-${nota.numero}` : 'NFS-e'
 
-    return new NextResponse(xmlBuffer, {
+    return new NextResponse(new Uint8Array(xmlBuffer), {
       headers: {
         'Content-Type':        'application/xml',
         'Content-Disposition': `attachment; filename="${numero}.xml"`,

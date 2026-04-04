@@ -19,7 +19,7 @@ export async function GET(
     include: {
       cliente:      { select: { nome: true, email: true, cidade: true, uf: true } },
       empresa:      { select: { razaoSocial: true, nomeFantasia: true, cnpj: true } },
-      ordemServico: { select: { numero: true, titulo: true } },
+      chamado: { select: { numero: true, titulo: true } },
     },
   })
 

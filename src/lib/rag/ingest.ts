@@ -11,7 +11,7 @@ export { PLANOS_INFO, indexarEscritorio, indexarPlanos } from './ingestores/escr
 export { indexarLead, indexarContrato } from './ingestores/lead'
 export { indexarCliente, indexarStatusHistorico, indexarEmpresa } from './ingestores/cliente'
 export { indexarInteracao } from './ingestores/interacao'
-export { indexarDocumento, indexarOrdemServico } from './ingestores/documento'
+export { indexarDocumento, indexarChamado } from './ingestores/documento'
 export { indexarEscalacao } from './ingestores/escalacao'
 export { indexarComunicado } from './ingestores/comunicado'
 export { indexarConversa } from './ingestores/conversa'

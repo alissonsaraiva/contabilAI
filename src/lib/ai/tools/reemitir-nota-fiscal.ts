@@ -17,7 +17,7 @@ async function escalarReemissaoParaHumano(
       where: { id: clienteId },
       select: { empresaId: true },
     })
-    await prisma.ordemServico.create({
+    await prisma.chamado.create({
       data: {
         clienteId,
         empresaId:    cliente?.empresaId ?? undefined,
@@ -50,7 +50,7 @@ const reemitirNotaFiscalTool: Tool = {
       '2) Informe o motivo da rejeição ao solicitante. ' +
       '3) Se o motivo exigir correção de dados (ex: CPF/CNPJ errado, descrição inválida), colete os dados corrigidos antes de reemitir. ' +
       '4) Confirme com o solicitante antes de executar. ' +
-      'SE RETORNAR ERRO: chame criarOrdemServico com tipo emissao_documento incluindo o ID da nota, o erro e os dados disponíveis.',
+      'SE RETORNAR ERRO: chame criarChamado com tipo emissao_documento incluindo o ID da nota, o erro e os dados disponíveis.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { executarAgente } from '@/lib/ai/agent'
+import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
 // Garante que todas as tools internas estejam registradas antes de qualquer execução
 import '@/lib/ai/tools'
 
@@ -12,6 +13,11 @@ export async function POST(req: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+
+  // Rate limit por usuário: 60 execuções/hora — previne loop acidental e abuso de créditos
+  const usuario = session.user as { id: string; name?: string | null; nome?: string; tipo?: string }
+  const rl = rateLimit(`agente:crm:${usuario.id}`, 60, 60 * 60_000)
+  if (!rl.allowed) return tooManyRequests(rl.retryAfterMs)
 
   const body = await req.json() as {
     instrucao: string
@@ -27,8 +33,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    const usuario = session.user as { id: string; name?: string | null; nome?: string; tipo?: string }
-
     const resultado = await executarAgente({
       instrucao,
       contexto: {

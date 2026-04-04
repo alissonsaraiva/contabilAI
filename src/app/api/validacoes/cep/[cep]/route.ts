@@ -23,9 +23,10 @@ export async function GET(_req: Request, { params }: Params) {
 
   return NextResponse.json({
     logradouro: data.logradouro,
-    bairro: data.bairro,
-    cidade: data.localidade,
-    uf: data.uf,
-    cep: data.cep,
+    bairro:     data.bairro,
+    cidade:     data.localidade,
+    uf:         data.uf,
+    cep:        data.cep,
+    ibge:       data.ibge ?? null,
   })
 }

@@ -322,12 +322,12 @@ export class SpedyClient {
 
   async cancelarNfse(id: string, justificativa: string): Promise<void> {
     await this.request('DELETE', `/service-invoices/${id}`, {
-      justification: justificativa,
+      Reason: justificativa,
     })
   }
 
   async reemitirNfse(id: string): Promise<void> {
-    await this.request('POST', `/service-invoices/${id}/issue`)
+    await this.request('POST', `/service-invoices/${id}/issue`, {})
   }
 
   async consultarStatusNfsePrefeitura(id: string): Promise<SpedyNfse> {

@@ -10,7 +10,7 @@ const PER_PAGE = 20
 
 type Props = { searchParams: Promise<{ page?: string; status?: string }> }
 
-const STATUS_OS: Record<string, { label: string; color: string; icon: string }> = {
+const STATUS_CHAMADO: Record<string, { label: string; color: string; icon: string }> = {
   aberta:              { label: 'Aberta',            color: 'text-blue-600 bg-blue-500/10',    icon: 'radio_button_unchecked' },
   em_andamento:        { label: 'Em andamento',      color: 'text-primary bg-primary/10',      icon: 'autorenew' },
   aguardando_cliente:  { label: 'Aguardando você',   color: 'text-yellow-600 bg-yellow-500/10',icon: 'pending' },
@@ -18,7 +18,7 @@ const STATUS_OS: Record<string, { label: string; color: string; icon: string }> 
   cancelada:           { label: 'Cancelada',         color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
 }
 
-const TIPO_OS: Record<string, string> = {
+const TIPO_CHAMADO: Record<string, string> = {
   duvida: 'Dúvida', solicitacao: 'Solicitação', reclamacao: 'Reclamação', documento: 'Documento', outros: 'Outros',
 }
 
@@ -39,8 +39,8 @@ export default async function ChamadosPage({ searchParams }: Props) {
   if (status) where.status = status
 
   const [ordens, total] = await Promise.all([
-    prisma.ordemServico.findMany({ where, orderBy: { criadoEm: 'desc' }, skip, take: PER_PAGE }),
-    prisma.ordemServico.count({ where }),
+    prisma.chamado.findMany({ where, orderBy: { criadoEm: 'desc' }, skip, take: PER_PAGE }),
+    prisma.chamado.count({ where }),
   ])
 
   const totalPages = Math.ceil(total / PER_PAGE)
@@ -56,7 +56,7 @@ export default async function ChamadosPage({ searchParams }: Props) {
           <p className="text-[12px] text-on-surface-variant/60">{total} chamado{total !== 1 ? 's' : ''} no total</p>
         </div>
         <Link
-          href="/portal/suporte/os/nova"
+          href="/portal/suporte/chamados/nova"
           className="ml-auto flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
@@ -76,7 +76,7 @@ export default async function ChamadosPage({ searchParams }: Props) {
                 : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
             }`}
           >
-            {s ? STATUS_OS[s]?.label : 'Todos'}
+            {s ? STATUS_CHAMADO[s]?.label : 'Todos'}
           </a>
         ))}
       </div>
@@ -90,11 +90,11 @@ export default async function ChamadosPage({ searchParams }: Props) {
         <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
           <ul className="divide-y divide-outline-variant/10">
             {ordens.map(o => {
-              const s = STATUS_OS[o.status] ?? STATUS_OS.aberta
+              const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
               return (
                 <li key={o.id}>
                   <Link
-                    href={`/portal/suporte/os/${o.id}`}
+                    href={`/portal/suporte/chamados/${o.id}`}
                     className="flex items-start gap-3 px-5 py-3.5 hover:bg-surface-container/50 transition-colors"
                   >
                     <span
@@ -106,7 +106,7 @@ export default async function ChamadosPage({ searchParams }: Props) {
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-medium text-on-surface truncate">{o.titulo}</p>
                       <p className="text-[11px] text-on-surface-variant/60">
-                        #{o.numero} · {TIPO_OS[o.tipo] ?? o.tipo} · {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
+                        #{o.numero} · {TIPO_CHAMADO[o.tipo] ?? o.tipo} · {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>

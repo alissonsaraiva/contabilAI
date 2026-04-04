@@ -215,7 +215,7 @@ model Empresa {
   cliente       Cliente?
   socios        Socio[]
   portalTokens  PortalToken[]
-  ordensServico OrdemServico[]
+  chamados     Chamado[]
   documentos    Documento[]
   notasFiscais  NotaFiscal[]
 
@@ -278,7 +278,7 @@ model Cliente {
   conversas         ConversaIA[]
   portalTokens      PortalToken[]
   statusHistorico   ClienteStatusHistorico[]
-  ordensServico     OrdemServico[]
+  chamados          Chamado[]
   pushSubscriptions PushSubscription[]
   cobrancasAsaas    CobrancaAsaas[]
   notasFiscais      NotaFiscal[]
@@ -375,7 +375,7 @@ model Documento {
   empresaId      String?
   empresa        Empresa?           @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   ordemServicoId String?
-  ordemServico   OrdemServico?      @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  chamado        Chamado?           @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
   tipo           String
   categoria      CategoriaDocumento @default(geral)
   nome           String
@@ -405,7 +405,7 @@ model Documento {
   @@map("documentos")
 }
 
-model OrdemServico {
+model Chamado {
   id              String    @id @default(uuid())
   numero          Int       @default(autoincrement()) @unique
   clienteId       String
@@ -431,11 +431,24 @@ model OrdemServico {
 
   documentos   Documento[]
   notasFiscais NotaFiscal[]
+  notas        ChamadoNota[]
 
   @@index([clienteId, criadoEm])
   @@index([status, criadoEm])
   @@index([numero])
   @@map("ordens_servico")
+}
+
+model ChamadoNota {
+  id        String   @id @default(uuid())
+  chamadoId String
+  chamado   Chamado  @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+  conteudo  String   @db.Text
+  autorId   String?
+  criadoEm  DateTime @default(now())
+
+  @@index([chamadoId, criadoEm])
+  @@map("chamado_notas")
 }
 
 model Comunicado {
@@ -874,7 +887,7 @@ model NotaFiscal {
   empresaId      String?
   empresa        Empresa?         @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   ordemServicoId String?
-  ordemServico   OrdemServico?    @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  chamado        Chamado?         @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
   emitidaPorId   String?          // usuarioId — null = agente/automático
 
   // IDs Spedy

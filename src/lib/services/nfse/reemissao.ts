@@ -137,8 +137,8 @@ export async function reemitirNotaFiscal(
     const updateComSpedy: Record<string, unknown> = {
       spedyId:      nfse.id,
       status:       statusMapeado,
-      rpsNumero:    nfse.rps?.number ?? null,
-      rpsSerie:     nfse.rps?.series ?? null,
+      rpsNumero:    nfse.rps?.number || null,
+      rpsSerie:     nfse.rps?.series || null,
       tentativas:   (nota.tentativas ?? 0) + 1,
       atualizadoEm: new Date(),
     }

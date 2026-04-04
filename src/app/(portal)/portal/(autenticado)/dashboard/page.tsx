@@ -10,7 +10,7 @@ import { DocItem } from './doc-item'
 import { AutoRefresh } from '@/components/ui/auto-refresh'
 
 /* ─── helpers de status ─── */
-const STATUS_OS: Record<string, { label: string; color: string }> = {
+const STATUS_CHAMADO: Record<string, { label: string; color: string }> = {
   aberta: { label: 'Aberta', color: 'bg-primary/10 text-primary' },
   em_andamento: { label: 'Em andamento', color: 'bg-orange-status/10 text-orange-status' },
   aguardando_cliente: { label: 'Aguardando', color: 'bg-yellow-500/10 text-yellow-700' },
@@ -97,7 +97,7 @@ export default async function PortalDashboardPage() {
       take: 6,
       select: { id: true, nome: true, tipo: true, url: true, criadoEm: true, status: true, visualizadoEm: true },
     }),
-    prisma.ordemServico.findMany({
+    prisma.chamado.findMany({
       where: { clienteId },
       orderBy: { criadoEm: 'desc' },
       take: 4,
@@ -259,7 +259,7 @@ export default async function PortalDashboardPage() {
                 )}
               </div>
               <Link
-                href="/portal/suporte/os/nova"
+                href="/portal/suporte/chamados/nova"
                 className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
               >
                 <span className="material-symbols-outlined text-[14px]">add</span>
@@ -272,7 +272,7 @@ export default async function PortalDashboardPage() {
                 <span className="text-3xl">✅</span>
                 <p className="text-[13px] text-on-surface-variant/60">Nenhum chamado ainda</p>
                 <Link
-                  href="/portal/suporte/os/nova"
+                  href="/portal/suporte/chamados/nova"
                   className="mt-1 rounded-xl border border-outline-variant/20 bg-surface-container px-4 py-2 text-[12px] font-semibold text-on-surface hover:bg-surface-container-high transition-colors"
                 >
                   Abrir primeiro chamado
@@ -282,11 +282,11 @@ export default async function PortalDashboardPage() {
               <>
                 <ul className="divide-y divide-outline-variant/8">
                   {ordensRecentes.map(o => {
-                    const s = STATUS_OS[o.status] ?? STATUS_OS.aberta
+                    const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
                     return (
                       <li key={o.id}>
                         <Link
-                          href={`/portal/suporte/os/${o.id}`}
+                          href={`/portal/suporte/chamados/${o.id}`}
                           className="flex items-center gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container-lowest/40 transition-colors"
                         >
                           <div className="flex-1 min-w-0">
@@ -402,13 +402,6 @@ export default async function PortalDashboardPage() {
                 </dd>
               </div>
             </dl>
-            <Link
-              href="/portal/empresa"
-              className="mt-4 flex items-center justify-center gap-1.5 rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-2 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container transition-colors"
-            >
-              <span className="material-symbols-outlined text-[14px]">edit</span>
-              Ver / editar dados
-            </Link>
           </div>
 
           {/* Resumo do ano */}
@@ -448,7 +441,7 @@ export default async function PortalDashboardPage() {
             <div className="grid grid-cols-2 gap-2">
               {[
                 { href: '/portal/documentos', icon: '📄', label: 'Documentos' },
-                { href: '/portal/suporte/os/nova', icon: '🎫', label: 'Abrir chamado' },
+                { href: '/portal/suporte/chamados/nova', icon: '🎫', label: 'Abrir chamado' },
                 { href: '/portal/empresa', icon: '🏛️', label: 'Minha empresa' },
                 { href: '/portal/suporte', icon: '💬', label: 'Suporte' },
               ].map(a => (

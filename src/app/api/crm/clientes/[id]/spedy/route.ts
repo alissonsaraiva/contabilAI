@@ -10,8 +10,74 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/crypto'
+import { getSpedyOwnerClient } from '@/lib/spedy'
 import { sincronizarEmpresaNaSpedy } from '@/lib/services/notas-fiscais'
 import { logger } from '@/lib/logger'
+
+// Cache em memória por estado (UF) — mesma estratégia do route de municípios
+const _municipioCache = new Map<string, { nomes: Set<string>; expiresAt: number }>()
+
+function normalizar(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+
+/** Busca código IBGE do CEP via ViaCEP. Retorna null se falhar. */
+async function ibgeDoCep(cep: string): Promise<string | null> {
+  try {
+    const cleaned = cep.replace(/\D/g, '')
+    if (cleaned.length !== 8) return null
+    const controller = new AbortController()
+    const timeout    = setTimeout(() => controller.abort(), 4_000)
+    try {
+      const res  = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`, { signal: controller.signal })
+      if (!res.ok) return null
+      const data = await res.json() as { ibge?: string; erro?: boolean }
+      if (data.erro) return null
+      return data.ibge ?? null
+    } finally {
+      clearTimeout(timeout)
+    }
+  } catch {
+    return null
+  }
+}
+
+async function verificarMunicipioCoberto(
+  cidade: string,
+  uf: string,
+  cep: string | null,
+  spedyApiKey: string,
+  spedyAmbiente: string | null,
+): Promise<boolean> {
+  const client = getSpedyOwnerClient({ spedyApiKey, spedyAmbiente })
+
+  // Estratégia 1: IBGE code via ViaCEP — match exato, sem normalização
+  if (cep) {
+    const ibge = await ibgeDoCep(cep)
+    if (ibge) {
+      const result = await client.verificarMunicipio(ibge)
+      return result !== null
+    }
+  }
+
+  // Estratégia 2: fallback por nome normalizado (paginado, com cache 24h)
+  const ufUpper = uf.toUpperCase()
+  const cached = _municipioCache.get(ufUpper)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.nomes.has(normalizar(cidade))
+  }
+
+  const nomes = new Set<string>()
+  let page = 1, hasNext = true
+  while (hasNext) {
+    const res = await client.listarMunicipios({ state: ufUpper, page, pageSize: 100 })
+    res.items.forEach(m => nomes.add(normalizar(m.name)))
+    hasNext = res.hasNext
+    page++
+  }
+  _municipioCache.set(ufUpper, { nomes, expiresAt: Date.now() + 24 * 60 * 60 * 1000 })
+  return nomes.has(normalizar(cidade))
+}
 
 export async function GET(
   _req: Request,
@@ -23,29 +89,52 @@ export async function GET(
   const { id } = await params
   const cliente = await prisma.cliente.findUnique({
     where:   { id },
-    select:  { nome: true, empresaId: true },
+    select:  { nome: true, empresaId: true, cidade: true, uf: true, cep: true },
   })
   if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
   if (!cliente.empresaId) return NextResponse.json({ configurado: false, motivo: 'Cliente sem empresa vinculada' })
 
-  const empresa = await prisma.empresa.findUnique({
-    where:  { id: cliente.empresaId },
-    select: {
-      spedyConfigurado:       true,
-      spedyConfiguradoEm:     true,
-      spedyCompanyId:         true,
-      spedyFederalServiceCode: true,
-      spedyCityServiceCode:   true,
-      spedyIssAliquota:       true,
-      spedyIssWithheld:       true,
-      spedyTaxationType:      true,
-    },
-  })
+  const [empresa, escritorio] = await Promise.all([
+    prisma.empresa.findUnique({
+      where:  { id: cliente.empresaId },
+      select: {
+        spedyConfigurado:        true,
+        spedyConfiguradoEm:      true,
+        spedyCompanyId:          true,
+        spedyFederalServiceCode: true,
+        spedyCityServiceCode:    true,
+        spedyIssAliquota:        true,
+        spedyIssWithheld:        true,
+        spedyTaxationType:       true,
+      },
+    }),
+    prisma.escritorio.findFirst({
+      select: { spedyApiKey: true, spedyAmbiente: true },
+    }),
+  ])
+
+  // Verifica cobertura do município na Spedy (null = cidade/UF não cadastrados)
+  let municipioIntegrado: boolean | null = null
+  if (escritorio?.spedyApiKey && cliente.cidade && cliente.uf) {
+    try {
+      municipioIntegrado = await verificarMunicipioCoberto(
+        cliente.cidade,
+        cliente.uf,
+        cliente.cep ?? null,
+        escritorio.spedyApiKey,
+        escritorio.spedyAmbiente ?? null,
+      )
+    } catch (err) {
+      logger.warn('api-spedy-municipio-check-falhou', { clienteId: id, err })
+    }
+  }
 
   return NextResponse.json({
     configurado:        empresa?.spedyConfigurado ?? false,
     configuradoEm:      empresa?.spedyConfiguradoEm,
     temCompanyId:       !!empresa?.spedyCompanyId,
+    municipioIntegrado,
+    municipioNome:      cliente.cidade ?? null,
     fiscalDefaults: {
       federalServiceCode: empresa?.spedyFederalServiceCode,
       cityServiceCode:    empresa?.spedyCityServiceCode,

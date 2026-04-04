@@ -11,19 +11,20 @@ type Props = {
   nomeEscritorio: string
   tipoContribuinte?: 'pj' | 'pf'
   docsNovos?: number
+  notasNovas?: number
 }
 
-export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', docsNovos = 0 }: Props) {
+export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', docsNovos = 0, notasNovas = 0 }: Props) {
   const isPF = tipoContribuinte === 'pf'
 
   const NAV_ITEMS = [
-    { href: '/portal/dashboard',     icon: 'home',                        label: 'Início',      mobileLabel: 'Início',  badge: 0 },
+    { href: '/portal/dashboard',     icon: 'home',                        label: 'Início',        mobileLabel: 'Início',  badge: 0 },
     { href: '/portal/empresa',       icon: isPF ? 'badge' : 'domain',     label: isPF ? 'Dados' : 'Empresa', mobileLabel: isPF ? 'Dados' : 'Empresa', badge: 0 },
-    { href: '/portal/documentos',    icon: 'folder_open',                 label: 'Documentos',  mobileLabel: 'Docs',    badge: docsNovos },
-    { href: '/portal/financeiro',     icon: 'payments',                    label: 'Financeiro',  mobileLabel: 'Financ.', badge: 0 },
-    { href: '/portal/notas-fiscais', icon: 'receipt_long',                label: 'Notas Fiscais', mobileLabel: 'NFS-e', badge: 0 },
-    { href: '/portal/suporte',       icon: 'support_agent',               label: 'Suporte',     mobileLabel: 'Suporte', badge: 0 },
-    { href: '/portal/configuracoes', icon: 'settings',                    label: 'Config.',     mobileLabel: 'Config.', badge: 0 },
+    { href: '/portal/documentos',    icon: 'folder_open',                 label: 'Documentos',    mobileLabel: 'Docs',    badge: docsNovos },
+    { href: '/portal/financeiro',    icon: 'payments',                    label: 'Financeiro',    mobileLabel: 'Financ.', badge: 0 },
+    ...(!isPF ? [{ href: '/portal/notas-fiscais', icon: 'receipt_long',   label: 'Notas Fiscais', mobileLabel: 'NFS-e',  badge: notasNovas }] : []),
+    { href: '/portal/suporte',       icon: 'support_agent',               label: 'Suporte',       mobileLabel: 'Suporte', badge: 0 },
+    { href: '/portal/configuracoes', icon: 'settings',                    label: 'Config.',       mobileLabel: 'Config.', badge: 0 },
   ]
   const pathname = usePathname()
 

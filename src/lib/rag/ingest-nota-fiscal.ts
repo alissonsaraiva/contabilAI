@@ -66,7 +66,7 @@ export async function indexar(nota: NotaFiscalData, clienteNome?: string | null)
     iss,
     `Descrição do serviço: ${nota.descricao}`,
     nota.protocolo ? `Protocolo: ${nota.protocolo}` : '',
-    nota.ordemServicoId ? `Ref. OS: ${nota.ordemServicoId}` : '',
+    nota.ordemServicoId ? `Ref. Chamado: ${nota.ordemServicoId}` : '',
   ].filter(Boolean).join('\n')
 
   const documentoId = `nota_fiscal:${nota.id}`

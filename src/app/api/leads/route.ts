@@ -5,14 +5,25 @@ import { z } from 'zod'
 import { rateLimit, getClientIp, tooManyRequests } from '@/lib/rate-limit'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_DIGITS_MIN = 10
+
 const createSchema = z.object({
-  contatoEntrada: z.string().min(3),
+  contatoEntrada: z.string()
+    .min(3)
+    .refine(
+      (v) => {
+        const digits = v.replace(/\D/g, '')
+        return EMAIL_REGEX.test(v) || digits.length >= PHONE_DIGITS_MIN
+      },
+      { message: 'Informe um e-mail válido ou telefone com DDD (mínimo 10 dígitos)' },
+    ),
   canal: z.enum(['site', 'whatsapp', 'indicacao', 'instagram', 'google', 'outro']).default('site'),
   funil: z.enum(['prospeccao', 'onboarding']).default('onboarding'),
-  observacoes: z.string().optional(),
-  utmSource: z.string().optional(),
-  utmMedium: z.string().optional(),
-  utmCampaign: z.string().optional(),
+  observacoes: z.string().max(1000).optional(),
+  utmSource: z.string().max(200).optional(),
+  utmMedium: z.string().max(200).optional(),
+  utmCampaign: z.string().max(200).optional(),
 })
 
 export async function GET(req: Request) {

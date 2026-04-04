@@ -18,6 +18,35 @@ function isPhone(v: string) {
   return /^[\d\s()\-+]+$/.test(v) && !/[@a-zA-Z]/.test(v)
 }
 
+function validarCPF(cpf: string): boolean {
+  const d = cpf.replace(/\D/g, '')
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false
+  let sum = 0
+  for (let i = 0; i < 9; i++) sum += parseInt(d[i]) * (10 - i)
+  let r = (sum * 10) % 11
+  if (r === 10 || r === 11) r = 0
+  if (r !== parseInt(d[9])) return false
+  sum = 0
+  for (let i = 0; i < 10; i++) sum += parseInt(d[i]) * (11 - i)
+  r = (sum * 10) % 11
+  if (r === 10 || r === 11) r = 0
+  return r === parseInt(d[10])
+}
+
+function validarCNPJ(cnpj: string): boolean {
+  const d = cnpj.replace(/\D/g, '')
+  if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false
+  const calcDigito = (s: string, weights: number[]) => {
+    let sum = 0
+    for (let i = 0; i < weights.length; i++) sum += parseInt(s[i]) * weights[i]
+    const r = sum % 11
+    return r < 2 ? 0 : 11 - r
+  }
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+  return calcDigito(d, w1) === parseInt(d[12]) && calcDigito(d, w2) === parseInt(d[13])
+}
+
 function formatCEP(v: string) {
   const d = v.replace(/\D/g, '').slice(0, 8)
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d
@@ -72,7 +101,7 @@ export default function DadosPage({ searchParams }: Props) {
 
   useEffect(() => {
     if (!leadId) return
-    fetch(`/api/leads/${leadId}`)
+    fetch(`/api/onboarding/lead/${leadId}`)
       .then(r => r.json())
       .then((lead: { contatoEntrada?: string; dadosJson?: Record<string, string> }) => {
         const d = lead.dadosJson
@@ -121,8 +150,10 @@ export default function DadosPage({ searchParams }: Props) {
     if (digits.length !== 8) return
     const setter = prefix === 'Empresa' ? setCepEmpresaLoading : setCepLoading
     setter(true)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
     try {
-      const res = await fetch(`/api/validacoes/cep/${digits}`)
+      const res = await fetch(`/api/validacoes/cep/${digits}`, { signal: controller.signal })
       if (!res.ok) return
       const data = await res.json() as { logradouro?: string; bairro?: string; cidade?: string; uf?: string; erro?: boolean }
       if (data.erro) return
@@ -143,7 +174,8 @@ export default function DadosPage({ searchParams }: Props) {
           estado:     data.uf         ?? f.estado,
         }))
       }
-    } catch { /* ignora */ } finally {
+    } catch { /* timeout ou erro de rede — ignora silenciosamente */ } finally {
+      clearTimeout(timeoutId)
       setter(false)
     }
   }
@@ -174,10 +206,10 @@ export default function DadosPage({ searchParams }: Props) {
   function validate() {
     const e: Record<string, string> = {}
     if (!form.nome.trim() || form.nome.trim().split(' ').length < 2) e.nome = 'Informe nome e sobrenome'
-    if (!form.cpf || form.cpf.replace(/\D/g, '').length !== 11) e.cpf = 'CPF inválido (11 dígitos)'
+    if (!validarCPF(form.cpf)) e.cpf = 'CPF inválido'
     if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'E-mail inválido'
     if (form.telefone.replace(/\D/g, '').length < 10) e.telefone = 'Telefone inválido'
-    if (precisaCnpj && form.cnpj.replace(/\D/g, '').length !== 14) e.cnpj = 'CNPJ inválido (14 dígitos)'
+    if (precisaCnpj && !validarCNPJ(form.cnpj)) e.cnpj = 'CNPJ inválido'
     setErros(e)
     return Object.keys(e).length === 0
   }
@@ -221,7 +253,8 @@ export default function DadosPage({ searchParams }: Props) {
           },
         }),
       })
-      router.push(`/onboarding/revisao?leadId=${leadId}&plano=${plano}`)
+      const emailParam = encodeURIComponent(form.email)
+      router.push(`/onboarding/verificar-email?leadId=${leadId}&plano=${plano}&email=${emailParam}`)
     } catch {
       toast.error('Erro ao salvar. Tente novamente.')
     } finally {
