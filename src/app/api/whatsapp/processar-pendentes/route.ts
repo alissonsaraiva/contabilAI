@@ -15,6 +15,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { processarMensagensPendentes } from '@/lib/whatsapp/processar-pendentes'
+import { hc } from '@/lib/healthchecks'
 import '@/lib/ai/tools'
 
 export const maxDuration = 55
@@ -28,12 +29,15 @@ export async function POST(req: Request) {
     }
   }
 
+  void hc.start(process.env.HC_PROCESSAR_PENDENTES)
   try {
     const result = await processarMensagensPendentes()
+    void hc.ok(process.env.HC_PROCESSAR_PENDENTES)
     return NextResponse.json({ ok: true, ...result })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[processar-pendentes] erro geral:', msg)
+    void hc.fail(process.env.HC_PROCESSAR_PENDENTES)
     Sentry.captureException(err, { tags: { module: 'cron-processar-pendentes' } })
     return NextResponse.json({ ok: false, erro: msg }, { status: 500 })
   }

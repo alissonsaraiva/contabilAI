@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { buscarEmailsNovos } from '@/lib/email/imap'
 import { processarEmailRecebido } from '@/lib/email/processar'
 import { setImapSyncOk, setImapSyncErro, getImapSyncStatus } from '@/lib/email/imap-status'
+import { hc } from '@/lib/healthchecks'
 
 // Proteção por secret para chamadas do cron interno
 function autorizarCron(req: Request): boolean {
@@ -25,11 +26,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  // Sentry Cron Monitoring
-  const checkIn = Sentry.captureCheckIn(
-    { monitorSlug: 'cron-email-sync', status: 'in_progress' },
-    { schedule: { type: 'crontab', value: '*/5 * * * *' }, checkinMargin: 2, maxRuntime: 4, timezone: 'America/Sao_Paulo' },
-  )
+  void hc.start(process.env.HC_EMAIL_SYNC)
 
   let processados = 0
   let associados  = 0
@@ -60,10 +57,10 @@ export async function POST(req: Request) {
     }
 
     setImapSyncOk(processados, associados)
-    Sentry.captureCheckIn({ monitorSlug: 'cron-email-sync', checkInId: checkIn, status: 'ok' })
+    void hc.ok(process.env.HC_EMAIL_SYNC)
   } catch (err) {
     const mensagem = err instanceof Error ? err.message : 'Erro no IMAP'
-    Sentry.captureCheckIn({ monitorSlug: 'cron-email-sync', checkInId: checkIn, status: 'error' })
+    void hc.fail(process.env.HC_EMAIL_SYNC)
     Sentry.captureException(err, { tags: { module: 'email-sync', operation: 'buscar-emails' } })
     setImapSyncErro(mensagem)
 

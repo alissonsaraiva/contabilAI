@@ -22,6 +22,7 @@ import { getSpedyClienteClient } from '@/lib/spedy'
 import { logger } from '@/lib/logger'
 import { processarWebhookSpedy } from '@/lib/services/notas-fiscais'
 import type { SpedyWebhookPayload } from '@/lib/spedy'
+import { hc } from '@/lib/healthchecks'
 
 export const maxDuration = 55
 
@@ -39,11 +40,7 @@ export async function POST(req: Request) {
 
   const limite = new Date(Date.now() - MINUTOS_PRESA * 60 * 1000)
 
-  // Sentry Cron Monitoring — alerta se o cron parar de rodar
-  const checkIn = Sentry.captureCheckIn(
-    { monitorSlug: 'cron-reconciliar-notas', status: 'in_progress' },
-    { schedule: { type: 'crontab', value: '0 * * * *' }, checkinMargin: 5, maxRuntime: 55, timezone: 'America/Sao_Paulo' },
-  )
+  void hc.start(process.env.HC_RECONCILIAR_NOTAS)
 
   let reconciliadas = 0
   let erros         = 0
@@ -164,12 +161,12 @@ export async function POST(req: Request) {
     }
 
     logger.info('cron-reconciliar-notas-concluido', { reconciliadas, erros })
-    Sentry.captureCheckIn({ monitorSlug: 'cron-reconciliar-notas', checkInId: checkIn, status: 'ok' })
+    void hc.ok(process.env.HC_RECONCILIAR_NOTAS)
     return NextResponse.json({ reconciliadas, erros })
 
   } catch (err) {
     logger.error('cron-reconciliar-notas-falhou', { err })
-    Sentry.captureCheckIn({ monitorSlug: 'cron-reconciliar-notas', checkInId: checkIn, status: 'error' })
+    void hc.fail(process.env.HC_RECONCILIAR_NOTAS)
     Sentry.captureException(err, { tags: { module: 'cron-reconciliar-notas', operation: 'main' } })
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }

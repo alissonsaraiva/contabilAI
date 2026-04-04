@@ -15,6 +15,7 @@ import { NextResponse }               from 'next/server'
 import { prisma }                     from '@/lib/prisma'
 import { resumirDocumento }           from '@/lib/services/resumir-documento'
 import { DOCUMENTO_MAX_TENTATIVAS }   from '@/lib/services/documento-config'
+import { hc }                         from '@/lib/healthchecks'
 
 export const maxDuration = 55
 const BATCH_SIZE     = 20  // processa no máximo 20 documentos por execução
@@ -28,11 +29,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // Sentry Cron Monitoring
-  const checkIn = Sentry.captureCheckIn(
-    { monitorSlug: 'cron-retry-documentos', status: 'in_progress' },
-    { schedule: { type: 'crontab', value: '0 * * * *' }, checkinMargin: 5, maxRuntime: 55, timezone: 'America/Sao_Paulo' },
-  )
+  void hc.start(process.env.HC_RETRY_DOCUMENTOS)
 
   try {
     // Inclui docs presos em 'processando' há mais de 30min (servidor caiu durante o processo)
@@ -78,12 +75,12 @@ export async function POST(req: Request) {
       }
     }
 
-    Sentry.captureCheckIn({ monitorSlug: 'cron-retry-documentos', checkInId: checkIn, status: 'ok' })
+    void hc.ok(process.env.HC_RETRY_DOCUMENTOS)
     return NextResponse.json({ ok: true, processados: docs.length, sucessos: ok, falhou, erros })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[retry-documentos] erro geral:', msg)
-    Sentry.captureCheckIn({ monitorSlug: 'cron-retry-documentos', checkInId: checkIn, status: 'error' })
+    void hc.fail(process.env.HC_RETRY_DOCUMENTOS)
     Sentry.captureException(err, { tags: { module: 'cron-retry-documentos' } })
     return NextResponse.json({ ok: false, erro: msg }, { status: 500 })
   }

@@ -18,6 +18,7 @@ import { executarAgente } from '@/lib/ai/agent'
 import { proximoDisparo } from '@/lib/ai/cron-helper'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import { notificarAgenteFalhou } from '@/lib/notificacoes'
+import { hc } from '@/lib/healthchecks'
 import '@/lib/ai/tools' // registra todas as tools
 
 // 5 minutos — necessário porque cada executarAgente pode levar até 45s.
@@ -33,6 +34,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
   }
+
+  void hc.start(process.env.HC_AGENTE)
 
   const agora = new Date()
 
@@ -71,6 +74,7 @@ export async function POST(req: Request) {
   })
 
   if (vencidos.length === 0) {
+    void hc.ok(process.env.HC_AGENTE)
     return NextResponse.json({ ok: true, disparados: 0 })
   }
 
@@ -149,5 +153,6 @@ export async function POST(req: Request) {
     }
   }
 
+  void hc.ok(process.env.HC_AGENTE)
   return NextResponse.json({ ok: true, disparados: vencidos.length, resultados })
 }
