@@ -1,7 +1,7 @@
 # Arquitetura de IA — AVOS
 
 > Referência técnica do subsistema de inteligência artificial: providers, RAG, canais, ingestão automática e fluxo de cada IA.
-> Última atualização: 2026-03-30 (v3.9 — RAG quality, 46 tools, feedback loop, guardrails)
+> Última atualização: 2026-04-04 (v3.10.23 — 64 tools, NFS-e, Asaas/financeiro, portal auto-serviço, WhatsApp security)
 
 ---
 
@@ -184,23 +184,36 @@ A tela de Prospecção (`/crm/prospeccao`) é um **kanban** de contatos comercia
 
 ```prisma
 model ConversaIA {
-  id           String       @id @default(uuid())
-  canal        String       // 'whatsapp' | 'onboarding' | 'crm' | 'portal'
-  clienteId    String?
-  leadId       String?
-  remoteJid    String?      // WhatsApp: número do contato
-  sessionId    String?      // Web chats: UUID gerado no front-end
-  criadaEm     DateTime     @default(now())
-  atualizadaEm DateTime     @updatedAt
-  mensagens    MensagemIA[]
+  id            String       @id @default(uuid())
+  canal         String       // 'whatsapp' | 'onboarding' | 'crm' | 'portal'
+  clienteId     String?
+  leadId        String?
+  socioId       String?      // sócio que iniciou a conversa (portal/WhatsApp)
+  empresaId     String?      // empresa do sócio ou do cliente (portal)
+  remoteJid     String?      // WhatsApp: número do contato
+  sessionId     String?      // Web chats: UUID gerado no front-end
+  pausadaEm     DateTime?    // quando preenchido, IA para de responder (humano no controle)
+  pausadoPorId  String?      // userId de quem assumiu
+  criadaEm      DateTime     @default(now())
+  atualizadaEm  DateTime     @updatedAt
+  mensagens     MensagemIA[]
 }
 
 model MensagemIA {
-  id          String     @id @default(uuid())
-  conversaId  String
-  role        String     // 'user' | 'assistant'
-  conteudo    String     @db.Text
-  criadaEm    DateTime   @default(now())
+  id              String    @id @default(uuid())
+  conversaId      String
+  role            String    // 'user' | 'assistant'
+  conteudo        String    @db.Text
+  status          String?   // 'sent' | 'failed' | 'pending'
+  tentativas      Int       @default(0)
+  erroEnvio       String?
+  mediaUrl        String?   // URL pública do arquivo (S3/R2)
+  mediaType       String?   // 'image' | 'document' | 'audio'
+  mediaFileName   String?   // nome original do arquivo
+  mediaMimeType   String?   // MIME type
+  whatsappMsgData Json?     // payload {key, message} para re-fetch de áudio na Evolution
+  excluido        Boolean   @default(false)
+  criadaEm        DateTime  @default(now())
 }
 ```
 
@@ -267,10 +280,10 @@ Fire-and-forget em background após writes no banco — não bloqueia a resposta
 | Ação do agente (tool sucesso) | `indexarAgenteAcao` | `crm` | `cliente`/`lead` |
 | Conversa pausada (humano assume) | `indexarConversa` | canal origem | `cliente`/`lead` |
 | Status do cliente alterado | `indexarStatusHistorico` | `geral` | `cliente` |
-| Tarefa criada/concluída | `indexarTarefa` | `crm` | `cliente` |
-| Tarefa cancelada | remove do índice | — | — |
 | Contrato assinado | `indexarContrato` | `onboarding` | `lead` |
 | Documento enviado/recebido | `indexarDocumento` | `geral` ou `crm` | `cliente`/`lead` |
+| NFS-e autorizada | `indexarNotaFiscal` | `geral` | `cliente` |
+| NFS-e cancelada | `indexarNotaFiscal` (re-indexa com status cancelada) | `geral` | `cliente` |
 | Configurações de IA salvas (PUT) | `indexarEscritorio` + `indexarPlanos` | `geral` | `global` |
 | Artigo criado na base de conhecimento | `ingestirTexto` | canal configurado | `global` |
 | Upload de PDF na base de conhecimento | `/api/conhecimento/pdf` → `ingestirTexto` | canal configurado | `global` |
@@ -560,7 +573,7 @@ pergunta do operador
        │
        ▼  (se ação)
   loop (máx 5 iterações):
-    ├─ provider.complete(tools=[...46 tools...])
+    ├─ provider.complete(tools=[...64 tools...])
     ├─ tool_use? → executar tool → resultado → próxima iteração
     └─ stop_reason=end_turn → resposta final
        │
@@ -572,28 +585,25 @@ pergunta do operador
 ### Registro de tools
 
 - **Registry global:** `src/lib/ai/tools/registry.ts` — `Map<string, Tool>`
-- **Ponto de entrada:** `src/lib/ai/tools/index.ts` — registra todas as 46 tools via side-effect de import
+- **Ponto de entrada:** `src/lib/ai/tools/index.ts` — registra todas as 64 tools via side-effect de import
 - **Permissões por canal:** cada tool declara `meta.canais: string[]` — filtrado em runtime
 
-### 46 Tools implementadas
+### 64 Tools implementadas
 
-#### Leitura CRM (8)
+#### Leitura CRM (7)
 | Tool | Descrição |
 |---|---|
 | `buscarDadosOperador` | Dados do operador logado + permissões |
 | `resumirFunil` | Resumo do funil de leads com contagens por status |
 | `listarLeadsInativos` | Leads sem interação há N dias |
 | `buscarDadosCliente` | Ficha completa do cliente (dados cadastrais + plano + empresa) |
-| `listarTarefas` | Tarefas abertas do operador ou do cliente |
 | `buscarHistorico` | Histórico de interações (notas, emails, WhatsApp, ligações) |
 | `listarPlanos` | Planos ativos com valores e serviços |
-| `resumoDashboard` | Métricas do dashboard: clientes, leads, OS, tarefas |
+| `resumoDashboard` | Métricas do dashboard: clientes, leads, OS |
 
-#### Escrita CRM (11)
+#### Escrita CRM (10)
 | Tool | Descrição |
 |---|---|
-| `criarTarefa` | Cria tarefa (deprecada — usar `criarChamado`) |
-| `concluirTarefa` | Conclui tarefa (deprecada — usar `criarChamado`) |
 | `criarChamado` | Cria chamado vinculado ao cliente |
 | `registrarInteracao` | Registra nota/ligação/interação no histórico |
 | `atualizarStatusLead` | Atualiza status de um lead no funil |
@@ -603,6 +613,7 @@ pergunta do operador
 | `convidarSocioPortal` | Convida sócio para acessar o portal |
 | `atualizarDadosCliente` | Atualiza telefone, email, WhatsApp, endereço, vencimento, responsável + re-indexa RAG |
 | `transferirCliente` | Transfere cliente/lead para outro responsável + registra interação + re-indexa |
+| `reativarCliente` | Reativa cliente cancelado/suspenso e registra no histórico |
 
 #### Comunicação (10)
 | Tool | Descrição |
@@ -618,11 +629,12 @@ pergunta do operador
 | `enviarLembreteVencimento` | Envia lembrete de vencimento por email e/ou WhatsApp (cliente específico ou lote) |
 | `buscarEmailInbox` | Busca emails recebidos por remetente, assunto, período ou cliente |
 
-#### Contrato (2)
+#### Contrato (3)
 | Tool | Descrição |
 |---|---|
 | `gerarContrato` | Gera contrato de prestação de serviços (DocuSeal) |
 | `enviarContrato` | Envia contrato para assinatura eletrônica |
+| `verificarStatusContrato` | Verifica status de assinatura no DocuSeal |
 
 #### Agendamento (3)
 | Tool | Descrição |
@@ -631,28 +643,41 @@ pergunta do operador
 | `listarAgendamentos` | Lista agendamentos futuros |
 | `cancelarAgendamento` | Cancela agendamento |
 
-#### Consultas e relatórios (4)
+#### Consultas e relatórios (3)
 | Tool | Descrição |
 |---|---|
 | `consultarDados` | Consulta genérica de dados do CRM via filtros |
 | `publicarRelatorio` | Publica relatório no painel do cliente (portal) |
 | `gerarRelatorioInadimplencia` | Aging report (≤30d, 31-60d, 61-90d, >90d) dos clientes inadimplentes |
-| `buscarCnpjExterno` | Consulta Receita Federal via proxy (situação cadastral, CNAE, endereço, sócios) |
 
-#### Portal do cliente (5)
+#### Financeiras — Asaas / inadimplência (7)
 | Tool | Descrição |
 |---|---|
+| `buscarCobrancaAberta` | Busca cobranças em aberto do cliente no Asaas |
+| `enviarCobrancaInadimplente` | Envia cobrança/lembrete para cliente inadimplente |
+| `gerarSegundaViaAsaas` | Gera segunda via de boleto/PIX via Asaas |
+| `listarCobrancasCliente` | Lista histórico de cobranças do cliente |
+| `alterarVencimentoCobranca` | Altera data de vencimento de uma cobrança aberta |
+| `alterarFormaPagamento` | Altera forma de pagamento recorrente do cliente |
+| `extratoFinanceiro` | Extrato financeiro do cliente (pagas, abertas, vencidas) |
+
+#### Portal do cliente (6)
+| Tool | Descrição |
+|---|---|
+| `buscarChamado` | Busca detalhe de um chamado específico |
 | `listarChamados` | Lista chamados do cliente no portal |
 | `responderChamado` | Responde chamado com texto e/ou documento |
 | `publicarComunicado` | Publica comunicado no portal (todos os clientes ou segmento) |
 | `enviarMensagemPortal` | Envia mensagem privada no portal para cliente específico |
 | `listarComunicados` | Lista comunicados publicados não expirados |
 
-#### Documentos (2)
+#### Documentos (4)
 | Tool | Descrição |
 |---|---|
 | `listarDocumentosPendentes` | Documentos aguardando aprovação |
 | `aprovarDocumento` | Aprova ou rejeita documento (com `motivoRejeicao` obrigatório na rejeição) |
+| `resumirDocumento` | Gera resumo de documento do cliente via IA |
+| `anexarDocumentoChat` | Anexa documento ao contexto da conversa em andamento |
 
 #### Email (1)
 | Tool | Descrição |
@@ -664,10 +689,22 @@ pergunta do operador
 |---|---|
 | `enviarComunicadoSegmentado` | Envia comunicado por segmento de clientes (plano, regime, etc.) |
 
+#### NFS-e via Spedy (8)
+| Tool | Descrição |
+|---|---|
+| `verificarConfiguracaoNfse` | Verifica se a empresa está configurada para emitir NFS-e |
+| `emitirNotaFiscal` | Emite NFS-e via Spedy para o cliente |
+| `reemitirNotaFiscal` | Reemite NFS-e rejeitada ou com erro, permitindo corrigir dados |
+| `consultarNotasFiscais` | Lista NFS-e emitidas com filtros de período e status |
+| `cancelarNotaFiscal` | Cancela NFS-e autorizada (validações: prazo ≤30d, justificativa ≥15 chars) |
+| `enviarNotaFiscalCliente` | Reenvia NFS-e ao cliente por email/WhatsApp |
+| `reenviarEmailNotaFiscal` | Reenvio específico por email |
+| `buscarTomadoresRecorrentes` | Lista tomadores frequentes para facilitar nova emissão |
+
 #### Externas (1)
 | Tool | Descrição |
 |---|---|
-| `buscarCnpjExterno` | Consulta pública Receita Federal via proxy |
+| `buscarCnpjExterno` | Consulta pública Receita Federal via proxy (situação cadastral, CNAE, endereço, sócios) |
 
 ### Feedback loop
 
@@ -706,6 +743,41 @@ Quando `tipo: 'desconhecido'` (sem clienteId e sem leadId), o guardrail ativo in
 
 ---
 
+## WhatsApp — Segurança do Chat Humano
+
+Arquivo central de utilitários: [`src/lib/whatsapp-utils.ts`](../src/lib/whatsapp-utils.ts)
+
+Exporta funções compartilhadas pelos 3 endpoints POST de WhatsApp (`clientes`, `leads`, `socios`):
+
+| Utilitário | O que faz |
+|---|---|
+| `buildRemoteJid(phone)` | Normaliza número → valida 8–13 dígitos → adiciona `@s.whatsapp.net`. Retorna `null` se inválido. |
+| `isMediaUrlTrusted(url)` | Valida hostname contra `STORAGE_PUBLIC_URL` — previne SSRF |
+| `checkRateLimit(userId)` | 30 msgs / 60 s por usuário logado — in-memory, Redis-ready |
+| `getEvolutionConfig()` | Lê config da Evolution API do banco do escritório |
+| `WHATSAPP_ALLOWED_MIME` | Set com MIME types permitidos (images, PDF, Word, Excel, CSV, texto) |
+
+### Validações em todos os POSTs WhatsApp
+
+1. **Auth** — `session.user.id` obrigatório
+2. **Rate limit** — `checkRateLimit(userId)` → 429 com `Retry-After` se excedido
+3. **Conteúdo** — `conteudo` ou `mediaUrl` obrigatório (não ambos vazios)
+4. **MIME** — quando `mediaUrl` presente: `mediaMimeType` obrigatório e na whitelist
+5. **Hostname** — `mediaUrl` validada contra `STORAGE_PUBLIC_URL` (previne SSRF)
+6. **Telefone** — `buildRemoteJid` rejeita números com < 8 ou > 13 dígitos
+7. **Sentry** — try/catch com `captureException` em todo o fluxo (tags: `module`, `operation`)
+
+### SSE — stream de novas mensagens
+
+Endpoint: `GET /api/stream/conversas/[id]`
+
+- Valida que a conversa tem ao menos um `clienteId | leadId | socioId` vinculado (403 para conversas órfãs)
+- `sseHealthyRef` no hook client-side: polling de 8 s só dispara quando SSE está inativo
+- Reconexão exponencial (máx 5 tentativas, backoff até 30 s)
+- `isMounted` flag previne criação de EventSource após desmontagem (race condition)
+
+---
+
 ## Lacunas / próximos passos
 
 | Item | Status |
@@ -715,3 +787,5 @@ Quando `tipo: 'desconhecido'` (sem clienteId e sem leadId), o guardrail ativo in
 | Open Finance (Pluggy) | Pendente — plano detalhado em `project_openfinance_pluggy.md` |
 | Re-contexto WhatsApp pós-24h | Pendente — injetar últimas mensagens da conversa anterior ao criar nova janela |
 | Verificação de identidade WhatsApp | Pendente — 4 opções mapeadas, recomendação: PIN de sessão + restrição de escopo |
+| Chat do portal (Clara) | Pendente — 4 decisões pendentes antes de implementar (auth, escopo, handoff A/B, notificações) |
+| Rate limit WhatsApp (Redis) | Atual implementação in-memory — migrar para Redis em produção multi-instância |
