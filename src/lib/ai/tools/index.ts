@@ -62,6 +62,10 @@ import './verificar-status-contrato'
 import './buscar-cobranca-aberta'
 import './enviar-cobranca-inadimplente'
 import './gerar-segunda-via-asaas'
+import './listar-cobrancas-cliente'
+import './alterar-vencimento-cobranca'
+import './alterar-forma-pagamento'
+import './extrato-financeiro'
 
 // ─── Tools do portal do cliente ───────────────────────────────────────────────
 import './buscar-chamado'

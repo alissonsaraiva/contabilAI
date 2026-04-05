@@ -8,7 +8,7 @@
  */
 
 export { PLANOS_INFO, indexarEscritorio, indexarPlanos } from './ingestores/escritorio'
-export { indexarLead, indexarContrato } from './ingestores/lead'
+export { indexarLead, indexarContrato, migrarLeadParaCliente } from './ingestores/lead'
 export { indexarCliente, indexarStatusHistorico, indexarEmpresa } from './ingestores/cliente'
 export { indexarInteracao } from './ingestores/interacao'
 export { indexarDocumento, indexarChamado } from './ingestores/documento'
@@ -16,3 +16,4 @@ export { indexarEscalacao } from './ingestores/escalacao'
 export { indexarComunicado } from './ingestores/comunicado'
 export { indexarConversa } from './ingestores/conversa'
 export { indexarRelatorio, indexarAgenteAcao, indexarAgendamento } from './ingestores/agente'
+export { indexarEmailClassificado } from './ingestores/email'

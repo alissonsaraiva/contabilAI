@@ -66,6 +66,20 @@ export async function cancelarNotaFiscal(
       escritorioEvento: true,
     }).catch(err => logger.warn('nfse-cancelamento-interacao-falhou', { notaId: nota.id, err }))
 
+    // Re-indexa no RAG com status "cancelada" — garante que as IAs saibam do cancelamento
+    import('@/lib/rag/ingest-nota-fiscal').then(({ indexar }) =>
+      indexar({
+        id:          nota.id,
+        clienteId:   nota.clienteId,
+        numero:      nota.numero,
+        valorTotal:  nota.valorTotal,
+        descricao:   nota.descricao,
+        status:      'cancelada',
+        canceladaEm: notaAtualizada.canceladaEm,
+        protocolo:   nota.protocolo,
+      }, nota.cliente?.nome)
+    ).catch(err => logger.warn('nfse-cancelamento-rag-falhou', { notaId: nota.id, err }))
+
     // Entrega PDF+XML de cancelamento ao cliente se solicitado
     if (entregarApos) {
       await entregarDocumentoCancelamento(

@@ -180,7 +180,18 @@ export const SYSTEM_NFSE_INSTRUCOES_PORTAL = NFSE_BASE + `
 ### Reenvio / Download
 - As notas autorizadas ficam disponíveis na seção "Notas Fiscais" do portal para download de PDF e XML.
 - Se o cliente pedir para reenviar, oriente a baixar diretamente pelo portal. Se preferir receber por e-mail, use \`enviarNotaFiscalCliente\` com canal \`email\`.
-- Não use canal \`whatsapp\` no reenvio — o cliente está no portal e pode baixar aqui mesmo.`
+- Não use canal \`whatsapp\` no reenvio — o cliente está no portal e pode baixar aqui mesmo.
+
+### Cancelamento via portal
+- O cliente pode cancelar uma nota diretamente na seção "Notas Fiscais" do portal, clicando no ícone de cancelamento na nota autorizada.
+- O cancelamento exige uma justificativa (mínimo 15 caracteres) e é permitido apenas nos primeiros 30 dias após a autorização.
+- Se o prazo de 30 dias tiver expirado, oriente o cliente a abrir um chamado via \`criarChamado\` para que o escritório trate o cancelamento.
+- Se o cliente pedir cancelamento por aqui (chat), use \`cancelarNotaFiscal\` — sempre confirme antes: "Confirma cancelamento da NFS-e nº X, R$ Y, para [tomador]? Essa ação não pode ser desfeita."
+
+### Reemissão via portal
+- Notas com status "Rejeitada" ou "Erro interno" podem ser reemitidas diretamente na seção "Notas Fiscais" do portal, clicando no ícone de reemissão.
+- A reemissão permite corrigir os dados do tomador e o valor antes de reenviar.
+- Se o cliente pedir reemissão por aqui (chat), use \`reemitirNotaFiscal\` com os dados corrigidos.`
 
 /** @deprecated Use SYSTEM_NFSE_INSTRUCOES_WHATSAPP ou SYSTEM_NFSE_INSTRUCOES_PORTAL */
 export const SYSTEM_NFSE_INSTRUCOES = SYSTEM_NFSE_INSTRUCOES_WHATSAPP

@@ -27,7 +27,8 @@ export async function indexar(
   row: Omit<EmbeddingRow, 'conteudo'>,
   keys: EmbedKeys,
 ): Promise<void> {
-  const chunks = chunkText(texto)
+  // Usa chunk size adaptativo por tipo — normativos e docs longos usam chunks maiores
+  const chunks = chunkText(texto, row.tipo as string | undefined)
   if (!chunks.length) return
 
   // Dirty check — se documentoId conhecido, evita re-indexar conteúdo idêntico
@@ -56,7 +57,8 @@ export async function indexar(
   const rows: EmbeddingRow[] = chunks.map((conteudo, i) => ({
     ...row,
     conteudo,
-    metadata: { chunkIndex: i, totalChunks: chunks.length, contentHash },
+    // Mescla metadados do ingestor (ex: dataReferencia) com os automáticos
+    metadata: { ...(row.metadata ?? {}), chunkIndex: i, totalChunks: chunks.length, contentHash },
   }))
 
   await storeEmbeddings(rows, embeddings)

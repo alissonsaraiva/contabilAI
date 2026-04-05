@@ -40,14 +40,19 @@ async function enriquecerPagamento(
   codigoBarras?: string | null
   pixQrCode?: string | null
   pixCopiaECola?: string | null
+  invoiceUrl?: string | null
 }> {
-  // Só busca detalhes se a cobrança está em aberto
-  if (!['PENDING', 'OVERDUE'].includes(payment.status)) return {}
+  // invoiceUrl é capturado para todos os status — serve como comprovante público
+  const invoiceUrl = payment.invoiceUrl ?? null
+
+  // Só busca detalhes de pagamento pendentes/vencidos
+  if (!['PENDING', 'OVERDUE'].includes(payment.status)) return { invoiceUrl }
 
   try {
     if (forma === 'pix') {
       const qr = await asaasGetPixQrCode(payment.id)
       return {
+        invoiceUrl,
         pixQrCode:    qr.encodedImage,
         pixCopiaECola: qr.payload,
       }
@@ -55,6 +60,7 @@ async function enriquecerPagamento(
     if (forma === 'boleto') {
       const barcode = await asaasGetBoletoBarcode(payment.id)
       return {
+        invoiceUrl,
         linkBoleto:   payment.bankSlipUrl ?? payment.invoiceUrl ?? null,
         codigoBarras: barcode.identificationField,
       }
@@ -66,7 +72,7 @@ async function enriquecerPagamento(
       extra: { paymentId: payment.id },
     })
   }
-  return {}
+  return { invoiceUrl }
 }
 
 // ─── Sincronizar cobranças ────────────────────────────────────────────────────
@@ -102,6 +108,7 @@ export async function sincronizarCobrancas(
           formaPagamento: forma,
           pagoEm,
           valorPago:      pagoEm ? payment.netValue ?? payment.value : null,
+          invoiceUrl:     payment.invoiceUrl ?? null,
           ...detalhes,
         },
         update: {
@@ -109,6 +116,7 @@ export async function sincronizarCobrancas(
           vencimento:   new Date(payment.dueDate),
           pagoEm,
           valorPago:    pagoEm ? payment.netValue ?? payment.value : null,
+          invoiceUrl:   payment.invoiceUrl ?? null,
           atualizadoEm: new Date(),
           ...detalhes,
         },
@@ -393,11 +401,15 @@ export async function gerarSegundaVia(cobrancaId: string): Promise<{
 }> {
   const cobranca = await prisma.cobrancaAsaas.findUnique({
     where:   { id: cobrancaId },
-    include: { cliente: { select: { asaasCustomerId: true } } },
+    include: { cliente: { select: { asaasCustomerId: true, formaPagamento: true } } },
   })
 
   if (!cobranca) throw new Error('[asaas-sync] Cobrança não encontrada.')
   if (!cobranca.cliente.asaasCustomerId) throw new Error('[asaas-sync] Cliente sem customer Asaas.')
+
+  // Usa a forma de pagamento atual do cliente (não a da cobrança original),
+  // pois o cliente pode ter alterado PIX ↔ boleto entre a geração original e a segunda via.
+  const formaAtual = cobranca.cliente.formaPagamento
 
   // Nova cobrança com vencimento em 3 dias corridos a partir de hoje
   const novaData = new Date()
@@ -406,7 +418,7 @@ export async function gerarSegundaVia(cobrancaId: string): Promise<{
 
   const novoPagamento = await asaasCreatePayment({
     customerId:  cobranca.cliente.asaasCustomerId,
-    billingType: toBillingType(cobranca.formaPagamento),
+    billingType: toBillingType(formaAtual),
     value:       Number(cobranca.valor),
     dueDate,
     description: `Segunda via — vencimento original: ${cobranca.vencimento.toLocaleDateString('pt-BR')}`,
@@ -421,7 +433,7 @@ export async function gerarSegundaVia(cobrancaId: string): Promise<{
   } = {}
 
   try {
-    if (cobranca.formaPagamento === 'pix') {
+    if (formaAtual === 'pix') {
       const qr = await asaasGetPixQrCode(novoPagamento.id)
       detalhes = { pixQrCode: qr.encodedImage, pixCopiaECola: qr.payload }
     } else {
@@ -461,7 +473,8 @@ export async function gerarSegundaVia(cobrancaId: string): Promise<{
         valor:          novoPagamento.value,
         vencimento:     novaData,
         status:         'PENDING',
-        formaPagamento: cobranca.formaPagamento,
+        formaPagamento: formaAtual,
+        invoiceUrl:     novoPagamento.invoiceUrl ?? null,
         ...detalhes,
       },
     }),

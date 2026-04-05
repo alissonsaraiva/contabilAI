@@ -51,5 +51,8 @@ export async function indexarInteracao(interacao: InteracaoData): Promise<void> 
     ...base,
     canal,
     documentoId: `interacao:${interacao.id}`,
+    metadata: interacao.criadoEm
+      ? { dataReferencia: interacao.criadoEm.toISOString().slice(0, 10) }
+      : undefined,
   }, keys)
 }

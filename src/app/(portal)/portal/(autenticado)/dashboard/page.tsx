@@ -1,72 +1,21 @@
+import { Suspense } from 'react'
 import { auth } from '@/lib/auth-portal'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
 import { getAiConfig } from '@/lib/ai/config'
 import Link from 'next/link'
-import { formatBRL, cn } from '@/lib/utils'
-import { PLANO_LABELS } from '@/types'
-import { DocItem } from './doc-item'
+import { cn } from '@/lib/utils'
 import { AutoRefresh } from '@/components/ui/auto-refresh'
 
-/* ─── helpers de status ─── */
-const STATUS_CHAMADO: Record<string, { label: string; color: string }> = {
-  aberta: { label: 'Aberta', color: 'bg-primary/10 text-primary' },
-  em_andamento: { label: 'Em andamento', color: 'bg-orange-status/10 text-orange-status' },
-  aguardando_cliente: { label: 'Aguardando', color: 'bg-yellow-500/10 text-yellow-700' },
-  resolvida: { label: 'Resolvida', color: 'bg-green-status/10 text-green-status' },
-  cancelada: { label: 'Cancelada', color: 'bg-surface-container text-on-surface-variant/50' },
-}
-
-const REGIME_LABEL: Record<string, string> = {
-  MEI: 'MEI',
-  SimplesNacional: 'Simples Nacional',
-  LucroPresumido: 'Lucro Presumido',
-  LucroReal: 'Lucro Real',
-  Autonomo: 'Autônomo',
-}
-
-/* Obrigações fiscais estáticas por regime/tipo */
-function getObrigacoes(regime: string | null | undefined, tipo: string): { label: string; vence: string; cor: string }[] {
-  if (tipo === 'pf') {
-    return [
-      { label: 'IRPF — Imposto de Renda PF', vence: 'Abr/2026', cor: 'text-orange-status' },
-      { label: 'CARNÊ-LEÃO (se aplicável)', vence: 'Mensal', cor: 'text-primary' },
-    ]
-  }
-  if (regime === 'MEI') {
-    return [
-      { label: 'DAS-MEI', vence: 'Dia 20/mês', cor: 'text-primary' },
-      { label: 'DASN-SIMEI (anual)', vence: 'Mai/2026', cor: 'text-orange-status' },
-      { label: 'NF de Serviços (se prestador)', vence: 'Mensal', cor: 'text-on-surface-variant' },
-    ]
-  }
-  if (regime === 'SimplesNacional') {
-    return [
-      { label: 'DAS — Simples Nacional', vence: 'Dia 20/mês', cor: 'text-primary' },
-      { label: 'DEFIS (anual)', vence: 'Mar/2026', cor: 'text-orange-status' },
-      { label: 'DCTF (se aplicável)', vence: 'Mensal', cor: 'text-on-surface-variant' },
-    ]
-  }
-  return [
-    { label: 'DCTF Mensal', vence: 'Dia 15/mês', cor: 'text-primary' },
-    { label: 'EFD-Contribuições', vence: 'Dia 10/mês', cor: 'text-orange-status' },
-    { label: 'SPED Contábil (anual)', vence: 'Jun/2026', cor: 'text-on-surface-variant' },
-    { label: 'ECF (anual)', vence: 'Jul/2026', cor: 'text-on-surface-variant' },
-  ]
-}
-
-/* Extensão de arquivo p/ badge */
-function getExt(nome: string): string {
-  const ext = nome.split('.').pop()?.toUpperCase() ?? 'DOC'
-  return ext
-}
-function extColor(ext: string): string {
-  if (ext === 'PDF') return 'bg-error/10 text-error'
-  if (ext === 'XML') return 'bg-green-status/10 text-green-status'
-  if (ext === 'XLS' || ext === 'XLSX') return 'bg-green-status/10 text-green-status'
-  return 'bg-primary/10 text-primary'
-}
+import { CardObrigacoes }   from './_components/card-obrigacoes'
+import { CardDocumentos }   from './_components/card-documentos'
+import { CardChamados }     from './_components/card-chamados'
+import { CardComunicados }  from './_components/card-comunicados'
+import { CardCobranca }     from './_components/card-cobranca'
+import { CardInfoCliente }  from './_components/card-info-cliente'
+import { CardResumoAno }    from './_components/card-resumo-ano'
+import { CardListSkeleton, CardSmallSkeleton, CardResumoSkeleton } from './_components/skeletons'
 
 export default async function PortalDashboardPage() {
   const session = await auth()
@@ -76,42 +25,20 @@ export default async function PortalDashboardPage() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
-  const [aiConfig, cliente, documentos, ordensRecentes, comunicados] = await Promise.all([
+  const [aiConfig, cliente, docsNovos] = await Promise.all([
     getAiConfig(),
     prisma.cliente.findUnique({
       where: { id: clienteId },
       select: {
-        nome: true, email: true, cpf: true, planoTipo: true, valorMensal: true,
-        vencimentoDia: true, status: true, dataInicio: true, tipoContribuinte: true,
+        nome: true, cpf: true, planoTipo: true, valorMensal: true,
+        dataInicio: true, status: true, tipoContribuinte: true,
         responsavel: { select: { nome: true } },
         empresa: {
-          select: {
-            cnpj: true, razaoSocial: true, nomeFantasia: true, regime: true,
-          },
+          select: { cnpj: true, razaoSocial: true, nomeFantasia: true, regime: true },
         },
       },
     }),
-    prisma.documento.findMany({
-      where: { clienteId, deletadoEm: null },
-      orderBy: { criadoEm: 'desc' },
-      take: 6,
-      select: { id: true, nome: true, tipo: true, url: true, criadoEm: true, status: true, visualizadoEm: true },
-    }),
-    prisma.chamado.findMany({
-      where: { clienteId },
-      orderBy: { criadoEm: 'desc' },
-      take: 4,
-      select: { id: true, titulo: true, status: true, criadoEm: true, tipo: true },
-    }),
-    prisma.comunicado.findMany({
-      where: {
-        publicado: true,
-        OR: [{ expiradoEm: null }, { expiradoEm: { gt: new Date() } }],
-      },
-      orderBy: { publicadoEm: 'desc' },
-      take: 3,
-      select: { id: true, titulo: true, tipo: true, publicadoEm: true },
-    }),
+    prisma.documento.count({ where: { clienteId, deletadoEm: null, visualizadoEm: null } }),
   ])
 
   if (!cliente) redirect('/portal/login')
@@ -120,16 +47,12 @@ export default async function PortalDashboardPage() {
   const primeiroNome = (user.tipo === 'socio' ? (user.name ?? cliente.nome) : cliente.nome).split(' ')[0]
   const empresa = cliente.empresa
   const regime = empresa?.regime ?? null
-  const obrigacoes = getObrigacoes(regime, cliente.tipoContribuinte)
-  const chamadosAbertos = ordensRecentes.filter(o => o.status !== 'resolvida' && o.status !== 'cancelada').length
-  const docsDisponiveis = documentos.length
-  const docsNovos = documentos.filter(d => !d.visualizadoEm).length
 
   return (
     <div className="space-y-6">
       <AutoRefresh intervalMs={60_000} />
 
-      {/* ── Alerta status ── */}
+      {/* ── Alerta de status ── */}
       {(cliente.status === 'inadimplente' || cliente.status === 'suspenso') && (
         <div className={cn(
           'flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-2xl border p-4 sm:px-5 sm:py-4',
@@ -162,7 +85,7 @@ export default async function PortalDashboardPage() {
         </div>
       )}
 
-      {/* ── Header ── */}
+      {/* ── Saudação ── */}
       <div>
         <h1 className="font-headline text-2xl font-semibold text-on-surface">Olá, {primeiroNome}! 👋</h1>
         <p className="mt-0.5 text-sm text-on-surface-variant/70">
@@ -170,293 +93,80 @@ export default async function PortalDashboardPage() {
         </p>
       </div>
 
-      {/* ── 2 colunas ── */}
+      {/* ── Acesso rápido ── */}
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        {[
+          { href: '/portal/documentos',             icon: 'folder_open',  label: 'Documentos', badge: docsNovos },
+          { href: '/portal/financeiro',             icon: 'payments',     label: 'Financeiro', badge: 0 },
+          cliente.tipoContribuinte !== 'pf'
+            ? { href: '/portal/notas-fiscais',      icon: 'receipt_long', label: 'NFS-e',      badge: 0 }
+            : { href: '/portal/empresa',            icon: 'badge',        label: 'Meus dados', badge: 0 },
+          { href: '/portal/suporte/chamados/nova',  icon: 'add_circle',   label: 'Chamado',    badge: 0 },
+        ].map(a => (
+          <Link
+            key={a.href}
+            href={a.href}
+            className="relative flex flex-col items-center gap-1.5 rounded-2xl border border-outline-variant/15 bg-surface-container-low py-3 sm:py-4 text-center transition-colors hover:bg-surface-container active:scale-95"
+          >
+            {a.badge > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                {a.badge > 9 ? '9+' : a.badge}
+              </span>
+            )}
+            <span
+              className="material-symbols-outlined text-[24px] text-primary"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              {a.icon}
+            </span>
+            <span className="text-[10px] font-semibold leading-tight text-on-surface-variant sm:text-[11px]">
+              {a.label}
+            </span>
+          </Link>
+        ))}
+      </div>
+
+      {/* ── Layout 2 colunas ── */}
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
 
-        {/* ── COLUNA ESQUERDA ── */}
+        {/* ── Coluna principal ── */}
         <div className="flex min-w-0 flex-col gap-5">
+          <CardObrigacoes regime={regime} tipo={cliente.tipoContribuinte} nomeIa={nomeIa} />
 
-          {/* Obrigações fiscais */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant/10 p-4 sm:px-5 sm:py-4">
-              <div className="flex items-center gap-2.5">
-                <span className="text-[20px]">📅</span>
-                <h2 className="font-headline text-[14px] font-semibold text-on-surface">Obrigações fiscais</h2>
-              </div>
-              {regime && (
-                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-                  {REGIME_LABEL[regime] ?? regime}
-                </span>
-              )}
-            </div>
-            <ul className="divide-y divide-outline-variant/8">
-              {obrigacoes.map((o, i) => (
-                <li key={i} className="flex items-center justify-between gap-4 p-4 sm:px-5 sm:py-3.5">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-2 w-2 shrink-0 rounded-full bg-current opacity-60" style={{ color: 'currentcolor' }} />
-                    <p className={cn('text-[13px] font-medium truncate', o.cor)}>{o.label}</p>
-                  </div>
-                  <span className="shrink-0 text-[12px] font-semibold text-on-surface-variant/70">{o.vence}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="border-t border-outline-variant/8 px-5 py-3">
-              <p className="text-[11px] text-on-surface-variant/50">
-                Dúvidas sobre obrigações? Abra um chamado ou fale com {nomeIa}.
-              </p>
-            </div>
-          </div>
+          <Suspense fallback={<CardListSkeleton rows={4} />}>
+            <CardDocumentos clienteId={clienteId} />
+          </Suspense>
 
-          {/* Documentos disponíveis */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-outline-variant/10 p-4 sm:px-5 sm:py-4">
-              <div className="flex items-center gap-2.5">
-                <span className="text-[20px]">📄</span>
-                <h2 className="font-headline text-[14px] font-semibold text-on-surface">Documentos disponíveis</h2>
-                {docsNovos > 0 && (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">
-                    {docsNovos}
-                  </span>
-                )}
-              </div>
-              <Link href="/portal/documentos" className="text-[12px] font-semibold text-primary hover:underline">
-                Ver todos →
-              </Link>
-            </div>
+          <Suspense fallback={<CardListSkeleton rows={3} />}>
+            <CardChamados clienteId={clienteId} />
+          </Suspense>
 
-            {documentos.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <span className="text-3xl">📭</span>
-                <p className="text-[13px] text-on-surface-variant/60">Nenhum documento disponível ainda</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-outline-variant/8">
-                {documentos.map(d => (
-                  <DocItem
-                    key={d.id}
-                    id={d.id}
-                    nome={d.nome}
-                    ext={getExt(d.nome)}
-                    criadoEm={new Date(d.criadoEm).toISOString()}
-                    visualizadoEm={d.visualizadoEm ? new Date(d.visualizadoEm).toISOString() : null}
-                    extColor={extColor(getExt(d.nome))}
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Meus chamados */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-outline-variant/10 p-4 sm:px-5 sm:py-4">
-              <div className="flex items-center gap-2.5">
-                <span className="text-[20px]">🎫</span>
-                <h2 className="font-headline text-[14px] font-semibold text-on-surface">Meus chamados</h2>
-                {chamadosAbertos > 0 && (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
-                    {chamadosAbertos}
-                  </span>
-                )}
-              </div>
-              <Link
-                href="/portal/suporte/chamados/nova"
-                className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[14px]">add</span>
-                Abrir chamado
-              </Link>
-            </div>
-
-            {ordensRecentes.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <span className="text-3xl">✅</span>
-                <p className="text-[13px] text-on-surface-variant/60">Nenhum chamado ainda</p>
-                <Link
-                  href="/portal/suporte/chamados/nova"
-                  className="mt-1 rounded-xl border border-outline-variant/20 bg-surface-container px-4 py-2 text-[12px] font-semibold text-on-surface hover:bg-surface-container-high transition-colors"
-                >
-                  Abrir primeiro chamado
-                </Link>
-              </div>
-            ) : (
-              <>
-                <ul className="divide-y divide-outline-variant/8">
-                  {ordensRecentes.map(o => {
-                    const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
-                    return (
-                      <li key={o.id}>
-                        <Link
-                          href={`/portal/suporte/chamados/${o.id}`}
-                          className="flex items-center gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container-lowest/40 transition-colors"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-medium text-on-surface truncate">{o.titulo}</p>
-                            <p className="text-[11px] text-on-surface-variant/60">
-                              {new Date(o.criadoEm).toLocaleDateString('pt-BR')}
-                            </p>
-                          </div>
-                          <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', s.color)}>
-                            {s.label}
-                          </span>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-                <div className="border-t border-outline-variant/8 px-5 py-3 text-right">
-                  <Link href="/portal/suporte" className="text-[12px] font-semibold text-primary hover:underline">
-                    Ver todos os chamados →
-                  </Link>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Comunicados */}
-          {comunicados.length > 0 && (
-            <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between border-b border-outline-variant/10 p-4 sm:px-5 sm:py-4">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-[20px]">📢</span>
-                  <h2 className="font-headline text-[14px] font-semibold text-on-surface">Comunicados do escritório</h2>
-                </div>
-              </div>
-              <ul className="divide-y divide-outline-variant/8">
-                {comunicados.map(c => (
-                  <li key={c.id}>
-                    <Link
-                      href={`/portal/comunicados/${c.id}`}
-                      className="flex items-center gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container/50 transition-colors"
-                    >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-[16px]">
-                        {c.tipo === 'alerta' ? '⚠️' : c.tipo === 'obrigacao' ? '📋' : '📢'}
-                      </div>
-                      <p className="flex-1 min-w-0 text-[13px] font-medium text-on-surface truncate">{c.titulo}</p>
-                      {c.publicadoEm && (
-                        <span className="shrink-0 text-[11px] text-on-surface-variant/50">
-                          {new Date(c.publicadoEm).toLocaleDateString('pt-BR')}
-                        </span>
-                      )}
-                      <span className="material-symbols-outlined shrink-0 text-[16px] text-on-surface-variant/40">chevron_right</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <div className="border-t border-outline-variant/8 px-5 py-3 text-right">
-                <Link href="/portal/suporte" className="text-[12px] font-semibold text-primary hover:underline">
-                  Ver todos os comunicados →
-                </Link>
-              </div>
-            </div>
-          )}
+          <Suspense fallback={null}>
+            <CardComunicados />
+          </Suspense>
         </div>
 
-        {/* ── COLUNA DIREITA ── */}
+        {/* ── Sidebar ── */}
         <div className="flex min-w-0 flex-col gap-5">
+          <Suspense fallback={<CardSmallSkeleton />}>
+            <CardCobranca clienteId={clienteId} />
+          </Suspense>
 
-          {/* Info do cliente */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-4 sm:p-5">
-            <div className="mb-4 flex items-center gap-2.5">
-              <span className="text-[20px]">{cliente.tipoContribuinte === 'pf' ? '🪪' : '🏛️'}</span>
-              <h2 className="font-headline text-[14px] font-semibold text-on-surface">
-                {cliente.tipoContribuinte === 'pf' ? 'Meus dados' : 'Minha empresa'}
-              </h2>
-            </div>
-            <dl className="space-y-2.5">
-              {empresa?.cnpj && (
-                <div>
-                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">CNPJ</dt>
-                  <dd className="mt-0.5 text-[13px] font-medium text-on-surface">{empresa.cnpj}</dd>
-                </div>
-              )}
-              {!empresa && cliente.cpf && (
-                <div>
-                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">CPF</dt>
-                  <dd className="mt-0.5 text-[13px] font-medium text-on-surface">{cliente.cpf}</dd>
-                </div>
-              )}
-              {empresa?.razaoSocial && (
-                <div>
-                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Razão social</dt>
-                  <dd className="mt-0.5 truncate text-[13px] font-medium text-on-surface" title={empresa.razaoSocial}>{empresa.razaoSocial}</dd>
-                </div>
-              )}
-              {regime && (
-                <div>
-                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Regime tributário</dt>
-                  <dd className="mt-0.5 text-[13px] font-medium text-on-surface">{REGIME_LABEL[regime] ?? regime}</dd>
-                </div>
-              )}
-              {cliente.responsavel?.nome && (
-                <div>
-                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Contador responsável</dt>
-                  <dd className="mt-0.5 text-[13px] font-medium text-on-surface">{cliente.responsavel.nome}</dd>
-                </div>
-              )}
-              <div>
-                <dt className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Plano</dt>
-                <dd className="mt-0.5">
-                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
-                    {PLANO_LABELS[cliente.planoTipo] ?? cliente.planoTipo}
-                  </span>
-                </dd>
-              </div>
-            </dl>
-          </div>
+          <CardInfoCliente
+            tipoContribuinte={cliente.tipoContribuinte}
+            cpf={cliente.cpf}
+            planoTipo={cliente.planoTipo}
+            responsavelNome={cliente.responsavel?.nome}
+            empresa={empresa}
+          />
 
-          {/* Resumo do ano */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-4 sm:p-5">
-            <div className="mb-4 flex items-center gap-2.5">
-              <span className="text-[20px]">📊</span>
-              <h2 className="font-headline text-[14px] font-semibold text-on-surface">Resumo do ano</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-surface-container-low p-3 text-center">
-                <p className="text-[24px] font-bold text-primary leading-none">{docsDisponiveis}</p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Documentos</p>
-              </div>
-              <div className="rounded-xl bg-surface-container-low p-3 text-center">
-                <p className="text-[24px] font-bold text-on-surface leading-none">{ordensRecentes.length}</p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Chamados</p>
-              </div>
-              <div className="rounded-xl bg-surface-container-low p-3 text-center">
-                <p className="text-[24px] font-bold text-green-status leading-none">{formatBRL(Number(cliente.valorMensal))}</p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Mensalidade</p>
-              </div>
-              <div className="rounded-xl bg-surface-container-low p-3 text-center">
-                <p className="text-[24px] font-bold text-on-surface leading-none">
-                  {cliente.dataInicio ? new Date().getFullYear() - new Date(cliente.dataInicio).getFullYear() : '—'}
-                </p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Anos conosco</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Acesso rápido */}
-          <div className="rounded-[16px] border border-outline-variant/15 bg-card shadow-sm p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2.5">
-              <span className="text-[20px]">⚡</span>
-              <h2 className="font-headline text-[14px] font-semibold text-on-surface">Acesso rápido</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { href: '/portal/documentos', icon: '📄', label: 'Documentos' },
-                { href: '/portal/suporte/chamados/nova', icon: '🎫', label: 'Abrir chamado' },
-                { href: '/portal/empresa', icon: '🏛️', label: 'Minha empresa' },
-                { href: '/portal/suporte', icon: '💬', label: 'Suporte' },
-              ].map(a => (
-                <Link
-                  key={a.href}
-                  href={a.href}
-                  className="flex flex-col items-center gap-1.5 rounded-xl border border-outline-variant/15 bg-surface-container-low py-3 text-center transition-colors hover:bg-surface-container"
-                >
-                  <span className="text-[22px]">{a.icon}</span>
-                  <span className="text-[11px] font-semibold text-on-surface-variant">{a.label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-
+          <Suspense fallback={<CardResumoSkeleton />}>
+            <CardResumoAno
+              clienteId={clienteId}
+              valorMensal={Number(cliente.valorMensal)}
+              dataInicio={cliente.dataInicio}
+            />
+          </Suspense>
         </div>
       </div>
     </div>

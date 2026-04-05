@@ -27,12 +27,16 @@ export async function GET(
 
   const { id } = await params
 
-  // Valida que a conversa existe
+  // Valida que a conversa existe E está vinculada a uma entidade do sistema
+  // (previne que qualquer UUID arbitrário abra um stream mesmo sem dados reais)
   const conversa = await prisma.conversaIA.findUnique({
     where:  { id },
-    select: { id: true },
+    select: { id: true, clienteId: true, leadId: true, socioId: true },
   })
   if (!conversa) return new Response('not found', { status: 404 })
+  if (!conversa.clienteId && !conversa.leadId && !conversa.socioId) {
+    return new Response('forbidden', { status: 403 })
+  }
 
   const stream = new ReadableStream({
     start(controller) {

@@ -34,6 +34,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   indexarAsync('empresa', {
     id:           empresa.id,
+    clienteId:    empresa.cliente?.id ?? null,
     cnpj:         empresa.cnpj,
     razaoSocial:  empresa.razaoSocial,
     nomeFantasia: empresa.nomeFantasia,

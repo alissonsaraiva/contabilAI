@@ -17,7 +17,7 @@ const SYSTEM_CLASSIFICADOR = `Você é um classificador de intenções para um s
 
 Classifique a mensagem como:
 - "pergunta": questão respondível por conhecimento (conceitos fiscais, regras, procedimentos, informações gerais do escritório)
-- "acao": requer consultar dados reais do sistema ou executar uma tarefa (quantidades, listas, busca de registros específicos, criar/atualizar dados, métricas, dashboards, envio de arquivos)
+- "acao": requer consultar dados reais do sistema ou executar uma tarefa (quantidades, listas, busca de registros específicos, criar/atualizar dados, métricas, dashboards, envio de arquivos, situação financeira do cliente)
 
 Responda APENAS com JSON válido, sem markdown.
 
@@ -33,6 +33,19 @@ Exemplos diretos de envio:
 - "cadê meu contrato?" → {"tipo":"acao","instrucao":"Buscar contrato do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
 - "me manda a guia do DARF" → {"tipo":"acao","instrucao":"Buscar guia DARF do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
 - "reenviar holerite de janeiro" → {"tipo":"acao","instrucao":"Buscar holerite de janeiro do cliente e enviar via WhatsApp usando enviarDocumentoWhatsApp"}
+
+## Regras para consultas financeiras (SEMPRE classificar como ação)
+
+Qualquer pergunta sobre situação financeira real do cliente REQUER consulta ao sistema — não ao RAG:
+- "meu boleto venceu?" → {"tipo":"acao","instrucao":"Buscar cobranças em aberto ou vencidas do cliente usando listarCobrancasCliente"}
+- "estou em dia?" / "estou inadimplente?" → {"tipo":"acao","instrucao":"Buscar cobranças em aberto ou vencidas do cliente usando listarCobrancasCliente"}
+- "quando vence minha próxima fatura?" → {"tipo":"acao","instrucao":"Buscar cobranças do cliente e mostrar próxima a vencer usando listarCobrancasCliente"}
+- "qual o valor da minha mensalidade?" → {"tipo":"acao","instrucao":"Buscar dados do cliente incluindo plano e valor mensal"}
+- "quantas notas emiti esse ano?" / "quantas notas emiti?" → {"tipo":"acao","instrucao":"Consultar notas fiscais do cliente no período usando consultarNotasFiscais"}
+- "quero ver minhas faturas" / "histórico de pagamentos" → {"tipo":"acao","instrucao":"Buscar extrato financeiro do cliente usando extratoFinanceiro"}
+- "preciso de segunda via" / "meu pix expirou" / "boleto não chegou" → {"tipo":"acao","instrucao":"Gerar segunda via da cobrança em aberto do cliente usando gerarSegundaViaAsaas"}
+- "quero mudar meu vencimento" → {"tipo":"acao","instrucao":"Alterar data de vencimento da cobrança do cliente usando alterarVencimentoCobranca"}
+- "quero pagar por pix" / "mudar para boleto" → {"tipo":"acao","instrucao":"Alterar forma de pagamento do cliente usando alterarFormaPagamento"}
 
 Outros exemplos de ações:
 - "o que é MEI?" → {"tipo":"pergunta"}
@@ -77,10 +90,18 @@ const ACAO_KEYWORDS = [
   /\b(plano|mensalidade|vencimento|valor)\b/i,
   /\b(status|situa[çc][ãa]o|como\s*est[áa])\b/i,
   /\b(manda[r]?|envia[r]?|reenv[ia]+[r]?|encaminha[r]?)\b/i,
+  // Consultas financeiras — requerem dados reais do sistema, não RAG
+  /\b(venceu?|venci[da]?|atrasad[ao]?|em\s*dia|inadimpl)\b/i,
+  /\b(fatura[s]?|cobran[çc][a]?|pagamento[s]?|pix|segunda\s*via)\b/i,
+  /\b(extrato|hist[oó]rico.*pag|paguei|recebi)\b/i,
+  /\b(mudar?.*vencimento|trocar?.*vencimento|mudar?.*pagamento|trocar?.*pagamento)\b/i,
 ]
 
 // Keywords que indicam pedido direto de envio de documento
 const ENVIO_KEYWORDS = /\b(holerite|contr[ac]cheque|nota\s*fiscal|boleto|contrato|comprovante|guia|darf|imposto|declaração|declaracao|extrato)\b/i
+
+// Keywords que indicam consulta financeira (situação de cobrança/pagamento)
+const FINANCEIRO_KEYWORDS = /\b(venceu?|atrasad[ao]?|em\s*dia|inadimpl|fatura|cobran[çc][a]|segunda\s*via|pix\s*expir|boleto\s*n[aã]o|paguei|extrato|hist[oó]rico.*pag)\b/i
 
 /**
  * Avalia se a mensagem é uma resposta positiva a uma promessa da IA.
@@ -137,6 +158,19 @@ function classificarPorKeyword(mensagem: string, ultimaMsgIA?: string): Intencao
       tipo:      'acao',
       instrucao: extrairInstrucaoDaIA(ultimaMsgIA, mensagem),
     }
+  }
+
+  // Consulta financeira — situação de cobrança requer dados reais, não RAG
+  if (FINANCEIRO_KEYWORDS.test(mensagem)) {
+    const pedidoSegundaVia = /\b(segunda\s*via|pix\s*expir|boleto\s*n[aã]o|n[aã]o\s*recebi)\b/i.test(mensagem)
+    const pedidoExtrato    = /\b(extrato|hist[oó]rico.*pag|paguei)\b/i.test(mensagem)
+    if (pedidoSegundaVia) {
+      return { tipo: 'acao', instrucao: 'Gerar segunda via da cobrança em aberto do cliente usando gerarSegundaViaAsaas' }
+    }
+    if (pedidoExtrato) {
+      return { tipo: 'acao', instrucao: 'Buscar extrato financeiro do cliente usando extratoFinanceiro' }
+    }
+    return { tipo: 'acao', instrucao: 'Buscar cobranças do cliente usando listarCobrancasCliente para informar situação financeira' }
   }
 
   // Pedido direto de envio de documento → inclui enviarDocumentoWhatsApp na instrução

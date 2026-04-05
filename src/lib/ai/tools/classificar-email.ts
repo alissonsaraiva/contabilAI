@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -162,14 +163,31 @@ Retorna:
     const acaoSugerida = acoesSugeridas[`${tipo}-${urgencia}`] ?? 'Avaliar e responder conforme necessidade.'
 
     // Persiste a classificação nos metadados da interação
-    await prisma.interacao.update({
+    const novoMetadados = {
+      ...metadados,
+      classificacao: { urgencia, tipo, acaoSugerida, classificadoEm: new Date().toISOString() },
+    }
+
+    const interacaoAtualizada = await prisma.interacao.update({
       where: { id: interacaoId },
-      data: {
-        metadados: {
-          ...metadados,
-          classificacao: { urgencia, tipo, acaoSugerida, classificadoEm: new Date().toISOString() },
-        },
-      },
+      data:  { metadados: novoMetadados },
+      select: { id: true, clienteId: true, leadId: true, titulo: true, conteudo: true, criadoEm: true },
+    })
+
+    // Indexa o email classificado no RAG (fire-and-forget)
+    import('@/lib/rag/ingest').then(({ indexarEmailClassificado }) =>
+      indexarEmailClassificado({
+        id:        interacaoAtualizada.id,
+        clienteId: interacaoAtualizada.clienteId,
+        leadId:    interacaoAtualizada.leadId,
+        titulo:    interacaoAtualizada.titulo,
+        conteudo:  interacaoAtualizada.conteudo,
+        criadoEm:  interacaoAtualizada.criadoEm,
+        metadados: novoMetadados,
+      })
+    ).catch(err => {
+      console.error('[tool/classificarEmail] erro ao indexar RAG:', err)
+      Sentry.captureException(err, { tags: { module: 'tool', operation: 'classificarEmail-rag' } })
     })
 
     return {

@@ -4,55 +4,33 @@ import { useState, useEffect, useCallback } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { type NotaFiscal } from './notas-fiscais/_shared'
+import { PortalNotaCard } from './notas-fiscais/nota-card'
+import { ModalEmitir }   from './notas-fiscais/modal-emitir'
+import { ModalCancelar } from './notas-fiscais/modal-cancelar'
+import { ModalReemitir } from './notas-fiscais/modal-reemitir'
 
-type NotaFiscal = {
-  id: string
-  numero: string | null
-  status: string
-  descricao: string
-  valorTotal: number
-  issValor: number | null
-  tomadorNome: string
-  protocolo: string | null
-  spedyId: string | null
-  autorizadaEm: string | null
-  criadoEm: string
+type Props = {
+  spedyConfigurado: boolean
+  prestador: { razaoSocial: string; cnpj: string }
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  autorizada: 'Autorizada',
-  cancelada: 'Cancelada',
-  processando: 'Processando',
-  enviando: 'Enviando',
-  rejeitada: 'Rejeitada',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  autorizada: 'bg-green-500/10 text-green-600',
-  cancelada: 'bg-gray-100 text-gray-500',
-  processando: 'bg-blue-500/10 text-blue-600',
-  enviando: 'bg-purple-500/10 text-purple-600',
-  rejeitada: 'bg-red-500/10 text-red-600',
-}
-
-const STATUS_ICONS: Record<string, string> = {
-  autorizada: 'check_circle',
-  cancelada: 'remove_circle',
-  processando: 'hourglass_empty',
-  enviando: 'upload',
-  rejeitada: 'cancel',
-}
-
-type Props = { clienteId: string }
-
-export function PortalNotasFiscaisClient({ clienteId }: Props) {
-  const [notas, setNotas] = useState<NotaFiscal[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
+export function PortalNotasFiscaisClient({ spedyConfigurado, prestador }: Props) {
+  const [notas, setNotas]         = useState<NotaFiscal[]>([])
+  const [total, setTotal]         = useState(0)
+  const [page, setPage]           = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loading, setLoading]     = useState(true)
   const [mesFiltro, setMesFiltro] = useState<string>('')
 
-  const fetchNotas = useCallback(async () => {
-    setLoading(true)
+  const [showEmitir, setShowEmitir]     = useState(false)
+  const [showCancelar, setShowCancelar] = useState<NotaFiscal | null>(null)
+  const [showReemitir, setShowReemitir] = useState<NotaFiscal | null>(null)
+
+  // ── Fetch ────────────────────────────────────────────────────────────────────
+
+  const fetchNotas = useCallback(async (silencioso = false) => {
+    if (!silencioso) setLoading(true)
     try {
       const params = new URLSearchParams()
       if (mesFiltro) params.set('mes', mesFiltro)
@@ -61,16 +39,44 @@ export function PortalNotasFiscaisClient({ clienteId }: Props) {
       const data = await res.json()
       setNotas(data.items ?? [])
       setTotal(data.total ?? 0)
+      setPage(1)
     } catch {
-      toast.error('Erro ao carregar notas fiscais')
+      if (!silencioso) toast.error('Erro ao carregar notas fiscais')
     } finally {
-      setLoading(false)
+      if (!silencioso) setLoading(false)
     }
   }, [mesFiltro])
 
+  async function carregarMais() {
+    setLoadingMore(true)
+    try {
+      const nextPage = page + 1
+      const params = new URLSearchParams({ page: String(nextPage) })
+      if (mesFiltro) params.set('mes', mesFiltro)
+      const res = await fetch(`/api/portal/notas-fiscais?${params}`)
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setNotas(prev => [...prev, ...(data.items ?? [])])
+      setPage(nextPage)
+    } catch {
+      toast.error('Erro ao carregar mais notas')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   useEffect(() => { fetchNotas() }, [fetchNotas])
 
-  // Gera opções de mês dos últimos 12 meses
+  // Polling automático enquanto houver notas em processamento
+  useEffect(() => {
+    const temAtivas = notas.some(n => n.status === 'enviando' || n.status === 'processando')
+    if (!temAtivas) return
+    const timer = setInterval(() => fetchNotas(true), 6000)
+    return () => clearInterval(timer)
+  }, [notas, fetchNotas])
+
+  // ── Filtro de mês ────────────────────────────────────────────────────────────
+
   const mesesOpcoes = Array.from({ length: 12 }, (_, i) => {
     const d = new Date()
     d.setMonth(d.getMonth() - i)
@@ -79,10 +85,12 @@ export function PortalNotasFiscaisClient({ clienteId }: Props) {
     return { value, label }
   })
 
+  // ── Render ───────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-4">
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-3">
+      {/* Header com filtro e botão de emissão */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <select
           value={mesFiltro}
           onChange={e => setMesFiltro(e.target.value)}
@@ -93,6 +101,16 @@ export function PortalNotasFiscaisClient({ clienteId }: Props) {
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>
+
+        {spedyConfigurado && (
+          <button
+            onClick={() => setShowEmitir(true)}
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          >
+            <span className="material-symbols-outlined text-[16px]">add</span>
+            Emitir NFS-e
+          </button>
+        )}
       </div>
 
       {/* Lista */}
@@ -106,96 +124,82 @@ export function PortalNotasFiscaisClient({ clienteId }: Props) {
           <p className="text-[14px] text-on-surface-variant/60">
             {mesFiltro ? 'Nenhuma nota encontrada para o período selecionado' : 'Nenhuma nota fiscal emitida ainda'}
           </p>
+          {spedyConfigurado && !mesFiltro && (
+            <button
+              onClick={() => setShowEmitir(true)}
+              className="mt-1 flex items-center gap-1.5 rounded-xl border border-primary/30 px-4 py-2 text-[13px] font-semibold text-primary hover:bg-primary/5"
+            >
+              <span className="material-symbols-outlined text-[15px]">add</span>
+              Emitir primeira NFS-e
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-[12px] text-on-surface-variant/60">
             {total} nota{total !== 1 ? 's' : ''} encontrada{total !== 1 ? 's' : ''}
           </p>
-          {notas.map(nota => {
-            const statusColor = STATUS_COLORS[nota.status] ?? 'bg-gray-100 text-gray-500'
-            const statusLabel = STATUS_LABELS[nota.status] ?? nota.status
-            const statusIcon = STATUS_ICONS[nota.status] ?? 'help'
-            const dataRef = nota.autorizadaEm ?? nota.criadoEm
-            const dataFmt = format(new Date(dataRef), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-            const valorFmt = `R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`
+          {notas.map(nota => (
+            <PortalNotaCard
+              key={nota.id}
+              nota={nota}
+              spedyConfigurado={spedyConfigurado}
+              onCancelar={() => setShowCancelar(nota)}
+              onReemitir={() => setShowReemitir(nota)}
+            />
+          ))}
 
-            return (
-              <div key={nota.id} className="rounded-2xl border border-outline-variant/15 bg-card p-4 sm:p-5 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/8">
-                      <span className="material-symbols-outlined text-[20px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-                        receipt_long
-                      </span>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[14px] font-bold text-on-surface">
-                          {nota.numero ? `NFS-e nº ${nota.numero}` : 'NFS-e (em processamento)'}
-                        </span>
-                        <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusColor}`}>
-                          <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>{statusIcon}</span>
-                          {statusLabel}
-                        </span>
-                      </div>
-
-                      <p className="mt-1 text-[13px] text-on-surface-variant/70">{nota.descricao}</p>
-
-                      <div className="mt-2 flex items-center gap-4 flex-wrap">
-                        <span className="text-[15px] font-bold text-on-surface">{valorFmt}</span>
-                        <span className="text-[12px] text-on-surface-variant/60">{dataFmt}</span>
-                      </div>
-
-                      {nota.protocolo && (
-                        <p className="mt-1 text-[11px] text-on-surface-variant/40 font-mono">
-                          Protocolo: {nota.protocolo}
-                        </p>
-                      )}
-                    </div>
-
-                  </div>
-
-                  {/* Ações: baixar PDF e XML */}
-                  {nota.spedyId && (nota.status === 'autorizada' || nota.status === 'cancelada') && (
-                    <div className="flex shrink-0 items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0 pl-13 sm:pl-0 border-t sm:border-0 border-outline-variant/10 pt-3 sm:pt-0 justify-end sm:justify-start">
-                      <a
-                        href={`/api/portal/notas-fiscais/${nota.id}/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] font-semibold text-on-surface transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-                        PDF
-                      </a>
-                      <a
-                        href={`/api/portal/notas-fiscais/${nota.id}/xml`}
-                        download
-                        className="flex items-center gap-1.5 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] font-semibold text-on-surface transition-colors hover:border-tertiary/30 hover:bg-tertiary/5 hover:text-tertiary"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">code</span>
-                        XML
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+          {notas.length < total && (
+            <button
+              onClick={carregarMais}
+              disabled={loadingMore}
+              className="w-full rounded-xl border border-outline-variant/20 bg-card py-3 text-[13px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-50"
+            >
+              {loadingMore
+                ? <span className="flex items-center justify-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />Carregando...</span>
+                : `Carregar mais (${total - notas.length} restantes)`
+              }
+            </button>
+          )}
         </div>
       )}
 
-      {/* Info box */}
-      <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
-        <div className="flex gap-3">
-          <span className="material-symbols-outlined text-[18px] text-blue-500 shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
-          <div className="text-[12px] text-on-surface-variant/80 space-y-1">
-            <p>Suas notas fiscais são emitidas pelo escritório em seu nome.</p>
-            <p>Precisa de uma NFS-e específica ou tem dúvidas? Fale com nossa assistente no chat.</p>
+      {/* Banner: Spedy não configurado */}
+      {!spedyConfigurado && (
+        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+          <div className="flex gap-3">
+            <span className="material-symbols-outlined text-[18px] text-blue-500 shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+            <p className="text-[12px] text-on-surface-variant/80">
+              As notas fiscais são emitidas pelo escritório. Precisa de uma NFS-e ou tem dúvidas? Fale conosco pelo suporte.
+            </p>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Modais */}
+      {showEmitir && (
+        <ModalEmitir
+          prestador={prestador}
+          onClose={() => setShowEmitir(false)}
+          onSuccess={() => { setShowEmitir(false); fetchNotas() }}
+        />
+      )}
+
+      {showCancelar && (
+        <ModalCancelar
+          nota={showCancelar}
+          onClose={() => setShowCancelar(null)}
+          onSuccess={() => { setShowCancelar(null); fetchNotas() }}
+        />
+      )}
+
+      {showReemitir && (
+        <ModalReemitir
+          nota={showReemitir}
+          onClose={() => setShowReemitir(null)}
+          onSuccess={() => { setShowReemitir(null); fetchNotas() }}
+        />
+      )}
     </div>
   )
 }

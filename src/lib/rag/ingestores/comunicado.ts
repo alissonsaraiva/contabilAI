@@ -48,5 +48,8 @@ export async function indexarComunicado(comunicado: ComunicadoData): Promise<voi
     tipo:        'base_conhecimento',
     documentoId,
     titulo:      `Comunicado — ${comunicado.titulo}`,
+    metadata:    comunicado.publicadoEm
+      ? { dataReferencia: comunicado.publicadoEm.toISOString().slice(0, 10) }
+      : undefined,
   }, keys)
 }

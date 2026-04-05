@@ -20,7 +20,7 @@ export async function GET() {
 
   const cobrancas = await prisma.cobrancaAsaas.findMany({
     where:   { clienteId },
-    orderBy: { vencimento: 'desc' },
+    orderBy: [{ vencimento: 'desc' }, { criadoEm: 'desc' }],
     take:    12,
     select: {
       id: true,
@@ -31,6 +31,8 @@ export async function GET() {
       // Dados sensíveis de pagamento omitidos — disponíveis via /cobranca-aberta
       pagoEm: true,
       valorPago: true,
+      // URL pública de comprovante (Asaas invoicePage — não é link de pagamento)
+      invoiceUrl: true,
     },
   })
 

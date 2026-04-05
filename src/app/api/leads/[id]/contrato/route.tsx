@@ -209,6 +209,24 @@ export async function POST(req: Request, { params }: Params) {
 
       if (cliente) {
         indexarAsync('cliente', cliente)
+
+        // Migra histórico de onboarding do lead para o escopo do cliente
+        indexarAsync('leadMigrado', {
+          lead: {
+            id:             lead.id,
+            contatoEntrada: lead.contatoEntrada,
+            canal:          lead.canal,
+            planoTipo:      lead.planoTipo,
+            dadosJson:      lead.dadosJson,
+            contratoPlano:          plano,
+            contratoValor:          valor,
+            contratoVencimento:     vencimento,
+            contratoFormaPagamento: formaPagamento,
+            contratoAssinadoEm:     agora,
+          },
+          clienteId: cliente.id,
+        })
+
         import('@/lib/email/boas-vindas')
           .then(({ enviarBoasVindas }) =>
             enviarBoasVindas({ id: cliente!.id, nome: cliente!.nome, email: cliente!.email })

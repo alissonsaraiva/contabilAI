@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { formatBRL } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,22 +29,28 @@ type CobrancaHistorico = {
   formaPagamento: 'pix' | 'boleto'
   pagoEm: string | null
   valorPago: number | null
+  invoiceUrl: string | null
 }
 
 const STATUS_LABEL: Record<CobrancaStatus, string> = {
-  PENDING: 'Em aberto',
-  RECEIVED: 'Pago',
-  OVERDUE: 'Vencido',
-  REFUNDED: 'Reembolsado',
+  PENDING:   'Em aberto',
+  RECEIVED:  'Pago',
+  OVERDUE:   'Vencido',
+  REFUNDED:  'Reembolsado',
   CANCELLED: 'Cancelado',
 }
 
 const STATUS_COLOR: Record<CobrancaStatus, string> = {
-  PENDING: 'bg-primary/10 text-primary',
-  RECEIVED: 'bg-green-status/10 text-green-status',
-  OVERDUE: 'bg-error/10 text-error',
-  REFUNDED: 'bg-surface-container text-on-surface-variant',
+  PENDING:   'bg-primary/10 text-primary',
+  RECEIVED:  'bg-green-status/10 text-green-status',
+  OVERDUE:   'bg-error/10 text-error',
+  REFUNDED:  'bg-surface-container text-on-surface-variant',
   CANCELLED: 'bg-surface-container text-on-surface-variant',
+}
+
+const FORMA_LABELS: Record<string, string> = {
+  boleto: 'Boleto bancário',
+  pix:    'PIX',
 }
 
 type Props = {
@@ -57,11 +63,35 @@ type Props = {
 
 export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, formaPagamento, asaasAtivo }: Props) {
   const [cobrancaAberta, setCobrancaAberta] = useState<CobrancaAberta | null | undefined>(undefined)
-  const [historico, setHistorico] = useState<CobrancaHistorico[]>([])
-  const [loading, setLoading] = useState(true)
-  const [copiado, setCopiado] = useState(false)
+  const [historico, setHistorico]   = useState<CobrancaHistorico[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [copiado, setCopiado]       = useState(false)
   const [segundaViaLoading, setSegundaViaLoading] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
+  const [erro, setErro]             = useState<string | null>(null)
+
+  // Estado editável dos cards de configuração
+  const [diaVencimento, setDiaVencimento] = useState(vencimentoDia)
+  const [forma, setForma]                 = useState<'pix' | 'boleto'>(formaPagamento as 'pix' | 'boleto')
+
+  // Edição de vencimento
+  const [editandoVencimento, setEditandoVencimento]   = useState(false)
+  const [novoVencimentoDia, setNovoVencimentoDia]     = useState(vencimentoDia)
+  const [salvandoVencimento, setSalvandoVencimento]   = useState(false)
+  const [erroVencimento, setErroVencimento]           = useState<string | null>(null)
+  const [sucessoVencimento, setSucessoVencimento]     = useState<string | null>(null)
+
+  // Edição de forma de pagamento
+  const [editandoForma, setEditandoForma]   = useState(false)
+  const [novaForma, setNovaForma]           = useState<'pix' | 'boleto'>(formaPagamento as 'pix' | 'boleto')
+  const [salvandoForma, setSalvandoForma]   = useState(false)
+  const [erroForma, setErroForma]           = useState<string | null>(null)
+  const [sucessoForma, setSucessoForma]     = useState<string | null>(null)
+
+  // Extrato
+  const [baixandoExtrato, setBaixandoExtrato] = useState(false)
+
+  // Guard de double-click para segunda via (React state é assíncrono — ref é síncrono)
+  const segundaViaEmAndamento = useRef(false)
 
   const carregarDados = useCallback(async () => {
     setLoading(true)
@@ -70,7 +100,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
         fetch('/api/portal/financeiro/cobranca-aberta'),
         fetch('/api/portal/financeiro/cobrancas'),
       ])
-      if (abertaRes.ok) setCobrancaAberta(await abertaRes.json())
+      if (abertaRes.ok)    setCobrancaAberta(await abertaRes.json())
       if (historicoRes.ok) setHistorico(await historicoRes.json())
     } finally {
       setLoading(false)
@@ -86,28 +116,97 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
   }
 
   async function gerarSegundaVia(cobrancaId: string) {
+    // Guard síncrono contra double-click (state updates são assíncronos no React)
+    if (segundaViaEmAndamento.current) return
+    segundaViaEmAndamento.current = true
     setSegundaViaLoading(true)
     setErro(null)
     try {
-      const res = await fetch('/api/portal/financeiro/segunda-via', {
-        method: 'POST',
+      const res  = await fetch('/api/portal/financeiro/segunda-via', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cobrancaId }),
+        body:    JSON.stringify({ cobrancaId }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? 'Erro ao gerar segunda via.')
-      // Recarrega os dados: a nova cobrança (PENDING) estará em cobrancaAberta
       await carregarDados()
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao gerar segunda via.')
     } finally {
       setSegundaViaLoading(false)
+      segundaViaEmAndamento.current = false
     }
   }
 
-  const FORMA_LABELS: Record<string, string> = {
-    boleto: 'Boleto bancário',
-    pix: 'PIX',
+  async function salvarVencimento() {
+    setSalvandoVencimento(true)
+    setErroVencimento(null)
+    setSucessoVencimento(null)
+    try {
+      const res  = await fetch('/api/portal/financeiro/vencimento', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ dia: novoVencimentoDia }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? 'Erro ao alterar vencimento.')
+      setDiaVencimento(novoVencimentoDia)
+      setEditandoVencimento(false)
+      setSucessoVencimento(
+        body.proximoVencimento
+          ? `Próximo vencimento: ${new Date(body.proximoVencimento).toLocaleDateString('pt-BR')}`
+          : 'Vencimento atualizado com sucesso.',
+      )
+      setTimeout(() => setSucessoVencimento(null), 5000)
+      await carregarDados()
+    } catch (err) {
+      setErroVencimento(err instanceof Error ? err.message : 'Erro ao alterar vencimento.')
+    } finally {
+      setSalvandoVencimento(false)
+    }
+  }
+
+  async function salvarForma() {
+    setSalvandoForma(true)
+    setErroForma(null)
+    setSucessoForma(null)
+    try {
+      const res  = await fetch('/api/portal/financeiro/forma-pagamento', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ forma: novaForma }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? 'Erro ao alterar forma de pagamento.')
+      setForma(novaForma)
+      setEditandoForma(false)
+      setSucessoForma('Forma de pagamento atualizada. As cobranças em aberto serão atualizadas em breve.')
+      setTimeout(() => setSucessoForma(null), 6000)
+      await carregarDados()
+    } catch (err) {
+      setErroForma(err instanceof Error ? err.message : 'Erro ao alterar forma de pagamento.')
+    } finally {
+      setSalvandoForma(false)
+    }
+  }
+
+  async function baixarExtrato() {
+    setBaixandoExtrato(true)
+    try {
+      const res  = await fetch('/api/portal/financeiro/extrato')
+      if (!res.ok) throw new Error('Erro ao gerar extrato.')
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = 'extrato-financeiro.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao baixar extrato.')
+    } finally {
+      setBaixandoExtrato(false)
+    }
   }
 
   if (loading) {
@@ -123,6 +222,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
 
       {/* Resumo da mensalidade */}
       <div className="grid gap-4 md:grid-cols-3">
+        {/* Mensalidade */}
         <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-green-status/10">
             <span className="material-symbols-outlined text-[22px] text-green-status" style={{ fontVariationSettings: "'FILL' 1" }}>payments</span>
@@ -131,26 +231,166 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
           <p className="text-xl font-bold text-on-surface mt-1">{formatBRL(valorMensal)}</p>
         </Card>
 
-        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-            <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>event_repeat</span>
+        {/* Dia de vencimento — editável */}
+        <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
+          <div className="p-4 sm:p-5">
+            <div className="mb-3 flex items-start justify-between">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>event_repeat</span>
+              </div>
+              {asaasAtivo && !editandoVencimento && (
+                <button
+                  onClick={() => { setEditandoVencimento(true); setNovoVencimentoDia(diaVencimento); setErroVencimento(null) }}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                  title="Alterar dia de vencimento"
+                >
+                  <span className="material-symbols-outlined text-[14px]">edit</span>
+                  Alterar
+                </button>
+              )}
+            </div>
+            <p className="text-[12px] font-medium text-on-surface-variant/70">Dia de vencimento</p>
+            {editandoVencimento ? (
+              <div className="mt-2 space-y-3">
+                <select
+                  value={novoVencimentoDia}
+                  onChange={e => setNovoVencimentoDia(Number(e.target.value))}
+                  className="w-full rounded-xl border border-outline-variant/30 bg-surface-container/50 px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={d}>Dia {d}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-on-surface-variant/60">
+                  A alteração será aplicada também à cobrança em aberto.
+                </p>
+                {erroVencimento && (
+                  <p className="text-[11px] text-error">{erroVencimento}</p>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={salvarVencimento}
+                    disabled={salvandoVencimento || novoVencimentoDia === diaVencimento}
+                    className="flex-1 text-xs gap-1"
+                  >
+                    {salvandoVencimento
+                      ? <><span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span> Salvando…</>
+                      : <><span className="material-symbols-outlined text-[12px]">check</span> Salvar</>
+                    }
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setEditandoVencimento(false); setErroVencimento(null) }}
+                    disabled={salvandoVencimento}
+                    className="text-xs"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xl font-bold text-on-surface mt-1">Todo dia {diaVencimento}</p>
+            )}
           </div>
-          <p className="text-[12px] font-medium text-on-surface-variant/70">Dia de vencimento</p>
-          <p className="text-xl font-bold text-on-surface mt-1">Todo dia {vencimentoDia}</p>
         </Card>
 
-        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-            <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>credit_card</span>
+        {/* Forma de pagamento — editável */}
+        <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
+          <div className="p-4 sm:p-5">
+            <div className="mb-3 flex items-start justify-between">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                <span className="material-symbols-outlined text-[22px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>credit_card</span>
+              </div>
+              {asaasAtivo && !editandoForma && (
+                <button
+                  onClick={() => { setEditandoForma(true); setNovaForma(forma); setErroForma(null) }}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                  title="Alterar forma de pagamento"
+                >
+                  <span className="material-symbols-outlined text-[14px]">edit</span>
+                  Alterar
+                </button>
+              )}
+            </div>
+            <p className="text-[12px] font-medium text-on-surface-variant/70">Forma de pagamento</p>
+            {editandoForma ? (
+              <div className="mt-2 space-y-3">
+                <div className="flex flex-col gap-2">
+                  {(['pix', 'boleto'] as const).map(op => (
+                    <label
+                      key={op}
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${novaForma === op ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:bg-surface-container/40'}`}
+                    >
+                      <input
+                        type="radio"
+                        name="forma"
+                        value={op}
+                        checked={novaForma === op}
+                        onChange={() => setNovaForma(op)}
+                        className="accent-primary"
+                      />
+                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant/70" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        {op === 'pix' ? 'qr_code_2' : 'receipt_long'}
+                      </span>
+                      <span className="text-sm font-medium text-on-surface">{FORMA_LABELS[op]}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[10px] text-on-surface-variant/60">
+                  A cobrança em aberto será regenerada na nova forma em breve.
+                </p>
+                {erroForma && (
+                  <p className="text-[11px] text-error">{erroForma}</p>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={salvarForma}
+                    disabled={salvandoForma || novaForma === forma}
+                    className="flex-1 text-xs gap-1"
+                  >
+                    {salvandoForma
+                      ? <><span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span> Salvando…</>
+                      : <><span className="material-symbols-outlined text-[12px]">check</span> Salvar</>
+                    }
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setEditandoForma(false); setErroForma(null) }}
+                    disabled={salvandoForma}
+                    className="text-xs"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[15px] font-bold text-on-surface mt-1">
+                {FORMA_LABELS[forma] ?? forma}
+              </p>
+            )}
           </div>
-          <p className="text-[12px] font-medium text-on-surface-variant/70">Forma de pagamento</p>
-          <p className="text-[15px] font-bold text-on-surface mt-1">
-            {FORMA_LABELS[formaPagamento] ?? formaPagamento}
-          </p>
         </Card>
       </div>
 
-      {/* Erro */}
+      {/* Feedbacks de sucesso nas configurações */}
+      {sucessoVencimento && (
+        <div className="flex items-center gap-2 rounded-xl bg-green-status/10 px-4 py-3 text-sm text-green-status">
+          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+          {sucessoVencimento}
+        </div>
+      )}
+      {sucessoForma && (
+        <div className="flex items-center gap-2 rounded-xl bg-green-status/10 px-4 py-3 text-sm text-green-status">
+          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+          {sucessoForma}
+        </div>
+      )}
+
+      {/* Erro geral */}
       {erro && (
         <div className="flex items-center gap-2 rounded-xl bg-error/10 px-4 py-3 text-sm text-error">
           <span className="material-symbols-outlined text-[16px]">error</span>
@@ -187,7 +427,7 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
           </div>
 
           <div className="p-4 sm:p-6 space-y-4">
-            {/* PIX expirado — usa flag do servidor (server já nulifica pixCopiaECola quando expirado) */}
+            {/* PIX expirado */}
             {cobrancaAberta.formaPagamento === 'pix' && !!cobrancaAberta.pixExpirado && (
               <div className="flex items-start gap-2 rounded-xl bg-orange-50 px-4 py-3 text-sm text-orange-700 dark:bg-orange-950/30 dark:text-orange-400">
                 <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0">warning</span>
@@ -326,7 +566,19 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
         <div className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm">
           <div className="flex items-center gap-3 p-4 sm:px-6 sm:py-4 border-b border-outline-variant/10">
             <span className="material-symbols-outlined text-[20px] text-primary/80" style={{ fontVariationSettings: "'FILL' 1" }}>history</span>
-            <h3 className="font-headline text-base font-semibold text-on-surface">Histórico de pagamentos</h3>
+            <h3 className="font-headline text-base font-semibold text-on-surface flex-1">Histórico de pagamentos</h3>
+            <button
+              onClick={baixarExtrato}
+              disabled={baixandoExtrato}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-on-surface-variant hover:bg-surface-container/60 transition-colors disabled:opacity-50"
+              title="Baixar extrato em CSV (compatível com Excel)"
+            >
+              {baixandoExtrato
+                ? <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                : <span className="material-symbols-outlined text-[14px]">download</span>
+              }
+              {baixandoExtrato ? 'Gerando…' : 'Exportar CSV'}
+            </button>
           </div>
           <div className="divide-y divide-outline-variant/10">
             {historico.map(c => (
@@ -348,6 +600,19 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
                   <span className={`rounded-full px-2 py-[1px] text-[10px] font-bold uppercase tracking-wider ${STATUS_COLOR[c.status]}`}>
                     {STATUS_LABEL[c.status]}
                   </span>
+                  {/* Comprovante público — disponível quando Asaas gerou invoiceUrl */}
+                  {c.invoiceUrl && c.status === 'RECEIVED' && (
+                    <a
+                      href={c.invoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors whitespace-nowrap"
+                      title="Abrir comprovante de pagamento"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                      Comprovante
+                    </a>
+                  )}
                 </div>
               </div>
             ))}

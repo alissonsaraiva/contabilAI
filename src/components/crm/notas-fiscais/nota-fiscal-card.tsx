@@ -33,6 +33,12 @@ export function NotaFiscalCard({ nota, onEntregar, onCancelarClick, onReemitirCl
               <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>{statusIcon}</span>
               {statusLabel}
             </span>
+            {nota.solicitadaPeloPortal && (
+              <span className="flex items-center gap-1 rounded-full border border-blue-500/20 bg-blue-500/8 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+                Portal
+              </span>
+            )}
             <span className="text-[11px] text-on-surface-variant/60">{dataFmt}</span>
           </div>
           <p className="mt-1 text-[12px] text-on-surface-variant/70 truncate">{nota.descricao}</p>

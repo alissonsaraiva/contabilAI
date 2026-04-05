@@ -19,6 +19,7 @@ export type NotaFiscal = {
   spedyId: string | null
   autorizadaEm: string | null
   criadoEm: string
+  solicitadaPeloPortal?: boolean
 }
 
 export type FormState = {

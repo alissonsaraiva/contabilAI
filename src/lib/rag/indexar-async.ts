@@ -16,6 +16,7 @@ type TipoIndexacao =
   | 'interacao'
   | 'cliente'
   | 'lead'
+  | 'leadMigrado'   // migração de dados de lead para escopo cliente após conversão
   | 'escalacao'
   | 'contrato'
   | 'documento'
@@ -37,6 +38,10 @@ export function indexarAsync(tipo: TipoIndexacao, dados: unknown): void {
         case 'interacao':       return (mod as any).indexarInteracao(dados)
         case 'cliente':         return (mod as any).indexarCliente(dados)
         case 'lead':            return (mod as any).indexarLead(dados)
+        case 'leadMigrado': {
+          const d = dados as { lead: unknown; clienteId: string }
+          return (mod as any).migrarLeadParaCliente?.(d.lead, d.clienteId)
+        }
         case 'escalacao':       return (mod as any).indexarEscalacao?.(dados)
         case 'contrato':        return (mod as any).indexarContrato?.(dados)
         case 'documento':       return (mod as any).indexarDocumento?.(dados)

@@ -25,7 +25,7 @@ export async function indexarLead(lead: LeadData): Promise<void> {
     'Nome completo', 'CPF', 'E-mail', 'Telefone', 'CNPJ', 'Razão Social',
     'Nome Fantasia', 'Regime', 'Cidade', 'Endereço de Faturamento',
     'Atividade Principal', 'email', 'nome', 'cpf', 'cnpj', 'telefone',
-    // Objetos aninhados — excluir do camposDinamicos para evitar [object Object]
+    // Objetos aninhados — indexados separadamente abaixo
     'simulador',
   ])
 
@@ -42,6 +42,15 @@ export async function indexarLead(lead: LeadData): Promise<void> {
       String(valor).trim() !== 'undefined'
     )
     .map(([chave, valor]) => `${chave}: ${String(valor).trim()}`)
+
+  // Extrai dados do simulador (objeto aninhado) — regime, faturamento estimado,
+  // alíquota simulada etc. Essencial para personalizar o atendimento de onboarding.
+  const simulador = dados['simulador'] as Record<string, unknown> | undefined
+  const simuladorLinhas = simulador
+    ? Object.entries(simulador)
+        .filter(([, v]) => v != null && typeof v !== 'object' && String(v).trim().length > 0)
+        .map(([k, v]) => `  ${k}: ${String(v).trim()}`)
+    : []
 
   const linhas = [
     `Lead de onboarding`,
@@ -67,6 +76,8 @@ export async function indexarLead(lead: LeadData): Promise<void> {
     dados['Atividade Principal']     ? `Atividade: ${dados['Atividade Principal']}` : '',
     // Campos dinâmicos adicionais (customizações do formulário de onboarding)
     ...camposDinamicos,
+    // Simulador de tributação — regime e alíquota calculados pelo prospect
+    ...(simuladorLinhas.length ? [`Simulador preenchido pelo prospect:\n${simuladorLinhas.join('\n')}`] : []),
     // UTM — origem de marketing para diagnóstico de funil
     lead.utmSource   ? `UTM Source: ${lead.utmSource}` : '',
     lead.utmMedium   ? `UTM Medium: ${lead.utmMedium}` : '',
@@ -81,6 +92,82 @@ export async function indexarLead(lead: LeadData): Promise<void> {
     tipo: 'dados_lead',
     leadId: lead.id,
     titulo: nomeDisplay,
+  }, keys)
+}
+
+// ─── Migração lead→cliente (conversão pós-assinatura) ────────────────────────
+//
+// Chamada APÓS a criação do cliente para migrar o histórico de onboarding
+// para o escopo do cliente — tornando-o visível no CRM e no portal.
+// Sem isso, todo o contexto preenchido no onboarding some para a IA após conversão.
+
+type LeadMigracaoData = {
+  id: string
+  contatoEntrada: string
+  canal?: string | null
+  planoTipo?: string | null
+  dadosJson?: unknown
+  // Dados do contrato assinado (opcionais — enriquece o contexto)
+  contratoPlano?: string | null
+  contratoValor?: number | null
+  contratoVencimento?: number | null
+  contratoFormaPagamento?: string | null
+  contratoAssinadoEm?: Date | null
+}
+
+export async function migrarLeadParaCliente(
+  lead: LeadMigracaoData,
+  clienteId: string,
+): Promise<void> {
+  const keys = await getEmbeddingKeys()
+  if (!keys.openai && !keys.voyage) return
+
+  const dados = (lead.dadosJson ?? {}) as Record<string, unknown>
+
+  // Inclui dados do simulador na migração — estava excluído no indexarLead original
+  const simulador = dados['simulador'] as Record<string, unknown> | undefined
+  const simuladorLinhas = simulador
+    ? Object.entries(simulador)
+        .filter(([, v]) => v != null && typeof v !== 'object' && String(v).trim().length > 0)
+        .map(([k, v]) => `  ${k}: ${String(v).trim()}`)
+    : []
+
+  const linhas = [
+    `Histórico de onboarding (lead convertido em cliente)`,
+    `Contato original: ${lead.contatoEntrada}`,
+    lead.canal     ? `Canal de entrada: ${lead.canal}` : '',
+    lead.planoTipo ? `Plano de interesse original: ${lead.planoTipo}` : '',
+    dados['Nome completo']  ? `Nome: ${dados['Nome completo']}` : '',
+    dados['nome']           ? `Nome: ${dados['nome']}` : '',
+    dados['CPF']            ? `CPF: ${dados['CPF']}` : '',
+    dados['E-mail']         ? `E-mail: ${dados['E-mail']}` : '',
+    dados['Telefone']       ? `Telefone: ${dados['Telefone']}` : '',
+    dados['CNPJ']           ? `CNPJ: ${dados['CNPJ']}` : '',
+    dados['Razão Social']   ? `Razão Social: ${dados['Razão Social']}` : '',
+    dados['Nome Fantasia']  ? `Nome Fantasia: ${dados['Nome Fantasia']}` : '',
+    dados['Cidade']         ? `Cidade: ${dados['Cidade']}` : '',
+    dados['Regime']         ? `Regime: ${dados['Regime']}` : '',
+    dados['Atividade Principal'] ? `Atividade: ${dados['Atividade Principal']}` : '',
+    simuladorLinhas.length ? `Dados do simulador:\n${simuladorLinhas.join('\n')}` : '',
+    lead.contratoPlano
+      ? [
+          `Contrato assinado:`,
+          `  Plano: ${lead.contratoPlano}`,
+          lead.contratoValor != null        ? `  Valor: R$ ${lead.contratoValor}/mês` : '',
+          lead.contratoVencimento != null   ? `  Vencimento: dia ${lead.contratoVencimento}` : '',
+          lead.contratoFormaPagamento       ? `  Forma de pagamento: ${lead.contratoFormaPagamento}` : '',
+          lead.contratoAssinadoEm           ? `  Assinado em: ${lead.contratoAssinadoEm.toLocaleDateString('pt-BR')}` : '',
+        ].filter(Boolean).join('\n')
+      : '',
+  ].filter(Boolean).join('\n')
+
+  await indexar(linhas, {
+    escopo:      'cliente',
+    canal:       'geral',       // visível no CRM e no portal
+    tipo:        'historico_crm',
+    clienteId,
+    titulo:      String(dados['Nome completo'] ?? dados['nome'] ?? lead.contatoEntrada),
+    documentoId: `lead_migrado:${lead.id}`,
   }, keys)
 }
 

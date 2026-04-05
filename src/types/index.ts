@@ -164,3 +164,46 @@ export const STATUS_CLIENTE_COLORS: Record<StatusCliente, string> = {
   suspenso:     'bg-orange-status/10 text-orange-status',
   cancelado:    'bg-surface-container text-on-surface-variant',
 }
+
+export const REGIME_LABELS: Record<string, string> = {
+  MEI: 'MEI',
+  SimplesNacional: 'Simples Nacional',
+  LucroPresumido: 'Lucro Presumido',
+  LucroReal: 'Lucro Real',
+  Autonomo: 'Autônomo',
+}
+
+export const REGIME_COLORS: Record<string, string> = {
+  MEI: 'bg-green-status/10 text-green-status',
+  SimplesNacional: 'bg-primary/10 text-primary',
+  LucroPresumido: 'bg-tertiary/10 text-tertiary',
+  LucroReal: 'bg-orange-status/10 text-orange-status',
+  Autonomo: 'bg-surface-container text-on-surface-variant',
+}
+
+export const STATUS_CHAMADO: Record<string, { label: string; color: string; icon: string }> = {
+  aberta:             { label: 'Aberta',       color: 'text-blue-600 bg-blue-500/10',                   icon: 'radio_button_unchecked' },
+  em_andamento:       { label: 'Em andamento', color: 'text-primary bg-primary/10',                     icon: 'autorenew' },
+  aguardando_cliente: { label: 'Aguardando',   color: 'text-yellow-600 bg-yellow-500/10',               icon: 'pending' },
+  resolvida:          { label: 'Resolvida',    color: 'text-green-status bg-green-status/10',           icon: 'task_alt' },
+  cancelada:          { label: 'Cancelada',    color: 'text-on-surface-variant/50 bg-surface-container', icon: 'cancel' },
+}
+
+export const TIPO_CHAMADO: Record<string, string> = {
+  duvida:              'Dúvida',
+  solicitacao:         'Solicitação',
+  reclamacao:          'Reclamação',
+  documento:           'Documento',
+  emissao_documento:   'Emissão',
+  correcao_documento:  'Correção',
+  solicitacao_documento: 'Solicitar doc.',
+  tarefa_interna:      'Interna',
+  outros:              'Outros',
+}
+
+export const PRIORIDADE_COLOR: Record<string, string> = {
+  baixa:   'text-on-surface-variant/50',
+  media:   'text-blue-600',
+  alta:    'text-yellow-600',
+  urgente: 'text-error',
+}

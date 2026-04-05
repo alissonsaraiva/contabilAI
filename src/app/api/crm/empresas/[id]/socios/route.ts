@@ -50,11 +50,12 @@ export async function POST(req: Request, { params }: Params) {
     // Reindexar empresa no RAG
     const empresaCompleta = await prisma.empresa.findUnique({
       where:   { id: empresaId },
-      include: { socios: true },
+      include: { socios: true, cliente: { select: { id: true } } },
     })
     if (empresaCompleta) {
       indexarAsync('empresa', {
         id:           empresaCompleta.id,
+        clienteId:    empresaCompleta.cliente?.id ?? null,
         cnpj:         empresaCompleta.cnpj,
         razaoSocial:  empresaCompleta.razaoSocial,
         nomeFantasia: empresaCompleta.nomeFantasia,

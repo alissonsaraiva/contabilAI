@@ -1,5 +1,5 @@
 # AVOS — Documentação Completa do Sistema
-> **Gerado em**: 2026-04-03 | **Versão**: v3.10.16 | **Fonte da verdade**: código-fonte
+> **Gerado em**: 2026-04-04 | **Versão**: v3.10.22 | **Fonte da verdade**: código-fonte
 
 ---
 
@@ -117,8 +117,8 @@ contabilAI/
 │   │   │   ├── agent.ts       # Agente operacional (loop de tool calling)
 │   │   │   ├── ask.ts         # Chat simples com contexto
 │   │   │   ├── config.ts      # Configuração de providers
-│   │   │   ├── classificar-intencao.ts  # Classificador de intenção
-│   │   │   └── tools/         # 38+ tool definitions
+│   │   │   ├── classificar-intencao.ts  # Classificador de intenção (inclui FINANCEIRO_KEYWORDS para queries financeiras)
+│   │   │   └── tools/         # 64 tool definitions
 │   │   ├── email/
 │   │   │   ├── imap.ts        # Recebimento IMAP (imapflow)
 │   │   │   ├── send.ts        # Envio SMTP (nodemailer + Resend)
@@ -130,6 +130,11 @@ contabilAI/
 │   │   │   ├── arquivar-midia.ts       # Salvar mídia no R2
 │   │   │   ├── processar-pendentes.ts  # Processar fila de mensagens
 │   │   │   └── pipeline/      # Etapas do pipeline de processamento
+│   │   ├── whatsapp-utils.ts  # Utilitários compartilhados das rotas de envio CRM:
+│   │   │                      #   buildRemoteJid (valida 8–13 dígitos)
+│   │   │                      #   getEvolutionConfig, isMediaUrlTrusted
+│   │   │                      #   checkRateLimit (30 msgs/60 s por userId)
+│   │   │                      #   WHATSAPP_ALLOWED_MIME (whitelist de tipos)
 │   │   ├── rag/
 │   │   │   ├── ingest.ts      # Indexação de documentos
 │   │   │   └── ingestores/    # 8 ingestores especializados
@@ -315,6 +320,7 @@ useAutoSave(leadId, payloadJson, delay=1500)
 
 ### 3. Fluxo de Emissão de NFS-e
 
+**Via CRM / IA / Agente (fluxo original):**
 ```
 1. Operador/IA executa emitirNotaFiscal()
 2. Validação: empresa tem Spedy configurado?
@@ -326,7 +332,7 @@ useAutoSave(leadId, payloadJson, delay=1500)
    └── rejeitada → registra erro, permite reemissão
 7. Se autorizada: onNotaAutorizada()
    a. Salva PDF+XML no R2 (backup local — R2-first, Spedy fallback)
-   b. Indexa no RAG
+   b. Indexa no RAG com status "Autorizada"
    c. Notifica equipe CRM
    d. Se spedyEnviarAoAutorizar = true → entregarNotaCliente(canal)
       └── WhatsApp: texto + PDF + XML (retry 3x com backoff 2s)
@@ -334,6 +340,36 @@ useAutoSave(leadId, payloadJson, delay=1500)
       └── Portal: Chamado visível no portal (visivelPortal: true) +
                   nota disponível em /portal/notas-fiscais (PDF e XML)
 8. Portal: badge "NFS-e" no header conta notas autorizadas nos últimos 30 dias
+```
+
+**Via Portal do Cliente (auto-serviço — v3.10.21):**
+```
+1. Cliente acessa /portal/notas-fiscais
+2. Dados da empresa (prestador) pré-preenchidos
+3. Cliente preenche: descrição, valor, dados do tomador (nome, CPF/CNPJ, email, município, estado)
+4. POST /api/portal/notas-fiscais → emitirNotaFiscal() + marca solicitadaPeloPortal: true
+5. Mesma fila Spedy do fluxo CRM — webhook e reconciliação idênticos
+6. Nota aparece imediatamente na lista com status "Enviando" → polling automático a cada 6s
+7. Equipe notificada por WhatsApp/email via notificarEquipeNfsSolicitadaPortal()
+8. No CRM: badge "Portal" em azul identifica notas originadas pelo cliente
+```
+
+**Cancelamento via Portal:**
+```
+1. Cliente clica no ícone de cancelamento em nota autorizada
+2. Informa justificativa (mín. 15 chars)
+3. POST /api/portal/notas-fiscais/[id]/cancelar → cancelarNotaFiscal()
+4. Validações: ownership (clienteId), status = autorizada, prazo ≤ 30 dias desde autorização
+5. Se prazo > 30 dias: bloqueia com mensagem + orienta abrir chamado
+6. Se aceito: cancela na Spedy → marca cancelada + notifica equipe + re-indexa RAG com status "Cancelada"
+```
+
+**Reemissão via Portal:**
+```
+1. Cliente vê nota com status "Rejeitada" ou "Erro interno"
+2. Clica no ícone de reemissão → modal com dados pré-preenchidos para correção
+3. POST /api/portal/notas-fiscais/[id]/reemitir → reemitirNotaFiscal() com overrides
+4. Nova nota entra na fila Spedy normalmente
 ```
 
 ### 4. Fluxo de Email (IMAP Sync)
@@ -422,6 +458,7 @@ AVALIAÇÃO:
    └── Manual: operador usa ferramenta de cobrança
    └── IA usa enviarCobrancaInadimplente()
 6. Segunda via: gerarSegundaVia() → cria nova cobrança avulsa no Asaas + cancela original
+7. invoiceUrl: capturado em todos os status (open + paid) no `sincronizarCobrancas` — armazenado em `CobrancaAsaas.invoiceUrl`; exposto no portal como "Comprovante" para cobranças RECEIVED
 ```
 
 **Comportamentos importantes da API Asaas (validados em sandbox 2026-04-03):**
@@ -463,7 +500,10 @@ AVALIAÇÃO:
 **Telas implementadas (auditado 2026-04-03):**
 - `src/components/crm/cliente-financeiro-tab.tsx` — aba Financeiro no detalhe do cliente: resumo (4 cards), alterar vencimento/forma, QR code PIX, código de barras boleto, segunda via, histórico 24 cobranças, sync manual, provisionar
 - `src/app/(crm)/crm/financeiro/inadimplentes/page.tsx` + `src/components/crm/inadimplentes-client.tsx` — lista de inadimplentes com cobrança individual e em lote (3 níveis: gentil/urgente/reforço) via WhatsApp
-- `src/components/portal/portal-financeiro-client.tsx` — portal do cliente: cobrança em aberto com QR/boleto, alerta PIX expirado, segunda via, histórico 12 cobranças
+- `src/components/portal/portal-financeiro-client.tsx` — portal do cliente: cobrança em aberto com QR/boleto, alerta PIX expirado, segunda via, histórico 12 cobranças, **alterar vencimento (self-service)**, **alterar forma de pagamento (self-service)**, **comprovante de pagamento (invoiceUrl)**, **exportar extrato CSV**
+- `src/app/api/portal/financeiro/vencimento/route.ts` — PATCH: cliente altera dia de vencimento (1–28) diretamente no portal; chama `atualizarVencimentoAsaas`
+- `src/app/api/portal/financeiro/forma-pagamento/route.ts` — PATCH: cliente altera PIX ↔ boleto diretamente no portal; chama `alterarFormaPagamentoAsaas`
+- `src/app/api/portal/financeiro/extrato/route.ts` — GET: gera CSV com histórico completo de cobranças (BOM UTF-8 para Excel)
 - Badge "Inadimplente" na lista de clientes: ✅ já renderizado via `STATUS_CLIENTE_COLORS` (vermelho)
 - Filtro por status=inadimplente na lista de clientes: ✅ search bar inclui todos os status automaticamente
 - Config Asaas em `/crm/configuracoes/integracoes`: ✅ campos API key, ambiente (sandbox/producao), webhook token
@@ -541,6 +581,15 @@ BUSCA (Híbrida):
 - Chamados: lista filtrada por empresa com botão "Novo Chamado"
 - Documentos, Portal, Conversas IA, Financeiro (placeholder), Fiscal
 
+**Arquitetura refatorada (v3.10.20+):** `page.tsx` foi de 722 → 186 linhas. Abas extraídas para `_components/`:
+- `empresa-header.tsx` — cabeçalho com badges de status e regime
+- `tab-visao-geral.tsx` — 4 InfoCards: empresa, contrato, NFS-e, atividade
+- `tab-titular.tsx` — dados pessoais, contrato e endereço do titular
+- `tab-socios.tsx` — grid de sócios com portal controls e WhatsApp
+- `tab-chamados.tsx` — tabela de chamados da empresa
+- `tab-portal.tsx` — lista de acessos ao portal
+- `src/components/crm/info-card.tsx` — componentes reutilizáveis: `InfoCard`, `InfoRow`, `EmptyState`, `PlaceholderTab`
+
 ### CRM — NFS-e
 
 | Rota | Método | Descrição |
@@ -573,6 +622,37 @@ BUSCA (Híbrida):
 - `resposta`, `categoria`, `arquivo` (File) ou `documento_id/url/nome/mime` (doc existente)
 - `canal_email=1`, `email_assunto`, `email_corpo`
 - `canal_whatsapp=1`, `wpp_mensagem`, `wpp_destinatarios` (JSON array de sócios)
+
+### CRM — WhatsApp (Chat Humano)
+
+| Rota | Método | Descrição |
+|------|--------|-----------|
+| `/api/clientes/[id]/whatsapp` | GET | Histórico de conversa WhatsApp do cliente |
+| `/api/clientes/[id]/whatsapp` | POST | Enviar mensagem/mídia ao cliente |
+| `/api/leads/[id]/whatsapp` | GET | Histórico de conversa WhatsApp do lead |
+| `/api/leads/[id]/whatsapp` | POST | Enviar mensagem/mídia ao lead |
+| `/api/socios/[id]/whatsapp` | GET | Histórico de conversa WhatsApp do sócio |
+| `/api/socios/[id]/whatsapp` | POST | Enviar mensagem/mídia ao sócio (vincula ao histórico do titular) |
+| `/api/stream/conversas/[id]` | GET (SSE) | Stream de novas mensagens para o chat drawer (admin/contador) |
+| `/api/conversas/pausar` | POST | Assumir controle da conversa (pausa IA) |
+| `/api/conversas/[id]/retomar` | POST | Devolver conversa para IA |
+| `/api/conversas/[id]/mensagens/[msgId]` | DELETE | Excluir mensagem para todos |
+
+**Segurança dos POSTs de envio:**
+- Rate limit: 30 mensagens / 60 s por `userId` (em memória; migrar para Redis em multi-worker)
+- `mediaUrl` validada contra `STORAGE_PUBLIC_URL` (previne SSRF)
+- `mediaMimeType` obrigatório quando `mediaUrl` presente — validado contra `WHATSAPP_ALLOWED_MIME`
+- `buildRemoteJid` rejeita telefones com < 8 ou > 13 dígitos
+- SSE `/api/stream/conversas/[id]` valida que a conversa tem ao menos um `clienteId`/`leadId`/`socioId` vinculado (403 em conversas órfãs)
+
+**Componentes do chat drawer:**
+- `src/components/crm/whatsapp-chat-panel.tsx` — orquestrador (120 linhas)
+- `src/components/crm/whatsapp-chat/use-whatsapp-chat.ts` — todo o estado e lógica (hook)
+- `src/components/crm/whatsapp-chat/chat-header.tsx` — badges IA/Humano, botões assumir/devolver
+- `src/components/crm/whatsapp-chat/message-item.tsx` — renderiza cada mensagem (7 tipos de mídia)
+- `src/components/crm/whatsapp-chat/chat-input.tsx` — textarea + anexo + toggle IA + enviar
+- `src/components/crm/whatsapp-chat/chat-boundary.tsx` — React Error Boundary
+- SSE + polling em paralelo; polling só ativa quando `sseHealthyRef.current === false`
 
 ### CRM — Email
 
@@ -618,7 +698,10 @@ BUSCA (Híbrida):
 | `/api/portal/financeiro/segunda-via` | Portal session | Segunda via |
 | `/api/portal/documentos` | Portal session | Listar/upload documentos |
 | `/api/portal/documentos/[id]/download` | Portal session | Download com URL assinada R2 |
-| `/api/portal/notas-fiscais` | Portal session | Listar NFS-e |
+| `/api/portal/notas-fiscais` | Portal session | Listar NFS-e (GET) / Emitir nova NFS-e (POST) |
+| `/api/portal/notas-fiscais/[id]` | Portal session | Detalhe da nota (GET) |
+| `/api/portal/notas-fiscais/[id]/cancelar` | Portal session | Cancelar nota autorizada (POST) |
+| `/api/portal/notas-fiscais/[id]/reemitir` | Portal session | Reemitir nota rejeitada/erro (POST) |
 | `/api/portal/notas-fiscais/[id]/pdf` | Portal session | Download PDF (R2-first → Spedy fallback) |
 | `/api/portal/notas-fiscais/[id]/xml` | Portal session | Download XML (R2-first → Spedy fallback) |
 | `/api/portal/chamados` | Portal session | Listar/criar chamados |
@@ -671,7 +754,83 @@ Todos os crons fazem ping no **healthchecks.io** (start/ok/fail) via `src/lib/he
 - **Notas presas sem spedyId**: cron de reconciliação detecta notas `enviando` com `spedyId = null` após 10 min → marca `erro_interno` + abre Chamado de escalação automática.
 - **Entrega ao cliente (canal portal)**: cria `Chamado` com `visivelPortal: true` notificando que a NFS-e está disponível. O cliente baixa PDF e XML diretamente em `/portal/notas-fiscais`. Badge "NFS-e" aparece no header do portal para notas dos últimos 30 dias.
 - **Download PDF/XML no portal**: endpoints `GET /api/portal/notas-fiscais/[id]/pdf` e `/xml` usam estratégia R2-first → fallback Spedy. Garante download mesmo se a Spedy estiver offline, desde que o backup R2 tenha sido salvo na autorização.
+- **Auto-serviço no portal (v3.10.21)**: clientes PJ com Spedy configurado podem emitir, cancelar e reemitir NFS-e diretamente em `/portal/notas-fiscais` sem intervenção do escritório. Fluxo direto sem aprovação. PF é redirecionado ao dashboard. Campo `solicitadaPeloPortal: true` auditora a origem no banco.
+- **Arquitetura de componentes do portal NFS-e (v3.10.21)**: `portal-notas-fiscais-client.tsx` refatorado de ~875 linhas para ~140 linhas como thin orchestrator. Lógica extraída para `src/components/portal/notas-fiscais/` com 6 arquivos especializados: `_shared.ts` (tipos, constantes, helpers), `_modal.tsx` (primitivos genéricos de modal), `nota-card.tsx` (card com banners e ações), `nfse-form-fields.tsx` (campos do formulário compartilhados entre emissão e reemissão), `modal-emitir.tsx`, `modal-cancelar.tsx`, `modal-reemitir.tsx` (cada modal com estado próprio).
+- **Badge "Portal" no CRM**: card de nota fiscal exibe badge azul quando `solicitadaPeloPortal = true`.
+- **Notificações ao escritório**: `notificarEquipeNfsSolicitadaPortal()` e `notificarEquipeNfsCanceladaPeloPortal()` em `src/lib/services/nfse/notificacoes.ts` — disparo assíncrono (não bloqueia resposta ao cliente).
+- **Cancelamento via portal**: validações — ownership (clienteId match), status = autorizada, justificativa ≥ 15 chars, prazo ≤ 30 dias. Após o prazo, portal orienta abrir chamado.
+- **Filtro de status (GET portal)**: inclui `enviando`, `processando`, `rejeitada`, `erro_interno` — notas recém-emitidas aparecem imediatamente. Filtro de mês usa `criadoEm` (não `autorizadaEm`) para funcionar com todos os status.
+- **Polling automático**: UI do portal faz polling a cada 6s enquanto há notas em `enviando`/`processando` — para automaticamente quando não há mais.
 - **Backup PDF/XML no R2**: `salvarPdfXmlNoR2()` em `src/lib/services/nfse/backup.ts` — chamado imediatamente ao autorizar. URLs salvas em `notaFiscal.pdfUrl` e `xmlUrl` como chaves R2 (não URLs diretas da Spedy).
+
+### Dashboard do Portal (v3.10.22)
+
+**Arquivo principal:** `src/app/(portal)/portal/(autenticado)/dashboard/page.tsx`
+
+O dashboard foi refatorado para melhorar performance percebida no PWA/mobile e clareza do código.
+
+#### Acesso rápido
+
+Movido do final da sidebar para o topo da página (logo abaixo da saudação). É o primeiro elemento interativo que o cliente vê sem nenhum scroll. Grade de 4 atalhos em linha com Material Symbols:
+
+| Atalho | Ícone | Badge | Destino |
+|--------|-------|-------|---------|
+| Documentos | `folder_open` | Docs não-visualizados (total real, não só os 6 exibidos) | `/portal/documentos` |
+| Financeiro | `payments` | — | `/portal/financeiro` |
+| NFS-e (PJ) / Meus dados (PF) | `receipt_long` / `badge` | — | `/portal/notas-fiscais` ou `/portal/empresa` |
+| Chamado | `add_circle` | — | `/portal/suporte/chamados/nova` |
+
+**Nota:** badge de "chamados abertos" foi removido do botão "Abrir chamado" pois semanticamente incorreto — o badge indicaria algo existente num botão de criar novo.
+
+#### Arquitetura de componentes (extração)
+
+`page.tsx` passou de ~470 linhas para ~130 linhas como orquestrador puro. Todos os cards foram extraídos para `src/app/(portal)/portal/(autenticado)/dashboard/_components/`:
+
+| Componente | Tipo | Dados |
+|-----------|------|-------|
+| `card-obrigacoes.tsx` | Server Component (puro) | Props do page — sem fetch |
+| `card-documentos.tsx` | async Server Component | Busca própria (findMany + count) |
+| `card-chamados.tsx` | async Server Component | Busca própria (findMany) |
+| `card-comunicados.tsx` | async Server Component | Busca própria (findMany) |
+| `card-cobranca.tsx` | async Server Component | Busca própria (findFirst PENDING/OVERDUE) |
+| `card-info-cliente.tsx` | Server Component (puro) | Props do page — sem fetch |
+| `card-resumo-ano.tsx` | async Server Component | count() próprio + props (valorMensal, dataInicio) |
+| `skeletons.tsx` | Client Component | `CardListSkeleton`, `CardSmallSkeleton`, `CardResumoSkeleton` |
+
+#### Suspense streaming
+
+O `page.tsx` faz apenas 3 queries (em paralelo via `Promise.all`): `getAiConfig`, `cliente` e `docsNovos` (count). Os 5 componentes com fetch próprio são wrapped em `<Suspense>` com skeleton, garantindo que o shell (saudação + acesso rápido) renderiza imediatamente enquanto os cards carregam em paralelo.
+
+```tsx
+// Esquerda
+<Suspense fallback={<CardListSkeleton rows={4} />}><CardDocumentos /></Suspense>
+<Suspense fallback={<CardListSkeleton rows={3} />}><CardChamados /></Suspense>
+<Suspense fallback={null}><CardComunicados /></Suspense>
+
+// Sidebar
+<Suspense fallback={<CardSmallSkeleton />}><CardCobranca /></Suspense>
+<Suspense fallback={<CardResumoSkeleton />}><CardResumoAno /></Suspense>
+```
+
+#### Widget de cobrança aberta (CardCobranca)
+
+Novo card no topo da sidebar — exibido apenas quando há cobrança em aberto (PENDING ou OVERDUE). Busca diretamente no DB sem passar pela API.
+
+- **Estado normal** (PENDING, >3 dias): borda/fundo azul, valor + "Vence em X dias", botão "Ver PIX/boleto →"
+- **Estado urgente** (OVERDUE ou ≤3 dias para vencer): borda/fundo vermelho, botão em vermelho
+- **PIX expirado** (>20h desde `atualizadoEm`): botão muda para "Gerar nova cobrança →"
+- **Sem cobrança**: retorna `null` (card omitido)
+- **Cálculo de dias**: compara datas sem hora via `Date.UTC(ano, mes, dia)` — evita erro de timezone que poderia marcar cobrança como vencida antes do dia real
+
+#### Obrigações fiscais — datas dinâmicas
+
+Vencimentos anuais hardcoded para 2026 substituídos por `proximoAnual(mes)` — calcula automaticamente o próximo vencimento com base no mês atual:
+- Se o mês ainda não passou no ano corrente → usa o ano corrente
+- Se já passou → usa o próximo ano
+
+#### Comportamento do CardDocumentos
+
+Badge de documentos novos reflete o **total real** de não-visualizados (query `count` separada), não apenas a contagem dos 6 documentos exibidos no card.
 
 #### Comportamento dos endpoints — validado em 2026-04-03 (sandbox)
 
@@ -844,14 +1003,14 @@ git push origin v3.x.y  # CI só dispara com tag v*
 | Canal | Arquivo | Contexto | Tools | Escalação |
 |-------|---------|---------|-------|-----------|
 | **Onboarding** | `ask.ts` | Lead + planos | Limitadas (criar lead) | Não |
-| **CRM** | `ask.ts` + `agent.ts` | Cliente + global | 60 tools | Sim |
+| **CRM** | `ask.ts` + `agent.ts` | Cliente + global | 64 tools | Sim |
 | **Portal (Clara)** | `ask.ts` | Cliente + comunicados | Leitura + docs (links de download) | `##HUMANO##` → Escalação |
 | **WhatsApp** | `ask.ts` | Cliente/lead + histórico 20 msgs | Moderadas | `##HUMANO##` → Escalação |
 
-### Agente Operacional — 60 Tools
+### Agente Operacional — 64 Tools
 
-**Leitura de Dados (17)**:
-`buscarDadosCliente`, `buscarDadosOperador`, `consultarDados`, `buscarHistorico`, `buscarDocumentos`, `buscarChamado`, `buscarEmailInbox`, `buscarTomadoresRecorrentes`, `buscarCobrancaAberta`, `listarLeadsInativos`, `listarComunicados`, `listarPlanos`, `listarAgendamentos`, `listarDocumentosPendentes`, `listarEmailsPendentes`, `listarChamados`, `verificarStatusContrato`
+**Leitura de Dados (18)**:
+`buscarDadosCliente`, `buscarDadosOperador`, `consultarDados`, `buscarHistorico`, `buscarDocumentos`, `buscarChamado`, `buscarEmailInbox`, `buscarTomadoresRecorrentes`, `buscarCobrancaAberta`, `listarLeadsInativos`, `listarComunicados`, `listarPlanos`, `listarAgendamentos`, `listarDocumentosPendentes`, `listarEmailsPendentes`, `listarChamados`, `verificarStatusContrato`, `listarCobrancasCliente`
 
 **Escrita/Mutação (24)**:
 `criarLead`, `criarCliente`, `atualizarDadosCliente`, `atualizarStatusLead`, `avancarLead`, `criarChamado`, `responderChamado`, `registrarInteracao`, `enviarEmail`, `enviarWhatsAppCliente`, `enviarWhatsAppLead`, `enviarWhatsAppSocio`, `enviarDocumentoWhatsApp`, `enviarMensagemPortal`, `enviarComunicadoSegmentado`, `enviarCobrancaInadimplente`, `enviarLembreteVencimento`, `enviarNotaFiscalCliente`, `reativarCliente`, `transferirCliente`, `gerarContrato`, `enviarContrato`, `aprovarDocumento`, `publicarComunicado`
@@ -859,8 +1018,13 @@ git push origin v3.x.y  # CI só dispara com tag v*
 **NFS-e (8)**:
 `emitirNotaFiscal`, `consultarNotasFiscais`, `reemitirNotaFiscal`, `cancelarNotaFiscal`, `verificarConfiguracaoNfse`, `enviarNotaFiscalCliente`, `reenviarEmailNotaFiscal`, `buscarTomadoresRecorrentes`
 
-**Cobrança (3)**:
-`gerarSegundaViaAsaas`, `buscarCobrancaAberta`, `gerarRelatorioInadimplencia`
+**Cobrança (7)** — canais: crm + portal + whatsapp (self-service):
+`gerarSegundaViaAsaas`, `buscarCobrancaAberta`, `gerarRelatorioInadimplencia`, `listarCobrancasCliente`, `alterarVencimentoCobranca`, `alterarFormaPagamento`, `extratoFinanceiro`
+
+> - `listarCobrancasCliente` — situação financeira, inadimplência, próximo vencimento (portal+WA+CRM)
+> - `alterarVencimentoCobranca` — cliente muda dia de vencimento (1–28) diretamente no portal/WA
+> - `alterarFormaPagamento` — cliente troca PIX ↔ boleto diretamente no portal/WA
+> - `extratoFinanceiro` — consolidado de pagamentos com totais por status, filtro por ano
 
 **Agendamentos (3)**:
 `criarAgendamento`, `listarAgendamentos`, `cancelarAgendamento`
@@ -881,15 +1045,23 @@ git push origin v3.x.y  # CI só dispara com tag v*
 
 | Ingestor | Fontes |
 |---------|--------|
-| `cliente` | Perfil completo (plano, contatos, endereço) |
-| `lead` | Dados onboarding, histórico, status |
+| `cliente` | Perfil completo (plano, contatos, endereço) — escopo `cliente` com `clienteId` |
+| `lead` | Dados onboarding, histórico, status, **dados do simulador** |
 | `documento` | Conteúdo de PDFs, NFS-e, guias tributários |
 | `escalacao` | Histórico + motivo da escalação |
-| `interacao` | Emails, mensagens, anotações |
-| `comunicado` | Publicações e alertas |
+| `interacao` | Emails, mensagens, anotações — com `dataReferencia` no metadata |
+| `comunicado` | Publicações e alertas — com `dataReferencia` no metadata |
 | `escritorio` | Dados do escritório (endereço, termos, contatos) |
 | `agente` | Log de ações executadas (AgenteAcao) |
 | `conversa` | Histórico de ConversaIA (WhatsApp, portal, onboarding) |
+| `nota_fiscal` | `src/lib/rag/ingest-nota-fiscal.ts` — indexa ao autorizar + re-indexa ao cancelar. Campos: número, tomador, data, valor, ISS, descrição, protocolo, **status** (Autorizada/Cancelada/Rejeitada/Erro interno), data de cancelamento. Canal: `geral`. Com `dataReferencia` no metadata. |
+| `email` | `src/lib/rag/ingestores/email.ts` — emails recebidos com classificação (urgência + tipo + ação sugerida). Chamado por `classificarEmail` tool após persistir classificação. Canal: `crm`. |
+
+**Migração lead → cliente:** após conversão, `migrarLeadParaCliente()` re-indexa dados do lead (incluindo simulador e contrato) no escopo `cliente`, garantindo que o histórico de onboarding seja acessível para o cliente ativo.
+
+**Filtro temporal no RAG:** todos os ingestores temporais incluem `dataReferencia` (ISO date) no metadata JSONB. `SearchOpts` aceita `dataInicio` e `dataFim` para filtrar chunks por período. As funções `searchSimilar` e `searchHybrid` em `store.ts` suportam `(metadata->>'dataReferencia')::date >= $N`.
+
+**Re-indexação ao cancelar (v3.10.21):** `cancelamento.ts` e `onNotaCancelada` (webhook) ambos chamam `ingest-nota-fiscal.ts` após cancelar, atualizando o embedding com `status: cancelada` e `canceladaEm`. Sem essa re-indexação, as IAs continuariam mostrando a nota como "Autorizada".
 
 ### Configurações da IA (por escritório)
 
@@ -1015,6 +1187,35 @@ CanalEscalacao: whatsapp | onboarding | portal
 | v3.10.15 | CEP/CNPJ lookup sem timeout — campo congelava se API demorava | `AbortController` com timeout de 8s em `buscarCEP` |
 | v3.10.15 | Validação de CPF/CNPJ só verificava comprimento — CPFs falsos passavam | Algoritmo de dígito verificador implementado em `validarCPF()` e `validarCNPJ()` |
 | v3.10.15 | `recomendar-plano` engolia erros silenciosamente sem Sentry | try/catch com `Sentry.captureException` + AbortController de 10s na API Anthropic |
+| v3.10.21 | GET portal NFS-e excluía status `enviando`/`processando`/`rejeitada`/`erro_interno` — notas recém-emitidas sumiam da lista | Status filter expandido para todos os status relevantes ao cliente |
+| v3.10.21 | Filtro de mês portal usava `autorizadaEm` — notas rejeitadas (sem `autorizadaEm`) não apareciam | Filtro migrado para `criadoEm` (sempre preenchido) |
+| v3.10.21 | GET portal NFS-e não retornava `erroMensagem`, `tomadorEmail`, `tomadorMunicipio`, `tomadorEstado`, `canceladaEm` — frontend não conseguia exibir detalhes | Campos adicionados ao `select` do Prisma |
+| v3.10.21 | `parseFloat("3.000,00")` retornava `3` — valor em notação BR era truncado | `parseBRL()` implementado: strip de separadores de milhar antes do parse |
+| v3.10.21 | Cancelamento via portal sem validação de prazo de 30 dias | Frontend bloqueia com banner explicativo + orienta abrir chamado |
+| v3.10.21 | `cancelamento.ts` e `onNotaCancelada` não re-indexavam RAG — nota cancelada continuava aparecendo como "Autorizada" para as IAs | Re-indexação adicionada nos dois paths com `status: cancelada` e `canceladaEm` |
+| v3.10.21 | `ingest-nota-fiscal.ts` não incluía status no texto indexado | Campos `status` e `canceladaEm` adicionados ao texto do embedding |
+| v3.10.21 | `SYSTEM_NFSE_INSTRUCOES_PORTAL` não mencionava cancelamento e reemissão via portal UI — Clara não sabia do auto-serviço | Duas novas seções adicionadas: "Cancelamento via portal" e "Reemissão via portal" |
+| v3.10.21 | `validarCpfCnpj` no portal só verificava comprimento (11/14 dígitos) — CPFs e CNPJs inválidos passavam na validação | Corrigido em `_shared.ts`: usa `validarCPF`/`validarCNPJ` de `src/lib/utils.ts` com verificação de dígito verificador |
+| v3.10.21 | Prop `clienteId` declarada no tipo de `PortalNotasFiscaisClient` mas nunca usada — TypeScript dead code | Removida do tipo e do call site em `notas-fiscais/page.tsx` |
+| v3.10.21 | Toast de emissão sempre mostrava "enviada para processamento" — mesmo quando a nota já era `autorizada` ou `rejeitada` instantaneamente | `modal-emitir.tsx` verifica `data.status` e exibe mensagem específica para cada caso |
+| v3.10.21 | Paginação ignorada no portal — frontend só exibia os primeiros 20 resultados, sem botão de carregar mais | Adicionado estado `page`/`loadingMore` e função `carregarMais()` com botão "Carregar mais (N restantes)" |
+| v3.10.21 | Labels de status inconsistentes com o CRM — portal exibia "Processando..." / "Enviando..." com reticências | `_shared.ts` padronizado: "Processando" / "Enviando" (sem reticências), alinhado com `STATUS_LABELS` do CRM |
+| v3.10.22 | Badge de docs novos no acesso rápido e no `CardDocumentos` mostrava contagem só dos 6 exibidos, ignorando os demais não-visualizados | `CardDocumentos` faz `count()` separado para calcular o total real; badge do acesso rápido usa o mesmo count do `page.tsx` |
+| v3.10.22 | `diasAteVencer` no `CardCobranca` comparava timestamp completo — cobrança com vencimento hoje às 00:00 UTC poderia ser marcada como OVERDUE às 21:00 UTC-3 | Cálculo substituído por `Date.UTC(ano, mes, dia)` em ambos os lados — compara apenas a parte da data |
+| v3.10.22 | Badge `chamadosAbertos` no botão "Abrir chamado" (acesso rápido) — usuário via "Chamado [2]" e clicava esperando ver chamados abertos, mas era levado ao formulário de novo chamado | Badge removido do atalho; query `chamado.count` removida do `Promise.all` do `page.tsx` (economia de 1 query no carregamento) |
+| v3.10.22 | Datas de vencimento de obrigações fiscais hardcoded para 2026 (ex: "Abr/2026", "Mai/2026") | Substituído por `proximoAnual(mes)` — calcula dinamicamente o próximo vencimento anual com base no mês atual |
+| v3.10.23 | `whatsapp-chat-panel.tsx` (663 linhas) sem separação de responsabilidades — impossível testar e manter | Refatorado em 6 componentes + 1 hook (`use-whatsapp-chat.ts`); panel ficou em 120 linhas |
+| v3.10.23 | Race condition no SSE: EventSource criado após desmontagem do componente | Flag `isMounted` definida ANTES de `conectar()`; verificada em `onerror` antes de agendar reconexão |
+| v3.10.23 | SSE + polling rodando em paralelo sempre — dobrava as requisições quando SSE estava ativo | `sseHealthyRef` rastreia saúde do SSE; polling só dispara quando `sseHealthyRef.current === false` |
+| v3.10.23 | `apiPath` não validado no panel — SSRF possível com path arbitrário | `WHATSAPP_API_PATH_PATTERN` regex valida antes de qualquer fetch; extraída do hook para evitar duplicação |
+| v3.10.23 | `naoModoIA` permanecia `true` após devolver conversa para IA — próxima mensagem pausaria IA novamente | `setNaoModoIA(false)` adicionado em `reativarIA()` |
+| v3.10.23 | `excluindo` como `string \| null` — clique duplo causava race condition | Migrado para `Set<string>` com add/delete imutável |
+| v3.10.23 | `buildRemoteJid` duplicado nos 3 routes de envio WhatsApp — sem validação de dígitos | Extraído para `src/lib/whatsapp-utils.ts`; rejeita números com < 8 ou > 13 dígitos |
+| v3.10.23 | POSTs de WhatsApp sem try/catch — erros em Prisma/Evolution retornavam 500 silencioso sem Sentry | Cada route envolvida em try/catch com `Sentry.captureException` + tags `module`/`operation` |
+| v3.10.23 | `mediaUrl` e `mediaMimeType` sem validação no backend — SSRF e upload de tipos não permitidos | `isMediaUrlTrusted()` valida hostname contra `STORAGE_PUBLIC_URL`; `mediaMimeType` obrigatório e validado contra `WHATSAPP_ALLOWED_MIME` |
+| v3.10.23 | Sem rate limiting nas rotas de envio WhatsApp — operador poderia spamear | `checkRateLimit(userId)`: 30 msgs / 60 s por usuário em memória |
+| v3.10.23 | SSE `/api/stream/conversas/[id]` aceitava qualquer UUID existente sem verificar vínculo com entidade | Adicionada verificação de `clienteId \| leadId \| socioId`; conversas órfãs retornam 403 |
+| v3.10.23 | `crm/empresas/[id]/page.tsx` com 722 linhas — monolítico e difícil de manter | Refatorado em 6 componentes de aba + header; page.tsx ficou em 186 linhas; `info-card.tsx` reutilizável criado |
 
 ---
 
@@ -1063,15 +1264,15 @@ CanalEscalacao: whatsapp | onboarding | portal
 
 1. **`src/lib/whatsapp/pipeline/`** — novo pipeline modular, não documentado
 2. **`src/lib/schemas/`** — schemas Zod centralizados, sem docs
-3. **`src/lib/services/nfse/`** — módulo completo de NFS-e extraído, sem docs
-4. **`src/components/crm/notas-fiscais/`** — componentes novos de NFS-e
-5. **`src/app/(crm)/crm/chamados/`** — listagem e detalhe de chamados (refatorado de ordens-servico)
+3. **`src/app/(crm)/crm/chamados/`** — listagem e detalhe de chamados (refatorado de ordens-servico)
 5. **`src/lib/whatsapp/arquivar-midia.ts`** — arquivamento de mídia recebida no R2
 6. **`src/lib/whatsapp/identificar-contato.ts`** — identificação de contato com cache
 7. **`src/lib/whatsapp/constants.ts`** — constantes centralizadas
 8. **`src/components/ui/back-button.tsx`** — novo componente de navegação
 9. **`src/app/api/email/inbox/[id]/arquivar-anexo/`** — endpoint para arquivar anexos de email
 10. **Migration `20260402213941_add_email_thread_fields`** — novos campos de threading no email
+
+> **Documentado em v3.10.23:** chat drawer WhatsApp (componentes, rotas, segurança), refatorações de `empresas/[id]` e `whatsapp-chat-panel`, `src/lib/whatsapp-utils.ts`.
 
 ---
 
@@ -1082,6 +1283,7 @@ CanalEscalacao: whatsapp | onboarding | portal
 2. **Rate limit no magic link** — `api/portal/magic-link` sem proteção contra enumeração
 3. ~~**Rate limit no agente**~~ — ✅ implementado: 60 req/userId/hora em `/api/agente/crm`
 4. ~~**Migrar ZapSign para header**~~ — ✅ implementado: `X-ZapSign-Secret` é o único mecanismo; query param removido
+5. ~~**Rate limit + validação de mídia nas rotas de envio WhatsApp**~~ — ✅ implementado (v3.10.23): rate limit 30/60s por userId, `isMediaUrlTrusted()`, `WHATSAPP_ALLOWED_MIME` obrigatório
 
 ### Confiabilidade
 1. ~~**Timeout no lock de WhatsApp**~~ — ✅ já implementado: `LOCK_TIMEOUT = 30s` em `processar-pendentes.ts`

@@ -54,6 +54,10 @@ export type SearchOpts = {
   // Filtros de tipo
   tipos?: TipoConhecimento[]
 
+  // Filtro temporal — usa metadata->>'dataReferencia' (ISO string armazenado pelos ingestores)
+  dataInicio?: Date
+  dataFim?: Date
+
   // Controle de resultado
   limit?: number
   minSimilarity?: number
@@ -151,6 +155,16 @@ export async function searchSimilar(
   if (opts.tipos?.length) {
     conditions.push(`tipo = ANY($${idx++}::text[])`)
     values.push(opts.tipos)
+  }
+
+  // Filtro temporal
+  if (opts.dataInicio) {
+    conditions.push(`(metadata->>'dataReferencia')::date >= $${idx++}::date`)
+    values.push(opts.dataInicio.toISOString().slice(0, 10))
+  }
+  if (opts.dataFim) {
+    conditions.push(`(metadata->>'dataReferencia')::date <= $${idx++}::date`)
+    values.push(opts.dataFim.toISOString().slice(0, 10))
   }
 
   const where = conditions.length ? `AND ${conditions.join(' AND ')}` : ''
@@ -329,6 +343,16 @@ export async function searchHybrid(
   }
   if (opts.tipos?.length) {
     conditions.push(`tipo = ANY($${idx++}::text[])`); values.push(opts.tipos)
+  }
+
+  // Filtro temporal
+  if (opts.dataInicio) {
+    conditions.push(`(metadata->>'dataReferencia')::date >= $${idx++}::date`)
+    values.push(opts.dataInicio.toISOString().slice(0, 10))
+  }
+  if (opts.dataFim) {
+    conditions.push(`(metadata->>'dataReferencia')::date <= $${idx++}::date`)
+    values.push(opts.dataFim.toISOString().slice(0, 10))
   }
 
   const where = conditions.length ? `AND ${conditions.join(' AND ')}` : ''

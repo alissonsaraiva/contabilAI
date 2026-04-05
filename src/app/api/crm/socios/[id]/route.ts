@@ -46,14 +46,15 @@ export async function PATCH(req: Request, { params }: Params) {
 
     const atualizado = await prisma.socio.update({ where: { id }, data })
 
-    // Reindexar empresa no RAG
+    // Reindexar empresa no RAG — passa clienteId para isolar por escopo cliente
     const empresa = await prisma.empresa.findUnique({
       where:   { id: socio.empresaId },
-      include: { socios: true },
+      include: { socios: true, cliente: { select: { id: true } } },
     })
     if (empresa) {
       indexarAsync('empresa', {
         id:           empresa.id,
+        clienteId:    empresa.cliente?.id ?? null,
         cnpj:         empresa.cnpj,
         razaoSocial:  empresa.razaoSocial,
         nomeFantasia: empresa.nomeFantasia,
@@ -89,14 +90,15 @@ export async function DELETE(_req: Request, { params }: Params) {
 
     await prisma.socio.delete({ where: { id } })
 
-    // Reindexar empresa no RAG
+    // Reindexar empresa no RAG — passa clienteId para isolar por escopo cliente
     const empresa = await prisma.empresa.findUnique({
       where:   { id: socio.empresaId },
-      include: { socios: true },
+      include: { socios: true, cliente: { select: { id: true } } },
     })
     if (empresa) {
       indexarAsync('empresa', {
         id:           empresa.id,
+        clienteId:    empresa.cliente?.id ?? null,
         cnpj:         empresa.cnpj,
         razaoSocial:  empresa.razaoSocial,
         nomeFantasia: empresa.nomeFantasia,

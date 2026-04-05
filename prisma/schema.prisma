@@ -887,7 +887,8 @@ model NotaFiscal {
   empresa        Empresa?         @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   ordemServicoId String?
   chamado        Chamado?         @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
-  emitidaPorId   String?          // usuarioId — null = agente/automático
+  emitidaPorId         String?  // usuarioId — null = agente/automático
+  solicitadaPeloPortal Boolean  @default(false) // true = originada pelo cliente no portal
 
   // IDs Spedy
   spedyId        String?          @unique  // UUID retornado pela Spedy
@@ -975,6 +976,9 @@ model CobrancaAsaas {
   // PIX
   pixQrCode       String?              @db.Text   // base64 da imagem QR
   pixCopiaECola   String?              @db.Text   // payload EMV
+
+  // Comprovante público (Asaas invoiceUrl — válido para PIX e boleto)
+  invoiceUrl      String?
 
   // Confirmação de pagamento
   pagoEm          DateTime?

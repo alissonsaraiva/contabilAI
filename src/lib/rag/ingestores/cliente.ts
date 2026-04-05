@@ -143,6 +143,7 @@ export async function indexarStatusHistorico(historico: StatusHistoricoData): Pr
 
 type EmpresaData = {
   id: string
+  clienteId?: string | null  // necessário para isolar por cliente (evita vazamento entre clientes)
   cnpj?: string | null
   razaoSocial?: string | null
   nomeFantasia?: string | null
@@ -150,8 +151,9 @@ type EmpresaData = {
   socios?: SocioData[]
 }
 
-// Indexa dados da empresa independentemente do cliente — útil para buscas por
-// CNPJ, razão social ou regime diretamente no CRM e portal.
+// Indexa dados da empresa isolada por clienteId — escopo 'cliente' garante que
+// dados de uma empresa não vazem para buscas de outros clientes.
+// ATENÇÃO: sempre passe clienteId ao chamar esta função.
 export async function indexarEmpresa(empresa: EmpresaData): Promise<void> {
   const keys = await getEmbeddingKeys()
   if (!keys.openai && !keys.voyage) return
@@ -173,11 +175,15 @@ export async function indexarEmpresa(empresa: EmpresaData): Promise<void> {
     ...(sociosLinhas.length ? [`Sócios (${sociosLinhas.length}):`, ...sociosLinhas] : []),
   ].filter(Boolean).join('\n')
 
-  // canal 'geral' — visível ao CRM e ao portal com uma única entrada
+  // escopo 'cliente' com clienteId — isola dados de empresa por cliente,
+  // evitando que CNPJ/sócios de um cliente apareçam na busca de outro.
+  // Se clienteId não disponível, usa 'global' (fallback — evitar sempre que possível).
+  const temClienteId = !!empresa.clienteId
   await indexar(linhas, {
-    escopo:      'global',
+    escopo:      temClienteId ? 'cliente' : 'global',
     canal:       'geral',
-    tipo:        'base_conhecimento',
+    tipo:        temClienteId ? 'dados_empresa' : 'base_conhecimento',
+    clienteId:   empresa.clienteId ?? undefined,
     titulo:      empresa.razaoSocial ?? empresa.nomeFantasia ?? `Empresa ${empresa.id}`,
     documentoId: `empresa:${empresa.id}`,
   }, keys)

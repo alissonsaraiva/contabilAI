@@ -53,6 +53,54 @@ export async function notificarEquipeNfsRejeitada(
   })
 }
 
+export async function notificarEquipeNfsSolicitadaPortal(
+  nota: { id: string; clienteId: string; valorTotal: unknown; descricao?: string | null },
+  clienteNome?: string | null,
+): Promise<void> {
+  const usuarios = await prisma.usuario.findMany({
+    where:  { ativo: true, tipo: { in: ['admin', 'contador'] } },
+    select: { id: true },
+  })
+  if (!usuarios.length) return
+
+  const valor = `R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`
+  const desc  = nota.descricao ? ` — ${nota.descricao.slice(0, 60)}` : ''
+
+  await prisma.notificacao.createMany({
+    data: usuarios.map(u => ({
+      usuarioId: u.id,
+      tipo:      'nfse_solicitada_portal',
+      titulo:    `NFS-e solicitada pelo portal`,
+      mensagem:  `${clienteNome ?? 'Cliente'} emitiu uma NFS-e de ${valor}${desc}`,
+      url:       `/crm/clientes/${nota.clienteId}?aba=notas-fiscais`,
+    })),
+  })
+}
+
+export async function notificarEquipeNfsCanceladaPeloPortal(
+  nota: { id: string; clienteId: string; numero?: number | null; valorTotal: unknown },
+  clienteNome?: string | null,
+): Promise<void> {
+  const usuarios = await prisma.usuario.findMany({
+    where:  { ativo: true, tipo: { in: ['admin', 'contador'] } },
+    select: { id: true },
+  })
+  if (!usuarios.length) return
+
+  const numero = nota.numero ? `nº ${nota.numero}` : ''
+  const valor  = `R$ ${Number(nota.valorTotal).toFixed(2).replace('.', ',')}`
+
+  await prisma.notificacao.createMany({
+    data: usuarios.map(u => ({
+      usuarioId: u.id,
+      tipo:      'nfse_cancelada_portal',
+      titulo:    `NFS-e ${numero} cancelada pelo cliente`,
+      mensagem:  `${clienteNome ?? 'Cliente'} cancelou a NFS-e ${numero} de ${valor} pelo portal`,
+      url:       `/crm/clientes/${nota.clienteId}?aba=notas-fiscais`,
+    })),
+  })
+}
+
 export async function notificarEquipeEntregaFalhou(
   notaId: string,
   clienteId: string,

@@ -11,7 +11,7 @@ import { notificarEquipeNfsAutorizada, notificarEquipeNfsRejeitada } from './not
 
 // ─── Handlers pós-status ──────────────────────────────────────────────────────
 
-/** Indexa a nota no RAG após autorização. */
+/** Indexa a nota no RAG após autorização ou cancelamento. */
 async function indexarNotaFiscalRag(
   nota: {
     id: string
@@ -20,6 +20,8 @@ async function indexarNotaFiscalRag(
     valorTotal: unknown
     descricao: string
     autorizadaEm?: Date | null
+    canceladaEm?: Date | null
+    status?: string | null
     protocolo?: string | null
     ordemServicoId?: string | null
     issValor?: unknown
@@ -127,11 +129,18 @@ export async function onNotaCancelada(nota: {
   clienteId: string
   numero: number | null
   valorTotal: unknown
+  descricao?: string | null
+  protocolo?: string | null
+  canceladaEm?: Date | null
   cancelamentoJustificativa: string | null
 }): Promise<void> {
   const numero = nota.numero ? `nº ${nota.numero}` : `(${nota.id.slice(0, 8)})`
 
-  // Registra interação caso ainda não tenha sido registrada (cancelamento via webhook externo)
+  const [cliente] = await Promise.all([
+    prisma.cliente.findUnique({ where: { id: nota.clienteId }, select: { nome: true } }),
+  ])
+
+  // 1. Registra interação caso ainda não tenha sido registrada (cancelamento via webhook externo)
   await registrarInteracao({
     clienteId: nota.clienteId,
     tipo:      'nota_fiscal_cancelada',
@@ -141,4 +150,21 @@ export async function onNotaCancelada(nota: {
     metadados: { notaFiscalId: nota.id },
     escritorioEvento: true,
   }).catch(err => logger.warn('nfse-webhook-cancelamento-interacao-falhou', { notaId: nota.id, err }))
+
+  // 2. Re-indexa no RAG com status atualizado para "cancelada"
+  //    Garante que as IAs (Clara, CRM, WhatsApp) saibam que a nota foi cancelada
+  if (nota.descricao) {
+    await indexarNotaFiscalRag({
+      id:          nota.id,
+      clienteId:   nota.clienteId,
+      numero:      nota.numero,
+      valorTotal:  nota.valorTotal,
+      descricao:   nota.descricao,
+      status:      'cancelada',
+      canceladaEm: nota.canceladaEm ?? new Date(),
+      protocolo:   nota.protocolo ?? null,
+    }, cliente?.nome).catch(err =>
+      logger.warn('nfse-cancelamento-rag-falhou', { notaId: nota.id, err })
+    )
+  }
 }

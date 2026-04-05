@@ -141,10 +141,12 @@ export async function POST(req: Request) {
           status:         mapAsaasStatus(payment.status),
           formaPagamento: forma,
           linkBoleto:     payment.bankSlipUrl ?? payment.invoiceUrl ?? null,
+          invoiceUrl:     payment.invoiceUrl ?? null,
         },
         update: {
           status:       mapAsaasStatus(payment.status),
           vencimento:   new Date(payment.dueDate),
+          invoiceUrl:   payment.invoiceUrl ?? null,
           atualizadoEm: new Date(),
         },
       })
@@ -189,6 +191,7 @@ export async function POST(req: Request) {
           valor:        payment.value,
           vencimento:   new Date(payment.dueDate),
           status:       mapAsaasStatus(payment.status),
+          invoiceUrl:   payment.invoiceUrl ?? null,
           atualizadoEm: new Date(),
         },
       })
@@ -278,11 +281,13 @@ export async function POST(req: Request) {
             formaPagamento: mapBillingTypeToLocal(payment.billingType),
             pagoEm,
             valorPago:      payment.netValue ?? payment.value,
+            invoiceUrl:     payment.invoiceUrl ?? null,
           },
           update: {
             status:       'RECEIVED',
             pagoEm,
             valorPago:    payment.netValue ?? payment.value,
+            invoiceUrl:   payment.invoiceUrl ?? null,
             atualizadoEm: new Date(),
           },
         })
@@ -302,6 +307,7 @@ export async function POST(req: Request) {
               status:       'RECEIVED',
               pagoEm,
               valorPago:    payment.netValue ?? payment.value,
+              invoiceUrl:   payment.invoiceUrl ?? null,
               atualizadoEm: new Date(),
             },
           })
@@ -351,8 +357,9 @@ export async function POST(req: Request) {
               vencimento:     new Date(payment.dueDate),
               status:         'OVERDUE',
               formaPagamento: mapBillingTypeToLocal(payment.billingType),
+              invoiceUrl:     payment.invoiceUrl ?? null,
             },
-            update: { status: 'OVERDUE', atualizadoEm: new Date() },
+            update: { status: 'OVERDUE', invoiceUrl: payment.invoiceUrl ?? null, atualizadoEm: new Date() },
           })
           cobranca = { clienteId: criada.clienteId, valor: criada.valor, vencimento: criada.vencimento }
           console.warn(

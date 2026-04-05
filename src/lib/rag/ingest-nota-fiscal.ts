@@ -10,7 +10,7 @@
 
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { chunkText, embedTexts, storeEmbeddings, deleteEmbeddings } from '@/lib/rag'
+import { chunkText, embedTexts, storeEmbeddings, deleteEmbeddings, getContentHash } from '@/lib/rag'
 import type { EmbeddingRow } from '@/lib/rag'
 import { getAiConfig } from '@/lib/ai/config'
 import { logger } from '@/lib/logger'
@@ -37,6 +37,8 @@ type NotaFiscalData = {
   descricao: string
   tomadorNome?: string | null
   autorizadaEm?: Date | null
+  canceladaEm?: Date | null
+  status?: string | null
   protocolo?: string | null
   ordemServicoId?: string | null
   issValor?: unknown
@@ -56,11 +58,22 @@ export async function indexar(nota: NotaFiscalData, clienteNome?: string | null)
     ? `ISS retido: R$ ${Number(nota.issValor ?? 0).toFixed(2).replace('.', ',')}`
     : 'ISS não retido'
 
+  const statusLabel = nota.status === 'cancelada' ? 'Cancelada'
+    : nota.status === 'rejeitada'   ? 'Rejeitada'
+    : nota.status === 'erro_interno' ? 'Erro interno'
+    : 'Autorizada'
+
+  const canceladaFmt = nota.canceladaEm
+    ? format(nota.canceladaEm, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+    : null
+
   const texto = [
     `Nota Fiscal de Serviço (NFS-e) ${numero}`,
+    `Status: ${statusLabel}`,
     `Prestador (cliente): ${clienteNome ?? nota.clienteId}`,
     nota.tomadorNome ? `Tomador (destinatário da nota): ${nota.tomadorNome}` : '',
     `Data de autorização: ${dataFormatada}`,
+    canceladaFmt ? `Data de cancelamento: ${canceladaFmt}` : '',
     `Competência: ${mesAno}`,
     `Valor total: ${valor}`,
     iss,
@@ -70,11 +83,18 @@ export async function indexar(nota: NotaFiscalData, clienteNome?: string | null)
   ].filter(Boolean).join('\n')
 
   const documentoId = `nota_fiscal:${nota.id}`
-  const chunks = chunkText(texto)
+  const chunks = chunkText(texto, 'nota_fiscal')
   if (!chunks.length) return
 
-  // Deleta apenas os chunks DESTA nota (por documentoId), não de todas as notas do cliente
+  // Dirty check — evita re-embedding quando o conteúdo não mudou (ex: webhook duplicado)
+  const { createHash } = await import('crypto')
+  const contentHash = createHash('md5').update(texto).digest('hex')
   try {
+    const storedHash = await getContentHash(documentoId)
+    if (storedHash === contentHash) {
+      logger.info('nfse-rag-sem-mudanca', { notaId: nota.id })
+      return
+    }
     await deleteEmbeddings({ documentoId })
   } catch (err) {
     logger.warn('nfse-rag-delete-falhou', { notaId: nota.id, err })
@@ -89,7 +109,7 @@ export async function indexar(nota: NotaFiscalData, clienteNome?: string | null)
     documentoId,
     canal:       'geral' as const,  // visível para CRM, portal e WhatsApp
     conteudo,
-    metadata:    { chunkIndex: i, totalChunks: chunks.length },
+    metadata:    { chunkIndex: i, totalChunks: chunks.length, contentHash, dataReferencia: dataAuth.toISOString().slice(0, 10) },
   }))
 
   await storeEmbeddings(rows, embeddings)
