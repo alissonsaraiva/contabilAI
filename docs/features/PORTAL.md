@@ -1,6 +1,6 @@
 # PORTAL — Portal do Cliente
 
-> **Sistema:** AVOS v3.10.23 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.24 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
@@ -47,20 +47,11 @@
 | `/api/portal/chat` | Portal session | Clara (IA) |
 | `/api/portal/push/subscribe` | Portal session | Registrar web push |
 
-## Dashboard do Portal (v3.10.22)
+## Dashboard do Portal (v3.10.24)
 
 **Arquivo principal:** `src/app/(portal)/portal/(autenticado)/dashboard/page.tsx`
 
-### Acesso Rápido
-
-Grade de 4 atalhos no topo da página (após a saudação):
-
-| Atalho | Ícone | Badge | Destino |
-|--------|-------|-------|---------|
-| Documentos | `folder_open` | Docs não-visualizados (total real) | `/portal/documentos` |
-| Financeiro | `payments` | — | `/portal/financeiro` |
-| NFS-e (PJ) / Meus dados (PF) | `receipt_long` / `badge` | — | `/portal/notas-fiscais` ou `/portal/empresa` |
-| Chamado | `add_circle` | — | `/portal/suporte/chamados/nova` |
+> **v3.10.24**: grade de acesso rápido removida — duplicava o nav bar (que já tem badges de docs/notas). Query redundante de `docsNovos` também removida do `page.tsx`; o layout já a faz para o badge do nav.
 
 ### Arquitetura de Componentes
 
@@ -79,7 +70,7 @@ Grade de 4 atalhos no topo da página (após a saudação):
 
 ### Suspense Streaming
 
-`page.tsx` faz apenas 3 queries em paralelo via `Promise.all`: `getAiConfig`, `cliente` e `docsNovos` (count). Os 5 componentes com fetch próprio são wrapped em `<Suspense>` com skeleton — shell renderiza imediatamente.
+`page.tsx` faz apenas 2 queries em paralelo via `Promise.all`: `getAiConfig` e `cliente`. Os 5 componentes com fetch próprio são wrapped em `<Suspense>` com skeleton — shell renderiza imediatamente. O badge de docs do nav é calculado pelo layout (`layout.tsx`), não pelo `page.tsx`.
 
 ```tsx
 // Esquerda

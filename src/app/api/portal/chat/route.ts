@@ -206,7 +206,7 @@ REGRAS DE ATENDIMENTO:
         const pixPodeEstarExpirado = !cob.atualizadoEm
           || (Date.now() - new Date(cob.atualizadoEm).getTime()) > 20 * 3600 * 1000
         const pagStr = cob.pixCopiaECola && !pixPodeEstarExpirado
-          ? `PIX Copia e Cola: ${cob.pixCopiaECola}`
+          ? `PIX Copia e Cola (ao exibir ao cliente, coloque o código em bloco de código markdown entre três crases — nunca inline):\n\`\`\`\n${cob.pixCopiaECola}\n\`\`\``
           : cob.linkBoleto
           ? `Link do boleto: ${cob.linkBoleto}`
           : 'PIX/boleto pode estar expirado — use gerarSegundaViaAsaas para gerar nova via'
@@ -222,7 +222,7 @@ REGRAS DE ATENDIMENTO:
       const vencStr      = new Date(cob.vencimento).toLocaleDateString('pt-BR')
       const diasParaVenc = Math.ceil((new Date(cob.vencimento).getTime() - Date.now()) / 86400000)
       const pagStr = cob.pixCopiaECola
-        ? `PIX Copia e Cola: ${cob.pixCopiaECola}`
+        ? `PIX Copia e Cola (ao exibir ao cliente, coloque o código em bloco de código markdown entre três crases — nunca inline):\n\`\`\`\n${cob.pixCopiaECola}\n\`\`\``
         : cob.linkBoleto
         ? `Link do boleto: ${cob.linkBoleto}`
         : 'Dados de pagamento indisponíveis — use buscarCobrancaAberta para obter'

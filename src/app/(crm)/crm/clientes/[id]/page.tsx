@@ -28,6 +28,7 @@ import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ClienteFinanceiroTab } from '@/components/crm/cliente-financeiro-tab'
 import { NotasFiscaisTabContent } from '@/components/crm/notas-fiscais-tab'
+import { RegistrarEmpresaButton } from '@/components/crm/registrar-empresa-button'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -90,6 +91,9 @@ export default async function ClienteDetailPage({ params }: Props) {
   const socios: NonNullable<typeof cliente.empresa>['socios'] = cliente.empresa?.socios ?? []
   const contratos = cliente.contratos
   const isPJ = cliente.tipoContribuinte === 'pj' || !!cliente.empresa?.cnpj
+  // Mostra alerta/botão para clientes sem empresa vinculada — independente do tipoContribuinte,
+  // pois nao_abri pode ter sido criado como 'pj' por bug anterior nos webhooks
+  const semEmpresa = !cliente.empresa
 
   // PJ: busca docs da empresa também; PF: só cliente
   const empresaDocs = (isPJ && cliente.empresa?.id)
@@ -162,7 +166,7 @@ export default async function ClienteDetailPage({ params }: Props) {
             )}
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <EditarClienteButton cliente={{
               id: cliente.id,
               nome: cliente.nome,
@@ -203,7 +207,27 @@ export default async function ClienteDetailPage({ params }: Props) {
             )}
             <PortalChatButton clienteId={cliente.id} clienteNome={cliente.nome} status={cliente.status} nomeIa={nomeIaPortal} />
             <PortalLinkButton clienteId={cliente.id} status={cliente.status} />
+            {/* Botão de conversão: visível quando cliente não tem empresa vinculada */}
+            {semEmpresa && (
+              <RegistrarEmpresaButton clienteId={cliente.id} clienteNome={cliente.nome} />
+            )}
           </div>
+
+          {/* Banner de alerta para clientes sem empresa */}
+          {semEmpresa && (
+            <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-orange-status/25 bg-orange-status/10 px-4 py-3">
+              <span className="material-symbols-outlined shrink-0 text-[18px] text-orange-status mt-0.5">warning</span>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-orange-status">Cliente sem empresa vinculada</p>
+                <p className="mt-0.5 text-[12px] text-orange-status/80 leading-relaxed">
+                  {isPJ
+                    ? 'Este cliente está cadastrado como PJ mas não possui empresa vinculada. Registre a empresa para habilitar NFS-e, Spedy e sócios.'
+                    : 'Este cliente é Pessoa Física sem empresa vinculada. Se o cliente abriu ou vai abrir empresa, use "Registrar Empresa" para converter para PJ.'
+                  }
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

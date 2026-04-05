@@ -66,7 +66,14 @@ export async function PUT(req: Request, { params }: Params) {
       } else {
         // Cliente sem empresa ainda — cria e vincula
         const empresa = await tx.empresa.create({ data: empresaFields })
-        await tx.cliente.update({ where: { id }, data: { empresaId: empresa.id } })
+        await tx.cliente.update({
+          where: { id },
+          data: {
+            empresaId: empresa.id,
+            // Se está criando empresa com CNPJ, converte automaticamente para PJ
+            ...(empresaFields.cnpj ? { tipoContribuinte: 'pj' } : {}),
+          },
+        })
       }
     }
 

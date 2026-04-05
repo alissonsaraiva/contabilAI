@@ -1,6 +1,6 @@
 # COBRANCA — Integração Asaas
 
-> **Sistema:** AVOS v3.10.23 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.24 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
@@ -15,7 +15,7 @@
    └── PAYMENT_RECEIVED  → marca RECEIVED, reativa inadimplente se aplicável
    └── PAYMENT_CONFIRMED → idem RECEIVED (Asaas envia um ou outro por forma de pagamento)
    └── PAYMENT_OVERDUE   → status: inadimplente + notifica equipe
-   └── PAYMENT_UPDATED   → atualiza data/valor + re-enriquece
+   └── PAYMENT_UPDATED   → atualiza data/valor + re-enriquece + seta pixGeradoEm
    └── PAYMENT_DELETED   → cancela cobrança local
    └── PAYMENT_REFUNDED  → marca REFUNDED
 5. Se inadimplente:
@@ -72,12 +72,13 @@
 
 ### CRM
 - `src/components/crm/cliente-financeiro-tab.tsx` — aba Financeiro no detalhe do cliente:
-  - Resumo (4 cards)
+  - Resumo (4 cards): mensalidade, em aberto, em atraso, status Asaas
+  - **Botão "Provisionar no Asaas"** — exibido no card Status Asaas e no empty state quando `asaasCustomerId` é null. Chama `POST /api/crm/clientes/[id]/provisionar` (com confirmação). Idempotente.
   - Alterar vencimento/forma
   - QR code PIX, código de barras boleto
   - Segunda via
   - Histórico 24 cobranças
-  - Sync manual, provisionar
+  - Sync manual
 
 - `src/app/(crm)/crm/financeiro/inadimplentes/page.tsx` + `src/components/crm/inadimplentes-client.tsx`:
   - Lista de inadimplentes
@@ -110,4 +111,5 @@
 - **Formas suportadas**: apenas PIX e boleto (cartão fora do escopo)
 - **Ponto de falha**: Asaas offline → cobranças não atualizadas. Sem retry automático.
 - **Arquivo principal**: `src/lib/asaas.ts`, `src/lib/services/asaas-sync.ts`
-- **Provisionar manualmente**: `POST /api/crm/clientes/[id]/provisionar` — idempotente, reutiliza IDs existentes
+- **Provisionar manualmente**: `POST /api/crm/clientes/[id]/provisionar` — idempotente, reutiliza IDs existentes. Botão disponível na aba Financeiro do CRM quando cliente não provisionado.
+- **Campo `pixGeradoEm`** em `CobrancaAsaas`: setado apenas quando QR Code chega do Asaas (`enriquecerPagamento`, `gerarSegundaViaAsaas`, webhook `PAYMENT_UPDATED`). Usado em vez de `atualizadoEm` para calcular expiração do PIX — `atualizadoEm` é resetado por qualquer webhook e não é confiável para esse fim.

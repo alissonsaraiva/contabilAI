@@ -1,5 +1,5 @@
 # AVOS — Índice da Documentação do Sistema
-> **Versão**: v3.10.23 | **Atualizado**: 2026-04-04 | **Fonte da verdade**: código-fonte
+> **Versão**: v3.10.25 | **Atualizado**: 2026-04-05 | **Fonte da verdade**: código-fonte
 >
 > 📄 **Documentação específica:** [WhatsApp — Fluxo Completo](./WHATSAPP.md)
 >

@@ -114,7 +114,15 @@ export default async function ClientesPage({ searchParams }: Props) {
                 {clientes.map((c) => (
                   <ClienteRow key={c.id} href={`/crm/clientes/${c.id}`}>
                     <td className="px-6 py-3.5">
-                      <span className="block text-[14px] font-semibold text-on-surface group-hover:text-primary transition-colors">{c.nome}</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[14px] font-semibold text-on-surface group-hover:text-primary transition-colors">{c.nome}</span>
+                        {!c.cnpj && (
+                          <span className="inline-flex items-center gap-0.5 rounded-[4px] bg-orange-status/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-orange-status whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[10px]">warning</span>
+                            Sem empresa
+                          </span>
+                        )}
+                      </div>
                       <span className="block text-xs text-on-surface-variant/80 mt-0.5">{c.email}</span>
                     </td>
                     <td className="px-6 py-3.5">

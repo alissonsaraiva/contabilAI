@@ -5,6 +5,71 @@ import ReactMarkdown from 'react-markdown'
 
 type Msg = { id?: string; role: 'user' | 'assistant'; text: string; excluido?: boolean }
 
+// ── Detecta código PIX EMV e envolve em bloco de código se ainda não estiver ─
+function preprocessarPix(text: string): string {
+  // Se já tem bloco de código com PIX, não toca
+  if (/```[\s\S]*?000201/m.test(text)) return text
+  // Substitui ocorrências do código PIX por bloco de código markdown
+  return text.replace(/(000201[A-Za-z0-9+/=.@:_\-*#]{20,})/g, '```\n$1\n```')
+}
+
+// ── Mini-card de PIX renderizado dentro do chat ──────────────────────────────
+function PixChatCard({ code }: { code: string }) {
+  const [copiado, setCopiado] = useState(false)
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2500)
+    } catch {
+      // fallback para ambientes sem clipboard API (iOS WebView antigo)
+      const el = document.createElement('textarea')
+      el.value = code
+      el.style.position = 'fixed'
+      el.style.opacity = '0'
+      el.setAttribute('readonly', '')
+      document.body.appendChild(el)
+      el.focus()
+      el.setSelectionRange(0, el.value.length)
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2500)
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-outline-variant/20 bg-white/90 dark:bg-surface-container p-3 space-y-2.5 shadow-sm">
+      <div className="flex items-center gap-1.5">
+        <span
+          className="material-symbols-outlined text-[15px] text-primary"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
+          qr_code_2
+        </span>
+        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+          PIX Copia e Cola
+        </span>
+      </div>
+      <div className="rounded-lg bg-surface-container/60 px-2.5 py-2 border border-outline-variant/10">
+        <p className="text-[9.5px] font-mono text-on-surface-variant/70 break-all line-clamp-3 leading-relaxed">
+          {code}
+        </p>
+      </div>
+      <button
+        onClick={handleCopy}
+        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-primary/90 active:scale-[0.98]"
+      >
+        <span className="material-symbols-outlined text-[15px]">
+          {copiado ? 'check_circle' : 'content_copy'}
+        </span>
+        {copiado ? 'Código copiado!' : 'Copiar código PIX'}
+      </button>
+    </div>
+  )
+}
+
 export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const [open, setOpen]           = useState(false)
   const [msgs, setMsgs]           = useState<Msg[]>([])
@@ -377,9 +442,25 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
                             <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>download</span>
                           </a>
                         ),
+                        // pre: remove o wrapper padrão para que PixChatCard (div) não fique dentro de <pre>
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        pre: ({ children }: any) => <>{children}</>,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        code: ({ inline, children }: any) => {
+                          const text = String(children).trim()
+                          // Detecta código PIX EMV (começa com 000201, padrão universal EMV)
+                          if (!inline && text.startsWith('000201') && text.length > 50) {
+                            return <PixChatCard code={text} />
+                          }
+                          return (
+                            <code className="rounded bg-surface-container/60 px-1 py-0.5 text-[11px] font-mono break-all">
+                              {children}
+                            </code>
+                          )
+                        },
                       }}
                     >
-                      {m.text}
+                      {preprocessarPix(m.text)}
                     </ReactMarkdown>
                   ) : (
                     <p>{m.text}</p>

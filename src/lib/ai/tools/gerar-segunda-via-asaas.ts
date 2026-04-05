@@ -99,8 +99,8 @@ const gerarSegundaViaAsaasTool: Tool = {
 
       const linhas = [
         `Segunda via gerada com sucesso! (ID: ${nova.novaCobrancaId})`,
-        nova.pixCopiaECola ? `PIX Copia e Cola:\n${nova.pixCopiaECola}` : '',
-        nova.linkBoleto    ? `Link do boleto: ${nova.linkBoleto}`       : '',
+        nova.pixCopiaECola ? `PIX Copia e Cola (exiba ao cliente dentro de bloco de código markdown entre três crases):\n\`\`\`\n${nova.pixCopiaECola}\n\`\`\`` : '',
+        nova.linkBoleto    ? `Link do boleto: ${nova.linkBoleto}` : '',
       ].filter(Boolean)
 
       return {

@@ -129,7 +129,8 @@ export async function POST(req: Request) {
   const telefone = (dados?.['Telefone'] as string | undefined) ?? lead.contatoEntrada
 
   const simTipo = (dados?.simulador as Record<string, string> | undefined)?.tipo
-  const tipoContribuinte = simTipo === 'liberal' ? 'pf' as const : 'pj' as const
+  // 'liberal' = autônomo PF; 'nao_abri' = quer abrir empresa (ainda PF até ter CNPJ)
+  const tipoContribuinte = (simTipo === 'liberal' || simTipo === 'nao_abri') ? 'pf' as const : 'pj' as const
   const profissao = dados?.['Profissão'] as string | undefined
 
   // Validação completa de dados obrigatórios antes de tentar criar o cliente

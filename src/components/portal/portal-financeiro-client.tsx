@@ -438,42 +438,38 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
             {/* PIX válido */}
             {cobrancaAberta.formaPagamento === 'pix' && cobrancaAberta.pixCopiaECola && !cobrancaAberta.pixExpirado && (
               <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  {cobrancaAberta.pixQrCode && (
+                {cobrancaAberta.pixQrCode && (
+                  <div className="flex justify-center">
                     <img
                       src={`data:image/png;base64,${cobrancaAberta.pixQrCode}`}
                       alt="QR Code PIX"
-                      className="h-36 w-36 shrink-0 rounded-xl border border-outline-variant/20 shadow-sm"
+                      className="h-44 w-44 rounded-xl border border-outline-variant/20 shadow-sm bg-white p-2"
                     />
-                  )}
-                  <div className="flex-1 space-y-2 min-w-0">
-                    <p className="text-[13px] text-on-surface-variant/80 leading-relaxed">
-                      Abra o app do seu banco, acesse a área PIX e escaneie o QR Code ou cole o código abaixo.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container/50 px-3 py-2">
-                        <p className="truncate text-[11px] font-mono text-on-surface-variant">
-                          {cobrancaAberta.pixCopiaECola.slice(0, 50)}…
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => copiar(cobrancaAberta!.pixCopiaECola!)}
-                        className="shrink-0 gap-1.5"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">
-                          {copiado ? 'check' : 'content_copy'}
-                        </span>
-                        {copiado ? 'Copiado!' : 'Copiar PIX'}
-                      </Button>
-                    </div>
-                    {copiado && (
-                      <p className="text-[11px] text-on-surface-variant/60">
-                        Após efetuar o pagamento, a confirmação pode levar alguns minutos.
-                      </p>
-                    )}
                   </div>
+                )}
+                <p className="text-[13px] text-on-surface-variant/80 leading-relaxed text-center">
+                  Abra o app do seu banco, acesse a área PIX e escaneie o código abaixo.
+                </p>
+                <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container/50 px-3 py-2">
+                  <p className="truncate text-[11px] font-mono text-on-surface-variant">
+                    {cobrancaAberta.pixCopiaECola.slice(0, 60)}…
+                  </p>
                 </div>
+                <Button
+                  size="default"
+                  onClick={() => copiar(cobrancaAberta!.pixCopiaECola!)}
+                  className="w-full gap-2"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {copiado ? 'check_circle' : 'content_copy'}
+                  </span>
+                  {copiado ? 'Código copiado!' : 'Copiar código PIX'}
+                </Button>
+                {copiado && (
+                  <p className="text-[11px] text-on-surface-variant/60 text-center">
+                    Após efetuar o pagamento, a confirmação pode levar alguns minutos.
+                  </p>
+                )}
               </div>
             )}
 

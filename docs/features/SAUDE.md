@@ -1,6 +1,6 @@
 # SAUDE — Diagnóstico do Sistema
 
-> **Sistema:** AVOS v3.10.23 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.25 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
@@ -27,6 +27,7 @@
 | Processamento de NFS-e | Médio | Webhook assíncrono sem retry; cron de reconciliação (1h) é o fallback — monitorado via healthchecks.io |
 | Sincronização de email | Baixo | Cron manual na VPS — monitorado via healthchecks.io |
 | Conversão Lead→Cliente | Médio | 3 pontos de conversão distintos (leads/assinado, contrato/webhook, manual) — podem criar duplicatas; idempotência reforçada (v3.10.15) |
+| nao_abri tipoContribuinte | ~~Médio~~ ✅ | Bug corrigido em v3.10.25: webhooks ZapSign/ClickSign criavam `nao_abri` como 'pj'. Agora corretamente como 'pf'. |
 | Magic links do portal | ~~Médio~~ ✅ | Rate limit 5 req/IP/10min implementado em 2026-04-04 |
 | Lead assinado sem dados | Baixo | Webhook marca como assinado mas não cria cliente; requer intervenção manual; alerta Sentry configurado (v3.10.15) |
 

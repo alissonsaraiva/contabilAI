@@ -1,6 +1,6 @@
 # SCHEMA — Banco de Dados
 
-> **Sistema:** AVOS v3.10.23 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.24 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
@@ -50,8 +50,9 @@ CanalEscalacao: whatsapp | onboarding | portal
 
 - **`Empresa.status` removido** (migration `20260404010142_remove_empresa_status`): o status exibido em `/crm/empresas` vem de `empresa.cliente.status` — única fonte de verdade
 - **Tabela `ordens_servico`** → renomeada para `chamados` logicamente via `@@map` (v3.10.13): modelo `OrdemServico` → `Chamado`, sem alterar tabela física
-- **Migrations**: 36+ arquivos SQL em `prisma/migrations/`
-- **Schema principal**: `prisma/schema.prisma` (~1010 linhas, 31+ modelos)
+- **`CobrancaAsaas.pixGeradoEm`** (migration `20260405012615_add_pix_gerado_em`): `DateTime?` setado apenas quando QR Code chega do Asaas. Usado para calcular expiração do PIX (20h) com precisão — `atualizadoEm` é `@updatedAt` e é resetado por qualquer webhook.
+- **Migrations**: 37+ arquivos SQL em `prisma/migrations/`
+- **Schema principal**: `prisma/schema.prisma` (~1015 linhas, 31+ modelos)
 
 ## Regras de Migração
 

@@ -1,6 +1,6 @@
 # ONBOARDING — Fluxo Lead → Cliente
 
-> **Sistema:** AVOS v3.10.23 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.25 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
@@ -130,3 +130,23 @@ useAutoSave(leadId, payloadJson, delay=1500)
 // Estados: idle | saving | saved | error
 // Indicador visual na tela: "Salvando..." / "Salvo automaticamente"
 ```
+
+## Fluxo PF sem CNPJ (abertura de empresa pendente)
+
+**Caso**: cliente assina contrato como PF (`tipoContribuinte: 'pf'`, sem empresa) porque ainda não tem CNPJ.
+
+```
+Onboarding → Lead com simulador.tipo = 'nao_abri' / 'liberal'
+           → Webhook ZapSign cria Cliente com tipoContribuinte = 'pf', sem Empresa
+           → CRM exibe badge "Sem empresa" na lista de clientes
+           → Tela de detalhe exibe banner laranja + botão "Registrar Empresa"
+           → Operador usa "Registrar Empresa" → informa CNPJ (com auto-fill da API)
+           → PUT /api/clientes/[id] cria Empresa + seta tipoContribuinte = 'pj'
+           → Banner e badge desaparecem automaticamente (server-side revalidation)
+```
+
+**Backend** (`PUT /api/clientes/[id]`): ao criar Empresa com CNPJ, auto-seta `tipoContribuinte = 'pj'` mesmo que o body não envie explicitamente (proteção contra erro humano).
+
+**Componente**: `src/components/crm/registrar-empresa-button.tsx` — drawer focado com CNPJ (auto-fill via Receita Federal), razão social, nome fantasia, regime.
+
+**Bug corrigido (v3.10.25)**: webhooks ZapSign e ClickSign criavam clientes `nao_abri` com `tipoContribuinte: 'pj'` em vez de `'pf'`. Corrigido — ambos os webhooks agora tratam `nao_abri` e `liberal` como PF. Banner e badge cobrem ambos os casos (condição `!empresa` em vez de `tipoContribuinte === 'pf'`).
