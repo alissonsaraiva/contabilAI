@@ -12,6 +12,7 @@ import { emitPortalUserMessage } from '@/lib/event-bus'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 // Garante que todas as tools estejam registradas
 import '@/lib/ai/tools'
+import { refresharPixCobranca } from '@/lib/services/asaas-sync'
 
 const MSG_MAX_LENGTH = 2000
 
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
         where:   { status: { in: ['PENDING', 'OVERDUE'] } },
         orderBy: { vencimento: 'asc' as const },
         take:    1,
-        select:  { valor: true, vencimento: true, status: true, pixCopiaECola: true, linkBoleto: true, atualizadoEm: true },
+        select:  { id: true, valor: true, vencimento: true, status: true, pixCopiaECola: true, linkBoleto: true, atualizadoEm: true, pixGeradoEm: true, formaPagamento: true },
       },
     },
   })
@@ -203,17 +204,27 @@ REGRAS DE ATENDIMENTO:
         const diasStr  = cob.vencimento < new Date()
           ? ` (${Math.floor((Date.now() - new Date(cob.vencimento).getTime()) / 86400000)}d em atraso)`
           : ''
-        const pixPodeEstarExpirado = !cob.atualizadoEm
-          || (Date.now() - new Date(cob.atualizadoEm).getTime()) > 20 * 3600 * 1000
-        const pagStr = cob.pixCopiaECola && !pixPodeEstarExpirado
-          ? `PIX Copia e Cola (ao exibir ao cliente, coloque o código em bloco de código markdown entre três crases — nunca inline):\n\`\`\`\n${cob.pixCopiaECola}\n\`\`\``
+        // Usa pixGeradoEm (preciso) com fallback para atualizadoEm
+        const pixBaseTime = cob.pixGeradoEm ?? cob.atualizadoEm
+        const pixPodeEstarExpirado = !pixBaseTime
+          || (Date.now() - new Date(pixBaseTime).getTime()) > 20 * 3600 * 1000
+
+        // PENDING + PIX expirado → renova QR code sem cancelar a cobrança
+        let pixAtualizado = cob.pixCopiaECola
+        if (cob.pixCopiaECola && pixPodeEstarExpirado && cob.status === 'PENDING') {
+          const refreshed = await refresharPixCobranca(cob.id).catch(() => null)
+          if (refreshed) pixAtualizado = refreshed.pixCopiaECola
+        }
+
+        const pagStr = pixAtualizado && (!pixPodeEstarExpirado || cob.status === 'PENDING')
+          ? `PIX Copia e Cola (ao exibir ao cliente, coloque o código em bloco de código markdown entre três crases — nunca inline):\n\`\`\`\n${pixAtualizado}\n\`\`\``
           : cob.linkBoleto
           ? `Link do boleto: ${cob.linkBoleto}`
-          : 'PIX/boleto pode estar expirado — use gerarSegundaViaAsaas para gerar nova via'
-        const avisoExpiry = cob.pixCopiaECola && pixPodeEstarExpirado
-          ? '\nATENÇÃO: o PIX armazenado pode estar expirado (>20h). Se o cliente disser que não funciona, use gerarSegundaViaAsaas imediatamente.'
-          : ''
-        systemExtra += `\n\nATENÇÃO — CLIENTE INADIMPLENTE: Cobrança em aberto de *${valorStr}* vencida em *${vencStr}*${diasStr}.\n${pagStr}${avisoExpiry}\nSe o cliente perguntar sobre boleto, PIX ou pagamento, responda com os dados acima. Se disser que já pagou, oriente que a confirmação pode levar alguns minutos — caso persista, escale com ##HUMANO##.`
+          : 'PIX/boleto indisponível — use gerarSegundaViaAsaas para criar nova cobrança com nova data de vencimento'
+        const formaPgtoInad = cob.formaPagamento === 'pix'
+          ? 'PIX (não boleto bancário — se o cliente pedir "boleto", esclareça que a cobrança é via PIX e exiba o código acima)'
+          : cob.formaPagamento === 'boleto' ? 'boleto bancário' : cob.formaPagamento ?? 'não especificada'
+        systemExtra += `\n\nATENÇÃO — CLIENTE INADIMPLENTE: Cobrança em aberto de *${valorStr}* vencida em *${vencStr}*${diasStr}.\nForma de pagamento: ${formaPgtoInad}.\n${pagStr}\nSe o cliente perguntar sobre pagamento, responda com os dados acima. Se disser que já pagou, oriente que a confirmação pode levar alguns minutos — caso persista, escale com ##HUMANO##.`
       } else {
         systemExtra += `\n\nATENÇÃO — CLIENTE INADIMPLENTE: Sem cobrança Asaas registrada. Use gerarSegundaViaAsaas para criar nova cobrança se o cliente solicitar.`
       }
@@ -221,12 +232,27 @@ REGRAS DE ATENDIMENTO:
       const valorStr     = Number(cob.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       const vencStr      = new Date(cob.vencimento).toLocaleDateString('pt-BR')
       const diasParaVenc = Math.ceil((new Date(cob.vencimento).getTime() - Date.now()) / 86400000)
-      const pagStr = cob.pixCopiaECola
-        ? `PIX Copia e Cola (ao exibir ao cliente, coloque o código em bloco de código markdown entre três crases — nunca inline):\n\`\`\`\n${cob.pixCopiaECola}\n\`\`\``
+      // Verifica expiração usando pixGeradoEm (preciso) com fallback para atualizadoEm
+      const pixBaseTimeAtivo = cob.pixGeradoEm ?? cob.atualizadoEm
+      const pixExpiradoAtivo = cob.pixCopiaECola && pixBaseTimeAtivo
+        && (Date.now() - new Date(pixBaseTimeAtivo).getTime()) > 20 * 3600 * 1000
+
+      // PENDING + PIX expirado → renova QR code sem cancelar a cobrança
+      let pixAtivoAtualizado = cob.pixCopiaECola
+      if (pixExpiradoAtivo) {
+        const refreshed = await refresharPixCobranca(cob.id).catch(() => null)
+        if (refreshed) pixAtivoAtualizado = refreshed.pixCopiaECola
+      }
+
+      const pagStr = pixAtivoAtualizado
+        ? `PIX Copia e Cola (ao exibir ao cliente, coloque o código em bloco de código markdown entre três crases — nunca inline):\n\`\`\`\n${pixAtivoAtualizado}\n\`\`\``
         : cob.linkBoleto
         ? `Link do boleto: ${cob.linkBoleto}`
         : 'Dados de pagamento indisponíveis — use buscarCobrancaAberta para obter'
-      systemExtra += `\n\nCONTEXTO FINANCEIRO: Cobrança de *${valorStr}* com vencimento em *${vencStr}*${diasParaVenc >= 0 ? ` (em ${diasParaVenc} dia(s))` : ' (vencida)'}.\n${pagStr}\nSe o cliente perguntar sobre boleto, PIX ou cobrança, responda com os dados acima.`
+      const formaPgtoAtivo = cob.formaPagamento === 'pix'
+        ? 'PIX (não boleto bancário — se o cliente pedir "boleto", esclareça que a cobrança é via PIX e exiba o código acima)'
+        : cob.formaPagamento === 'boleto' ? 'boleto bancário' : cob.formaPagamento ?? 'não especificada'
+      systemExtra += `\n\nCONTEXTO FINANCEIRO: Cobrança de *${valorStr}* com vencimento em *${vencStr}*${diasParaVenc >= 0 ? ` (em ${diasParaVenc} dia(s))` : ' (vencida)'}.\nForma de pagamento: ${formaPgtoAtivo}.\n${pagStr}\nSe o cliente perguntar sobre cobrança ou pagamento, responda com os dados acima.`
     }
   }
 

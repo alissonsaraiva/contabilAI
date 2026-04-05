@@ -1,13 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
+import { refresharPixCobranca } from '@/lib/services/asaas-sync'
 
 const buscarCobrancaAbertaTool: Tool = {
   definition: {
     name: 'buscarCobrancaAberta',
     description:
       'Busca a cobrança em aberto (pendente ou vencida) do cliente atual. Retorna valor, data de vencimento, código PIX copia-e-cola e link do boleto. ' +
-      'Use quando o cliente perguntar sobre boleto, pagamento, cobrança, conta em aberto, PIX ou segunda via.',
+      'Use quando o cliente perguntar sobre boleto, pagamento, cobrança, conta em aberto ou PIX. ' +
+      'NÃO use para pedidos de segunda via — esses devem ir para gerarSegundaViaAsaas.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -39,7 +41,7 @@ const buscarCobrancaAbertaTool: Tool = {
         select: {
           id: true, valor: true, vencimento: true, status: true,
           formaPagamento: true, linkBoleto: true,
-          pixCopiaECola: true, pixQrCode: true, atualizadoEm: true,
+          pixCopiaECola: true, pixQrCode: true, atualizadoEm: true, pixGeradoEm: true,
         },
       }),
       prisma.cobrancaAsaas.aggregate({
@@ -91,9 +93,17 @@ const buscarCobrancaAbertaTool: Tool = {
     const qtd        = totalAberto._count.id
     const totalStr   = Number(totalAberto._sum.valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-    // Verifica se PIX pode estar expirado (>20h desde última atualização)
-    const pixExpirado = cobranca.pixCopiaECola && cobranca.atualizadoEm
-      && (Date.now() - new Date(cobranca.atualizadoEm).getTime()) > 20 * 3600 * 1000
+    // Verifica expiração usando pixGeradoEm (preciso) com fallback para atualizadoEm
+    const pixBaseTime = cobranca.pixGeradoEm ?? cobranca.atualizadoEm
+    const pixExpirado = cobranca.pixCopiaECola && pixBaseTime
+      && (Date.now() - new Date(pixBaseTime).getTime()) > 20 * 3600 * 1000
+
+    // PENDING + PIX expirado → renova QR code sem cancelar a cobrança
+    let pixAtualizado = cobranca.pixCopiaECola
+    if (pixExpirado && cobranca.status === 'PENDING') {
+      const refreshed = await refresharPixCobranca(cobranca.id).catch(() => null)
+      if (refreshed) pixAtualizado = refreshed.pixCopiaECola
+    }
 
     const linhas = [
       qtd > 1
@@ -103,14 +113,14 @@ const buscarCobrancaAbertaTool: Tool = {
       cobranca.status === 'OVERDUE'
         ? `⚠️ Em atraso há ${diasAtraso} dia(s)`
         : '🟡 Aguardando pagamento',
-      !pixExpirado && cobranca.pixCopiaECola
-        ? `\n*PIX Copia e Cola:*\n${cobranca.pixCopiaECola}`
+      pixAtualizado && (!pixExpirado || cobranca.status === 'PENDING')
+        ? `\n*PIX Copia e Cola:*\n${pixAtualizado}`
         : '',
       cobranca.linkBoleto
         ? `\n*Link do boleto:* ${cobranca.linkBoleto}`
         : '',
-      pixExpirado
-        ? '\n⚠️ O PIX armazenado pode estar expirado. Use gerarSegundaViaAsaas para gerar uma nova cobrança atualizada.'
+      pixExpirado && cobranca.status === 'OVERDUE'
+        ? '\n⚠️ PIX indisponível para cobrança vencida. Use gerarSegundaViaAsaas para criar nova cobrança com data atualizada.'
         : '',
     ].filter(Boolean)
 

@@ -7,6 +7,8 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sincronizarCobrancas } from '@/lib/services/asaas-sync'
 
+const PIX_EXPIRACAO_MS = 20 * 60 * 60 * 1000
+
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: Request, { params }: Params) {
@@ -39,6 +41,7 @@ export async function GET(_req: Request, { params }: Params) {
       status: true, formaPagamento: true,
       linkBoleto: true, codigoBarras: true,
       pixQrCode: true, pixCopiaECola: true,
+      pixGeradoEm: true, atualizadoEm: true,
       pagoEm: true, valorPago: true,
       criadoEm: true,
     },
@@ -61,11 +64,20 @@ export async function GET(_req: Request, { params }: Params) {
     asaasStatus:      cliente.asaasStatus,
     asaasUltimoSync:  cliente.asaasUltimoSync,
     resumo: { emAberto, emAtraso },
-    cobrancas: cobrancas.map(c => ({
-      ...c,
-      valor:    Number(c.valor),
-      valorPago: c.valorPago != null ? Number(c.valorPago) : null,
-    })),
+    cobrancas: cobrancas.map(c => {
+      const pixBaseTime = c.pixGeradoEm ?? c.atualizadoEm
+      const pixExpirado =
+        c.formaPagamento === 'pix' &&
+        !!c.pixCopiaECola &&
+        !!pixBaseTime &&
+        Date.now() - new Date(pixBaseTime).getTime() > PIX_EXPIRACAO_MS
+      return {
+        ...c,
+        valor:    Number(c.valor),
+        valorPago: c.valorPago != null ? Number(c.valorPago) : null,
+        pixExpirado,
+      }
+    }),
   })
 }
 

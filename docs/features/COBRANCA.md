@@ -1,6 +1,6 @@
 # COBRANCA — Integração Asaas
 
-> **Sistema:** AVOS v3.10.24 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.26 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
@@ -113,3 +113,51 @@
 - **Arquivo principal**: `src/lib/asaas.ts`, `src/lib/services/asaas-sync.ts`
 - **Provisionar manualmente**: `POST /api/crm/clientes/[id]/provisionar` — idempotente, reutiliza IDs existentes. Botão disponível na aba Financeiro do CRM quando cliente não provisionado.
 - **Campo `pixGeradoEm`** em `CobrancaAsaas`: setado apenas quando QR Code chega do Asaas (`enriquecerPagamento`, `gerarSegundaViaAsaas`, webhook `PAYMENT_UPDATED`). Usado em vez de `atualizadoEm` para calcular expiração do PIX — `atualizadoEm` é resetado por qualquer webhook e não é confiável para esse fim.
+
+## Auto-Refresh de PIX Expirado (v3.10.26)
+
+`refresharPixCobranca(cobrancaId)` em `src/lib/services/asaas-sync.ts` — renova QR Code no Asaas sem cancelar a cobrança:
+
+```
+- Só age em cobranças PENDING + formaPagamento='pix'
+- Chama asaasGetPixQrCode(asaasId) → atualiza pixCopiaECola, pixQrCode, pixGeradoEm no banco
+- Best-effort: captura erros com Sentry e retorna null em falha — nunca bloqueia o fluxo principal
+```
+
+**Onde é chamado automaticamente (PENDING + PIX > 20h):**
+- `buildSystemExtra` (WhatsApp pipeline) — renova antes de injetar no contexto da IA
+- `GET /api/portal/chat` — renova antes de montar o systemExtra do chat do portal
+- `GET /api/portal/financeiro/cobranca-aberta` — renova antes de retornar ao PWA; responde `pixExpirado: false` se sucesso
+- Tool `buscarCobrancaAberta` — renova inline e retorna código fresco
+
+**Nunca auto-renova:**
+- Cobranças OVERDUE (cliente em atraso deve gerar segunda via com nova data)
+- CRM (`/api/crm/clientes/[id]/cobrancas`) — contador vê aviso de expirado e decide ação
+
+## CRM — Indicador de PIX Expirado (v3.10.26)
+
+`GET /api/crm/clientes/[id]/cobrancas` retorna `pixExpirado: boolean` por cobrança:
+- Calculado com `pixGeradoEm ?? atualizadoEm` > 20h
+- `cliente-financeiro-tab.tsx`: QR Code oculto + aviso laranja + botão "Copiar PIX" desabilitado quando expirado
+- Contador sabe que deve gerar 2ª via em vez de copiar código inválido
+
+## Comportamento da IA com PIX x Boleto (v3.10.26)
+
+O `systemExtra` agora inclui `Forma de pagamento: PIX (não boleto bancário — se o cliente pedir "boleto", esclareça...)` quando `formaPagamento='pix'`. Garante que a IA:
+- Não diga "Boleto enviado!" para cobranças PIX
+- Corrija explicitamente o cliente que pede "boleto" quando a cobrança é PIX
+- Aplica-se em WhatsApp (`contexto.ts`) e portal chat (`/api/portal/chat/route.ts`)
+
+## Portal PWA — Melhorias PIX (v3.10.26)
+
+`src/components/portal/portal-financeiro-client.tsx`:
+- QR Code centralizado (176×176px, `h-44 w-44`)
+- Botão "Copiar código PIX" full-width abaixo do QR Code
+
+## Portal Chat (Clara) — Renderização PIX (v3.10.26)
+
+`src/components/portal/portal-clara.tsx`:
+- `preprocessarPix()`: detecta código EMV bruto (começa com `000201`) e envolve em code fence
+- `PixChatCard`: card com botão de cópia + fallback iOS (setSelectionRange)
+- Renderer `pre: () => <>{children}</>` evita `<pre><div>` inválido no HTML
+- Tool `gerarSegundaViaAsaas` agora retorna PIX em code fence no `resumo` — garante renderização correta

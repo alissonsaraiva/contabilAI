@@ -58,6 +58,8 @@ O webhook aceita duas formas de validação de chave (em ordem):
 
 > ⚠️ **Gap de segurança conhecido:** Se nenhum dos dois estiver configurado, o webhook aceita qualquer requisição. Ponto de atenção em produção.
 
+> ⚠️ **Atenção operacional (2026-04-04):** O campo `Escritorio.evolutionApiKey` deve conter a chave global da Evolution API (campo `API_KEY` no `/docker/evolution-api-swhw/.env` da VPS). Chaves de instância ou tokens inválidos retornam 401 e abrem o circuit breaker — todas as mensagens param de ser enviadas. Confirmar após qualquer reconfiguração da Evolution API.
+
 ### Filtragem (em ordem, antes de qualquer I/O no banco)
 
 | Condição | Ação |
@@ -639,7 +641,7 @@ Webhook detecta pausadaEm IS NOT NULL
 | EventBus in-memory | ⚠️ Aberto | SSE só funciona no worker que emitiu; multi-container requer Redis pub/sub |
 | Rate limiting in-memory | ⚠️ Aberto | Funciona para 1 worker; multi-worker requer Redis |
 | De-duplicação in-memory | ⚠️ Aberto | Set de 5000 IDs por worker; duplicatas entre workers possíveis |
-| PIX com > 20h pode estar expirado | ⚠️ Aberto | IA avisa cliente, mas não valida expiração real |
+| PIX com > 20h pode estar expirado | ✅ Resolvido v3.10.26 | `refresharPixCobranca()` renova QR Code automaticamente no contexto WhatsApp antes da IA responder — sem cancelar cobrança |
 | Sem health check Evolution API | ⚠️ Aberto | Instância desconectada não detectada proativamente |
 
 ---

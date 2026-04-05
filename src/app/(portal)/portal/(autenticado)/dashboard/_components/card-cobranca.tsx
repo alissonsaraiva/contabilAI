@@ -26,6 +26,7 @@ export async function CardCobranca({ clienteId }: { clienteId: string }) {
       status: true,
       formaPagamento: true,
       atualizadoEm: true,
+      pixGeradoEm: true,
       pixCopiaECola: true,
     },
   })
@@ -47,11 +48,13 @@ export async function CardCobranca({ clienteId }: { clienteId: string }) {
   const urgente = isOverdue || diasAteVencer <= 3
   const isPix = cobranca.formaPagamento === 'pix'
 
+  // Usa pixGeradoEm (preciso) com fallback para atualizadoEm
+  const pixBaseTime = cobranca.pixGeradoEm ?? cobranca.atualizadoEm
   const pixExpirado =
     isPix &&
     !!cobranca.pixCopiaECola &&
-    !!cobranca.atualizadoEm &&
-    Date.now() - new Date(cobranca.atualizadoEm).getTime() > PIX_EXPIRACAO_MS
+    !!pixBaseTime &&
+    Date.now() - new Date(pixBaseTime).getTime() > PIX_EXPIRACAO_MS
 
   let vencimentoLabel: string
   if (isOverdue) {

@@ -381,7 +381,7 @@ interface Tool {
 | `consultarDados` | crm | Query flexível com filtros e agrupamento para relatórios |
 | `buscarHistorico` | crm, portal, whatsapp | Últimas interações: ligações, emails, anotações |
 | `buscarDocumentos` | crm, portal, whatsapp | Notas fiscais, contratos, guias do cliente |
-| `buscarCobrancaAberta` | crm, portal, whatsapp | Cobrança em aberto com PIX/boleto do cliente atual |
+| `buscarCobrancaAberta` | crm, portal, whatsapp | Cobrança em aberto com PIX/boleto; renova QR Code automaticamente se PENDING + expirado |
 | `buscarEmailInbox` | crm | Emails da caixa de entrada com filtro por remetente/assunto |
 | `buscarChamado` | crm, portal | Busca chamado pelo número (`#`) |
 | `buscarTomadoresRecorrentes` | crm, portal, whatsapp | Destinatários de NFS-e usados anteriormente pelo cliente |
@@ -437,8 +437,8 @@ interface Tool {
 
 | Tool | Canais | O que faz |
 |------|--------|-----------|
-| `buscarCobrancaAberta` | crm, portal, whatsapp | PIX/boleto da cobrança em aberto |
-| `gerarSegundaViaAsaas` | crm, portal, whatsapp | Nova cobrança +3 dias (segunda via) |
+| `buscarCobrancaAberta` | crm, portal, whatsapp | PIX/boleto da cobrança em aberto; renova QR Code automaticamente se expirado (PENDING only); NÃO usar para pedidos de segunda via |
+| `gerarSegundaViaAsaas` | crm, portal, whatsapp | Nova cobrança +3 dias — APENAS quando cliente pede explicitamente, cobrança OVERDUE sem PIX, ou link inválido; NÃO usar só para renovar código PIX expirado |
 | `gerarRelatorioInadimplencia` | crm | Aging 30/60/90+ dias por cliente |
 | `listarCobrancasCliente` | crm, portal, whatsapp | Histórico de cobranças com status |
 | `alterarVencimentoCobranca` | crm, portal, whatsapp | Muda dia de vencimento (1–28) direto no Asaas |

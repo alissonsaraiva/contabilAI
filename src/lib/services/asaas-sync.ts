@@ -392,6 +392,46 @@ export async function reativarAsaas(clienteId: string): Promise<void> {
   }
 }
 
+// ─── Refresh PIX sem cancelar cobrança ───────────────────────────────────────
+
+/**
+ * Renova o QR code PIX de uma cobrança PENDING existente via Asaas,
+ * sem cancelar nem criar nova cobrança. Atualiza pixCopiaECola, pixQrCode
+ * e pixGeradoEm no banco.
+ *
+ * Usar quando: PIX expirado (>20h) e cobrança ainda PENDING.
+ * Para OVERDUE ou segunda via explícita, usar gerarSegundaVia.
+ * Retorna null em caso de falha (best-effort — não deve bloquear o fluxo).
+ */
+export async function refresharPixCobranca(cobrancaId: string): Promise<{
+  pixCopiaECola: string
+  pixQrCode: string
+} | null> {
+  try {
+    const cobranca = await prisma.cobrancaAsaas.findUnique({
+      where:  { id: cobrancaId },
+      select: { asaasId: true, formaPagamento: true, status: true },
+    })
+    if (!cobranca?.asaasId || cobranca.formaPagamento !== 'pix' || cobranca.status !== 'PENDING') return null
+
+    const qr = await asaasGetPixQrCode(cobranca.asaasId)
+
+    await prisma.cobrancaAsaas.update({
+      where: { id: cobrancaId },
+      data:  { pixCopiaECola: qr.payload, pixQrCode: qr.encodedImage, pixGeradoEm: new Date() },
+    })
+
+    return { pixCopiaECola: qr.payload, pixQrCode: qr.encodedImage }
+  } catch (err) {
+    console.error('[asaas-sync] refresharPixCobranca falhou, retornando null:', err)
+    Sentry.captureException(err, {
+      tags:  { module: 'asaas-sync', operation: 'refresharPixCobranca' },
+      extra: { cobrancaId },
+    })
+    return null
+  }
+}
+
 // ─── Segunda via ──────────────────────────────────────────────────────────────
 
 export async function gerarSegundaVia(cobrancaId: string): Promise<{

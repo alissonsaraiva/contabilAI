@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
+import { refresharPixCobranca } from '@/lib/services/asaas-sync'
 
 // PIX do Asaas expira em 24h; usamos 20h como margem de segurança
 const PIX_EXPIRACAO_MS = 20 * 60 * 60 * 1000
@@ -57,12 +58,26 @@ export async function GET() {
     !!pixBaseTime &&
     Date.now() - new Date(pixBaseTime).getTime() > PIX_EXPIRACAO_MS
 
+  // PENDING + PIX expirado → renova o QR code via Asaas sem cancelar a cobrança.
+  // Best-effort: se falhar, mantém pixExpirado=true e o cliente vê o aviso normal.
+  let pixQrCodeFinal    = pixExpirado ? null : cobranca.pixQrCode
+  let pixCopiaEColaFinal = pixExpirado ? null : cobranca.pixCopiaECola
+  let pixExpiradoFinal   = pixExpirado
+
+  if (pixExpirado && cobranca.status === 'PENDING') {
+    const refreshed = await refresharPixCobranca(cobranca.id).catch(() => null)
+    if (refreshed) {
+      pixQrCodeFinal     = refreshed.pixQrCode
+      pixCopiaEColaFinal = refreshed.pixCopiaECola
+      pixExpiradoFinal   = false
+    }
+  }
+
   return NextResponse.json({
     ...cobranca,
-    valor:       Number(cobranca.valor),
-    pixExpirado,
-    // Se PIX expirado, remove os dados de pagamento para evitar que o cliente copie código inválido
-    pixQrCode:    pixExpirado ? null : cobranca.pixQrCode,
-    pixCopiaECola: pixExpirado ? null : cobranca.pixCopiaECola,
+    valor:         Number(cobranca.valor),
+    pixExpirado:   pixExpiradoFinal,
+    pixQrCode:     pixQrCodeFinal,
+    pixCopiaECola: pixCopiaEColaFinal,
   })
 }

@@ -18,6 +18,7 @@ type Cobranca = {
   codigoBarras: string | null
   pixQrCode: string | null
   pixCopiaECola: string | null
+  pixExpirado: boolean
   pagoEm: string | null
   valorPago: number | null
 }
@@ -415,7 +416,13 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
                   <div className="bg-surface-container/40 px-6 pb-4 pt-0">
                     {c.formaPagamento === 'pix' && c.pixCopiaECola && (
                       <div className="space-y-2">
-                        {c.pixQrCode && (
+                        {c.pixExpirado && (
+                          <div className="flex items-center gap-1.5 rounded-lg bg-orange-status/10 px-3 py-2 text-[11px] text-orange-status">
+                            <span className="material-symbols-outlined text-[14px]">schedule</span>
+                            QR Code expirado (mais de 20h). Gere uma 2ª via para criar novo código PIX.
+                          </div>
+                        )}
+                        {c.pixQrCode && !c.pixExpirado && (
                           <img
                             src={`data:image/png;base64,${c.pixQrCode}`}
                             alt="QR Code PIX"
@@ -427,6 +434,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
                           <Button
                             variant="outline"
                             size="sm"
+                            disabled={c.pixExpirado}
                             onClick={() => { navigator.clipboard.writeText(c.pixCopiaECola!); setFeedback({ tipo: 'ok', msg: 'PIX copiado!' }) }}
                             className="h-6 px-2 text-[10px] shrink-0"
                           >

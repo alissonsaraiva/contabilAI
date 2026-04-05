@@ -8,8 +8,11 @@ const gerarSegundaViaAsaasTool: Tool = {
   definition: {
     name: 'gerarSegundaViaAsaas',
     description:
-      'Gera uma segunda via da cobrança em aberto de um cliente na Asaas (nova cobrança com vencimento +3 dias a partir de hoje). ' +
-      'Use quando: o cliente pedir segunda via, disser que o PIX/boleto expirou, não recebeu o boleto, ou o link não funciona. ' +
+      'Gera uma segunda via da cobrança em aberto de um cliente na Asaas (CANCELA a cobrança existente e cria nova com vencimento +3 dias). ' +
+      'Use APENAS quando: (1) o cliente pedir explicitamente uma segunda via ou nova cobrança, ' +
+      '(2) a cobrança está OVERDUE e não há PIX disponível, ' +
+      '(3) o link do boleto não funciona e o cliente precisa de nova data. ' +
+      'NÃO use apenas para renovar código PIX expirado — o sistema já renova automaticamente sem cancelar a cobrança. ' +
       'No WhatsApp/portal usa o clienteId do contexto automaticamente — não peça ao cliente que forneça IDs. ' +
       'No CRM aceita cobrancaId, clienteId ou busca por nome/CPF/CNPJ.',
     inputSchema: {
