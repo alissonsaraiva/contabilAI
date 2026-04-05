@@ -14,10 +14,10 @@ import './tools'
 
 export type AskContext =
   | { escopo: 'global' }
-  | { escopo: 'cliente';        clienteId: string; socioNome?: string; socioId?: string }
-  | { escopo: 'lead';           leadId: string }
+  | { escopo: 'cliente'; clienteId: string; socioNome?: string; socioId?: string }
+  | { escopo: 'lead'; leadId: string }
   | { escopo: 'cliente+global'; clienteId: string; socioNome?: string; socioId?: string }
-  | { escopo: 'lead+global';    leadId: string }
+  | { escopo: 'lead+global'; leadId: string }
 
 export type AskFeature = 'onboarding' | 'crm' | 'portal'
 
@@ -241,7 +241,7 @@ function truncarHistorico(historico: AIMessage[]): AIMessage[] {
     const chars = typeof msg.content === 'string'
       ? msg.content.length
       : (msg.content as Array<{ type: string; text?: string }>)
-          .reduce((acc, p) => acc + (p.type === 'text' ? (p.text?.length ?? 0) : 500), 0)
+        .reduce((acc, p) => acc + (p.type === 'text' ? (p.text?.length ?? 0) : 500), 0)
     if (total + chars > MAX_HISTORICO_CHARS && result.length > 0) break
     result.unshift(msg)
     total += chars
@@ -337,7 +337,9 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
   // Permite que a IA adapte o tom e o nível técnico por interlocutor
   const socioNome = (context as { socioNome?: string }).socioNome
   if (socioNome) {
-    systemParts.push(`## Interlocutor atual\nVocê está conversando com ${socioNome}, sócio da empresa. Use o nome dele ao iniciar respostas quando natural.`)
+    // Sanitiza o nome antes de injetar: previne prompt injection via nome de sócio no banco.
+    const socioNomeSanitizado = sanitizarTextoExterno(socioNome)
+    systemParts.push(`## Interlocutor atual\nVocê está conversando com ${socioNomeSanitizado}, sócio da empresa. Use o nome dele ao iniciar respostas quando natural.`)
   }
 
   // Sanitiza dados externos antes de injetar — previne prompt injection via banco/agente
@@ -368,8 +370,8 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
   // 7. Chama com fallback automático entre providers
   const result = await completeWithFallback(
     {
-      system:      systemParts.join('\n\n'),
-      messages:    [...historicoTruncado, lastUserMessage],
+      system: systemParts.join('\n\n'),
+      messages: [...historicoTruncado, lastUserMessage],
       maxTokens,
       temperature: 0.3,
       model,
@@ -387,10 +389,10 @@ export async function askAI(opts: AskOpts): Promise<AskResult> {
 function featureToCanal(feature: AskFeature | 'whatsapp' | undefined): CanalRAG {
   switch (feature) {
     case 'onboarding': return 'onboarding'
-    case 'crm':        return 'crm'
-    case 'portal':     return 'portal'
-    case 'whatsapp':   return 'whatsapp'
-    default:           return 'geral'
+    case 'crm': return 'crm'
+    case 'portal': return 'portal'
+    case 'whatsapp': return 'whatsapp'
+    default: return 'geral'
   }
 }
 
@@ -417,11 +419,11 @@ export function detectarEscalacao(resposta: string): EscalacaoInfo {
 /** Converte feature para ToolCanal (tipagem da registry). Retorna null para features sem tools. */
 function featureToCanalTools(feature: AskFeature | 'whatsapp' | undefined): import('./tools/types').ToolCanal | null {
   switch (feature) {
-    case 'crm':        return 'crm'
-    case 'portal':     return 'portal'
-    case 'whatsapp':   return 'whatsapp'
+    case 'crm': return 'crm'
+    case 'portal': return 'portal'
+    case 'whatsapp': return 'whatsapp'
     case 'onboarding': return 'onboarding'
-    default:           return null
+    default: return null
   }
 }
 
@@ -444,10 +446,10 @@ function buildSearchOpts(
   const minSimilarity = minSimilarityParaTipos(tipos)
   const base: SearchOpts = { limit, minSimilarity, tipos, canal }
   switch (context.escopo) {
-    case 'global':          return { ...base, escopo: 'global' }
-    case 'cliente':         return { ...base, clienteId: context.clienteId }
-    case 'lead':            return { ...base, leadId: context.leadId }
-    case 'cliente+global':  return { ...base, clienteId: context.clienteId, incluirGlobal: true }
-    case 'lead+global':     return { ...base, leadId: context.leadId, incluirGlobal: true }
+    case 'global': return { ...base, escopo: 'global' }
+    case 'cliente': return { ...base, clienteId: context.clienteId }
+    case 'lead': return { ...base, leadId: context.leadId }
+    case 'cliente+global': return { ...base, clienteId: context.clienteId, incluirGlobal: true }
+    case 'lead+global': return { ...base, leadId: context.leadId, incluirGlobal: true }
   }
 }

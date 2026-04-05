@@ -3,7 +3,46 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email/send'
 import { criarTokenPortal, criarTokenPortalSocio } from '@/lib/portal/tokens'
 
+// ── Rate limiting em memória por IP ───────────────────────────────────────────
+// Limite: 5 tentativas por IP a cada 10 minutos
+// Protege contra enumeração de emails e abuso de envio de magic link
+const MAGIC_LINK_RATE_LIMIT = 5
+const MAGIC_LINK_WINDOW_MS = 10 * 60 * 1000 // 10 minutos
+
+const attempts = new Map<string, { count: number; resetAt: number }>()
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  )
+}
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const slot = attempts.get(ip)
+
+  if (!slot || now > slot.resetAt) {
+    attempts.set(ip, { count: 1, resetAt: now + MAGIC_LINK_WINDOW_MS })
+    return true // permitido
+  }
+
+  if (slot.count >= MAGIC_LINK_RATE_LIMIT) return false // bloqueado
+
+  slot.count++
+  return true // permitido
+}
+
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req)
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'too_many_requests' },
+      { status: 429, headers: { 'Retry-After': '600' } },
+    )
+  }
+
   const { email } = await req.json()
   if (!email || typeof email !== 'string') {
     return NextResponse.json({ error: 'email_invalido' }, { status: 400 })
@@ -13,14 +52,14 @@ export async function POST(req: NextRequest) {
 
   // Verifica primeiro se é titular
   const cliente = await prisma.cliente.findUnique({
-    where:  { email: emailNorm },
+    where: { email: emailNorm },
     select: { id: true, nome: true, status: true, empresaId: true },
   })
 
   if (cliente) {
-    if (cliente.status === 'suspenso')  return NextResponse.json({ error: 'conta_suspensa' },         { status: 403 })
-    if (cliente.status === 'cancelado') return NextResponse.json({ error: 'conta_cancelada' },        { status: 403 })
-    if (!cliente.empresaId)             return NextResponse.json({ error: 'empresa_nao_vinculada' },  { status: 400 })
+    if (cliente.status === 'suspenso') return NextResponse.json({ error: 'conta_suspensa' }, { status: 403 })
+    if (cliente.status === 'cancelado') return NextResponse.json({ error: 'conta_cancelada' }, { status: 403 })
+    if (!cliente.empresaId) return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
 
     const { link, otp } = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000)
     await enviarEmailAcesso(emailNorm, cliente.nome, link, otp)
@@ -29,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   // Verifica se é sócio com acesso ao portal
   const socio = await prisma.socio.findFirst({
-    where:  { email: emailNorm, portalAccess: true },
+    where: { email: emailNorm, portalAccess: true },
     select: { id: true, nome: true, empresaId: true },
   })
 
@@ -46,7 +85,7 @@ export async function POST(req: NextRequest) {
 async function enviarEmailAcesso(email: string, nomeCompleto: string, link: string, otp: string) {
   const nome = nomeCompleto.split(' ')[0]
   await sendEmail({
-    para:    email,
+    para: email,
     assunto: 'Seu código de acesso ao Portal',
     corpo: `
       <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px">

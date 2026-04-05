@@ -23,12 +23,13 @@
 
 | Fluxo | Risco | Motivo |
 |-------|-------|--------|
-| WhatsApp webhook | Alto | Sem validação de autenticidade do payload |
+| WhatsApp webhook | ~~Alto~~ ✅ | WEBHOOK_SECRET + apiKey da Evolution — autenticação dupla implementada |
 | Processamento de NFS-e | Médio | Webhook assíncrono sem retry; cron de reconciliação (1h) é o fallback — monitorado via healthchecks.io |
 | Sincronização de email | Baixo | Cron manual na VPS — monitorado via healthchecks.io |
 | Conversão Lead→Cliente | Médio | 3 pontos de conversão distintos (leads/assinado, contrato/webhook, manual) — podem criar duplicatas; idempotência reforçada (v3.10.15) |
-| Magic links do portal | Médio | Token hash SHA-256, mas sem rate limit no `/api/portal/magic-link` |
+| Magic links do portal | ~~Médio~~ ✅ | Rate limit 5 req/IP/10min implementado em 2026-04-04 |
 | Lead assinado sem dados | Baixo | Webhook marca como assinado mas não cria cliente; requer intervenção manual; alerta Sentry configurado (v3.10.15) |
+
 
 ## Testes Automatizados
 
@@ -185,3 +186,14 @@
 | v3.10.23 | Race condition no SSE | Flag `isMounted` definida antes de `conectar()` |
 | v3.10.23 | SSE + polling rodando em paralelo sempre | `sseHealthyRef` rastreia saúde do SSE |
 | v3.10.23 | `buildRemoteJid` sem validação de dígitos | Extraído para `whatsapp-utils.ts`; rejeita <8 ou >13 dígitos |
+| revisão 2026-04-04 | `/api/portal/magic-link` sem rate limit — enumeração de emails | Rate limit: 5 req/IP/10min + `Retry-After: 600` |
+| revisão 2026-04-04 | Token consumido (`usedAt`) antes do JWT ser criado — queimava magic link em falha de encode | `usedAt` movido para após `buildSessionResponse()` bem-sucedido |
+| revisão 2026-04-04 | `indexarAsync` sem `return` no `.then()` — rejeições silenciosas | Adicionado `return indexarAsync(...)` para encadear no `.catch()` |
+| revisão 2026-04-04 | PIX validado com `atualizadoEm` (resetado por qualquer webhook Asaas) | Usa `pixGeradoEm` com fallback para `atualizadoEm` |
+| revisão 2026-04-04 | ClickSign: `AbortError` (timeout) era retryável — criava documentos duplicados | `AbortError` removido da lista de erros retryáveis |
+| revisão 2026-04-04 | `markFailed` disparava `ia_offline` no cold start (`checkedAt === 0`) | Condição ajustada: `checkedAt > 0 && ok` — ignora primeira falha |
+| revisão 2026-04-04 | `socioNome` injetado no system prompt sem sanitização | Passa por `sanitizarTextoExterno()` antes da injeção |
+| revisão 2026-04-04 | Upload endpoint não aceitava XML — bloqueava envio de documentos fiscais | `application/xml` e `text/xml` adicionados ao MIME allowlist |
+| revisão 2026-04-04 | `sendHumanLike` enviava texto vazio ao WA quando `splitIntoChunks` retornava `[]` | Retorna `{ok:false}` sem chamada ao Evolution API |
+| revisão 2026-04-04 | `transcribeAudio` sem validação de tamanho — áudios >25MB causavam erro genérico na Groq | Validação prévia com `GROQ_MAX_AUDIO_BYTES` (25 MB) e mensagem clara |
+| revisão 2026-04-04 | CNPJ lookup sem cache real (comentário dizia 24h mas não havia caching) | Cache in-process 24h + header `Cache-Control: s-maxage=86400` |

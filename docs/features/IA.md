@@ -214,6 +214,7 @@ interface AIProvider {
 - Provider em estado `open` é pulado (log de aviso)
 - Quando o primeiro provider falha, `addFallbackEvent()` registra a troca no health cache
 - Transição `ok → falhou`: dispara `notificarIaOffline()` (notificação no CRM)
+- **Cold start**: `checkedAt === 0` (nunca checado) **não** dispara notificação — evita falso positivo na primeira falha após deploy
 
 ```ts
 // Chat simples
@@ -249,6 +250,8 @@ completeWithToolsFallback(req, config, primaryProvider): Promise<FallbackToolsRe
 5. truncarHistorico()      → mantém mensagens recentes ≤ 16.000 chars
 6. Monta lastUserMessage   → texto puro ou [mediaContent..., texto] para vision
 7. completeWithFallback()  → temperatura 0.3, provider/modelo por feature
+
+> **Segurança — `socioNome`**: o nome do sócio é sanitizado por `sanitizarTextoExterno()` antes de ser injetado no system prompt, prevenindo prompt injection via campo de banco de dados.
 ```
 
 ### Marcadores de Controle (processados pelo servidor — invisíveis ao usuário)

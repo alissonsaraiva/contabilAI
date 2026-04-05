@@ -30,6 +30,7 @@ Calculado com `Promise.all` em consultas paralelas. MRR = soma de `valorMensal` 
 Proxy público para consulta de CNPJ via **BrasilAPI**. Não requer autenticação.
 
 - Valida: exatamente 14 dígitos
+- **Cache**: in-process 24h + header `Cache-Control: public, s-maxage=86400, stale-while-revalidate=3600`
 - `404`: CNPJ não encontrado
 - `502`: BrasilAPI indisponível
 - Usado pelo hook `useCnpj()` e telas de cadastro de empresa
@@ -50,7 +51,7 @@ Gera URL assinada de upload para o R2. Upload público para leads (onboarding), 
 }
 ```
 
-**Tipos MIME permitidos**: PDF, JPEG, PNG, WebP, GIF, DOC/DOCX, XLS/XLSX, TXT, CSV
+**Tipos MIME permitidos**: PDF, JPEG, PNG, WebP, GIF, DOC/DOCX, XLS/XLSX, TXT, CSV, **XML** (`application/xml`, `text/xml` — para NFe, CT-e, NFS-e)
 
 **Retorno:**
 ```json
@@ -99,7 +100,7 @@ Envia mensagem de cobrança via WhatsApp para um ou mais clientes inadimplentes.
 1. Busca configuração Evolution API do escritório
 2. Para cada cliente: localiza cobrança Asaas com `status IN (PENDING, OVERDUE)`
 3. Destinatário: sócio principal (se PJ) → cliente (CPF)
-4. PIX incluído só se `pixCopiaECola` foi atualizado há menos de 20h (expira em 24h)
+4. PIX incluído só se `pixCopiaECola` não expirou — usa `pixGeradoEm` (quando disponível) ou `atualizadoEm` como fallback; expira em 20h
 5. Fallback: `linkBoleto` → mensagem pedindo contato
 6. Registra `Interacao` tipo `whatsapp_enviado` por envio
 
@@ -129,14 +130,15 @@ Retorna o `sessionId` canônico para o usuário do portal (cliente ou sócio). A
 
 Valida magic link e cria sessão JWT do portal. Redireciona para `/portal/dashboard`.
 
-**Fluxo:**
+**Fluxo (corrigido 2026-04-04 — token só consumido após sessão criada):**
 1. Hash SHA-256 do token → busca em `PortalToken`
 2. Valida: existe, não usado (`usedAt == null`), não expirado
 3. Para `cliente`: status deve ser `ativo` ou `inadimplente`
 4. Para `sócio`: precisa ter `portalAccess == true`
 5. Cria JWT (`auth/core/jwt`) com `{ id, name, email, tipo, empresaId }`
 6. Seta cookie `PORTAL_COOKIE_NAME` (httpOnly, sameSite: lax, maxAge: 30 dias)
-7. Marca token como usado (`usedAt = now`)
+7. **Só após sucesso do JWT**: marca token como usado (`usedAt = now`)
+   - Se `encode()` falhar, o token permanece válido e o usuário pode tentar de novo
 8. Redireciona para `/portal/dashboard`
 
 **Erros** (redirect para `/portal/login?erro=...`):

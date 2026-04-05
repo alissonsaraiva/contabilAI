@@ -14,8 +14,17 @@
 | `/api/portal/logout` | POST | Revogar sessão |
 
 **Mecanismos**: magic link por e-mail + OTP via WhatsApp  
-**Token**: hash SHA-256 com expiração  
-⚠️ Sem rate limit no `/api/portal/magic-link` (gap de segurança)
+**Token**: hash SHA-256 com expiração de 30 min (magic link) / 10 min (OTP)  
+**Sessão**: JWT httpOnly cookie `PORTAL_COOKIE_NAME`, maxAge 30 dias
+
+### Segurança do Magic Link (corrigido 2026-04-04)
+
+| Proteção | Implementação |
+|----------|----------------|
+| Rate limit | 5 req/IP/10min — retorna 429 com `Retry-After: 600` |
+| Enumeração de emails | Resposta genérica `email_nao_cadastrado` (sem revelar existência) |
+| Token consumido após sessão | `usedAt` salvo só após `encode()` ter sucesso — magic link não é queimado se JWT falhar |
+| Token one-time | `usedAt != null` invalida qualquer re-uso |
 
 ## Rotas do Portal
 
@@ -89,7 +98,7 @@ Exibido apenas quando há cobrança em aberto (PENDING ou OVERDUE):
 
 - **Estado normal** (PENDING, >3 dias): borda/fundo azul, "Vence em X dias", botão "Ver PIX/boleto →"
 - **Estado urgente** (OVERDUE ou ≤3 dias): borda/fundo vermelho, botão em vermelho
-- **PIX expirado** (>20h desde `atualizadoEm`): botão muda para "Gerar nova cobrança →"
+- **PIX expirado** (>20h desde `pixGeradoEm` ou `atualizadoEm`): botão muda para "Gerar nova cobrança →"
 - **Sem cobrança**: retorna `null` (card omitido)
 - **Cálculo de dias**: `Date.UTC(ano, mes, dia)` — evita erro de timezone
 

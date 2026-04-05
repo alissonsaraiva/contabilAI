@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   // req.url resolves to internal address (0.0.0.0:3000) when behind Traefik.
   // Use the forwarded host header or the configured portal URL.
   const forwardedProto = req.headers.get('x-forwarded-proto') ?? 'https'
-  const forwardedHost  = req.headers.get('x-forwarded-host')
+  const forwardedHost = req.headers.get('x-forwarded-host')
   const baseUrl =
     (forwardedHost ? `${forwardedProto}://${forwardedHost}` : null) ??
     process.env.NEXT_PUBLIC_PORTAL_URL ??
@@ -33,16 +33,16 @@ export async function GET(req: NextRequest) {
   const hash = crypto.createHash('sha256').update(token).digest('hex')
 
   const record = await prisma.portalToken.findUnique({
-    where:   { token: hash },
+    where: { token: hash },
     include: {
       cliente: { select: { id: true, nome: true, email: true, status: true } },
-      socio:   { select: { id: true, nome: true, email: true, portalAccess: true } },
+      socio: { select: { id: true, nome: true, email: true, portalAccess: true } },
     },
   })
 
-  if (!record)                         return loginError('token_invalido')
-  if (record.usedAt)                   return loginError('token_invalido')
-  if (record.expiresAt < new Date())   return loginError('token_expirado')
+  if (!record) return loginError('token_invalido')
+  if (record.usedAt) return loginError('token_invalido')
+  if (record.expiresAt < new Date()) return loginError('token_expirado')
 
   const maxAge = 30 * 24 * 60 * 60 // 30 dias
 
@@ -52,15 +52,15 @@ export async function GET(req: NextRequest) {
   }) {
     const jwt = await encode({
       token: {
-        sub:       payload.id,
-        id:        payload.id,
-        name:      payload.name,
-        email:     payload.email,
-        tipo:      payload.tipo,
+        sub: payload.id,
+        id: payload.id,
+        name: payload.name,
+        email: payload.email,
+        tipo: payload.tipo,
         empresaId: payload.empresaId,
       },
       secret: process.env.AUTH_SECRET!,
-      salt:   PORTAL_COOKIE_NAME,
+      salt: PORTAL_COOKIE_NAME,
       maxAge,
     })
 
@@ -68,8 +68,8 @@ export async function GET(req: NextRequest) {
     res.cookies.set(PORTAL_COOKIE_NAME, jwt, {
       httpOnly: true,
       sameSite: 'lax',
-      path:     '/',
-      secure:   process.env.NODE_ENV === 'production',
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
       maxAge,
     })
     return res
@@ -79,30 +79,37 @@ export async function GET(req: NextRequest) {
     const { status } = record.cliente
     if (status !== 'ativo' && status !== 'inadimplente') return loginError('conta_inativa')
 
-    await prisma.portalToken.update({ where: { id: record.id }, data: { usedAt: new Date() } })
-
-    return buildSessionResponse({
-      id:        record.cliente.id,
-      name:      record.cliente.nome,
-      email:     record.cliente.email ?? '',
-      tipo:      'cliente',
+    const res = await buildSessionResponse({
+      id: record.cliente.id,
+      name: record.cliente.nome,
+      email: record.cliente.email ?? '',
+      tipo: 'cliente',
       empresaId: record.empresaId!,
     })
+
+    // Marca o token como usado apenas APÓS o JWT ter sido criado com sucesso.
+    // Se encode() falhar antes deste ponto, o token permanece válido — o usuário pode tentar de novo.
+    await prisma.portalToken.update({ where: { id: record.id }, data: { usedAt: new Date() } })
+
+    return res
   }
 
   if (record.socio) {
     if (!record.socio.portalAccess) return loginError('acesso_negado')
-    if (!record.socio.email)        return loginError('token_invalido')
+    if (!record.socio.email) return loginError('token_invalido')
 
-    await prisma.portalToken.update({ where: { id: record.id }, data: { usedAt: new Date() } })
-
-    return buildSessionResponse({
-      id:        record.socio.id,
-      name:      record.socio.nome,
-      email:     record.socio.email!,
-      tipo:      'socio',
+    const res = await buildSessionResponse({
+      id: record.socio.id,
+      name: record.socio.nome,
+      email: record.socio.email!,
+      tipo: 'socio',
       empresaId: record.empresaId!,
     })
+
+    // Mesmo critério: só consome o token após sessão criada com sucesso.
+    await prisma.portalToken.update({ where: { id: record.id }, data: { usedAt: new Date() } })
+
+    return res
   }
 
   return loginError('token_invalido')

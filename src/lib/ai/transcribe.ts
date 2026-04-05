@@ -1,18 +1,26 @@
 // Transcrição de áudio via Groq Whisper
 // Modelo: whisper-large-v3-turbo (rápido, suporta português)
 
+const GROQ_MAX_AUDIO_BYTES = 25 * 1024 * 1024 // 25 MB — limite da API Groq
+
 export async function transcribeAudio(
   audioBuffer: Buffer,
   mimeType: string,
   groqApiKey: string,
 ): Promise<string> {
+  if (audioBuffer.length > GROQ_MAX_AUDIO_BYTES) {
+    throw new Error(
+      `Áudio excede o limite de 25 MB da API Groq (tamanho: ${(audioBuffer.length / 1024 / 1024).toFixed(1)} MB)`,
+    )
+  }
+
   // Determina extensão a partir do mimetype
   const ext = mimeType.includes('ogg') ? 'ogg'
     : mimeType.includes('mp4') ? 'mp4'
-    : mimeType.includes('mpeg') ? 'mp3'
-    : mimeType.includes('webm') ? 'webm'
-    : mimeType.includes('wav') ? 'wav'
-    : 'ogg' // WhatsApp PTT é ogg/opus por padrão
+      : mimeType.includes('mpeg') ? 'mp3'
+        : mimeType.includes('webm') ? 'webm'
+          : mimeType.includes('wav') ? 'wav'
+            : 'ogg' // WhatsApp PTT é ogg/opus por padrão
 
   const formData = new FormData()
   const blob = new Blob([audioBuffer as unknown as BlobPart], { type: mimeType || 'audio/ogg' })

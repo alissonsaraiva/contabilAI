@@ -31,9 +31,9 @@ export async function POST(req: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body       = await req.json()
+  const body = await req.json()
   const clienteIds = body.clienteIds as string[]
-  const nivel      = (body.nivel as Nivel) ?? 'gentil'
+  const nivel = (body.nivel as Nivel) ?? 'gentil'
 
   if (!clienteIds?.length) {
     return NextResponse.json({ error: 'clienteIds obrigatório' }, { status: 400 })
@@ -49,8 +49,8 @@ export async function POST(req: Request) {
 
   const rawKey = esc.evolutionApiKey
   const evoCfg: EvolutionConfig = {
-    baseUrl:  esc.evolutionApiUrl,
-    apiKey:   isEncrypted(rawKey) ? decrypt(rawKey) : rawKey,
+    baseUrl: esc.evolutionApiUrl,
+    apiKey: isEncrypted(rawKey) ? decrypt(rawKey) : rawKey,
     instance: esc.evolutionInstance,
   }
   const nomeEsc = esc.nomeFantasia ?? esc.nome ?? 'Nosso escritório'
@@ -62,17 +62,17 @@ export async function POST(req: Request) {
       empresa: {
         select: {
           socios: {
-            where:  { principal: true },
+            where: { principal: true },
             select: { nome: true, whatsapp: true, telefone: true },
-            take:   1,
+            take: 1,
           },
         },
       },
       cobrancasAsaas: {
-        where:   { status: { in: ['PENDING', 'OVERDUE'] } },
+        where: { status: { in: ['PENDING', 'OVERDUE'] } },
         orderBy: { vencimento: 'asc' },
-        take:    1,
-        select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true, atualizadoEm: true },
+        take: 1,
+        select: { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true, atualizadoEm: true },
       },
     },
   })
@@ -88,8 +88,8 @@ export async function POST(req: Request) {
       continue
     }
 
-    const socioP   = c.empresa?.socios[0] ?? null
-    const destWA   = socioP?.whatsapp ?? socioP?.telefone ?? c.whatsapp ?? c.telefone ?? null
+    const socioP = c.empresa?.socios[0] ?? null
+    const destWA = socioP?.whatsapp ?? socioP?.telefone ?? c.whatsapp ?? c.telefone ?? null
     const nomeDest = socioP?.nome ?? c.nome
 
     if (!destWA) {
@@ -98,32 +98,37 @@ export async function POST(req: Request) {
     }
 
     try {
-      // M2: verifica expiração do PIX antes de incluir na mensagem
+      // M2: verifica expiração do PIX antes de incluir na mensagem.
+      // atualizadoEm pode ser resetado por qualquer webhook Asaas → usar pixGeradoEm se disponível.
+      const pixBaseTime = (cobranca as any).pixGeradoEm
+        ? new Date((cobranca as any).pixGeradoEm).getTime()
+        : new Date(cobranca.atualizadoEm).getTime()
+
       const pixValido =
         !!cobranca.pixCopiaECola &&
         !!cobranca.atualizadoEm &&
-        Date.now() - new Date(cobranca.atualizadoEm).getTime() < PIX_EXPIRACAO_MS
+        Date.now() - pixBaseTime < PIX_EXPIRACAO_MS
 
       const pagStr = pixValido
         ? `*PIX Copia e Cola:*\n${cobranca.pixCopiaECola}`
         : cobranca.linkBoleto
-        ? `Acesse o boleto: ${cobranca.linkBoleto}`
-        : 'Entre em contato com o escritório para obter uma nova via de pagamento.'
+          ? `Acesse o boleto: ${cobranca.linkBoleto}`
+          : 'Entre em contato com o escritório para obter uma nova via de pagamento.'
 
-      const valor    = Number(cobranca.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      const valor = Number(cobranca.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       const dataVenc = new Date(cobranca.vencimento).toLocaleDateString('pt-BR')
       const mensagem = montarMensagem(nomeDest, valor, dataVenc, nivel, pagStr, nomeEsc)
-      const numero   = destWA.replace(/\D/g, '')
+      const numero = destWA.replace(/\D/g, '')
 
       await sendText(evoCfg, `${numero}@s.whatsapp.net`, mensagem)
 
       await prisma.interacao.create({
         data: {
           clienteId: c.id,
-          tipo:      'whatsapp_enviado',
-          titulo:    `Cobrança ${cobranca.id} — ${tituloNivel}`,
-          conteudo:  mensagem,
-          origem:    'crm_manual',
+          tipo: 'whatsapp_enviado',
+          titulo: `Cobrança ${cobranca.id} — ${tituloNivel}`,
+          conteudo: mensagem,
+          origem: 'crm_manual',
           usuarioId: session.user?.id ?? null,
         },
       }).catch((err: unknown) =>
@@ -135,15 +140,15 @@ export async function POST(req: Request) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[crm/inadimplentes/mensagem] Erro ao enviar para cliente ${c.id}:`, err)
       Sentry.captureException(err, {
-        tags:  { module: 'crm-inadimplentes', operation: 'enviar-mensagem-whatsapp' },
+        tags: { module: 'crm-inadimplentes', operation: 'enviar-mensagem-whatsapp' },
         extra: { clienteId: c.id, nivel },
       })
       results.push({ clienteId: c.id, ok: false, erro: msg })
     }
   }
 
-  const enviados  = results.filter(r => r.ok).length
-  const erros     = results.filter(r => !r.ok)
+  const enviados = results.filter(r => r.ok).length
+  const erros = results.filter(r => !r.ok)
 
   return NextResponse.json({ ok: true, enviados, erros: erros.length ? erros : undefined })
 }

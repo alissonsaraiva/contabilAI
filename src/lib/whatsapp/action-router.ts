@@ -21,10 +21,10 @@ import { indexarAsync } from '@/lib/rag/indexar-async'
 
 export type DocumentoWhatsApp = {
   classificado: true
-  tipo:         string   // nota_fiscal | comprovante_pagamento | extrato_bancario | holerite | boleto | contrato | documento_pessoal | outro
-  confianca:    'alta' | 'media' | 'baixa'
-  campos:       Record<string, string>
-  contextoIA:   string  // texto para injetar no systemExtra
+  tipo: string   // nota_fiscal | comprovante_pagamento | extrato_bancario | holerite | boleto | contrato | documento_pessoal | outro
+  confianca: 'alta' | 'media' | 'baixa'
+  campos: Record<string, string>
+  contextoIA: string  // texto para injetar no systemExtra
 } | {
   classificado: false
 }
@@ -50,11 +50,11 @@ Conteúdo recebido:`
  * Retorna contexto enriquecido para injetar no systemExtra do askAI.
  */
 export async function roterarDocumentoWhatsapp(opts: {
-  conteudo:          string
+  conteudo: string
   mediaContentParts?: AIMessageContentPart[] | null
-  clienteId?:        string
-  leadId?:           string
-  conversaId:        string
+  clienteId?: string
+  leadId?: string
+  conversaId: string
 }): Promise<DocumentoWhatsApp> {
   const { conteudo, mediaContentParts, clienteId, leadId, conversaId } = opts
 
@@ -72,13 +72,13 @@ export async function roterarDocumentoWhatsapp(opts: {
 
     const result = await askAI({
       pergunta,
-      context:      clienteId ? { escopo: 'cliente+global', clienteId }
-        : leadId    ? { escopo: 'lead+global',    leadId }
-        : { escopo: 'global' },
-      feature:      'crm',
-      maxTokens:    200,
+      context: clienteId ? { escopo: 'cliente+global', clienteId }
+        : leadId ? { escopo: 'lead+global', leadId }
+          : { escopo: 'global' },
+      feature: 'crm',
+      maxTokens: 200,
       mediaContent: mediaContentParts ?? undefined,
-      systemExtra:  'Responda SOMENTE com JSON válido. Nenhum texto adicional.',
+      systemExtra: 'Responda SOMENTE com JSON válido. Nenhum texto adicional.',
     })
 
     // Remove blocos de código markdown se presentes
@@ -88,9 +88,9 @@ export async function roterarDocumentoWhatsapp(opts: {
       .trim()
 
     const json = JSON.parse(jsonStr) as {
-      tipo:      string
+      tipo: string
       confianca: 'alta' | 'media' | 'baixa'
-      campos:    Record<string, string>
+      campos: Record<string, string>
     }
 
     if (!json.tipo) return { classificado: false }
@@ -113,28 +113,28 @@ export async function roterarDocumentoWhatsapp(opts: {
     if (clienteId || leadId) {
       prisma.interacao.create({
         data: {
-          tipo:      'documento_recebido_whatsapp',
+          tipo: 'documento_recebido_whatsapp',
           clienteId: clienteId ?? null,
-          leadId:    leadId    ?? null,
-          titulo:    `Documento via WhatsApp: ${json.tipo}`,
-          conteudo:  conteudo.slice(0, 500),
-          origem:    'ia',
+          leadId: leadId ?? null,
+          titulo: `Documento via WhatsApp: ${json.tipo}`,
+          conteudo: conteudo.slice(0, 500),
+          origem: 'ia',
           metadados: {
             classificacao: json.tipo,
-            confianca:     json.confianca,
-            campos:        json.campos,
+            confianca: json.confianca,
+            campos: json.campos,
             conversaId,
           } as object,
         },
       }).then(interacao => {
-        indexarAsync('interacao', {
-          id:        interacao.id,
+        return indexarAsync('interacao', {
+          id: interacao.id,
           clienteId: interacao.clienteId,
-          leadId:    interacao.leadId,
-          tipo:      interacao.tipo,
-          titulo:    interacao.titulo,
-          conteudo:  interacao.conteudo,
-          criadoEm:  interacao.criadoEm,
+          leadId: interacao.leadId,
+          tipo: interacao.tipo,
+          titulo: interacao.titulo,
+          conteudo: interacao.conteudo,
+          criadoEm: interacao.criadoEm,
         })
       }).catch((err: unknown) => {
         console.error('[action-router] erro ao registrar interação de documento WhatsApp:', { clienteId, leadId, err })
@@ -144,9 +144,9 @@ export async function roterarDocumentoWhatsapp(opts: {
 
     return {
       classificado: true,
-      tipo:         json.tipo,
-      confianca:    json.confianca,
-      campos:       json.campos ?? {},
+      tipo: json.tipo,
+      confianca: json.confianca,
+      campos: json.campos ?? {},
       contextoIA,
     }
   } catch (err: unknown) {

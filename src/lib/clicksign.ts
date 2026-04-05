@@ -26,9 +26,9 @@ async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
       lastError = err
       if (attempt >= maxAttempts) break
       const msg = err instanceof Error ? err.message : String(err)
-      const isRetryable =
-        (err instanceof Error && err.name === 'AbortError') ||
-        /ClickSign (500|502|503|504)/.test(msg)
+      // AbortError (timeout) NÃO é retryável: o request pode ter chegado ao servidor
+      // e criado o documento antes do timeout — retry criaria duplicatas.
+      const isRetryable = /ClickSign (500|502|503|504)/.test(msg)
       if (!isRetryable) break
       // Backoff: 1s, 3s
       await new Promise((r) => setTimeout(r, 1000 * attempt))
@@ -169,8 +169,8 @@ export async function enviarClickSign(
     })
     throw new Error(
       `ClickSign: falha ao criar signatário para documento ${docKey}. ` +
-        `Acesse o painel da ClickSign e cancele/remova o documento manualmente. ` +
-        `Erro original: ${err instanceof Error ? err.message : String(err)}`,
+      `Acesse o painel da ClickSign e cancele/remova o documento manualmente. ` +
+      `Erro original: ${err instanceof Error ? err.message : String(err)}`,
     )
   }
 
@@ -201,8 +201,8 @@ export async function enviarClickSign(
     })
     throw new Error(
       `ClickSign: falha ao vincular signatário ${signerKey} ao documento ${docKey}. ` +
-        `Acesse o painel da ClickSign e finalize o vínculo ou cancele o documento manualmente. ` +
-        `Erro original: ${err instanceof Error ? err.message : String(err)}`,
+      `Acesse o painel da ClickSign e finalize o vínculo ou cancele o documento manualmente. ` +
+      `Erro original: ${err instanceof Error ? err.message : String(err)}`,
     )
   }
 
@@ -223,7 +223,7 @@ export async function enviarClickSign(
     })
     throw new Error(
       `ClickSign: não foi possível obter a URL de assinatura para o documento ${docKey}. ` +
-        `Verifique o plano contratado ou consulte o suporte da ClickSign.`,
+      `Verifique o plano contratado ou consulte o suporte da ClickSign.`,
     )
   }
 

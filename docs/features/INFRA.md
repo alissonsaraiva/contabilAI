@@ -199,6 +199,7 @@ Processamento de mídia recebida no pipeline WhatsApp.
 sendHumanLike(cfg, to, text): Promise<SendResult>
 ```
 - Divide o texto em chunks via `splitIntoChunks()`
+- **Guarda de texto vazio**: se `chunks.length === 0`, retorna `{ok:false}` sem enviar mensagem vazia ao WA
 - Para cada chunk: `sendPresence()` (typing) → delay calculado → `sendText()`
 - Delay calculado por `calcTypingDelay(chunk, min=1200ms, max=4500ms)`
 - Fail-fast: para no primeiro chunk com falha de envio
@@ -213,7 +214,7 @@ Chamado em `processar-pendentes.ts` **antes** do `askAI` principal quando a mens
 1. Detecta se há mídia (`mediaContentParts` != null, ou caption especial)
 2. Usa IA (Claude) para classificar em: `nota_fiscal | comprovante_pagamento | extrato_bancario | holerite | boleto | contrato | documento_pessoal | outro`
 3. Extrai campos: `valor, data, emitente, descricao` (uso interno — nunca exibido ao cliente)
-4. Registra `Interacao` com tipo `documento_recebido_whatsapp` + indexa no RAG (fire-and-forget)
+4. Registra `Interacao` com tipo `documento_recebido_whatsapp` + indexa no RAG (`return indexarAsync(...)` no `.then()` — Promise encadeada no `.catch()` para garantir rastreamento de falhas)
 5. Retorna `contextoIA` para injetar no `systemExtra` do próximo `askAI`
 
 **Importante**: o cadastro no CRM acontece só quando o cliente confirma e a tool `anexarDocumentoChat` é chamada. A classificação é silenciosa.
@@ -276,6 +277,7 @@ transcribeAudio(audioBuffer, mimeType, groqApiKey): Promise<string>
 ```
 - Provider: Groq Whisper `whisper-large-v3-turbo` (rápido, suporta PT-BR)
 - Suporta: ogg (padrão PTT WhatsApp), mp4, mp3, webm, wav
+- Limite: **25 MB** — lança erro claro antes de chamar a API se buffer exceder (`GROQ_MAX_AUDIO_BYTES`)
 - Timeout: 30s via `AbortSignal.timeout()`
 - Chamado no pipeline WA para mensagens de áudio
 
@@ -297,7 +299,8 @@ enviarClickSign(rawKey, pdfBuffer, nomeContrato, signatario): Promise<{docKey, s
 3. `POST /api/v1/lists` — vincula signatário ao documento
 
 **Resiliência**:
-- Retry apenas em erros de rede e 5xx (não 4xx)
+- Retry apenas em erros de rede e HTTP 5xx
+- `AbortError` (timeout) **não** é retryável — o request pode ter chegado ao servidor e criado o documento; retry criaria duplicatas
 - `docKey` logado antes dos passos 2 e 3 — permite cancelamento manual em caso de falha parcial
 - `sign_url`: retornada via `list.sign_url` (Enterprise) → `signer.sign_url` → token fallback
 

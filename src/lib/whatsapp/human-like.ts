@@ -14,7 +14,8 @@ export async function sendHumanLike(
   const chunks = splitIntoChunks(text)
 
   if (chunks.length === 0) {
-    return sendText(cfg, to, text)
+    // texto vazio ou somente espaços — não envia mensagem vazia para o WA
+    return { ok: false, error: 'Texto vazio — nada a enviar', attempts: 0 }
   }
 
   for (const chunk of chunks) {

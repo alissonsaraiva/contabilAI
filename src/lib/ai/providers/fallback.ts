@@ -50,10 +50,13 @@ function markOk(provider: KnownProvider): void {
 }
 
 function markFailed(provider: KnownProvider, error: string): void {
-  const eraOk = getAiHealth()[provider].checkedAt === 0 || getAiHealth()[provider].ok
+  const snap = getAiHealth()[provider]
+  // Só notifica na transição real ok→falha: precisa de uma checagem prévia bem-sucedida.
+  // checkedAt === 0 significa cold start — nunca foi checado, não é uma transição.
+  const eraOk = snap.checkedAt > 0 && snap.ok
   setProviderHealth(provider, { ok: false, error })
   console.warn(`[ai/fallback] Provider "${provider}" falhou e será ignorado por ${CIRCUIT_BREAK_MS / 1000}s: ${error}`)
-  // Notifica equipe apenas na transição ok→falhou (evita spam)
+  // Notifica equipe apenas na transição ok→falhou (evita spam e falsos positivos no cold start)
   if (eraOk) {
     import('@/lib/notificacoes')
       .then(({ notificarIaOffline }) => notificarIaOffline(provider, error))
@@ -89,7 +92,7 @@ export async function completeWithFallback(
   config: AiConfig,
   primaryProvider: string,
 ): Promise<FallbackResponse> {
-  const feature    = req.feature ?? 'desconhecido'
+  const feature = req.feature ?? 'desconhecido'
   const candidates = resolveOrder(config, primaryProvider)
   let lastErr: Error | null = null
   let firstFailed: string | null = null
@@ -100,13 +103,13 @@ export async function completeWithFallback(
       continue
     }
 
-    const apiKey  = apiKeyFor(config, provName)!
-    const model   = provName === primaryProvider ? (req.model ?? defaultModelFor(config, provName)) : defaultModelFor(config, provName)
+    const apiKey = apiKeyFor(config, provName)!
+    const model = provName === primaryProvider ? (req.model ?? defaultModelFor(config, provName)) : defaultModelFor(config, provName)
     const baseUrl = baseUrlFor(config, provName)
 
     try {
       const provider = getProvider(provName)
-      const result   = await provider.complete({ ...req, model, apiKey, baseUrl })
+      const result = await provider.complete({ ...req, model, apiKey, baseUrl })
       markOk(provName)
       if (firstFailed) logFallback(firstFailed, provName, feature, lastErr?.message ?? 'erro desconhecido')
       return { ...result, providerUsed: provName, wasFallback: provName !== primaryProvider }
@@ -145,8 +148,8 @@ export async function completeWithToolsFallback(
     // Tool use é obrigatório para o agente — pula providers que não suportam
     if (!provider.completeWithTools) continue
 
-    const apiKey  = apiKeyFor(config, provName)!
-    const model   = provName === primaryProvider ? (req.model ?? defaultModelFor(config, provName)) : defaultModelFor(config, provName)
+    const apiKey = apiKeyFor(config, provName)!
+    const model = provName === primaryProvider ? (req.model ?? defaultModelFor(config, provName)) : defaultModelFor(config, provName)
     const baseUrl = baseUrlFor(config, provName)
 
     try {

@@ -17,6 +17,8 @@ const ALLOWED_MIME = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain',
   'text/csv',
+  'application/xml',  // XMLs fiscais: NFe, CT-e, NFS-e
+  'text/xml',         // variante alternativa de XML enviada por alguns browsers
 ])
 
 // Tipos de entidade permitidos
