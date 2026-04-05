@@ -63,6 +63,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
   const [segundaViaLoading, setSegundaViaLoading] = useState<string | null>(null)
   const [expandidaId, setExpandidaId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
+  const [provisionandoLoading, setProvisionandoLoading] = useState(false)
 
   const carregarDados = useCallback(async () => {
     setLoading(true)
@@ -138,6 +139,23 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
     }
   }
 
+  async function provisionar() {
+    if (!confirm('Provisionar este cliente no Asaas? Isso criará um customer e uma subscription de cobrança recorrente.')) return
+    setProvisionandoLoading(true)
+    setFeedback(null)
+    try {
+      const res = await fetch(`/api/crm/clientes/${clienteId}/provisionar`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? 'Erro ao provisionar.')
+      setFeedback({ tipo: 'ok', msg: body.mensagem ?? 'Cliente provisionado no Asaas com sucesso.' })
+      await carregarDados()
+    } catch (err) {
+      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro ao provisionar.' })
+    } finally {
+      setProvisionandoLoading(false)
+    }
+  }
+
   async function gerarSegundaVia(cobrancaId: string) {
     setSegundaViaLoading(cobrancaId)
     setFeedback(null)
@@ -199,14 +217,29 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
         </Card>
         <Card className="border-outline-variant/15 bg-card/60 p-4 rounded-[16px] shadow-sm">
           <p className="text-[11px] font-medium text-on-surface-variant/70 uppercase tracking-wider">Status Asaas</p>
-          <p className="mt-1 text-sm font-semibold text-on-surface">
-            {!asaasConfigurado
-              ? 'Não provisionado'
-              : data?.asaasStatus === 'ACTIVE'   ? 'Ativo'
+          {!asaasConfigurado ? (
+            <div className="mt-2 flex flex-col gap-2">
+              <p className="text-sm text-on-surface-variant/70">Não provisionado</p>
+              <Button
+                size="sm"
+                onClick={provisionar}
+                disabled={provisionandoLoading}
+                className="text-xs gap-1.5 w-fit"
+              >
+                <span className={`material-symbols-outlined text-[13px] ${provisionandoLoading ? 'animate-spin' : ''}`}>
+                  {provisionandoLoading ? 'progress_activity' : 'add_circle'}
+                </span>
+                {provisionandoLoading ? 'Provisionando…' : 'Provisionar no Asaas'}
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-1 text-sm font-semibold text-on-surface">
+              {data?.asaasStatus === 'ACTIVE'   ? 'Ativo'
               : data?.asaasStatus === 'OVERDUE'  ? 'Inadimplente'
               : data?.asaasStatus === 'INACTIVE' ? 'Inativo'
               : data?.asaasStatus ?? '—'}
-          </p>
+            </p>
+          )}
         </Card>
       </div>
 
@@ -296,10 +329,23 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
         </div>
 
         {!asaasConfigurado && (
-          <div className="flex flex-col items-center gap-2 py-12 text-center text-on-surface-variant">
+          <div className="flex flex-col items-center gap-3 py-12 text-center text-on-surface-variant">
             <span className="material-symbols-outlined text-[36px] opacity-30">account_balance</span>
-            <p className="text-sm">Integração Asaas não configurada.</p>
-            <p className="text-xs opacity-70">Acesse Configurações → Integrações → Asaas para configurar.</p>
+            <div>
+              <p className="text-sm">Cliente não provisionado no Asaas.</p>
+              <p className="text-xs opacity-70 mt-0.5">Provisione para ativar cobranças recorrentes.</p>
+            </div>
+            <Button
+              size="sm"
+              onClick={provisionar}
+              disabled={provisionandoLoading}
+              className="text-xs gap-1.5"
+            >
+              <span className={`material-symbols-outlined text-[13px] ${provisionandoLoading ? 'animate-spin' : ''}`}>
+                {provisionandoLoading ? 'progress_activity' : 'add_circle'}
+              </span>
+              {provisionandoLoading ? 'Provisionando…' : 'Provisionar no Asaas'}
+            </Button>
           </div>
         )}
 

@@ -41,19 +41,21 @@ export async function GET() {
       codigoBarras: true,
       pixQrCode: true,
       pixCopiaECola: true,
+      pixGeradoEm: true,
       atualizadoEm: true,
     },
   })
 
   if (!cobranca) return NextResponse.json(null)
 
-  // GAP 4: detecta PIX expirado para o frontend exibir alerta adequado
-  // (em vez de mostrar silenciosamente um QR Code inválido ao cliente)
+  // Usa pixGeradoEm (setado apenas quando o QR Code chega do Asaas) para calcular
+  // expiração com precisão. atualizadoEm é resetado por qualquer webhook — não é confiável.
+  const pixBaseTime = cobranca.pixGeradoEm ?? cobranca.atualizadoEm
   const pixExpirado =
     cobranca.formaPagamento === 'pix' &&
     !!cobranca.pixCopiaECola &&
-    !!cobranca.atualizadoEm &&
-    Date.now() - new Date(cobranca.atualizadoEm).getTime() > PIX_EXPIRACAO_MS
+    !!pixBaseTime &&
+    Date.now() - new Date(pixBaseTime).getTime() > PIX_EXPIRACAO_MS
 
   return NextResponse.json({
     ...cobranca,

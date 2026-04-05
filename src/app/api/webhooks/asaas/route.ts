@@ -209,6 +209,7 @@ export async function POST(req: Request) {
                 data:  {
                   pixQrCode:    qr.encodedImage,
                   pixCopiaECola: qr.payload,
+                  pixGeradoEm:  new Date(),
                   atualizadoEm: new Date(),
                 },
               })

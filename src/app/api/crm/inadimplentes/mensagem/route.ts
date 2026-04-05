@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         where: { status: { in: ['PENDING', 'OVERDUE'] } },
         orderBy: { vencimento: 'asc' },
         take: 1,
-        select: { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true, atualizadoEm: true },
+        select: { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true, pixGeradoEm: true, atualizadoEm: true },
       },
     },
   })
@@ -99,15 +99,14 @@ export async function POST(req: Request) {
 
     try {
       // M2: verifica expiração do PIX antes de incluir na mensagem.
-      // atualizadoEm pode ser resetado por qualquer webhook Asaas → usar pixGeradoEm se disponível.
-      const pixBaseTime = (cobranca as any).pixGeradoEm
-        ? new Date((cobranca as any).pixGeradoEm).getTime()
-        : new Date(cobranca.atualizadoEm).getTime()
+      // pixGeradoEm é setado apenas quando o QR Code chega do Asaas.
+      // atualizadoEm é resetado por qualquer webhook — não é confiável para calcular expiração.
+      const pixBaseTime = cobranca.pixGeradoEm ?? cobranca.atualizadoEm
 
       const pixValido =
         !!cobranca.pixCopiaECola &&
-        !!cobranca.atualizadoEm &&
-        Date.now() - pixBaseTime < PIX_EXPIRACAO_MS
+        !!pixBaseTime &&
+        Date.now() - new Date(pixBaseTime).getTime() < PIX_EXPIRACAO_MS
 
       const pagStr = pixValido
         ? `*PIX Copia e Cola:*\n${cobranca.pixCopiaECola}`

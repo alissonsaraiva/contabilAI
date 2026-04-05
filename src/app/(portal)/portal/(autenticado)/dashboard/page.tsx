@@ -25,7 +25,7 @@ export default async function PortalDashboardPage() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
-  const [aiConfig, cliente, docsNovos] = await Promise.all([
+  const [aiConfig, cliente] = await Promise.all([
     getAiConfig(),
     prisma.cliente.findUnique({
       where: { id: clienteId },
@@ -38,7 +38,6 @@ export default async function PortalDashboardPage() {
         },
       },
     }),
-    prisma.documento.count({ where: { clienteId, deletadoEm: null, visualizadoEm: null } }),
   ])
 
   if (!cliente) redirect('/portal/login')
@@ -91,39 +90,6 @@ export default async function PortalDashboardPage() {
         <p className="mt-0.5 text-sm text-on-surface-variant/70">
           {empresa?.nomeFantasia ?? empresa?.razaoSocial ?? ''}{empresa ? ' · ' : ''}Bem-vindo ao seu portal.
         </p>
-      </div>
-
-      {/* ── Acesso rápido ── */}
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
-        {[
-          { href: '/portal/documentos',             icon: 'folder_open',  label: 'Documentos', badge: docsNovos },
-          { href: '/portal/financeiro',             icon: 'payments',     label: 'Financeiro', badge: 0 },
-          cliente.tipoContribuinte !== 'pf'
-            ? { href: '/portal/notas-fiscais',      icon: 'receipt_long', label: 'NFS-e',      badge: 0 }
-            : { href: '/portal/empresa',            icon: 'badge',        label: 'Meus dados', badge: 0 },
-          { href: '/portal/suporte/chamados/nova',  icon: 'add_circle',   label: 'Chamado',    badge: 0 },
-        ].map(a => (
-          <Link
-            key={a.href}
-            href={a.href}
-            className="relative flex flex-col items-center gap-1.5 rounded-2xl border border-outline-variant/15 bg-surface-container-low py-3 sm:py-4 text-center transition-colors hover:bg-surface-container active:scale-95"
-          >
-            {a.badge > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-                {a.badge > 9 ? '9+' : a.badge}
-              </span>
-            )}
-            <span
-              className="material-symbols-outlined text-[24px] text-primary"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              {a.icon}
-            </span>
-            <span className="text-[10px] font-semibold leading-tight text-on-surface-variant sm:text-[11px]">
-              {a.label}
-            </span>
-          </Link>
-        ))}
       </div>
 
       {/* ── Layout 2 colunas ── */}

@@ -40,6 +40,7 @@ async function enriquecerPagamento(
   codigoBarras?: string | null
   pixQrCode?: string | null
   pixCopiaECola?: string | null
+  pixGeradoEm?: Date | null
   invoiceUrl?: string | null
 }> {
   // invoiceUrl é capturado para todos os status — serve como comprovante público
@@ -55,6 +56,7 @@ async function enriquecerPagamento(
         invoiceUrl,
         pixQrCode:    qr.encodedImage,
         pixCopiaECola: qr.payload,
+        pixGeradoEm:  new Date(),
       }
     }
     if (forma === 'boleto') {
@@ -430,12 +432,13 @@ export async function gerarSegundaVia(cobrancaId: string): Promise<{
     codigoBarras?: string | null
     pixQrCode?: string | null
     pixCopiaECola?: string | null
+    pixGeradoEm?: Date | null
   } = {}
 
   try {
     if (formaAtual === 'pix') {
       const qr = await asaasGetPixQrCode(novoPagamento.id)
-      detalhes = { pixQrCode: qr.encodedImage, pixCopiaECola: qr.payload }
+      detalhes = { pixQrCode: qr.encodedImage, pixCopiaECola: qr.payload, pixGeradoEm: new Date() }
     } else {
       const barcode = await asaasGetBoletoBarcode(novoPagamento.id)
       detalhes = {

@@ -987,6 +987,11 @@ model CobrancaAsaas {
   // Controle de lembrete D-3
   lembreteEnviado Boolean              @default(false)
 
+  // Rastreia quando o QR Code/payload PIX foi gerado pela última vez.
+  // atualizadoEm é resetado por qualquer webhook — este campo só muda quando
+  // o PIX chega do Asaas, permitindo calcular expiração com precisão.
+  pixGeradoEm     DateTime?
+
   criadoEm        DateTime             @default(now())
   atualizadoEm    DateTime             @updatedAt
 
