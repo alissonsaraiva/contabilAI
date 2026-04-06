@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -122,6 +122,484 @@ function FieldLabel({ label, configured }: { label: string; configured: boolean 
         </span>
       )}
     </div>
+  )
+}
+
+// ─── Integra Contador (SERPRO) — componente independente ────────────────────
+
+const MODULOS_DISPONIVEIS = [
+  { id: 'integra-sitfis',       label: 'Integra-Sitfis',       desc: 'Situação Fiscal do Contribuinte' },
+  { id: 'integra-sn',           label: 'Integra-SN',           desc: 'Simples Nacional (PGDAS-D)' },
+  { id: 'integra-mei',          label: 'Integra-MEI',          desc: 'MEI — DAS, Certidão CCMEI, DASN-SIMEI' },
+  { id: 'integra-pagamento',    label: 'Integra-Pagamento',    desc: 'Verificação de pagamento da DAS MEI (PGTOWEB)' },
+  { id: 'integra-caixapostal',  label: 'Integra-CaixaPostal',  desc: 'Caixa Postal da Receita Federal' },
+  { id: 'integra-dctfweb',      label: 'Integra-DCTFWeb',      desc: 'Declaração de Débitos e Créditos Tributários' },
+  { id: 'integra-parcelamento', label: 'Integra-Parcelamento', desc: 'Parcelamentos junto à Receita Federal' },
+  { id: 'integra-procuracoes',  label: 'Integra-Procurações',  desc: 'Consulta e gestão de procurações digitais (e-CAC)' },
+]
+
+function IntegraContadorSection() {
+  const [loading,  setLoading]  = useState(false)
+  const [testing,  setTesting]  = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; label?: string; erro?: string } | null>(null)
+
+  const [clientId,  setClientId]  = useState('')
+  const [secret,    setSecret]    = useState('')
+  const [ambiente,  setAmbiente]  = useState<'homologacao' | 'producao'>('homologacao')
+  const [certSenha, setCertSenha] = useState('')
+  const [enabled,   setEnabled]   = useState(false)
+  const [modulos,   setModulos]   = useState<string[]>([])
+
+  // Cert: armazena base64 em memória, nunca relido do backend
+  const [certBase64,  setCertBase64]  = useState('')
+  const [certFileName, setCertFileName] = useState('')
+
+  const [configured, setConfigured] = useState({
+    secret:    false,
+    certBase64: false,
+    certSenha:  false,
+  })
+
+  // DAS MEI config
+  const [dasMeiVencimentoDia,    setDasMeiVencimentoDia]    = useState(20)
+  const [dasMeiDiasAntecedencia, setDasMeiDiasAntecedencia] = useState(5)
+  const [dasMeiCanalEmail,       setDasMeiCanalEmail]       = useState(true)
+  const [dasMeiCanalWhatsapp,    setDasMeiCanalWhatsapp]    = useState(true)
+  const [dasMeiCanalPwa,         setDasMeiCanalPwa]         = useState(true)
+
+  const certInputRef = useRef<HTMLInputElement>(null)
+
+  // Conta quantos campos estão configurados para o badge do header
+  const configCount =
+    (clientId ? 1 : 0) +
+    (configured.secret ? 1 : 0) +
+    (configured.certBase64 ? 1 : 0) +
+    (modulos.length > 0 ? 1 : 0)
+
+  useEffect(() => {
+    fetch('/api/configuracoes/integra-contador')
+      .then(r => r.json())
+      .then((data: Record<string, unknown>) => {
+        if (!data) return
+        setClientId((data.integraContadorClientId as string) ?? '')
+        setAmbiente((data.integraContadorAmbiente as 'homologacao' | 'producao') ?? 'homologacao')
+        setEnabled(Boolean(data.integraContadorEnabled))
+        try {
+          const mods = JSON.parse((data.integraContadorModulos as string) ?? '[]')
+          setModulos(Array.isArray(mods) ? mods : [])
+        } catch { setModulos([]) }
+        // Máscara retornada do backend — exibida como placeholder, não no campo
+        setConfigured({
+          secret:     Boolean(data.integraContadorClientSecretConfigured),
+          certBase64: Boolean(data.integraContadorCertBase64Configured),
+          certSenha:  Boolean(data.integraContadorCertSenhaConfigured),
+        })
+        // DAS MEI
+        if (data.dasMeiVencimentoDia    != null) setDasMeiVencimentoDia(Number(data.dasMeiVencimentoDia))
+        if (data.dasMeiDiasAntecedencia != null) setDasMeiDiasAntecedencia(Number(data.dasMeiDiasAntecedencia))
+        if (data.dasMeiCanalEmail       != null) setDasMeiCanalEmail(Boolean(data.dasMeiCanalEmail))
+        if (data.dasMeiCanalWhatsapp    != null) setDasMeiCanalWhatsapp(Boolean(data.dasMeiCanalWhatsapp))
+        if (data.dasMeiCanalPwa         != null) setDasMeiCanalPwa(Boolean(data.dasMeiCanalPwa))
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleCertFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      // readAsDataURL retorna "data:...;base64,<dados>" — pega só os dados
+      const result = ev.target?.result as string
+      const base64 = result.split(',')[1] ?? ''
+      setCertBase64(base64)
+      setCertFileName(file.name)
+    }
+    reader.readAsDataURL(file)
+  }, [])
+
+  const toggleModulo = useCallback((id: string) => {
+    setModulos(prev =>
+      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id],
+    )
+  }, [])
+
+  async function handleSave() {
+    setLoading(true)
+    try {
+      const payload: Record<string, unknown> = {
+        integraContadorClientId:  clientId,
+        integraContadorAmbiente:  ambiente,
+        integraContadorEnabled:   enabled,
+        integraContadorModulos:   JSON.stringify(modulos),
+        dasMeiVencimentoDia,
+        dasMeiDiasAntecedencia,
+        dasMeiCanalEmail,
+        dasMeiCanalWhatsapp,
+        dasMeiCanalPwa,
+      }
+      // Só envia campos secretos se foram alterados
+      if (secret    && !secret.startsWith('•'))    payload.integraContadorClientSecret = secret
+      if (certBase64)                              payload.integraContadorCertBase64   = certBase64
+      if (certSenha  && !certSenha.startsWith('•')) payload.integraContadorCertSenha    = certSenha
+
+      const res = await fetch('/api/configuracoes/integra-contador', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error()
+
+      // Atualiza flags de "configurado" para refletir o que foi salvo
+      setConfigured(prev => ({
+        secret:    prev.secret || (!!secret && !secret.startsWith('•')),
+        certBase64: prev.certBase64 || !!certBase64,
+        certSenha:  prev.certSenha  || (!!certSenha && !certSenha.startsWith('•')),
+      }))
+      // Limpa campos sensíveis da memória do browser após salvar
+      setSecret('')
+      setCertSenha('')
+      setCertBase64('')
+      setCertFileName('')
+
+      toast.success('Integra Contador salvo!')
+    } catch {
+      toast.error('Erro ao salvar Integra Contador')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res  = await fetch('/api/configuracoes/integra-contador', { method: 'POST' })
+      const data = await res.json() as { ok: boolean; label?: string; erro?: string }
+      setTestResult(data)
+    } catch {
+      setTestResult({ ok: false, erro: 'Erro de rede ao testar conexão' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <Section
+      icon="account_balance"
+      title="Integra Contador — SERPRO"
+      subtitle="Acesso a serviços da Receita Federal: Situação Fiscal, MEI, Simples Nacional, Caixa Postal e mais"
+      configCount={configCount}
+    >
+      {/* Habilitado */}
+      <div className="flex items-center justify-between rounded-xl border border-outline-variant/20 bg-surface-container-low/40 p-4">
+        <div>
+          <p className="text-[13px] font-semibold text-on-surface">Integração habilitada</p>
+          <p className="text-[11px] text-on-surface-variant/70">Ativa as ferramentas da IA e o acesso ao painel</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setEnabled(v => !v)}
+          className={cn(
+            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+            enabled ? 'bg-primary' : 'bg-outline-variant/40',
+          )}
+        >
+          <span className={cn(
+            'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+            enabled ? 'translate-x-6' : 'translate-x-1',
+          )} />
+        </button>
+      </div>
+
+      {/* Ambiente */}
+      <div>
+        <label className="mb-2 block text-[13px] font-semibold text-on-surface-variant">Ambiente</label>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { value: 'homologacao' as const, label: 'Homologação', sub: 'Testes — dados simulados pelo SERPRO' },
+            { value: 'producao'    as const, label: 'Produção',    sub: 'Dados reais da Receita Federal' },
+          ].map(opt => (
+            <label
+              key={opt.value}
+              className={cn(
+                'flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition-colors',
+                ambiente === opt.value
+                  ? 'border-primary/50 bg-primary/5 ring-2 ring-primary/20'
+                  : 'border-outline-variant/20 hover:border-outline-variant/40',
+              )}
+            >
+              <input
+                type="radio"
+                checked={ambiente === opt.value}
+                onChange={() => setAmbiente(opt.value)}
+                className="accent-primary"
+              />
+              <div>
+                <p className={cn('text-[13px] font-semibold', ambiente === opt.value ? 'text-primary' : 'text-on-surface')}>
+                  {opt.label}
+                </p>
+                <p className="text-[11px] text-on-surface-variant/70">{opt.sub}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Credenciais */}
+      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low/40 p-4 space-y-4">
+        <p className="text-[12px] font-semibold uppercase tracking-wider text-on-surface-variant">Credenciais OAuth</p>
+        <p className="text-[11px] text-on-surface-variant/70 -mt-2">
+          Obtidas ao contratar o serviço Integra Contador no portal{' '}
+          <span className="font-mono">apicenter.estaleiro.serpro.gov.br</span>.
+        </p>
+
+        <div>
+          <FieldLabel label="Consumer Key (Client ID)" configured={!!clientId} />
+          <input
+            value={clientId}
+            onChange={e => setClientId(e.target.value)}
+            className={INPUT}
+            placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            autoComplete="off"
+          />
+        </div>
+
+        <div>
+          <FieldLabel label="Consumer Secret" configured={configured.secret} />
+          <input
+            value={secret}
+            onChange={e => setSecret(e.target.value)}
+            className={INPUT}
+            placeholder={configured.secret ? 'Novo secret (deixe em branco para manter)' : 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
+            type="password"
+            autoComplete="off"
+          />
+        </div>
+      </div>
+
+      {/* Certificado e-CNPJ */}
+      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low/40 p-4 space-y-4">
+        <p className="text-[12px] font-semibold uppercase tracking-wider text-on-surface-variant">
+          Certificado e-CNPJ do Escritório <span className="normal-case font-normal text-on-surface-variant/60">(opcional)</span>
+        </p>
+        <p className="text-[11px] text-on-surface-variant/70 -mt-2">
+          Necessário para serviços que exigem assinatura digital. Arquivo .pfx/.p12 do certificado e-CNPJ do escritório.
+        </p>
+
+        {/* Upload do arquivo */}
+        <div>
+          <FieldLabel label="Arquivo do certificado (.pfx / .p12)" configured={configured.certBase64} />
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => certInputRef.current?.click()}
+              className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-[13px] font-semibold text-on-surface transition-colors hover:bg-surface-container"
+            >
+              <span className="material-symbols-outlined text-[16px]">upload_file</span>
+              {certFileName ? 'Trocar arquivo' : 'Selecionar arquivo'}
+            </button>
+            {certFileName ? (
+              <span className="text-[12px] font-mono text-on-surface-variant truncate max-w-[200px]">{certFileName}</span>
+            ) : configured.certBase64 ? (
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-green-600">
+                <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                Certificado configurado
+              </span>
+            ) : (
+              <span className="text-[11px] text-on-surface-variant/50">Nenhum arquivo selecionado</span>
+            )}
+          </div>
+          <input
+            ref={certInputRef}
+            type="file"
+            accept=".pfx,.p12"
+            onChange={handleCertFile}
+            className="hidden"
+          />
+        </div>
+
+        {/* Senha do certificado */}
+        <div>
+          <FieldLabel label="Senha do certificado" configured={configured.certSenha} />
+          <input
+            value={certSenha}
+            onChange={e => setCertSenha(e.target.value)}
+            className={INPUT}
+            placeholder={configured.certSenha ? 'Nova senha (deixe em branco para manter)' : 'Senha do arquivo .pfx'}
+            type="password"
+            autoComplete="off"
+          />
+        </div>
+      </div>
+
+      {/* Módulos contratados */}
+      <div>
+        <label className="mb-2 block text-[13px] font-semibold text-on-surface-variant">Módulos Contratados</label>
+        <p className="mb-3 text-[11px] text-on-surface-variant/70">
+          Selecione apenas os módulos que constam no seu contrato SERPRO. A IA só usará os módulos habilitados.
+        </p>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {MODULOS_DISPONIVEIS.map(mod => (
+            <label
+              key={mod.id}
+              className={cn(
+                'flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors',
+                modulos.includes(mod.id)
+                  ? 'border-primary/50 bg-primary/5 ring-2 ring-primary/20'
+                  : 'border-outline-variant/20 hover:border-outline-variant/40',
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={modulos.includes(mod.id)}
+                onChange={() => toggleModulo(mod.id)}
+                className="mt-0.5 accent-primary shrink-0"
+              />
+              <div>
+                <p className={cn('text-[12px] font-semibold', modulos.includes(mod.id) ? 'text-primary' : 'text-on-surface')}>
+                  {mod.label}
+                </p>
+                <p className="text-[10px] text-on-surface-variant/70">{mod.desc}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* DAS MEI — automação */}
+      {modulos.includes('integra-mei') && (
+        <div className="space-y-3 rounded-xl border border-outline-variant/20 bg-surface-container-low/30 p-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>receipt_long</span>
+            <p className="text-[13px] font-semibold text-on-surface">Automação DAS MEI</p>
+          </div>
+          <p className="text-[11px] text-on-surface-variant/70">
+            Configurações para geração automática e notificação da DAS de clientes MEI.
+          </p>
+
+          {/* Vencimento e antecedência */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">
+                Dia de vencimento
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={dasMeiVencimentoDia}
+                onChange={e => setDasMeiVencimentoDia(Number(e.target.value))}
+                className={cn(INPUT, 'h-10 text-[13px]')}
+                placeholder="20"
+              />
+              <p className="mt-1 text-[10px] text-on-surface-variant/60">Ex: 20 = todo dia 20 do mês</p>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[12px] font-semibold text-on-surface-variant">
+                Dias de antecedência
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={15}
+                value={dasMeiDiasAntecedencia}
+                onChange={e => setDasMeiDiasAntecedencia(Number(e.target.value))}
+                className={cn(INPUT, 'h-10 text-[13px]')}
+                placeholder="5"
+              />
+              <p className="mt-1 text-[10px] text-on-surface-variant/60">Dias antes do vencimento para gerar a DAS</p>
+            </div>
+          </div>
+
+          {/* Canais de notificação */}
+          <div>
+            <label className="mb-2 block text-[12px] font-semibold text-on-surface-variant">Canais de notificação</label>
+            <div className="space-y-2">
+              {[
+                { key: 'email',    label: 'E-mail',    icon: 'email',          val: dasMeiCanalEmail,    set: setDasMeiCanalEmail },
+                { key: 'whatsapp', label: 'WhatsApp',  icon: 'chat',           val: dasMeiCanalWhatsapp, set: setDasMeiCanalWhatsapp },
+                { key: 'pwa',      label: 'Push (PWA)', icon: 'notifications', val: dasMeiCanalPwa,      set: setDasMeiCanalPwa },
+              ].map(ch => (
+                <label key={ch.key} className="flex cursor-pointer items-center justify-between rounded-lg border border-outline-variant/15 bg-surface-container-lowest/60 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[15px] text-on-surface-variant">{ch.icon}</span>
+                    <span className="text-[12px] text-on-surface">{ch.label}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => ch.set(v => !v)}
+                    className={cn(
+                      'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                      ch.val ? 'bg-primary' : 'bg-outline-variant/40',
+                    )}
+                  >
+                    <span className={cn(
+                      'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform',
+                      ch.val ? 'translate-x-4' : 'translate-x-0.5',
+                    )} />
+                  </button>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resultado do teste */}
+      {testResult && (
+        <div className={cn(
+          'rounded-xl border p-3 text-[12px]',
+          testResult.ok
+            ? 'border-green-500/30 bg-green-500/5 text-green-700'
+            : 'border-red-500/30 bg-red-500/5 text-red-700',
+        )}>
+          <div className="flex items-center gap-2 font-semibold">
+            <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              {testResult.ok ? 'check_circle' : 'error'}
+            </span>
+            {testResult.ok ? testResult.label : 'Falha na conexão'}
+          </div>
+          {testResult.erro && <p className="mt-1 text-[11px] opacity-80">{testResult.erro}</p>}
+        </div>
+      )}
+
+      {/* Informativo */}
+      <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[16px] text-blue-500" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+          <p className="text-[12px] font-semibold text-blue-600">Pré-requisitos</p>
+        </div>
+        <ul className="space-y-1 text-[11px] text-on-surface-variant/80">
+          <li>• Contrato ativo com o SERPRO para o produto Integra Contador</li>
+          <li>• Cada cliente precisa conceder procuração digital ao escritório via e-CAC (portal.estaleiro.serpro.gov.br)</li>
+          <li>• O certificado e-CNPJ é o do <strong>escritório</strong>, não de cada cliente</li>
+          <li>• Sem procuração, as consultas daquele CNPJ retornam erro 403</li>
+        </ul>
+      </div>
+
+      {/* Botões de ação */}
+      <div className="flex items-center justify-end gap-3 pt-1">
+        <button
+          type="button"
+          onClick={handleTest}
+          disabled={testing || loading}
+          className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-[13px] font-semibold text-on-surface transition-colors hover:bg-surface-container disabled:opacity-60"
+        >
+          {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">wifi_tethering</span>}
+          Testar conexão
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={loading || testing}
+          className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="material-symbols-outlined text-[16px]">save</span>}
+          Salvar
+        </button>
+      </div>
+    </Section>
   )
 }
 
@@ -668,6 +1146,9 @@ export default function IntegracoesPage() {
         </div>
 
       </Section>
+
+      {/* ── Integra Contador (SERPRO) ─────────────────────────────────────── */}
+      <IntegraContadorSection />
 
       {/* ── Serpro ────────────────────────────────────────────────────────── */}
       <Section icon="verified_user" title="Serpro" subtitle="Validação de CPF e CNPJ" configCount={serproCount}>

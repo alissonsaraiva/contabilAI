@@ -79,7 +79,7 @@ export default async function PortalAutenticadoLayout({ children }: { children: 
     getAiConfig(),
     getEscritorioConfig(),
     clienteId
-      ? prisma.cliente.findUnique({ where: { id: clienteId }, select: { tipoContribuinte: true } })
+      ? prisma.cliente.findUnique({ where: { id: clienteId }, select: { tipoContribuinte: true, empresa: { select: { regime: true, procuracaoRFAtiva: true } } } })
       : Promise.resolve(null),
     clienteId
       ? prisma.documento.count({ where: { clienteId, origem: 'crm', visualizadoEm: null, deletadoEm: null } })
@@ -91,7 +91,14 @@ export default async function PortalAutenticadoLayout({ children }: { children: 
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-surface-container-lowest">
-      <PortalHeader user={user} nomeEscritorio={escritorio.nome} tipoContribuinte={clienteRow?.tipoContribuinte ?? 'pj'} docsNovos={docsNovos} notasNovas={notasNovas} />
+      <PortalHeader
+        user={user}
+        nomeEscritorio={escritorio.nome}
+        tipoContribuinte={clienteRow?.tipoContribuinte ?? 'pj'}
+        docsNovos={docsNovos}
+        notasNovas={notasNovas}
+        procuracaoRFPendente={clienteRow?.empresa?.regime === 'MEI' && clienteRow.empresa.procuracaoRFAtiva === false}
+      />
       <main className="mx-auto max-w-5xl px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">{children}</main>
       <PortalClara nomeIa={aiConfig.nomeAssistentes.portal ?? 'Clara'} />
       <PortalPWA />

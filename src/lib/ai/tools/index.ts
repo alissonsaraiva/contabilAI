@@ -101,5 +101,15 @@ import './buscar-tomadores-recorrentes'
 import './buscar-cnpj-externo'
 // import './buscar-boleto'
 
+// ─── Tools Receita Federal — Integra Contador (SERPRO) ───────────────────────
+// Só ativas quando integraContadorEnabled = true e módulo correspondente contratado
+import './consultar-situacao-fiscal'
+import './gerar-das-mei'
+import './emitir-certidao-mei'
+import './consultar-pgdas'
+import './consultar-caixa-postal-rf'
+import './consultar-das-mei'
+import './enviar-das-mei-cliente'
+
 export * from './registry'
 export * from './types'

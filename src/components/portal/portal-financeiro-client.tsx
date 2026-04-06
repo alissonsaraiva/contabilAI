@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import { formatBRL } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -53,15 +54,46 @@ const FORMA_LABELS: Record<string, string> = {
   pix:    'PIX',
 }
 
+type DasMEIPortal = {
+  id: string
+  competencia: string
+  valor: number | null
+  dataVencimento: string | null
+  codigoBarras: string | null
+  urlDas: string | null
+  status: 'pendente' | 'paga' | 'vencida' | 'erro'
+  criadoEm: string
+}
+
+const DAS_STATUS_LABEL: Record<DasMEIPortal['status'], string> = {
+  pendente: 'Pendente',
+  paga:     'Paga',
+  vencida:  'Vencida',
+  erro:     'Aguardando',
+}
+
+const DAS_STATUS_COLOR: Record<DasMEIPortal['status'], string> = {
+  pendente: 'bg-primary/10 text-primary',
+  paga:     'bg-green-status/10 text-green-status',
+  vencida:  'bg-error/10 text-error',
+  erro:     'bg-orange-status/10 text-orange-status',
+}
+
+function formatarCompetencia(comp: string): string {
+  return `${comp.slice(4, 6)}/${comp.slice(0, 4)}`
+}
+
 type Props = {
   clienteId: string
   valorMensal: number
   vencimentoDia: number
   formaPagamento: string
   asaasAtivo: boolean
+  regime?: string | null
+  procuracaoRFAtiva?: boolean
 }
 
-export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, formaPagamento, asaasAtivo }: Props) {
+export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, formaPagamento, asaasAtivo, regime, procuracaoRFAtiva = true }: Props) {
   const [cobrancaAberta, setCobrancaAberta] = useState<CobrancaAberta | null | undefined>(undefined)
   const [historico, setHistorico]   = useState<CobrancaHistorico[]>([])
   const [loading, setLoading]       = useState(true)
@@ -90,6 +122,12 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
   // Extrato
   const [baixandoExtrato, setBaixandoExtrato] = useState(false)
 
+  // DAS MEI
+  const [dasMeis, setDasMeis]         = useState<DasMEIPortal[]>([])
+  const [dasLoading, setDasLoading]   = useState(false)
+  const [dasErro, setDasErro]         = useState<string | null>(null)
+  const [copiandoDAS, setCopiandoDAS] = useState<string | null>(null)
+
   // Guard de double-click para segunda via (React state é assíncrono — ref é síncrono)
   const segundaViaEmAndamento = useRef(false)
 
@@ -107,7 +145,24 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
     }
   }, [])
 
+  const carregarDASMEI = useCallback(async () => {
+    if (regime !== 'MEI') return
+    setDasLoading(true)
+    setDasErro(null)
+    try {
+      const res = await fetch('/api/portal/financeiro/das-mei')
+      if (!res.ok) throw new Error(`Erro ${res.status} ao carregar DAS.`)
+      const json = await res.json()
+      setDasMeis(json.dasMeis ?? [])
+    } catch (err) {
+      setDasErro(err instanceof Error ? err.message : 'Não foi possível carregar as DAS MEI.')
+    } finally {
+      setDasLoading(false)
+    }
+  }, [regime])
+
   useEffect(() => { carregarDados() }, [carregarDados])
+  useEffect(() => { carregarDASMEI() }, [carregarDASMEI])
 
   async function copiar(texto: string) {
     await navigator.clipboard.writeText(texto)
@@ -613,6 +668,126 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ─── Alerta procuração RF — exibido para MEI sem autorização ───────────── */}
+      {regime === 'MEI' && !procuracaoRFAtiva && (
+        <Link
+          href="/portal/procuracao-rf"
+          className="flex items-start gap-3.5 rounded-2xl border border-error/30 bg-error/8 px-5 py-4 transition-opacity hover:opacity-90"
+        >
+          <span
+            className="material-symbols-outlined shrink-0 text-[22px] text-error mt-0.5"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            lock_person
+          </span>
+          <div className="min-w-0">
+            <p className="text-[14px] font-bold text-error">Autorização Receita Federal pendente</p>
+            <p className="mt-0.5 text-[12px] text-error/80 leading-relaxed">
+              Você ainda não concedeu a procuração digital ao seu escritório. Sem ela, a DAS MEI não pode ser gerada automaticamente.{' '}
+              <span className="font-semibold underline underline-offset-2">Clique aqui para ver como fazer</span>.
+            </p>
+          </div>
+          <span className="material-symbols-outlined shrink-0 text-[18px] text-error/60 mt-0.5">chevron_right</span>
+        </Link>
+      )}
+
+      {/* ─── DAS MEI — exibido apenas para clientes MEI ───────────────────────── */}
+      {regime === 'MEI' && (
+        <div className="rounded-2xl border border-outline-variant/15 bg-card shadow-sm overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-outline-variant/10">
+            <span className="material-symbols-outlined text-[20px] text-primary/80" style={{ fontVariationSettings: "'FILL' 1" }}>receipt_long</span>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-headline text-base font-semibold text-on-surface">DAS MEI</h3>
+              <p className="text-[11px] text-on-surface-variant/60">Documento de Arrecadação do Simples — MEI</p>
+            </div>
+          </div>
+
+          {dasLoading && (
+            <div className="flex items-center justify-center py-10">
+              <span className="material-symbols-outlined animate-spin text-[24px] text-on-surface-variant/30">progress_activity</span>
+            </div>
+          )}
+
+          {!dasLoading && dasErro && (
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <span className="material-symbols-outlined text-[32px] text-error/50">error_outline</span>
+              <p className="text-sm text-error/80">{dasErro}</p>
+              <button
+                type="button"
+                onClick={carregarDASMEI}
+                className="mt-1 text-[11px] text-primary underline underline-offset-2"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          )}
+
+          {!dasLoading && !dasErro && !dasMeis.length && (
+            <div className="flex flex-col items-center gap-2 py-10 text-center text-on-surface-variant/60">
+              <span className="material-symbols-outlined text-[36px] opacity-30">receipt_long</span>
+              <p className="text-sm">Nenhuma DAS disponível no momento.</p>
+            </div>
+          )}
+
+          {!dasLoading && !dasErro && dasMeis.length > 0 && (
+            <div className="divide-y divide-outline-variant/10">
+              {dasMeis.map(das => (
+                <div key={das.id} className="flex items-center gap-3 px-5 py-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-on-surface">
+                        {formatarCompetencia(das.competencia)}
+                      </span>
+                      <span className={`rounded-full px-2 py-[1px] text-[10px] font-bold uppercase tracking-wider ${DAS_STATUS_COLOR[das.status]}`}>
+                        {DAS_STATUS_LABEL[das.status]}
+                      </span>
+                    </div>
+                    {das.dataVencimento && (
+                      <p className="text-[11px] text-on-surface-variant/60 mt-0.5">
+                        Venc.: {new Date(das.dataVencimento).toLocaleDateString('pt-BR')}
+                        {das.valor != null && ` · ${formatBRL(das.valor)}`}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Copiar código de barras */}
+                    {das.codigoBarras && das.status !== 'paga' && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(das.codigoBarras!)
+                          setCopiandoDAS(das.id)
+                          setTimeout(() => setCopiandoDAS(null), 2000)
+                        }}
+                        className="flex items-center gap-1.5 rounded-xl border border-outline-variant/30 bg-surface px-3 py-1.5 text-[11px] font-medium text-on-surface transition-colors hover:bg-surface-container active:scale-95"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">
+                          {copiandoDAS === das.id ? 'check' : 'content_copy'}
+                        </span>
+                        {copiandoDAS === das.id ? 'Copiado!' : 'Copiar código'}
+                      </button>
+                    )}
+                    {/* Link da DAS */}
+                    {das.urlDas && (
+                      <a
+                        href={das.urlDas}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20 active:scale-95"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">download</span>
+                        Baixar DAS
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

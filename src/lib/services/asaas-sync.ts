@@ -27,6 +27,7 @@ import {
   toBillingType,
   toAsaasDate,
 } from '@/lib/asaas'
+import { indexarAsync } from '@/lib/rag/indexar-async'
 import type { AsaasPayment } from '@/lib/asaas'
 import type { FormaPagamento } from '@prisma/client'
 
@@ -430,6 +431,180 @@ export async function refresharPixCobranca(cobrancaId: string): Promise<{
     })
     return null
   }
+}
+
+// ─── Atualizar valor da mensalidade ───────────────────────────────────────────
+
+/**
+ * Atualiza o valor da mensalidade de um cliente.
+ *
+ * Se o cliente tiver subscription no Asaas, atualiza lá também (incluindo
+ * cobranças em aberto via updatePendingPayments: true).
+ * Se não tiver, atualiza apenas o banco local.
+ */
+export async function atualizarValorMensalidadeAsaas(
+  clienteId: string,
+  novoValor: number,
+): Promise<{ asaas: boolean }> {
+  if (novoValor <= 0) {
+    throw new Error('[asaas-sync] Valor da mensalidade deve ser maior que zero.')
+  }
+
+  const cliente = await prisma.cliente.findUnique({
+    where:  { id: clienteId },
+    select: { asaasSubscriptionId: true, formaPagamento: true },
+  })
+
+  if (!cliente) {
+    throw new Error(`[asaas-sync] Cliente ${clienteId} não encontrado.`)
+  }
+
+  if (!cliente.asaasSubscriptionId) {
+    // Sem Asaas: atualiza apenas localmente
+    await prisma.cliente.update({
+      where: { id: clienteId },
+      data:  { valorMensal: novoValor },
+    })
+    return { asaas: false }
+  }
+
+  // Atualiza subscription no Asaas (updatePendingPayments: true aplica nas cobranças em aberto)
+  await asaasUpdateSubscription(cliente.asaasSubscriptionId, {
+    value:                novoValor,
+    updatePendingPayments: true,
+  })
+
+  await prisma.cliente.update({
+    where: { id: clienteId },
+    data:  { valorMensal: novoValor },
+  })
+
+  // Sincroniza cobranças para refletir novo valor localmente.
+  // Best-effort: se falhar, o valor já está correto no Asaas e no banco.
+  // A aba financeiro do cliente fará novo sync na próxima abertura.
+  try {
+    await sincronizarCobrancas(clienteId, cliente.asaasSubscriptionId, cliente.formaPagamento)
+  } catch (err) {
+    console.warn(`[asaas-sync] atualizarValorMensalidadeAsaas: sync pós-atualização falhou para cliente ${clienteId} (valor já atualizado no Asaas e banco):`, err)
+    Sentry.captureException(err, {
+      tags:  { module: 'asaas-sync', operation: 'sync-pos-atualizar-mensalidade' },
+      extra: { clienteId, novoValor },
+    })
+  }
+
+  return { asaas: true }
+}
+
+// ─── Reajuste de mensalidades em lote ────────────────────────────────────────
+
+export type ResultadoReajuste = {
+  total:       number   // total de clientes elegíveis
+  atualizados: number   // atualizados com sucesso (Asaas + banco)
+  semAsaas:    number   // atualizados apenas no banco (sem subscription)
+  erros:       number   // falhas — banco NÃO foi alterado nesses casos
+  detalhesErros: Array<{ clienteId: string; nome: string; erro: string }>
+}
+
+/**
+ * Aplica reajuste percentual no valor da mensalidade de todos os clientes elegíveis.
+ *
+ * Elegíveis: status 'ativo' ou 'inadimplente' com valorMensal > 0.
+ * Clientes inativos/cancelados são ignorados.
+ * Processa sequencialmente para não sobrecarregar a API do Asaas.
+ *
+ * Garante valor mínimo de R$ 1,00 após reajuste.
+ * Em caso de erro em um cliente, continua nos demais.
+ */
+export async function reajustarMensalidadesEmLote(
+  percentual: number,
+  /** Quando fornecido, processa apenas estes clientes (usado para retry dos que falharam). */
+  clienteIds?: string[],
+): Promise<ResultadoReajuste> {
+  if (percentual === 0) {
+    throw new Error('[asaas-sync] Percentual de reajuste não pode ser zero.')
+  }
+  if (percentual < -99 || percentual > 500) {
+    throw new Error('[asaas-sync] Percentual fora do intervalo permitido (-99 a 500).')
+  }
+
+  const clientes = await prisma.cliente.findMany({
+    where: {
+      ...(clienteIds?.length ? { id: { in: clienteIds } } : {
+        status:      { in: ['ativo', 'inadimplente'] },
+        valorMensal: { gt: 0 },
+      }),
+    },
+    select: {
+      id:                  true,
+      nome:                true,
+      valorMensal:         true,
+      asaasSubscriptionId: true,
+      formaPagamento:      true,
+    },
+    orderBy: { nome: 'asc' },
+  })
+
+  const resultado: ResultadoReajuste = {
+    total:         clientes.length,
+    atualizados:   0,
+    semAsaas:      0,
+    erros:         0,
+    detalhesErros: [],
+  }
+
+  for (const cliente of clientes) {
+    try {
+      const valorAtual = Number(cliente.valorMensal)
+      // Calcula novo valor com 2 casas decimais, mínimo R$ 1,00
+      const novoValor = Math.max(1, Math.round(valorAtual * (1 + percentual / 100) * 100) / 100)
+
+      if (!cliente.asaasSubscriptionId) {
+        // Sem Asaas: atualiza apenas banco
+        const atualizado = await prisma.cliente.update({
+          where: { id: cliente.id },
+          data:  { valorMensal: novoValor },
+        })
+        indexarAsync('cliente', atualizado)
+        resultado.semAsaas++
+        resultado.atualizados++
+        continue
+      }
+
+      // Com Asaas: atualiza subscription no Asaas + banco local.
+      // ⚠️ Intencional: NÃO chamamos sincronizarCobrancas aqui para evitar timeout em lote
+      // (o sync faz N chamadas adicionais por cliente e tornaria a operação inviável para
+      // escritórios com muitos clientes). O sync ocorre na próxima abertura da aba Financeiro
+      // do cliente — comportamento idêntico ao que já acontece após alterar vencimento/forma.
+      await asaasUpdateSubscription(cliente.asaasSubscriptionId, {
+        value:                novoValor,
+        updatePendingPayments: true,
+      })
+
+      const atualizado = await prisma.cliente.update({
+        where: { id: cliente.id },
+        data:  { valorMensal: novoValor },
+      })
+      indexarAsync('cliente', atualizado)
+
+      resultado.atualizados++
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[asaas-sync] reajustarMensalidadesEmLote: erro no cliente ${cliente.id}:`, err)
+      Sentry.captureException(err, {
+        tags:  { module: 'asaas-sync', operation: 'reajustar-mensalidades-lote' },
+        extra: { clienteId: cliente.id, nome: cliente.nome, percentual },
+      })
+      resultado.erros++
+      resultado.detalhesErros.push({ clienteId: cliente.id, nome: cliente.nome, erro: msg })
+    }
+  }
+
+  console.log(
+    `[asaas-sync] reajustarMensalidadesEmLote: percentual=${percentual}% | ` +
+    `total=${resultado.total} | ok=${resultado.atualizados} | erros=${resultado.erros}`,
+  )
+
+  return resultado
 }
 
 // ─── Segunda via ──────────────────────────────────────────────────────────────

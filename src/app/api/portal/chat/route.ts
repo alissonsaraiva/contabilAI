@@ -92,7 +92,7 @@ export async function POST(req: Request) {
     select: {
       id: true, nome: true, planoTipo: true, valorMensal: true, vencimentoDia: true,
       cidade: true, uf: true, status: true,
-      empresa: { select: { regime: true } },
+      empresa: { select: { regime: true, procuracaoRFAtiva: true, procuracaoRFVerificadaEm: true } },
       cobrancasAsaas: {
         where:   { status: { in: ['PENDING', 'OVERDUE'] } },
         orderBy: { vencimento: 'asc' as const },
@@ -269,6 +269,14 @@ REGRAS DE ATENDIMENTO:
       return `- [${e.status}] ${e.canal} em ${data}: ${e.motivoIA ?? 'aguardando atendimento'}`
     })
     systemExtra += `\n\nATENDIMENTO HUMANO PENDENTE:\nEsta empresa tem atendimentos aguardando resposta da equipe:\n${linhasEsc.join('\n')}\nSe o cliente perguntar sobre isso, confirme que a equipe está verificando e responderá em breve.`
+  }
+
+  // ── Procuração RF — contexto para MEI ───────────────────────────────────────
+  if (clienteTitular?.empresa?.regime === 'MEI') {
+    const procAtiva = clienteTitular.empresa.procuracaoRFAtiva
+    const procData  = clienteTitular.empresa.procuracaoRFVerificadaEm
+    const dataStr   = procData ? new Date(procData).toLocaleDateString('pt-BR') : null
+    systemExtra += `\n\nPROCURAÇÃO RECEITA FEDERAL (e-CAC):\n- Status: ${procAtiva ? 'ATIVA' : 'PENDENTE — cliente ainda não concedeu procuração ao escritório'}\n${dataStr ? `- Última verificação automática: ${dataStr}\n` : ''}- ${procAtiva ? 'A procuração está ativa. O escritório pode gerar a DAS MEI automaticamente.' : 'SEM PROCURAÇÃO ATIVA. A DAS MEI não pode ser gerada automaticamente. Se o cliente perguntar sobre DAS ou procuração, oriente a acessar a seção "Financeiro" do portal ou a página /portal/procuracao-rf para ver as instruções de como conceder a procuração no e-CAC.'}`
   }
 
   // ── Classificação de intenção + agente (escopo portal — somente leitura) ────

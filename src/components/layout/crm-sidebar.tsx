@@ -49,7 +49,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Financeiro',
     items: [
-      { href: '/crm/financeiro/inadimplentes', icon: '🔴', label: 'Inadimplentes' },
+      { href: '/crm/financeiro/inadimplentes',  icon: '🔴', label: 'Inadimplentes' },
+      { href: '/crm/financeiro/reajuste',        icon: '📈', label: 'Reajuste' },
     ],
   },
   {

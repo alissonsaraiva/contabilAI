@@ -20,6 +20,7 @@ export default async function PortalFinanceiroPage() {
       formaPagamento: true,
       planoTipo: true,
       asaasCustomerId: true,
+      empresa: { select: { regime: true, procuracaoRFAtiva: true } },
     },
   })
   if (!cliente) redirect('/portal/login')
@@ -39,6 +40,8 @@ export default async function PortalFinanceiroPage() {
         vencimentoDia={cliente.vencimentoDia}
         formaPagamento={cliente.formaPagamento}
         asaasAtivo={!!cliente.asaasCustomerId}
+        regime={cliente.empresa?.regime ?? null}
+        procuracaoRFAtiva={cliente.empresa?.procuracaoRFAtiva ?? true}
       />
     </div>
   )

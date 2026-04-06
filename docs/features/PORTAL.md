@@ -1,6 +1,6 @@
 # PORTAL — Portal do Cliente
 
-> **Sistema:** AVOS v3.10.24 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.27 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
@@ -46,6 +46,9 @@
 | `/api/portal/chamados` | Portal session | Listar/criar chamados |
 | `/api/portal/chat` | Portal session | Clara (IA) |
 | `/api/portal/push/subscribe` | Portal session | Registrar web push |
+| `/api/portal/financeiro/das-mei` | Portal session | DAS MEI do cliente (only MEI) |
+| `/api/portal/procuracao-rf` GET | Portal session | Status procuração RF (`{ regime, procuracaoRFAtiva, verificadaEm }`) |
+| `/api/portal/procuracao-rf` POST | Portal session | Verificação imediata via SERPRO (throttle 10 min); degrada se módulo não contratado |
 
 ## Dashboard do Portal (v3.10.24)
 
@@ -98,6 +101,29 @@ Exibido apenas quando há cobrança em aberto (PENDING ou OVERDUE):
 Vencimentos calculados dinamicamente por `proximoAnual(mes)`:
 - Se o mês ainda não passou no ano corrente → usa o ano corrente
 - Se já passou → usa o próximo ano
+
+## Página Financeiro — DAS MEI e Procuração RF (v3.10.27–28)
+
+**Arquivo:** `src/app/(portal)/portal/(autenticado)/financeiro/page.tsx`
+**Componente:** `src/components/portal/portal-financeiro-client.tsx`
+
+- **Prop `regime`**: exibe seção DAS MEI somente quando `regime === 'MEI'`
+- **Prop `procuracaoRFAtiva`**: quando `false`, renderiza banner vermelho clicável acima da seção DAS MEI ligando a `/portal/procuracao-rf`
+- DAS MEI: cards responsivos (PWA-friendly) com "Copiar código" e "Baixar DAS"
+- Erro de carregamento da DAS: estado `dasErro` com botão "Tentar novamente"
+
+## Página Procuração RF (v3.10.27)
+
+**Rota:** `/portal/procuracao-rf`
+**Arquivo:** `src/app/(portal)/portal/(autenticado)/procuracao-rf/page.tsx`
+**Componente:** `src/components/portal/portal-procuracao-client.tsx`
+
+- Redireciona clientes não-MEI para `/portal/financeiro`
+- **Card de status**: verde (ativa) / vermelho (pendente) com ícone de destaque
+- **Botão "Já autorizei — verificar agora"**: chama `POST /api/portal/procuracao-rf` que aciona SERPRO imediatamente (ou degrada para "verificação automática" se módulo não contratado)
+- **Throttle**: POST bloqueado por 10 min após verificação recente (retorna resultado cacheado)
+- **Passo a passo e-CAC**: 5 etapas instruindo o cliente como conceder a procuração
+- **Seção "Por que é necessária"**: explica DAS automática, situação fiscal, certidões e alertas
 
 ## PWA e Web Push
 

@@ -228,6 +228,24 @@ export default async function ClienteDetailPage({ params }: Props) {
               </div>
             </div>
           )}
+
+          {/* Banner de alerta: MEI sem procuração RF ativa */}
+          {cliente.empresa?.regime === 'MEI' && !cliente.empresa.procuracaoRFAtiva && (
+            <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-error/25 bg-error/10 px-4 py-3">
+              <span className="material-symbols-outlined shrink-0 text-[18px] text-error mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>lock_person</span>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-error">Procuração RF não ativa</p>
+                <p className="mt-0.5 text-[12px] text-error/80 leading-relaxed">
+                  Este cliente MEI ainda não concedeu procuração digital ao escritório no e-CAC.
+                  Sem ela, a DAS MEI não pode ser gerada automaticamente.
+                  {cliente.empresa.procuracaoRFVerificadaEm
+                    ? ` Última verificação: ${new Date(cliente.empresa.procuracaoRFVerificadaEm).toLocaleDateString('pt-BR')}.`
+                    : ' Nenhuma verificação realizada ainda.'}
+                  {' '}Oriente o cliente a acessar o Portal e-CAC e conceder a procuração.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -330,6 +348,7 @@ export default async function ClienteDetailPage({ params }: Props) {
             vencimentoDia={cliente.vencimentoDia}
             formaPagamento={cliente.formaPagamento}
             valorMensal={Number(cliente.valorMensal)}
+            regime={cliente.empresa?.regime ?? null}
           />
         </TabsContent>
 

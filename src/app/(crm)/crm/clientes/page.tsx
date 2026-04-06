@@ -46,7 +46,7 @@ export default async function ClientesPage({ searchParams }: Props) {
       orderBy: { criadoEm: 'desc' },
       skip,
       take: PER_PAGE,
-      include: { responsavel: { select: { nome: true } }, empresa: { select: { cnpj: true, razaoSocial: true, regime: true } } },
+      include: { responsavel: { select: { nome: true } }, empresa: { select: { cnpj: true, razaoSocial: true, regime: true, procuracaoRFAtiva: true } } },
     }),
     prisma.cliente.count({ where: filterWhere }),
   ])
@@ -58,6 +58,7 @@ export default async function ClientesPage({ searchParams }: Props) {
     cnpj: c.empresa?.cnpj ?? null,
     razaoSocial: c.empresa?.razaoSocial ?? null,
     regime: c.empresa?.regime ?? null,
+    procuracaoRFAtiva: c.empresa?.procuracaoRFAtiva ?? true,
   }))
   const totalPages = Math.ceil(total / PER_PAGE)
 
@@ -120,6 +121,12 @@ export default async function ClientesPage({ searchParams }: Props) {
                           <span className="inline-flex items-center gap-0.5 rounded-[4px] bg-orange-status/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-orange-status whitespace-nowrap">
                             <span className="material-symbols-outlined text-[10px]">warning</span>
                             Sem empresa
+                          </span>
+                        )}
+                        {c.regime === 'MEI' && !c.procuracaoRFAtiva && (
+                          <span className="inline-flex items-center gap-0.5 rounded-[4px] bg-error/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-error whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[10px]">lock_person</span>
+                            Proc. RF
                           </span>
                         )}
                       </div>

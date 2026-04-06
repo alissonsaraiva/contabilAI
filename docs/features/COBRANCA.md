@@ -74,6 +74,7 @@
 - `src/components/crm/cliente-financeiro-tab.tsx` — aba Financeiro no detalhe do cliente:
   - Resumo (4 cards): mensalidade, em aberto, em atraso, status Asaas
   - **Botão "Provisionar no Asaas"** — exibido no card Status Asaas e no empty state quando `asaasCustomerId` é null. Chama `POST /api/crm/clientes/[id]/provisionar` (com confirmação). Idempotente.
+  - **Alterar valor da mensalidade** — `PATCH /api/crm/clientes/[id]/mensalidade`. Confirma via dialog, propaga para Asaas (`updatePendingPayments: true`). Card "Mensalidade" atualiza via estado local (sem reload).
   - Alterar vencimento/forma
   - QR code PIX, código de barras boleto
   - Segunda via
@@ -83,6 +84,16 @@
 - `src/app/(crm)/crm/financeiro/inadimplentes/page.tsx` + `src/components/crm/inadimplentes-client.tsx`:
   - Lista de inadimplentes
   - Cobrança individual e em lote (3 níveis: gentil/urgente/reforço) via WhatsApp
+
+- `src/app/(crm)/crm/financeiro/reajuste/page.tsx` + `src/components/crm/reajuste-mensalidades-client.tsx`:
+  - **Reajuste global de mensalidades** — acesso restrito a admin
+  - Fluxo 4 etapas: configurar percentual → preview com simulação por cliente → confirmação → resultado
+  - Aplica `POST /api/crm/financeiro/reajuste-mensalidades` com `{ percentual }`
+  - Elegíveis: status `ativo` ou `inadimplente` com `valorMensal > 0`
+  - Propaga para Asaas se tiver subscription; atualiza apenas banco se não tiver
+  - Processa sequencialmente; continua em caso de erro individual; retorna relatório de erros
+  - Valor mínimo resultante: R$ 1,00; intervalo permitido: -99% a +500%
+  - Sidebar: grupo Financeiro → item "📈 Reajuste"
 
 ### Portal
 `src/components/portal/portal-financeiro-client.tsx`:

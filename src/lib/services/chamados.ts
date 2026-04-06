@@ -22,6 +22,7 @@ import { sendPushToCliente } from '@/lib/push'
 import { prepararEntregaWhatsApp } from '@/lib/whatsapp/entregar-documento'
 import { sendMedia, sendText } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { buildRemoteJid } from '@/lib/whatsapp-utils'
 import type { CategoriaDocumento } from '@prisma/client'
 import type { EvolutionConfig } from '@/lib/evolution'
 
@@ -159,7 +160,9 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
   // 5. Envia por WhatsApp
   if (input.canais?.whatsapp?.ativo) {
     const phone = os.cliente.whatsapp ?? os.cliente.telefone
-    if (phone && documentoUrl && documentoNome) {
+    const remoteJid = phone ? buildRemoteJid(phone) : null
+
+    if (remoteJid) {
       try {
         const cfgRow = await prisma.escritorio.findFirst({
           select: { evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
@@ -170,26 +173,80 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
             apiKey:   isEncrypted(cfgRow.evolutionApiKey) ? decrypt(cfgRow.evolutionApiKey) : cfgRow.evolutionApiKey,
             instance: cfgRow.evolutionInstance,
           }
-          const digits    = phone.replace(/\D/g, '')
-          const remoteJid = `${digits.startsWith('55') ? digits : `55${digits}`}@s.whatsapp.net`
 
-          // Envia mensagem de texto primeiro
-          if (input.canais.whatsapp.mensagem) {
-            await sendText(cfg, remoteJid, input.canais.whatsapp.mensagem)
+          // Mensagem de texto: usa a do formulário ou gera mensagem padrão com contexto do chamado
+          const textoMensagem = input.canais.whatsapp.mensagem?.trim()
+            || [
+                `Olá! Seu chamado *${os.titulo}* foi resolvido.`,
+                input.resposta ? `\n${input.resposta}` : '',
+                documentoNome ? `\n\nSegue em anexo: *${documentoNome}*` : '',
+                '\n\nEm caso de dúvidas, estamos à disposição.',
+              ].join('')
+
+          // Envia mensagem de texto com contexto do chamado
+          const textResult = await sendText(cfg, remoteJid, textoMensagem)
+
+          // Busca ou cria conversaIA para salvar no chat de atendimentos
+          let conversa = await prisma.conversaIA.findFirst({
+            where: { canal: 'whatsapp', OR: [{ remoteJid }, { clienteId: os.clienteId }] },
+            orderBy: { atualizadaEm: 'desc' },
+            select: { id: true },
+          })
+          if (!conversa) {
+            conversa = await prisma.conversaIA.create({
+              data: { canal: 'whatsapp', remoteJid, clienteId: os.clienteId },
+              select: { id: true },
+            })
           }
 
-          // Prepara e envia documento via abstração plugável
-          const entrega = await prepararEntregaWhatsApp(
-            { id: result.documentoId ?? '', nome: documentoNome, url: documentoUrl, mimeType: documentoMime ?? null, tipo: os.titulo },
-            { mensagem: undefined }, // caption já na mensagem de texto acima
-          )
-          const sendResult = await sendMedia(cfg, remoteJid, entrega.sendMediaParams)
-          result.whatsappOk = sendResult.ok
+          // Persiste a mensagem de texto no chat
+          await prisma.mensagemIA.create({
+            data: {
+              conversaId: conversa.id,
+              role:       'assistant',
+              conteudo:   textoMensagem,
+              status:     textResult.ok ? 'sent' : 'failed',
+              tentativas: textResult.ok ? 1 : ('attempts' in textResult ? textResult.attempts : 1),
+              erroEnvio:  textResult.ok ? null : textResult.error,
+            },
+          })
+          await prisma.conversaIA.update({
+            where: { id: conversa.id },
+            data:  { atualizadaEm: new Date() },
+          })
+
+          // Envia documento se houver
+          if (documentoUrl && documentoNome) {
+            const entrega = await prepararEntregaWhatsApp(
+              { id: result.documentoId ?? '', nome: documentoNome, url: documentoUrl, mimeType: documentoMime ?? null, tipo: os.titulo },
+              { mensagem: undefined },
+            )
+            const sendResult = await sendMedia(cfg, remoteJid, entrega.sendMediaParams)
+            result.whatsappOk = sendResult.ok
+
+            // Persiste o arquivo no chat
+            await prisma.mensagemIA.create({
+              data: {
+                conversaId:    conversa.id,
+                role:          'assistant',
+                conteudo:      `[Arquivo: ${documentoNome}]`,
+                status:        sendResult.ok ? 'sent' : 'failed',
+                tentativas:    sendResult.ok ? 1 : ('attempts' in sendResult ? sendResult.attempts : 1),
+                erroEnvio:     sendResult.ok ? null : sendResult.error,
+                mediaUrl:      documentoUrl,
+                mediaType:     'document',
+                mediaFileName: documentoNome,
+                mediaMimeType: documentoMime ?? 'application/octet-stream',
+              },
+            })
+          } else {
+            result.whatsappOk = textResult.ok
+          }
 
           // Registra interação de envio WhatsApp
           await registrarInteracao({
             tipo:      'whatsapp_enviado',
-            titulo:    `Documento enviado via WhatsApp (Chamado: ${os.titulo})`,
+            titulo:    `Resolução enviada via WhatsApp (Chamado: ${os.titulo})`,
             clienteId: os.clienteId,
             origem:    'usuario',
             usuarioId: input.usuarioId,
@@ -215,15 +272,23 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
           apiKey:   isEncrypted(cfgRow.evolutionApiKey) ? decrypt(cfgRow.evolutionApiKey) : cfgRow.evolutionApiKey,
           instance: cfgRow.evolutionInstance,
         }
+
+        const textoAdicional = input.canais.whatsapp.mensagem?.trim()
+          || [
+              `Olá! O chamado *${os.titulo}* foi resolvido.`,
+              input.resposta ? `\n${input.resposta}` : '',
+              documentoNome ? `\n\nSegue em anexo: *${documentoNome}*` : '',
+              '\n\nEm caso de dúvidas, estamos à disposição.',
+            ].join('')
+
         for (const dest of input.wppDestinatariosAdicionais) {
-          const digits    = dest.telefone.replace(/\D/g, '')
-          const jid       = `${digits.startsWith('55') ? digits : `55${digits}`}@s.whatsapp.net`
-          if (input.canais.whatsapp.mensagem) {
-            await sendText(cfg, jid, input.canais.whatsapp.mensagem).catch((err: unknown) => {
-              console.error('[chamados] falha ao enviar WhatsApp para destinatário adicional:', { jid, osId: input.osId, err })
-              Sentry.captureException(err, { tags: { module: 'chamados', operation: 'whatsapp-adicional-texto' }, extra: { osId: input.osId, jid } })
-            })
-          }
+          const jid = buildRemoteJid(dest.telefone)
+          if (!jid) continue
+
+          await sendText(cfg, jid, textoAdicional).catch((err: unknown) => {
+            console.error('[chamados] falha ao enviar WhatsApp para destinatário adicional:', { jid, osId: input.osId, err })
+            Sentry.captureException(err, { tags: { module: 'chamados', operation: 'whatsapp-adicional-texto' }, extra: { osId: input.osId, jid } })
+          })
           if (documentoUrl && documentoNome) {
             const entregaAd = await prepararEntregaWhatsApp(
               { id: result.documentoId ?? '', nome: documentoNome, url: documentoUrl, mimeType: documentoMime ?? null, tipo: os.titulo },
@@ -236,7 +301,7 @@ export async function resolverOS(input: ResolverOSInput): Promise<ResolverOSResu
           }
           await registrarInteracao({
             tipo:      'whatsapp_enviado',
-            titulo:    `Documento enviado via WhatsApp (sócio ${dest.nome})`,
+            titulo:    `Resolução enviada via WhatsApp (sócio ${dest.nome})`,
             clienteId: os.clienteId,
             origem:    'usuario',
             usuarioId: input.usuarioId,

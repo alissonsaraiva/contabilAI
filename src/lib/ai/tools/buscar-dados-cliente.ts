@@ -123,7 +123,7 @@ const buscarDadosClienteTool: Tool = {
       }
     }
 
-    const empresa = (cliente as any).empresa as { regime?: string; cnpj?: string; razaoSocial?: string } | null
+    const empresa = (cliente as any).empresa as { regime?: string; cnpj?: string; razaoSocial?: string; procuracaoRFAtiva?: boolean; procuracaoRFVerificadaEm?: Date | null } | null
     const cobrancaAberta = (cliente as any).cobrancasAsaas?.[0] as {
       id: string; valor: unknown; vencimento: Date; status: string;
       formaPagamento: string; pixCopiaECola: string | null; linkBoleto: string | null
@@ -138,6 +138,12 @@ const buscarDadosClienteTool: Tool = {
       `Telefone: ${cliente.telefone}`,
       ...(empresa?.cnpj ? [`CNPJ: ${empresa.cnpj}`] : []),
       ...(empresa?.razaoSocial ? [`Razão social: ${empresa.razaoSocial}`] : []),
+      ...(empresa?.regime === 'MEI' ? [
+        `Procuração RF (e-CAC): ${empresa.procuracaoRFAtiva ? 'ativa' : 'PENDENTE — cliente ainda não concedeu procuração ao escritório'}`,
+        ...(empresa.procuracaoRFVerificadaEm
+          ? [`Última verificação RF: ${new Date(empresa.procuracaoRFVerificadaEm).toLocaleDateString('pt-BR')}`]
+          : []),
+      ] : []),
       `Responsável: ${(cliente as any).responsavel?.nome ?? 'não atribuído'}`,
       `Vencimento: dia ${cliente.vencimentoDia}`,
       `Pagamento: ${cliente.formaPagamento}`,

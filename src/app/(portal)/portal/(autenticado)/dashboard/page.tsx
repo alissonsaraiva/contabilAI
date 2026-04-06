@@ -34,7 +34,7 @@ export default async function PortalDashboardPage() {
         dataInicio: true, status: true, tipoContribuinte: true,
         responsavel: { select: { nome: true } },
         empresa: {
-          select: { cnpj: true, razaoSocial: true, nomeFantasia: true, regime: true },
+          select: { cnpj: true, razaoSocial: true, nomeFantasia: true, regime: true, procuracaoRFAtiva: true },
         },
       },
     }),
@@ -82,6 +82,29 @@ export default async function PortalDashboardPage() {
             </Link>
           </div>
         </div>
+      )}
+
+      {/* ── Alerta procuração RF ── */}
+      {regime === 'MEI' && empresa?.procuracaoRFAtiva === false && (
+        <Link
+          href="/portal/procuracao-rf"
+          className="flex items-start gap-3.5 rounded-2xl border border-error/30 bg-error/8 px-5 py-4 transition-opacity hover:opacity-90"
+        >
+          <span
+            className="material-symbols-outlined shrink-0 text-[22px] text-error mt-0.5"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            lock_person
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[14px] font-bold text-error">Autorização Receita Federal pendente</p>
+            <p className="mt-0.5 text-[13px] text-error/80 leading-relaxed">
+              Você ainda não concedeu a procuração digital ao escritório. Sem ela, sua DAS MEI não pode ser gerada automaticamente.{' '}
+              <span className="font-semibold underline underline-offset-2">Clique aqui para ver como resolver</span>.
+            </p>
+          </div>
+          <span className="material-symbols-outlined shrink-0 text-[18px] text-error/60 mt-0.5">chevron_right</span>
+        </Link>
       )}
 
       {/* ── Saudação ── */}

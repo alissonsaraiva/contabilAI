@@ -64,6 +64,13 @@ enum Regime {
   Autonomo
 }
 
+enum StatusDasMEI {
+  pendente
+  paga
+  vencida
+  erro
+}
+
 enum TipoContribuinte {
   pj  // pessoa jurídica — tem empresa/CNPJ
   pf  // pessoa física — autônomo, profissional liberal
@@ -211,12 +218,17 @@ model Empresa {
   // Configuração fiscal por cliente (JSON livre para overrides específicos)
   spedyConfigFiscal       Json?
 
+  // Procuração digital RF — status cacheado (verificado via integra-procuracoes ou manualmente)
+  procuracaoRFAtiva          Boolean   @default(false)
+  procuracaoRFVerificadaEm   DateTime?
+
   cliente       Cliente?
   socios        Socio[]
   portalTokens  PortalToken[]
   chamados     Chamado[]
   documentos    Documento[]
   notasFiscais  NotaFiscal[]
+  dasMeis       DasMEI[]
 
   @@index([cnpj], name: "empresa_cnpj_partial")
   @@map("empresas")
@@ -282,6 +294,7 @@ model Cliente {
   cobrancasAsaas    CobrancaAsaas[]
   notasFiscais      NotaFiscal[]
   comunicadoEnvios  ComunicadoEnvio[]
+  dasMeis           DasMEI[]
 
   @@index([leadId], name: "cliente_leadId_partial")
   @@index([empresaId], name: "cliente_empresaId_partial")
@@ -697,6 +710,23 @@ model Escritorio {
   evolutionApiKey      String?  @db.Text  // armazenada encriptada
   evolutionInstance    String?  // nome da instância
 
+  // Integra Contador (SERPRO) — acesso a serviços da Receita Federal via API
+  // Requer contrato com SERPRO + procuração digital concedida por cada cliente via e-CAC
+  integraContadorClientId     String?             // consumer key do contrato SERPRO
+  integraContadorClientSecret String? @db.Text    // consumer secret — ENCRYPTED
+  integraContadorAmbiente     String? @default("homologacao") // "homologacao" | "producao"
+  integraContadorCertBase64   String? @db.Text    // certificado e-CNPJ do escritório (.pfx em base64) — ENCRYPTED
+  integraContadorCertSenha    String? @db.Text    // senha do certificado — ENCRYPTED
+  integraContadorEnabled      Boolean @default(false)
+  integraContadorModulos      String? @default("[]") // JSON array: ["integra-sn","integra-mei","integra-sitfis","integra-pagamento",...]
+
+  // DAS MEI — configurações de automação
+  dasMeiVencimentoDia       Int     @default(20)   // dia do mês do vencimento da DAS
+  dasMeiDiasAntecedencia    Int     @default(5)    // dias antes do vencimento para gerar a DAS
+  dasMeiCanalEmail          Boolean @default(true)
+  dasMeiCanalWhatsapp       Boolean @default(true)
+  dasMeiCanalPwa            Boolean @default(true)
+
   ativo            Boolean  @default(true)
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt
@@ -1014,4 +1044,31 @@ model WebhookLog {
   @@unique([provider, eventId])
   @@index([criadoEm])
   @@map("webhook_logs")
+}
+
+model DasMEI {
+  id              String       @id @default(uuid())
+  empresaId       String
+  empresa         Empresa      @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  clienteId       String
+  cliente         Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  competencia     String       // "AAAAMM" ex: "202601" = janeiro/2026
+  codigoBarras    String?      @db.Text
+  valor           Decimal?     @db.Decimal(10, 2)
+  dataVencimento  DateTime?
+  urlDas          String?      @db.Text
+  status          StatusDasMEI @default(pendente)
+  erroMsg         String?      @db.Text
+  notificadoEm    DateTime?    // quando enviou notificação "DAS disponível"
+  lembreteEnviadoEm DateTime?  // quando enviou lembrete de vencimento
+  raw             Json?        // resposta bruta do SERPRO
+  criadoEm        DateTime     @default(now())
+  atualizadoEm    DateTime     @updatedAt
+
+  @@unique([empresaId, competencia])
+  @@index([competencia])
+  @@index([status])
+  @@index([clienteId])
+  @@index([dataVencimento, status])
+  @@map("das_mei")
 }

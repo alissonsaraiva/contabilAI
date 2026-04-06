@@ -148,6 +148,8 @@ type EmpresaData = {
   razaoSocial?: string | null
   nomeFantasia?: string | null
   regime?: string | null
+  procuracaoRFAtiva?: boolean
+  procuracaoRFVerificadaEm?: Date | null
   socios?: SocioData[]
 }
 
@@ -166,12 +168,20 @@ export async function indexarEmpresa(empresa: EmpresaData): Promise<void> {
     s.telefone       ? `    Telefone: ${s.telefone}` : '',
   ].filter(Boolean).join('\n'))
 
+  const procLinhas: string[] = empresa.regime === 'MEI' ? [
+    `Procuração RF (e-CAC): ${empresa.procuracaoRFAtiva ? 'ativa' : 'pendente — cliente ainda não concedeu procuração ao escritório'}`,
+    ...(empresa.procuracaoRFVerificadaEm
+      ? [`Última verificação RF: ${new Date(empresa.procuracaoRFVerificadaEm).toLocaleDateString('pt-BR')}`]
+      : []),
+  ] : []
+
   const linhas = [
     `Empresa`,
     empresa.razaoSocial  ? `Razão Social: ${empresa.razaoSocial}` : '',
     empresa.nomeFantasia ? `Nome Fantasia: ${empresa.nomeFantasia}` : '',
     empresa.cnpj         ? `CNPJ: ${empresa.cnpj}` : '',
     empresa.regime       ? `Regime tributário: ${empresa.regime}` : '',
+    ...procLinhas,
     ...(sociosLinhas.length ? [`Sócios (${sociosLinhas.length}):`, ...sociosLinhas] : []),
   ].filter(Boolean).join('\n')
 
