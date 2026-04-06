@@ -47,6 +47,7 @@
 | `/api/portal/chat` | Portal session | Clara (IA) |
 | `/api/portal/push/subscribe` | Portal session | Registrar web push |
 | `/api/portal/financeiro/das-mei` | Portal session | DAS MEI do cliente (only MEI) |
+| `/api/portal/financeiro/limite-mei` | Portal session | Faturamento acumulado via NFS-e + percentual do limite (only MEI) |
 | `/api/portal/procuracao-rf` GET | Portal session | Status procuração RF (`{ regime, procuracaoRFAtiva, verificadaEm }`) |
 | `/api/portal/procuracao-rf` POST | Portal session | Verificação imediata via SERPRO (throttle 10 min); degrada se módulo não contratado |
 
@@ -102,17 +103,33 @@ Vencimentos calculados dinamicamente por `proximoAnual(mes)`:
 - Se o mês ainda não passou no ano corrente → usa o ano corrente
 - Se já passou → usa o próximo ano
 
-## Página Financeiro — DAS MEI e Procuração RF (v3.10.27–28)
+## Página Financeiro — DAS MEI, Limite MEI e Procuração RF (v3.10.27–28)
 
 **Arquivo:** `src/app/(portal)/portal/(autenticado)/financeiro/page.tsx`
 **Componente:** `src/components/portal/portal-financeiro-client.tsx`
 
-- **Prop `regime`**: exibe seção DAS MEI somente quando `regime === 'MEI'`
+- **Prop `regime`**: exibe seções MEI somente quando `regime === 'MEI'`
 - **Prop `procuracaoRFAtiva`**: quando `false`, renderiza banner vermelho clicável acima da seção DAS MEI ligando a `/portal/procuracao-rf`
 - DAS MEI: cards responsivos (PWA-friendly) com "Copiar código" e "Baixar DAS"
 - Erro de carregamento da DAS: estado `dasErro` com botão "Tentar novamente"
+- **Widget Limite MEI** (`LimiteMeiWidget`): busca `GET /api/portal/financeiro/limite-mei` em paralelo com a DAS; exibe régua de faturamento anual com zona colorida (verde/amarelo/vermelho) e breakdown mensal; ocultado para não-MEI e em caso de erro (exibe aviso discreto)
 
-## Página Procuração RF (v3.10.27)
+### Widget LimiteMeiWidget (`src/components/ui/limite-mei-widget.tsx`)
+
+Compartilhado entre CRM (`variant="crm"`) e portal (`variant="portal"` — padrão). Props:
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `acumulado` | number | Valor faturado no ano |
+| `limite` | number | Limite anual (R$ 81.000) |
+| `percentual` | number | 0–100 (cap visual em 100%) |
+| `zona` | `verde\|amarelo\|vermelho` | Cor da régua |
+| `restante` | number | Margem restante até o limite |
+| `ano` | number | Ano fiscal exibido |
+| `porMes` | array | Breakdown `{ mes, ano, total }` por mês |
+| `variant` | `crm\|portal` | Estilo do card |
+
+## Página Procuração RF (v3.10.27–28)
 
 **Rota:** `/portal/procuracao-rf`
 **Arquivo:** `src/app/(portal)/portal/(autenticado)/procuracao-rf/page.tsx`
@@ -123,6 +140,7 @@ Vencimentos calculados dinamicamente por `proximoAnual(mes)`:
 - **Botão "Já autorizei — verificar agora"**: chama `POST /api/portal/procuracao-rf` que aciona SERPRO imediatamente (ou degrada para "verificação automática" se módulo não contratado)
 - **Throttle**: POST bloqueado por 10 min após verificação recente (retorna resultado cacheado)
 - **Passo a passo e-CAC**: 5 etapas instruindo o cliente como conceder a procuração
+- **Passo 3 — CNPJ do escritório** (v3.10.28): exibe o CNPJ formatado com botão "Copiar CNPJ" para facilitar o preenchimento no e-CAC; prop `cnpjEscritorio` passada pelo server component
 - **Seção "Por que é necessária"**: explica DAS automática, situação fiscal, certidões e alertas
 
 ## PWA e Web Push

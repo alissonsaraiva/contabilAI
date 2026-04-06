@@ -4,16 +4,33 @@ import { useState } from 'react'
 
 type Props = {
   nomeEscritorio: string
+  cnpjEscritorio: string | null
   procuracaoRFAtiva: boolean
   verificadaEm: string | null
 }
 
-export function PortalProcuracaoClient({ nomeEscritorio, procuracaoRFAtiva: inicialAtiva, verificadaEm: inicialVerificadaEm }: Props) {
+function formatarCNPJ(cnpj: string): string {
+  const s = cnpj.replace(/\D/g, '')
+  if (s.length !== 14) return cnpj
+  return `${s.slice(0,2)}.${s.slice(2,5)}.${s.slice(5,8)}/${s.slice(8,12)}-${s.slice(12)}`
+}
+
+export function PortalProcuracaoClient({ nomeEscritorio, cnpjEscritorio, procuracaoRFAtiva: inicialAtiva, verificadaEm: inicialVerificadaEm }: Props) {
   const [ativa, setAtiva]               = useState(inicialAtiva)
   const [verificadaEm, setVerificadaEm] = useState<string | null>(inicialVerificadaEm)
   const [verificando, setVerificando]   = useState(false)
   const [mensagem, setMensagem]         = useState<string | null>(null)
   const [mensagemTipo, setMensagemTipo] = useState<'ok' | 'erro' | 'info'>('info')
+  const [copiado, setCopiado]           = useState(false)
+
+  function copiarCNPJ() {
+    if (!cnpjEscritorio) return
+    const cnpjLimpo = cnpjEscritorio.replace(/\D/g, '')
+    navigator.clipboard.writeText(cnpjLimpo).then(() => {
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2000)
+    })
+  }
 
   async function verificar() {
     setVerificando(true)
@@ -140,35 +157,59 @@ export function PortalProcuracaoClient({ nomeEscritorio, procuracaoRFAtiva: inic
                 n: '1',
                 titulo: 'Acesse o Portal e-CAC',
                 descricao: 'Entre em cav.receita.fazenda.gov.br usando seu certificado digital, conta gov.br ou código de acesso.',
+                cnpj: null,
               },
               {
                 n: '2',
                 titulo: 'Localize "Procuração Eletrônica"',
                 descricao: 'No menu, acesse Outros serviços → Procuração Eletrônica → Cadastrar Procuração.',
+                cnpj: null,
               },
               {
                 n: '3',
-                titulo: 'Informe o CNPJ do seu escritório contábil',
+                titulo: 'Informe o CNPJ do escritório contábil',
                 descricao: `Busque pelo CNPJ de ${nomeEscritorio} e selecione os serviços de acesso desejados (MEI, Situação Fiscal, Simples Nacional).`,
+                cnpj: cnpjEscritorio,
               },
               {
                 n: '4',
                 titulo: 'Confirme e salve',
                 descricao: 'Revise as permissões e confirme a procuração. Ela fica ativa imediatamente no sistema da Receita Federal.',
+                cnpj: null,
               },
               {
                 n: '5',
                 titulo: 'Clique em "Já autorizei"',
                 descricao: 'Após concluir no e-CAC, volte aqui e clique no botão acima para que confirmemos sua autorização.',
+                cnpj: null,
               },
-            ].map(({ n, titulo, descricao }) => (
+            ].map(({ n, titulo, descricao, cnpj }) => (
               <div key={n} className="flex gap-4 px-5 py-4">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-extrabold text-primary">
                   {n}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold text-on-surface">{titulo}</p>
-                  <p className="mt-0.5 text-[12px] text-on-surface-variant/70 leading-relaxed">{descricao}</p>
+                  {descricao && (
+                    <p className="mt-0.5 text-[12px] text-on-surface-variant/70 leading-relaxed">{descricao}</p>
+                  )}
+                  {cnpj && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <code className="rounded-lg bg-primary/8 px-3 py-1.5 text-[13px] font-mono font-semibold text-primary tracking-wider">
+                        {formatarCNPJ(cnpj)}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={copiarCNPJ}
+                        className="flex items-center gap-1.5 rounded-lg border border-primary/20 px-3 py-1.5 text-[12px] font-medium text-primary transition-colors hover:bg-primary/8"
+                      >
+                        <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: copiado ? "'FILL' 1" : "'FILL' 0" }}>
+                          {copiado ? 'check' : 'content_copy'}
+                        </span>
+                        {copiado ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

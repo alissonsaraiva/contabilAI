@@ -120,6 +120,7 @@ export async function gerarESalvarDASMEI(clienteId: string, competencia?: string
   if (!cliente) throw new Error(`Cliente ${clienteId} não encontrado.`)
   if (!cliente.empresa?.cnpj) throw new Error(`Cliente ${clienteId} não possui CNPJ cadastrado.`)
   if (cliente.empresa.regime !== 'MEI') throw new Error(`Cliente ${clienteId} não é MEI.`)
+  if (!cliente.empresa.procuracaoRFAtiva) throw new Error(`Cliente ${clienteId} não possui procuração RF ativa — DAS não pode ser gerada pelo SERPRO.`)
 
   const cnpj = cliente.empresa.cnpj.replace(/[.\-/\s]/g, '')
 

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { formatBRL } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { LimiteMeiWidget } from '@/components/ui/limite-mei-widget'
 
 type CobrancaStatus = 'PENDING' | 'RECEIVED' | 'OVERDUE' | 'REFUNDED' | 'CANCELLED'
 
@@ -128,6 +129,15 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
   const [dasErro, setDasErro]         = useState<string | null>(null)
   const [copiandoDAS, setCopiandoDAS] = useState<string | null>(null)
 
+  // Limite MEI
+  type LimiteMEIData = {
+    acumulado: number; limite: number; percentual: number
+    zona: 'verde' | 'amarelo' | 'vermelho'; restante: number; ano: number
+    porMes: { mes: number; ano: number; total: number }[]
+  }
+  const [limiteMei, setLimiteMei]       = useState<LimiteMEIData | null>(null)
+  const [limiteMeiErro, setLimiteMeiErro] = useState(false)
+
   // Guard de double-click para segunda via (React state é assíncrono — ref é síncrono)
   const segundaViaEmAndamento = useRef(false)
 
@@ -150,11 +160,22 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
     setDasLoading(true)
     setDasErro(null)
     try {
-      const res = await fetch('/api/portal/financeiro/das-mei')
-      if (!res.ok) throw new Error(`Erro ${res.status} ao carregar DAS.`)
-      const json = await res.json()
-      setDasMeis(json.dasMeis ?? [])
+      const [dasRes, limiteRes] = await Promise.all([
+        fetch('/api/portal/financeiro/das-mei'),
+        fetch('/api/portal/financeiro/limite-mei'),
+      ])
+      if (!dasRes.ok) throw new Error(`Erro ${dasRes.status} ao carregar DAS.`)
+      const dasJson = await dasRes.json()
+      setDasMeis(dasJson.dasMeis ?? [])
+      if (limiteRes.ok) {
+        const limiteJson = await limiteRes.json()
+        if (limiteJson.regime === 'MEI') setLimiteMei(limiteJson)
+        else setLimiteMeiErro(false)
+      } else {
+        setLimiteMeiErro(true)
+      }
     } catch (err) {
+      setLimiteMeiErro(true)
       setDasErro(err instanceof Error ? err.message : 'Não foi possível carregar as DAS MEI.')
     } finally {
       setDasLoading(false)
@@ -692,6 +713,32 @@ export function PortalFinanceiroClient({ clienteId, valorMensal, vencimentoDia, 
           </div>
           <span className="material-symbols-outlined shrink-0 text-[18px] text-error/60 mt-0.5">chevron_right</span>
         </Link>
+      )}
+
+      {/* ─── Limite MEI — régua de faturamento anual ───────────────────────────── */}
+      {regime === 'MEI' && limiteMei && (
+        <LimiteMeiWidget
+          acumulado={limiteMei.acumulado}
+          limite={limiteMei.limite}
+          percentual={limiteMei.percentual}
+          zona={limiteMei.zona}
+          restante={limiteMei.restante}
+          ano={limiteMei.ano}
+          variant="portal"
+        />
+      )}
+      {regime === 'MEI' && limiteMeiErro && !limiteMei && (
+        <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant/40 mt-0.5 shrink-0">trending_up</span>
+            <div>
+              <p className="text-sm font-medium text-on-surface">Limite MEI indisponível</p>
+              <p className="text-[12px] text-on-surface-variant/60 mt-0.5">
+                Não foi possível carregar o faturamento acumulado. Tente recarregar a página.
+              </p>
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* ─── DAS MEI — exibido apenas para clientes MEI ───────────────────────── */}

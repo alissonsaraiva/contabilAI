@@ -110,6 +110,7 @@ import './consultar-pgdas'
 import './consultar-caixa-postal-rf'
 import './consultar-das-mei'
 import './enviar-das-mei-cliente'
+import './consultar-limite-mei'
 
 export * from './registry'
 export * from './types'

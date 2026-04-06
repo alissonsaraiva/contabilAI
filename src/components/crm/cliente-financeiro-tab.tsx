@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { formatBRL, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { LimiteMeiWidget } from '@/components/ui/limite-mei-widget'
 
 type CobrancaStatus = 'PENDING' | 'RECEIVED' | 'OVERDUE' | 'REFUNDED' | 'CANCELLED'
 
@@ -97,6 +98,15 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
   const [loading, setLoading] = useState(true)
   const [syncLoading, setSyncLoading] = useState(false)
 
+  // Limite MEI
+  type LimiteMEIData = {
+    acumulado: number; limite: number; percentual: number
+    zona: 'verde' | 'amarelo' | 'vermelho'; restante: number; ano: number
+    porMes: { mes: number; ano: number; total: number }[]
+  }
+  const [limiteMei, setLimiteMei]         = useState<LimiteMEIData | null>(null)
+  const [limiteMeiErro, setLimiteMeiErro] = useState(false)
+
   // DAS MEI
   const [dasData, setDasData]                   = useState<DasMEIData | null>(null)
   const [dasLoading, setDasLoading]             = useState(false)
@@ -131,8 +141,18 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
     if (regime !== 'MEI') return
     setDasLoading(true)
     try {
-      const res = await fetch(`/api/crm/clientes/${clienteId}/das-mei`)
-      if (res.ok) setDasData(await res.json())
+      const [dasRes, limiteRes] = await Promise.all([
+        fetch(`/api/crm/clientes/${clienteId}/das-mei`),
+        fetch(`/api/crm/clientes/${clienteId}/limite-mei`),
+      ])
+      if (dasRes.ok) setDasData(await dasRes.json())
+      if (limiteRes.ok) {
+        const limiteJson = await limiteRes.json()
+        if (limiteJson.regime === 'MEI') setLimiteMei(limiteJson)
+        else setLimiteMeiErro(false)
+      } else {
+        setLimiteMeiErro(true)
+      }
     } finally {
       setDasLoading(false)
     }
@@ -669,6 +689,26 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
         <p className="text-right text-[11px] text-on-surface-variant/50">
           Último sync: {new Date(data.asaasUltimoSync).toLocaleString('pt-BR')}
         </p>
+      )}
+
+      {/* ─── Limite MEI — régua de faturamento anual ───────────────────────────── */}
+      {regime === 'MEI' && limiteMei && (
+        <LimiteMeiWidget
+          acumulado={limiteMei.acumulado}
+          limite={limiteMei.limite}
+          percentual={limiteMei.percentual}
+          zona={limiteMei.zona}
+          restante={limiteMei.restante}
+          ano={limiteMei.ano}
+          variant="crm"
+          porMes={limiteMei.porMes}
+        />
+      )}
+      {regime === 'MEI' && limiteMeiErro && !limiteMei && (
+        <div className="flex items-center gap-2 rounded-xl border border-outline-variant/15 bg-surface-container/50 px-4 py-3 text-[12px] text-on-surface-variant/60">
+          <span className="material-symbols-outlined text-[16px]">warning</span>
+          Não foi possível carregar o limite MEI. Verifique se o cliente possui NFS-e emitidas no sistema.
+        </div>
       )}
 
       {/* ─── Seção DAS MEI — exibida apenas para clientes MEI ─────────────────── */}

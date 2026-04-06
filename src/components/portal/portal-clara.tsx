@@ -86,6 +86,8 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
   const bottomRef        = useRef<HTMLDivElement>(null)
   const inputRef         = useRef<HTMLInputElement>(null)
   const openRef          = useRef(open)
+  const msgCountRef      = useRef(0)
+  const sseHealthyRef    = useRef(false)
 
   // Mantém openRef em sync para uso dentro do callback SSE
   useEffect(() => { openRef.current = open }, [open])
@@ -161,6 +163,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
 
       es.onmessage = (e) => {
         retryCount = 0
+        sseHealthyRef.current = true
         try {
           const data = JSON.parse(e.data) as { type?: string; id?: string; role?: string; conteudo?: string; mensagemId?: string }
           if (data.type === 'mensagem_excluida' && data.mensagemId) {
@@ -179,6 +182,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
 
       es.onerror = () => {
         es.close()
+        sseHealthyRef.current = false
         if (closed) return
         const delay = Math.min(2000 * 2 ** retryCount, 30_000)
         retryCount++
@@ -192,6 +196,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
 
     return () => {
       closed = true
+      sseHealthyRef.current = false
       if (retryTimer) clearTimeout(retryTimer)
       es?.close()
     }
@@ -199,10 +204,11 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
 
   // Polling de 8s — fallback para quando SSE não cruza workers em produção.
   // Faz merge completo por ID: detecta mensagens novas E exclusões de mensagens existentes.
+  // Só roda quando SSE não está saudável (evita fetch duplo quando SSE ativo).
   useEffect(() => {
     if (!conversaId || !sessionId) return
     const id = setInterval(async () => {
-      if (document.hidden) return
+      if (document.hidden || sseHealthyRef.current) return
       try {
         const res = await fetch(`/api/portal/chat?sessionId=${sessionId}`)
         if (!res.ok) return
@@ -269,15 +275,26 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
     return () => clearInterval(id)
   }, [conversaId, sessionId])
 
-  // Scroll / focus ao abrir o painel
+  // Scroll / focus ao abrir o painel — só quando `open` muda
   useEffect(() => {
     if (open) {
       setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+        bottomRef.current?.scrollIntoView({ behavior: 'instant' })
         inputRef.current?.focus()
       }, 100)
     }
-  }, [open, msgs])
+  }, [open])
+
+  // Scroll suave somente quando chegam mensagens novas (count cresce)
+  useEffect(() => {
+    const total = msgs.length
+    if (total > msgCountRef.current) {
+      msgCountRef.current = total
+      if (open) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }
+    }
+  }, [msgs, open])
 
   function toggleOpen() {
     setOpen(v => {

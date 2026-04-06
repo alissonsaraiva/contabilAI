@@ -69,6 +69,11 @@ export default function DadosPage({ searchParams }: Props) {
     cepEmpresa: '', enderecoEmpresa: '', numeroEmpresa: '', complementoEmpresa: '', bairroEmpresa: '', cidadeEmpresa: '', estadoEmpresa: '',
   })
   const [erros, setErros] = useState<Record<string, string>>({})
+  const [tipoSimulador, setTipoSimulador] = useState<string | null>(null)
+
+  // Seção empresa aparece quando há CNPJ exigido pelo plano, ou quando tipo é PJ/liberal
+  // Oculta para quem ainda não tem empresa (nao_abri/abertura) e ainda está carregando (null = mostrar por segurança)
+  const mostrarEmpresa = precisaCnpj || tipoSimulador === null || !['nao_abri', 'abertura'].includes(tipoSimulador)
 
   const autoSavePayload = useMemo(() => JSON.stringify({
     dadosJson: {
@@ -103,36 +108,44 @@ export default function DadosPage({ searchParams }: Props) {
     if (!leadId) return
     fetch(`/api/onboarding/lead/${leadId}`)
       .then(r => r.json())
-      .then((lead: { contatoEntrada?: string; dadosJson?: Record<string, string> }) => {
+      .then((lead: { contatoEntrada?: string; dadosJson?: Record<string, unknown> }) => {
         const d = lead.dadosJson
+        const contato = lead.contatoEntrada ?? ''
+
+        // Lê tipo do simulador para controlar visibilidade da seção empresa
+        const sim = d?.simulador as { tipo?: string } | undefined
+        if (sim?.tipo) setTipoSimulador(sim.tipo)
+
         if (d && Object.keys(d).length > 0) {
+          const str = (k: string) => (d[k] as string | undefined) ?? undefined
           setForm(f => ({
             ...f,
-            nome:               d['Nome completo']          ?? f.nome,
-            cpf:                d['CPF']                    ?? f.cpf,
-            email:              d['E-mail']                 ?? f.email,
-            telefone:           d['Telefone']               ?? f.telefone,
-            cep:                d['CEP']                    ?? f.cep,
-            logradouro:         d['Logradouro']             ?? f.logradouro,
-            numero:             d['Número']                 ?? f.numero,
-            complemento:        d['Complemento']            ?? f.complemento,
-            bairro:             d['Bairro']                 ?? f.bairro,
-            cidade:             d['Cidade']                 ?? f.cidade,
-            estado:             d['Estado']                 ?? f.estado,
-            cnpj:               d['CNPJ']                   ?? f.cnpj,
-            razaoSocial:        d['Razão Social']           ?? f.razaoSocial,
-            regime:             d['Regime']                 ?? f.regime,
-            nomeFantasia:       d['Nome Fantasia']          ?? f.nomeFantasia,
-            cepEmpresa:         d['CEP Empresa']            ?? f.cepEmpresa,
-            enderecoEmpresa:    d['Endereço Empresa']       ?? f.enderecoEmpresa,
-            numeroEmpresa:      d['Número Empresa']         ?? f.numeroEmpresa,
-            complementoEmpresa: d['Complemento Empresa']    ?? f.complementoEmpresa,
-            bairroEmpresa:      d['Bairro Empresa']         ?? f.bairroEmpresa,
-            cidadeEmpresa:      d['Cidade Empresa']         ?? f.cidadeEmpresa,
-            estadoEmpresa:      d['Estado Empresa']         ?? f.estadoEmpresa,
+            nome:               str('Nome completo')         ?? f.nome,
+            cpf:                str('CPF')                   ?? f.cpf,
+            // Email: prefere dado salvo; caso não salvo ainda, usa contatoEntrada se for email
+            email:              str('E-mail')                ?? (/\S+@\S+\.\S+/.test(contato) ? contato : f.email),
+            // Telefone: prefere dado salvo; caso não salvo ainda, usa contatoEntrada se for fone
+            telefone:           str('Telefone')              ?? (isPhone(contato) ? formatTelefone(contato) : f.telefone),
+            cep:                str('CEP')                   ?? f.cep,
+            logradouro:         str('Logradouro')            ?? f.logradouro,
+            numero:             str('Número')                ?? f.numero,
+            complemento:        str('Complemento')           ?? f.complemento,
+            bairro:             str('Bairro')                ?? f.bairro,
+            cidade:             str('Cidade')                ?? f.cidade,
+            estado:             str('Estado')                ?? f.estado,
+            cnpj:               str('CNPJ')                  ?? f.cnpj,
+            razaoSocial:        str('Razão Social')          ?? f.razaoSocial,
+            regime:             str('Regime')                ?? f.regime,
+            nomeFantasia:       str('Nome Fantasia')         ?? f.nomeFantasia,
+            cepEmpresa:         str('CEP Empresa')           ?? f.cepEmpresa,
+            enderecoEmpresa:    str('Endereço Empresa')      ?? f.enderecoEmpresa,
+            numeroEmpresa:      str('Número Empresa')        ?? f.numeroEmpresa,
+            complementoEmpresa: str('Complemento Empresa')   ?? f.complementoEmpresa,
+            bairroEmpresa:      str('Bairro Empresa')        ?? f.bairroEmpresa,
+            cidadeEmpresa:      str('Cidade Empresa')        ?? f.cidadeEmpresa,
+            estadoEmpresa:      str('Estado Empresa')        ?? f.estadoEmpresa,
           }))
         } else {
-          const contato = lead.contatoEntrada ?? ''
           if (isPhone(contato)) setForm(f => ({ ...f, telefone: formatTelefone(contato) }))
           else if (/\S+@\S+\.\S+/.test(contato)) setForm(f => ({ ...f, email: contato }))
         }
@@ -209,6 +222,11 @@ export default function DadosPage({ searchParams }: Props) {
     if (!validarCPF(form.cpf)) e.cpf = 'CPF inválido'
     if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'E-mail inválido'
     if (form.telefone.replace(/\D/g, '').length < 10) e.telefone = 'Telefone inválido'
+    if (form.cep.replace(/\D/g, '').length !== 8) e.cep = 'CEP inválido'
+    if (!form.logradouro.trim()) e.logradouro = 'Informe o logradouro'
+    if (!form.numero.trim()) e.numero = 'Informe o número'
+    if (!form.cidade.trim()) e.cidade = 'Informe a cidade'
+    if (!form.estado || form.estado.length !== 2) e.estado = 'UF inválida'
     if (precisaCnpj && !validarCNPJ(form.cnpj)) e.cnpj = 'CNPJ inválido'
     setErros(e)
     return Object.keys(e).length === 0
@@ -309,11 +327,11 @@ export default function DadosPage({ searchParams }: Props) {
         {/* Endereço pessoal */}
         <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-4">
           <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
-            Endereço <span className="normal-case font-normal text-on-surface-variant/60">(opcional)</span>
+            Endereço
           </p>
 
           <div>
-            <label className={LABEL}>CEP</label>
+            <label className={LABEL}>CEP <span className="text-error">*</span></label>
             <div className="relative">
               <input
                 className={INPUT}
@@ -331,17 +349,20 @@ export default function DadosPage({ searchParams }: Props) {
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
               )}
             </div>
+            {erros.cep && <p className="mt-1.5 text-[12px] font-medium text-error">{erros.cep}</p>}
           </div>
 
           <div>
-            <label className={LABEL}>Logradouro</label>
+            <label className={LABEL}>Logradouro <span className="text-error">*</span></label>
             <input className={INPUT} placeholder="Rua, Av., Travessa..." value={form.logradouro} onChange={e => set('logradouro', e.target.value)} />
+            {erros.logradouro && <p className="mt-1.5 text-[12px] font-medium text-error">{erros.logradouro}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={LABEL}>Número</label>
+              <label className={LABEL}>Número <span className="text-error">*</span></label>
               <input className={INPUT} placeholder="123" value={form.numero} onChange={e => set('numero', e.target.value)} />
+              {erros.numero && <p className="mt-1.5 text-[12px] font-medium text-error">{erros.numero}</p>}
             </div>
             <div>
               <label className={LABEL}>Complemento</label>
@@ -356,18 +377,20 @@ export default function DadosPage({ searchParams }: Props) {
 
           <div className="grid grid-cols-[1fr_80px] gap-3">
             <div>
-              <label className={LABEL}>Cidade</label>
+              <label className={LABEL}>Cidade <span className="text-error">*</span></label>
               <input className={INPUT} placeholder="Fortaleza" value={form.cidade} onChange={e => set('cidade', e.target.value)} />
+              {erros.cidade && <p className="mt-1.5 text-[12px] font-medium text-error">{erros.cidade}</p>}
             </div>
             <div>
-              <label className={LABEL}>UF</label>
+              <label className={LABEL}>UF <span className="text-error">*</span></label>
               <input className={INPUT} placeholder="CE" value={form.estado} onChange={e => set('estado', e.target.value.toUpperCase().slice(0, 2))} maxLength={2} />
+              {erros.estado && <p className="mt-1.5 text-[12px] font-medium text-error">{erros.estado}</p>}
             </div>
           </div>
         </div>
 
-        {/* Dados da empresa */}
-        <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-4">
+        {/* Dados da empresa — oculto para quem não tem empresa (abertura/nao_abri) */}
+        {mostrarEmpresa && <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-4">
           <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
             Dados da empresa {!precisaCnpj && <span className="normal-case font-normal text-on-surface-variant/60">(opcional)</span>}
           </p>
@@ -470,7 +493,7 @@ export default function DadosPage({ searchParams }: Props) {
               <input className={INPUT} placeholder="CE" value={form.estadoEmpresa} onChange={e => set('estadoEmpresa', e.target.value.toUpperCase().slice(0, 2))} maxLength={2} />
             </div>
           </div>
-        </div>
+        </div>}
 
         <div className="flex gap-3">
           <button

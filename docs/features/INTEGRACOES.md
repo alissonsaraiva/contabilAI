@@ -45,6 +45,19 @@
 - **Webhook**: `/api/webhooks/zapsign` e `/api/webhooks/clicksign`
 - **Idempotência**: `WebhookLog` previne processamento duplicado
 
+### ClickSign — Como a `sign_url` é obtida (v3.10.28)
+
+A API ClickSign **não retorna** `sign_url` diretamente no POST de criação do signatário nem no POST de vínculo (`/api/v1/lists`). O campo `list.sign_url` só existe em planos Enterprise.
+
+Fluxo em `src/lib/clicksign.ts > enviarClickSign()`:
+1. POST `/api/v1/documents` → cria documento (`docKey`)
+2. POST `/api/v1/signers` → cria signatário (`signerKey`)
+3. POST `/api/v1/lists` → vincula signatário ao documento
+4. Se `list.sign_url` presente → usa diretamente (Enterprise)
+5. Senão: `GET /api/v1/documents/{docKey}` → `document.signers[].url` (via `request_signature_key`) — esse campo só fica disponível **após** o vínculo via `/lists`
+
+Se o GET também não retornar `url`, lança erro explícito. O erro `"não foi possível obter a URL de assinatura"` indica plano incompatível ou problema na conta ClickSign.
+
 ## DocuSeal (Self-hosted)
 
 - **URL**: `http://82.25.79.193:32825`
@@ -98,7 +111,7 @@
 - `Escritorio`: `dasMeiVencimentoDia`, `dasMeiDiasAntecedencia`, `dasMeiCanalEmail/Whatsapp/Pwa`
 
 **Serviço central**: `src/lib/services/das-mei.ts`
-- `gerarESalvarDASMEI(clienteId, competencia?)` — chama SERPRO integra-mei, upsert, notifica
+- `gerarESalvarDASMEI(clienteId, competencia?)` — chama SERPRO integra-mei, upsert, notifica; **lança erro se `empresa.procuracaoRFAtiva === false`** (v3.10.28) — procuração ativa é pré-requisito para o SERPRO aceitar a emissão
 - `sincronizarPagamentoDAS(dasId)` — verifica via integra-pagamento, atualiza status
 - `notificarDASDisponivel / notificarDASVencimento / notificarDASAtrasada` — multicanal (email + WhatsApp + PWA)
 

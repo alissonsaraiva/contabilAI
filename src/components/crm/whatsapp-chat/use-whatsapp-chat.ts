@@ -70,6 +70,7 @@ export function useWhatsAppChat(apiPath: string) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isNearBottomRef = useRef(true)
   const isFirstLoadRef = useRef(true)
+  const msgCountRef = useRef(0)
   // Mantém previewUrl acessível no cleanup sem depender de state
   const arquivoPreviewRef = useRef<string | null>(null)
   // Bug #6: rastreia saúde do SSE para evitar polling duplicado quando SSE está ativo
@@ -182,16 +183,21 @@ export function useWhatsAppChat(apiPath: string) {
     return () => clearInterval(id)
   }, [conversaId, carregar])
 
-  // Scroll automático ao fundo
+  // Scroll automático ao fundo — só quando o número de mensagens cresce
   useEffect(() => {
-    if (mensagens.length === 0) return
+    const total = mensagens.length
+    if (total === 0) return
     if (isFirstLoadRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'instant' })
       isFirstLoadRef.current = false
+      msgCountRef.current = total
       return
     }
-    if (isNearBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (total > msgCountRef.current) {
+      msgCountRef.current = total
+      if (isNearBottomRef.current) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }
     }
   }, [mensagens])
 

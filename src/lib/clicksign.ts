@@ -87,6 +87,15 @@ type ClickSignDocument = {
       signed_file_url?: string
       original_file_url?: string
     }
+    /**
+     * Signatários vinculados ao documento.
+     * A API retorna `url` (usando request_signature_key) após o vínculo via /api/v1/lists.
+     */
+    signers?: Array<{
+      key: string
+      request_signature_key?: string
+      url?: string
+    }>
   }
 }
 
@@ -95,8 +104,6 @@ type ClickSignSigner = {
     key: string
     email: string
     name: string
-    token: string
-    sign_url?: string
   }
 }
 
@@ -105,7 +112,7 @@ type ClickSignList = {
     document_key: string
     signer_key: string
     sign_as: string
-    sign_url?: string   // retornado pela API em alguns planos
+    sign_url?: string
     widget_key?: string
     token?: string
   }
@@ -206,20 +213,38 @@ export async function enviarClickSign(
     )
   }
 
-  // A ClickSign retorna sign_url diretamente no objeto list (planos Enterprise)
-  // ou no objeto signer. Fallback construído com o token do signatário.
-  const signUrl =
-    listResp.list.sign_url ??
-    signerResp.signer.sign_url ??
-    (signerResp.signer.token
-      ? `https://app.clicksign.com/sign/${signerResp.signer.token}`
-      : null)
+  // 4. Busca o documento para obter a sign_url do signatário vinculado.
+  // A ClickSign popula document.signers[].url (via request_signature_key) somente
+  // após o vínculo via /api/v1/lists — não está disponível nas respostas dos POSTs.
+  let signUrl: string | null =
+    listResp.list.sign_url ?? null
 
   if (!signUrl) {
-    Sentry.captureMessage('ClickSign: sign_url não encontrada na resposta da API', {
+    let docResp2: ClickSignDocument
+    try {
+      docResp2 = await withRetry(() =>
+        clicksignFetch<ClickSignDocument>(apiKey, `/api/v1/documents/${docKey}`, { method: 'GET' }),
+      )
+    } catch (err) {
+      Sentry.captureException(err, {
+        tags: { module: 'clicksign', operation: 'buscar-documento-sign-url' },
+        extra: { docKey, signerKey },
+      })
+      throw new Error(
+        `ClickSign: falha ao buscar URL de assinatura para o documento ${docKey}. ` +
+        `Erro original: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+
+    const signerInDoc = docResp2.document.signers?.find((s) => s.key === signerKey)
+    signUrl = signerInDoc?.url ?? null
+  }
+
+  if (!signUrl) {
+    Sentry.captureMessage('ClickSign: sign_url não encontrada mesmo após GET do documento', {
       level: 'error',
       tags: { module: 'clicksign', operation: 'sign-url' },
-      extra: { docKey, signerKey, listResp, signerResp },
+      extra: { docKey, signerKey },
     })
     throw new Error(
       `ClickSign: não foi possível obter a URL de assinatura para o documento ${docKey}. ` +

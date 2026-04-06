@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     void hc.ok(process.env.HC_EMAIL_SYNC)
   } catch (err) {
     const mensagem = err instanceof Error ? err.message : 'Erro no IMAP'
+    console.error('[email/sync] Falha IMAP ao buscar emails:', mensagem, err)
     void hc.fail(process.env.HC_EMAIL_SYNC)
     Sentry.captureException(err, { tags: { module: 'email-sync', operation: 'buscar-emails' } })
     setImapSyncErro(mensagem)

@@ -25,10 +25,6 @@ const FUNCIONARIOS = [
   { value: 'mais10', label: 'Mais de 10',   icon: 'corporate_fare' },
 ]
 
-const TIPO_PF = [
-  { value: 'liberal',  label: 'Profissional liberal',       desc: 'Médico, advogado, dentista, engenheiro...', icon: 'badge' },
-  { value: 'nao_abri', label: 'Ainda não abri empresa',     desc: 'Quero abrir e preciso de orientação',       icon: 'rocket_launch' },
-]
 
 const REGIME_LABEL: Record<string, string> = {
   MEI:            'MEI — Microempreendedor Individual',
@@ -45,10 +41,9 @@ function regimeParaTipo(regime: DadosCNPJ['regime']): string {
 export default function SimuladorPage({ searchParams }: Props) {
   const { leadId } = use(searchParams)
   const router = useRouter()
-  const [tipoConta, setTipoConta] = useState<'pj' | 'pf' | ''>('')
+  const [tipoConta, setTipoConta] = useState<'pj' | 'pf' | 'abertura' | ''>('')
   const [cnpj, setCnpj] = useState('')
   const [cnpjDados, setCnpjDados] = useState<DadosCNPJ | null>(null)
-  const [tipoPF, setTipoPF] = useState('')
   const [faturamento, setFaturamento] = useState('')
   const [funcionarios, setFuncionarios] = useState('nao')
   const [loading, setLoading] = useState(false)
@@ -68,9 +63,10 @@ export default function SimuladorPage({ searchParams }: Props) {
         if (cnpjSalvo) {
           setTipoConta('pj')
           setCnpj(cnpjSalvo)
-        } else if (sim?.tipo === 'liberal' || sim?.tipo === 'nao_abri') {
+        } else if (sim?.tipo === 'liberal') {
           setTipoConta('pf')
-          setTipoPF(sim.tipo)
+        } else if (sim?.tipo === 'nao_abri' || sim?.tipo === 'abertura') {
+          setTipoConta('abertura')
         }
         if (sim?.faturamento) setFaturamento(sim.faturamento)
         if (sim?.funcionarios) setFuncionarios(sim.funcionarios)
@@ -109,15 +105,15 @@ export default function SimuladorPage({ searchParams }: Props) {
 
   const canContinue = tipoConta === 'pj'
     ? cnpj.replace(/\D/g, '').length === 14 && !!faturamento && !!funcionarios
-    : tipoConta === 'pf'
-      ? !!tipoPF && !!faturamento && !!funcionarios
+    : (tipoConta === 'pf' || tipoConta === 'abertura')
+      ? !!faturamento && !!funcionarios
       : false
 
   async function handleSubmit() {
     if (!leadId || !canContinue) return
     setLoading(true)
     try {
-      const tipo = tipoConta === 'pj' ? tipoDerived : tipoPF
+      const tipo = tipoConta === 'pj' ? tipoDerived : tipoConta === 'abertura' ? 'abertura' : 'liberal'
       const dadosJson: Record<string, unknown> = {
         simulador: { tipo, faturamento, funcionarios },
       }
@@ -183,13 +179,17 @@ export default function SimuladorPage({ searchParams }: Props) {
         </p>
         <div className="space-y-2">
           {([
-            { value: 'pj', icon: 'domain', label: 'Tenho empresa com CNPJ', desc: 'MEI, ME, EPP, Ltda, S/A...' },
-            { value: 'pf', icon: 'badge',  label: 'Sou autônomo / Prof. liberal', desc: 'Trabalho com CPF ou ainda não abri empresa' },
+            { value: 'pj',       icon: 'domain',         label: 'Tenho empresa com CNPJ',     desc: 'MEI, ME, EPP, Ltda, S/A...' },
+            { value: 'pf',       icon: 'badge',          label: 'Sou autônomo / Prof. liberal', desc: 'Trabalho com CPF, sem empresa aberta' },
+            { value: 'abertura', icon: 'rocket_launch',  label: 'Desejo abrir uma empresa',   desc: 'Quero abrir meu CNPJ e preciso de orientação' },
           ] as const).map(op => (
             <button
               key={op.value}
               type="button"
-              onClick={() => { setTipoConta(op.value); setCnpjDados(null) }}
+              onClick={() => {
+                setTipoConta(op.value)
+                setCnpjDados(null)
+              }}
               className={`w-full rounded-2xl border p-4 text-left transition-all ${
                 tipoConta === op.value
                   ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
@@ -281,47 +281,11 @@ export default function SimuladorPage({ searchParams }: Props) {
         </>
       )}
 
-      {/* ─── Fluxo PF ─────────────────────────────────────────────────────────── */}
-      {tipoConta === 'pf' && (
-        <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
-          <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
-            2. Qual é sua situação?
-          </p>
-          <div className="space-y-2">
-            {TIPO_PF.map(op => (
-              <button
-                key={op.value}
-                type="button"
-                onClick={() => setTipoPF(op.value)}
-                className={`w-full rounded-2xl border p-4 text-left transition-all ${
-                  tipoPF === op.value
-                    ? 'border-primary/40 bg-primary/5 ring-2 ring-primary/20'
-                    : 'border-outline-variant/20 bg-white hover:border-outline-variant/40 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${tipoPF === op.value ? 'bg-primary/15' : 'bg-slate-100'}`}>
-                    <span className={`material-symbols-outlined text-[18px] ${tipoPF === op.value ? 'text-primary' : 'text-on-surface-variant'}`}>{op.icon}</span>
-                  </div>
-                  <div>
-                    <p className={`text-[14px] font-semibold ${tipoPF === op.value ? 'text-primary' : 'text-on-surface'}`}>{op.label}</p>
-                    <p className="text-[12px] text-on-surface-variant">{op.desc}</p>
-                  </div>
-                  {tipoPF === op.value && (
-                    <span className="material-symbols-outlined ml-auto text-[20px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ─── Faturamento (ambos os fluxos) ────────────────────────────────────── */}
+      {/* ─── Faturamento (todos os fluxos) ────────────────────────────────────── */}
       {tipoConta && (
         <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
           <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
-            {tipoConta === 'pj' ? '3' : '3'}. Faturamento mensal estimado
+            {tipoConta === 'pj' ? '3' : '2'}. Faturamento mensal estimado
           </p>
           <div className="grid grid-cols-2 gap-2">
             {FATURAMENTO.map(op => (
@@ -347,7 +311,7 @@ export default function SimuladorPage({ searchParams }: Props) {
       {tipoConta && (
         <div className="rounded-2xl border border-outline-variant/15 bg-card p-5 shadow-sm space-y-3">
           <p className="text-[13px] font-semibold uppercase tracking-wider text-on-surface-variant">
-            4. Funcionários registrados
+          {tipoConta === 'pj' ? '4' : '3'}. Funcionários registrados
           </p>
           <div className="grid grid-cols-2 gap-2">
             {FUNCIONARIOS.map(op => (

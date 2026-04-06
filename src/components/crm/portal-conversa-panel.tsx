@@ -44,6 +44,7 @@ export function PortalConversaPanel({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const isFirstLoadRef = useRef(true)
+  const msgCountRef = useRef(0)
 
   const carregar = useCallback(async () => {
     try {
@@ -61,7 +62,7 @@ export function PortalConversaPanel({
 
   // SSE — atualizações em tempo real quando cliente envia mensagem
   useEffect(() => {
-    let es: EventSource
+    let es: EventSource | null = null
     let tentativas = 0
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     let encerrado = false
@@ -82,7 +83,7 @@ export function PortalConversaPanel({
         carregar()
       }
       es.onerror = () => {
-        es.close()
+        es?.close()
         if (encerrado || tentativas >= 5) return
         tentativas++
         timeoutId = setTimeout(conectar, Math.min(1000 * 2 ** tentativas, 30_000))
@@ -93,7 +94,7 @@ export function PortalConversaPanel({
     return () => {
       encerrado = true
       if (timeoutId) clearTimeout(timeoutId)
-      es.close()
+      es?.close()
     }
   }, [conversaId, carregar])
 
@@ -105,15 +106,20 @@ export function PortalConversaPanel({
     return () => clearInterval(id)
   }, [carregar])
 
-  // Scroll automático ao fundo
+  // Scroll automático ao fundo — só quando o número de mensagens cresce
   useEffect(() => {
-    if (mensagens.length === 0) return
+    const total = mensagens.length
+    if (total === 0) return
     if (isFirstLoadRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'instant' })
       isFirstLoadRef.current = false
+      msgCountRef.current = total
       return
     }
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (total > msgCountRef.current) {
+      msgCountRef.current = total
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [mensagens])
 
   async function assumir() {

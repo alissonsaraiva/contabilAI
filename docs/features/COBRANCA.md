@@ -80,6 +80,7 @@
   - Segunda via
   - Histórico 24 cobranças
   - Sync manual
+  - **Widget Limite MEI** (v3.10.28, `variant="crm"`) — exibido apenas para `regime === 'MEI'`; busca `GET /api/crm/clientes/[id]/limite-mei` em paralelo com a DAS; mostra régua, percentual e breakdown mensal
 
 - `src/app/(crm)/crm/financeiro/inadimplentes/page.tsx` + `src/components/crm/inadimplentes-client.tsx`:
   - Lista de inadimplentes

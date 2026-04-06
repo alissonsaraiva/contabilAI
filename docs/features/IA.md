@@ -1,19 +1,19 @@
 # IA — Sistema de Inteligência Artificial
 
-> **Sistema:** AVOS v3.10.23 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.28 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
 ## 4 Canais de IA
 
 | Canal | Arquivo | Contexto | Tools | Escalação |
-|-------|---------|---------|-------|-----------| 
+|-------|---------|---------|-------|-----------|
 | **Onboarding** | `ask.ts` | Lead + planos | Limitadas (criar lead) | Não |
-| **CRM** | `ask.ts` + `agent.ts` | Cliente + global | 64 tools | Sim |
+| **CRM** | `ask.ts` + `agent.ts` | Cliente + global | 65 tools | Sim |
 | **Portal (Clara)** | `ask.ts` | Cliente + comunicados | Leitura + docs (links de download) | `##HUMANO##` → Escalação |
 | **WhatsApp** | `ask.ts` | Cliente/lead + histórico 20 msgs | Moderadas | `##HUMANO##` → Escalação |
 
-## Agente Operacional — 64 Tools
+## Agente Operacional — 65 Tools
 
 ### Leitura de Dados (18)
 `buscarDadosCliente`, `buscarDadosOperador`, `consultarDados`, `buscarHistorico`, `buscarDocumentos`, `buscarChamado`, `buscarEmailInbox`, `buscarTomadoresRecorrentes`, `buscarCobrancaAberta`, `listarLeadsInativos`, `listarComunicados`, `listarPlanos`, `listarAgendamentos`, `listarDocumentosPendentes`, `listarEmailsPendentes`, `listarChamados`, `verificarStatusContrato`, `listarCobrancasCliente`
@@ -23,6 +23,9 @@
 
 ### NFS-e (8)
 `emitirNotaFiscal`, `consultarNotasFiscais`, `reemitirNotaFiscal`, `cancelarNotaFiscal`, `verificarConfiguracaoNfse`, `enviarNotaFiscalCliente`, `reenviarEmailNotaFiscal`, `buscarTomadoresRecorrentes`
+
+### MEI (1)
+`consultarLimiteMEI` — faturamento acumulado via NFS-e, percentual do limite anual, zona (verde/amarelo/vermelho); canal: crm
 
 ### Cobrança (7) — canais: crm + portal + whatsapp (self-service)
 `gerarSegundaViaAsaas`, `buscarCobrancaAberta`, `gerarRelatorioInadimplencia`, `listarCobrancasCliente`, `alterarVencimentoCobranca`, `alterarFormaPagamento`, `extratoFinanceiro`
@@ -458,6 +461,12 @@ interface Tool {
 | `reenviarEmailNotaFiscal` | crm, portal, whatsapp | Reenvia e-mail da nota ao tomador via Spedy |
 | `enviarNotaFiscalCliente` | crm, portal, whatsapp | Reenvia PDF+XML ao cliente via WA ou e-mail |
 | `buscarTomadoresRecorrentes` | crm, portal, whatsapp | Tomadores já usados em notas anteriores |
+
+### 📊 MEI
+
+| Tool | Canais | O que faz |
+|------|--------|-----------|
+| `consultarLimiteMEI` | crm | Faturamento acumulado via NFS-e; percentual do limite anual (R$ 81k); zona verde/amarelo/vermelho; breakdown por mês |
 
 ### 📋 Contrato / Funil
 

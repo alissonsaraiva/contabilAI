@@ -41,9 +41,13 @@ async function syncEmail() {
     const secret = process.env.CRON_SECRET
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (secret) headers['authorization'] = `Bearer ${secret}`
-    await fetch(`${base}/api/email/sync`, { method: 'POST', headers })
-  } catch {
-    // Silencia erros — não deve derrubar o servidor
+    const res = await fetch(`${base}/api/email/sync`, { method: 'POST', headers })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '(sem body)')
+      console.error('[syncEmail] Endpoint retornou erro:', res.status, body)
+    }
+  } catch (err) {
+    console.error('[syncEmail] Falha ao chamar /api/email/sync:', err instanceof Error ? err.message : String(err))
   }
 }
 

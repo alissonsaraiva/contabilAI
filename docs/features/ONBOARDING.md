@@ -1,6 +1,6 @@
 # ONBOARDING — Fluxo Lead → Cliente
 
-> **Sistema:** AVOS v3.10.25 | **Fonte:** `SISTEMA.md` (extraído)
+> **Sistema:** AVOS v3.10.28 | **Fonte:** `SISTEMA.md` (extraído)
 
 ---
 
@@ -150,3 +150,22 @@ Onboarding → Lead com simulador.tipo = 'nao_abri' / 'liberal'
 **Componente**: `src/components/crm/registrar-empresa-button.tsx` — drawer focado com CNPJ (auto-fill via Receita Federal), razão social, nome fantasia, regime.
 
 **Bug corrigido (v3.10.25)**: webhooks ZapSign e ClickSign criavam clientes `nao_abri` com `tipoContribuinte: 'pj'` em vez de `'pf'`. Corrigido — ambos os webhooks agora tratam `nao_abri` e `liberal` como PF. Banner e badge cobrem ambos os casos (condição `!empresa` em vez de `tipoContribuinte === 'pf'`).
+
+## Simulador — Tipo de Conta (v3.10.28)
+
+Opção PF foi subdividida em dois fluxos distintos para melhorar a conversão:
+
+| Valor | Label | Comportamento |
+|-------|-------|---------------|
+| `pj` | Tenho empresa com CNPJ | Exibe campo CNPJ com auto-fill |
+| `pf` | Sou autônomo / Prof. liberal | Sem CNPJ; `tipo = 'liberal'` salvo no simulador |
+| `abertura` | Desejo abrir uma empresa | Sem CNPJ; `tipo = 'abertura'` salvo no simulador |
+
+A opção `nao_abri` (legado) continua sendo reconhecida na restauração de progresso e mapeada para `tipoConta = 'abertura'`.
+
+**Impacto na página `dados`**: seção de empresa (CNPJ, razão social, endereço) fica oculta quando `tipo` for `nao_abri` ou `abertura` e o plano não exigir CNPJ. Isso evita o campo de CNPJ confuso para quem ainda não tem empresa.
+
+## Formulário de Dados — Melhorias (v3.10.28)
+
+- **Auto-preenchimento de contato**: ao restaurar progresso, se E-mail/Telefone ainda não foram salvos no `dadosJson`, a página usa `contatoEntrada` do lead como fallback automático
+- **Validações de endereço adicionadas**: CEP (8 dígitos), logradouro, número, cidade e UF agora são obrigatórios antes de avançar (antes só nome, CPF, e-mail e telefone eram validados)
