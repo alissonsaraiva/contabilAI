@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
+  DropdownMenuGroup,
 } from '@/components/ui/dropdown-menu'
 import { TIPOS } from '@/lib/usuarios/constants'
 
@@ -250,19 +251,21 @@ export function UsuarioActionsMenu({ usuario }: Props) {
           <DropdownMenuSeparator className="mx-3 my-1" />
 
           {/* Mudar tipo */}
-          <DropdownMenuLabel className="px-4 pb-1 pt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">
-            Mudar tipo
-          </DropdownMenuLabel>
-          {TIPOS.filter(t => t.value !== usuario.tipo).map(t => (
-            <DropdownMenuItem
-              key={t.value}
-              onClick={() => handleMudarTipo(t.value, t.label)}
-              className={ITEM_BASE}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40" />
-              {t.label}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="px-4 pb-1 pt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+              Mudar tipo
+            </DropdownMenuLabel>
+            {TIPOS.filter(t => t.value !== usuario.tipo).map(t => (
+              <DropdownMenuItem
+                key={t.value}
+                onClick={() => handleMudarTipo(t.value, t.label)}
+                className={ITEM_BASE}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/40" />
+                {t.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
 
           <DropdownMenuSeparator className="mx-3 my-1" />
 

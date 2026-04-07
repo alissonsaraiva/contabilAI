@@ -111,13 +111,14 @@ export function MenuPermissoesConfig({ initialPermissoes }: Props) {
                   <tr key={item.href} className="group transition-colors hover:bg-surface-container-lowest/60">
                     {/* Label com grupo no primeiro item */}
                     <td className="px-6 py-3">
-                      <div className="flex items-center gap-2.5">
-                        {idx === 0 && (
-                          <span className="mr-1 rounded-[4px] border border-outline-variant/10 bg-surface-container-lowest px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">
-                            {grupo}
-                          </span>
-                        )}
-                        {idx !== 0 && <span className="w-[calc(theme(spacing.1)*6+4ch)]" />}
+                      <div className="flex items-center gap-3">
+                        <div className="w-28 shrink-0">
+                          {idx === 0 && (
+                            <span className="rounded-[4px] border border-outline-variant/10 bg-surface-container-lowest px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">
+                              {grupo}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[14px] leading-none">{item.icon}</span>
                         <span className="text-[13px] font-medium text-on-surface">{item.label}</span>
                       </div>
