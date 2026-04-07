@@ -16,7 +16,7 @@ type Props = {
   procuracaoRFPendente?: boolean
 }
 
-const PWA_HIDDEN = new Set(['/portal/empresa', '/portal/suporte', '/portal/configuracoes'])
+const PWA_HIDDEN = new Set(['/portal/empresa', '/portal/suporte'])
 
 export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', docsNovos = 0, notasNovas = 0, procuracaoRFPendente = false }: Props) {
   const isPF = tipoContribuinte === 'pf'
@@ -36,7 +36,7 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', do
     { href: '/portal/financeiro',    icon: 'payments',                    label: 'Financeiro',    mobileLabel: 'Financ.', badge: procuracaoRFPendente ? 1 : 0 },
     ...(!isPF ? [{ href: '/portal/notas-fiscais', icon: 'receipt_long',   label: 'Notas Fiscais', mobileLabel: 'NFS-e',  badge: notasNovas }] : []),
     { href: '/portal/suporte',       icon: 'support_agent',               label: 'Suporte',       mobileLabel: 'Suporte', badge: 0 },
-    { href: '/portal/configuracoes', icon: 'settings',                    label: 'Config.',       mobileLabel: 'Config.', badge: 0 },
+    // TODO: /portal/configuracoes — oculto temporariamente (conteúdo a definir)
   ]
   const NAV_ITEMS = isPwa ? ALL_NAV_ITEMS.filter(item => !PWA_HIDDEN.has(item.href)) : ALL_NAV_ITEMS
   const pathname = usePathname()
