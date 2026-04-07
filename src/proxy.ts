@@ -85,10 +85,6 @@ export default async function middleware(req: NextRequest) {
     if (ROTAS_LIVRES.some(r => path === r || path.startsWith(r + '/'))) {
       return NextResponse.next()
     }
-    // Configurações: apenas admin (regra hard)
-    if (tipo !== 'admin' && path.startsWith('/crm/configuracoes')) {
-      return NextResponse.redirect(new URL('/crm/acesso-negado', req.url))
-    }
     // Verificar permissões de menu para contador e assistente
     if (tipo !== 'admin') {
       const permissoes = resolverPermissoes(token.menuPermissoes)

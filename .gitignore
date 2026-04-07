@@ -37,3 +37,5 @@ next-env.d.ts
 .vscode/
 src/app/.next/
 .next/
+Plano_Integracao_AVOS_Dominio.pdf
+docs/plano-integracao-dominio.py

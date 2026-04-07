@@ -41,13 +41,8 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Dados inválidos', details: parsed.error.flatten() }, { status: 400 })
     }
 
-    // Garantir que configuracoes nunca esteja na lista de não-admin
     const { contador, assistente } = parsed.data
-    const configHref = '/crm/configuracoes'
-    const payload = {
-      contador:   contador.filter(h => h !== configHref),
-      assistente: assistente.filter(h => h !== configHref),
-    }
+    const payload = { contador, assistente }
 
     const escritorio = await prisma.escritorio.findFirst({ select: { id: true } })
     if (!escritorio) {

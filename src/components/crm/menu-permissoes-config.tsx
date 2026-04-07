@@ -8,9 +8,6 @@ type Props = {
   initialPermissoes: unknown
 }
 
-// Configurações é sempre bloqueado para não-admin — regra hard
-const MENU_BLOQUEADO = '/crm/configuracoes'
-
 // Grupos únicos preservando ordem
 const GRUPOS = Array.from(new Set(MENUS_DISPONIVEIS.map(m => m.grupo)))
 
@@ -31,7 +28,6 @@ export function MenuPermissoesConfig({ initialPermissoes }: Props) {
   }, [contador, assistente, baseline])
 
   function toggle(role: 'contador' | 'assistente', href: string) {
-    if (href === MENU_BLOQUEADO) return
     const setter = role === 'contador' ? setContador : setAssistente
     const current = role === 'contador' ? contador : assistente
     setter(current.includes(href)
@@ -108,7 +104,6 @@ export function MenuPermissoesConfig({ initialPermissoes }: Props) {
             {GRUPOS.map(grupo => {
               const itens = MENUS_DISPONIVEIS.filter(m => m.grupo === grupo)
               return itens.map((item, idx) => {
-                const isBloqueado = item.href === MENU_BLOQUEADO
                 const isContador = contador.includes(item.href)
                 const isAssistente = assistente.includes(item.href)
 
@@ -125,15 +120,10 @@ export function MenuPermissoesConfig({ initialPermissoes }: Props) {
                         {idx !== 0 && <span className="w-[calc(theme(spacing.1)*6+4ch)]" />}
                         <span className="text-[14px] leading-none">{item.icon}</span>
                         <span className="text-[13px] font-medium text-on-surface">{item.label}</span>
-                        {isBloqueado && (
-                          <span className="material-symbols-outlined text-[13px] text-on-surface-variant/30" title="Apenas Admin">
-                            lock
-                          </span>
-                        )}
                       </div>
                     </td>
 
-                    {/* Admin — sempre marcado, bloqueado */}
+                    {/* Admin — sempre marcado, não editável */}
                     <td className="px-6 py-3 text-center">
                       <CheckboxCell checked disabled />
                     </td>
@@ -141,8 +131,7 @@ export function MenuPermissoesConfig({ initialPermissoes }: Props) {
                     {/* Contador */}
                     <td className="px-6 py-3 text-center">
                       <CheckboxCell
-                        checked={isBloqueado ? false : isContador}
-                        disabled={isBloqueado}
+                        checked={isContador}
                         onChange={() => toggle('contador', item.href)}
                       />
                     </td>
@@ -150,8 +139,7 @@ export function MenuPermissoesConfig({ initialPermissoes }: Props) {
                     {/* Assistente */}
                     <td className="px-6 py-3 text-center">
                       <CheckboxCell
-                        checked={isBloqueado ? false : isAssistente}
-                        disabled={isBloqueado}
+                        checked={isAssistente}
                         onChange={() => toggle('assistente', item.href)}
                       />
                     </td>
@@ -167,8 +155,7 @@ export function MenuPermissoesConfig({ initialPermissoes }: Props) {
       <div className="border-t border-outline-variant/10 px-6 py-3">
         <p className="text-[11px] text-on-surface-variant/40">
           <span className="material-symbols-outlined mr-1 align-middle text-[13px]">info</span>
-          O menu Configurações é exclusivo do perfil Admin e não pode ser alterado.
-          As permissões propagam automaticamente para todos os usuários do perfil.
+          As permissões propagam automaticamente para todos os usuários do perfil em até 5 minutos.
         </p>
       </div>
     </div>
