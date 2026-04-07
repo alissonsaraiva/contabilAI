@@ -26,7 +26,6 @@ export const MENUS_DISPONIVEIS: NavItemDef[] = [
   { grupo: 'Atendimento',   href: '/crm/chamados',                   label: 'Chamados',         icon: '📋' },
   { grupo: 'Atendimento',   href: '/crm/emails',                     label: 'E-mails',          icon: '📧' },
   { grupo: 'Comunicação',   href: '/crm/comunicados',                label: 'Comunicados',      icon: '📢' },
-  { grupo: 'Financeiro',    href: '/crm/financeiro/funcionarios',    label: 'Funcionários',     icon: '👤' },
   { grupo: 'Financeiro',    href: '/crm/financeiro/inadimplentes',   label: 'Inadimplentes',    icon: '🔴' },
   { grupo: 'Financeiro',    href: '/crm/financeiro/reajuste',        label: 'Reajuste',         icon: '📈' },
   { grupo: 'Inteligência',  href: '/crm/relatorios',                 label: 'Relatórios IA',   icon: '🧠' },
@@ -45,7 +44,6 @@ export const DEFAULT_PERMISSOES: MenuPermissoes = {
     '/crm/chamados',
     '/crm/emails',
     '/crm/comunicados',
-    '/crm/financeiro/funcionarios',
     '/crm/financeiro/inadimplentes',
     '/crm/financeiro/reajuste',
     '/crm/relatorios',
@@ -79,8 +77,7 @@ export function resolverPermissoes(stored: unknown): MenuPermissoes {
 
 /**
  * Verifica se um role tem permissão para acessar um path.
- * Admin sempre tem acesso total.
- * Configurações só admin (regra hard no middleware).
+ * Admin sempre tem acesso total. Demais perfis verificam contra a lista salva.
  */
 export function podeAcessarRota(tipo: string, path: string, permissoes: MenuPermissoes): boolean {
   if (tipo === 'admin') return true

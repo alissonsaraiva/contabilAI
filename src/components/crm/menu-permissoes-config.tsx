@@ -184,7 +184,7 @@ function CheckboxCell({
           ? 'cursor-not-allowed border-outline-variant/20 bg-surface-container-lowest/50 opacity-40'
           : checked
             ? 'border-primary bg-primary text-white hover:bg-primary/90'
-            : 'border-outline-variant/30 bg-transparent text-transparent hover:border-primary/50',
+            : 'border-outline-variant/60 bg-surface-container-lowest text-transparent hover:border-primary',
       ].join(' ')}
     >
       <span className="material-symbols-outlined text-[13px] font-bold">check</span>
