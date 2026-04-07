@@ -1,8 +1,23 @@
 # ROTAS CRM — Endpoints de Suporte
 
-> **Sistema:** AVOS v3.10.23 | **Revisado:** 2026-04-04
+> **Sistema:** AVOS v3.10.29 | **Revisado:** 2026-04-06
 >
 > Documenta rotas auxiliares que não se encaixam em um módulo funcional específico.
+
+---
+
+## Permissões de Menu (`/api/configuracoes/menu-permissoes`)
+
+Gerencia quais menus cada perfil (contador, assistente) pode acessar. Admin exclusivo.
+
+**Ver documentação completa:** [features/USUARIOS.md](./USUARIOS.md)
+
+### `GET /api/configuracoes/menu-permissoes`
+Retorna `{ menuPermissoes: { contador: string[], assistente: string[] } | null }`.
+
+### `PATCH /api/configuracoes/menu-permissoes`
+Body: `{ contador: string[], assistente: string[] }` — hrefs devem estar em `MENUS_DISPONIVEIS`.
+`/crm/configuracoes` é removido silenciosamente mesmo que enviado.
 
 ---
 

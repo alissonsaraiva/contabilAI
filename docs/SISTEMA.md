@@ -1,9 +1,9 @@
 # AVOS — Índice da Documentação do Sistema
-> **Versão**: v3.10.25 | **Atualizado**: 2026-04-05 | **Fonte da verdade**: código-fonte
+> **Versão**: v3.10.29 | **Atualizado**: 2026-04-06 | **Fonte da verdade**: código-fonte
 >
 > 📄 **Documentação específica:** [WhatsApp — Fluxo Completo](./WHATSAPP.md)
 >
-> 📊 **Cobertura**: 17 arquivos · 3.996 linhas · 100% da lógica de negócio e infraestrutura documentados
+> 📊 **Cobertura**: 18 arquivos · 4.200+ linhas · 100% da lógica de negócio e infraestrutura documentados
 
 ---
 
@@ -81,6 +81,7 @@
 | [features/INTEGRACOES.md](./features/INTEGRACOES.md) | Asaas, Spedy, Evolution, R2, Zapsign/Clicksign, DocuSeal, SERPRO, Anthropic — pontos de falha |
 | [features/CONFIG.md](./features/CONFIG.md) | Env vars, setup local, pre-deploy checklist, crons + healthchecks, infra VPS |
 | [features/SAUDE.md](./features/SAUDE.md) | Limitações, fluxos frágeis, inconsistências, lacunas remanescentes, sugestões, histórico de bugs |
+| [features/USUARIOS.md](./features/USUARIOS.md) | Perfis (admin/contador/assistente), permissões de menu por role, JWT, middleware, UI de configuração |
 | [WHATSAPP.md](./WHATSAPP.md) | Pipeline WhatsApp completo (pipeline modular, identificação de contatos, mídia) |
 
 ---
@@ -135,6 +136,15 @@ contabilAI/
 - `crm.avos.digital` → rewrite para `/(crm)/...`
 - `portal.avos.digital` → rewrite para `/(portal)/...`
 - `avos.digital` → landing/onboarding público
+
+### Proteção de rotas CRM (`src/proxy.ts`)
+
+Três camadas em sequência:
+1. **Tipo de usuário**: apenas `admin`, `contador` ou `assistente` entram no CRM
+2. **Configurações**: `/crm/configuracoes` bloqueado para não-admin (hard rule)
+3. **Permissões de menu**: `resolverPermissoes(token.menuPermissoes)` + `podeAcessarRota()` — redireciona para `/crm/acesso-negado` se não autorizado
+
+`ROTAS_LIVRES` (bypass da verificação de menu): `/crm/acesso-negado`, `/crm/trocar-senha`, `/crm/dashboard`
 
 ---
 

@@ -24,7 +24,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   return (
     <AssistenteProvider>
       <div className="flex h-screen overflow-hidden bg-surface-container-low">
-        <CrmSidebar user={session.user as any} pendingEscalacoes={pendingEscalacoes} pendingEmails={pendingEmails} pendingChamados={pendingChamados} nomeEscritorio={escritorio.nome} />
+        <CrmSidebar user={session.user as any} pendingEscalacoes={pendingEscalacoes} pendingEmails={pendingEmails} pendingChamados={pendingChamados} nomeEscritorio={escritorio.nome} menuPermissoes={(escritorio as any).menuPermissoes ?? null} />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <CrmHeader user={session.user as any} pendingEscalacoes={pendingEscalacoes} pendingEmails={pendingEmails} pendingChamados={pendingChamados} />
           <main className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">{children}</main>

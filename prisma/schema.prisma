@@ -665,6 +665,8 @@ model Escritorio {
   toolsDesabilitadas     Json?   // string[] — ex: ["enviarEmail", "criarLead"]
   // Agente Operacional — canais disponíveis por tool (substitui o padrão do meta)
   toolsCanaisOverride    Json?   // Record<string, string[]> — ex: {"enviarEmail": ["crm"]}
+  // Permissões de menu por perfil (null = usar defaults hardcoded em menu-permissoes.ts)
+  menuPermissoes         Json?   // { contador: string[], assistente: string[] }
 
   // Email — SMTP/IMAP configuráveis (senha armazenada encriptada)
   emailRemetente   String?  // ex: contato@escritorio.com.br

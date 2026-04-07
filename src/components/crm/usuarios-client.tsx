@@ -7,6 +7,7 @@ import { NovoUsuarioDrawer } from '@/components/crm/novo-usuario-drawer'
 import { UsuarioActionsMenu } from '@/components/crm/usuario-actions-menu'
 import { formatDate } from '@/lib/utils'
 import { TIPOS } from '@/lib/usuarios/constants'
+import { MenuPermissoesConfig } from '@/components/crm/menu-permissoes-config'
 
 // ─── Config de tipos ──────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ export type UsuarioRow = {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function UsuariosClient({ usuarios }: { usuarios: UsuarioRow[] }) {
+export function UsuariosClient({ usuarios, menuPermissoes }: { usuarios: UsuarioRow[]; menuPermissoes: unknown }) {
   const [search, setSearch] = useState('')
   const [tipoFilter, setTipoFilter] = useState<TipoUsuario | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'ativo' | 'inativo'>('all')
@@ -251,14 +252,17 @@ export function UsuariosClient({ usuarios }: { usuarios: UsuarioRow[] }) {
         </div>
       )}
 
-      {/* Info de permissões */}
+      {/* Permissões de menu por perfil */}
+      <MenuPermissoesConfig initialPermissoes={menuPermissoes} />
+
+      {/* Info de perfis */}
       <div className="rounded-xl border border-outline-variant/20 bg-card p-6 shadow-sm">
         <p className="mb-4 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">Níveis de acesso</p>
         <div className="grid gap-4 sm:grid-cols-3">
           {[
             { tipo: 'Admin', desc: 'Acesso total: configurações, usuários, planos, IA e todos os dados do CRM.', badge: 'bg-error/10 text-error' },
-            { tipo: 'Contador', desc: 'Acesso operacional: clientes, leads, atendimentos, tarefas e comunicados. Sem acesso a configurações.', badge: 'bg-primary/10 text-primary' },
-            { tipo: 'Assistente', desc: 'Perfil reservado — acesso não habilitado nesta versão.', badge: 'bg-surface-container text-on-surface-variant' },
+            { tipo: 'Contador', desc: 'Acesso operacional com menus configuráveis acima.', badge: 'bg-primary/10 text-primary' },
+            { tipo: 'Assistente', desc: 'Perfil operacional com menus configuráveis acima.', badge: 'bg-surface-container text-on-surface-variant' },
           ].map(n => (
             <div key={n.tipo} className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest/40 p-5">
               <span className={`inline-flex items-center rounded-[4px] border border-current/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest ${n.badge} mb-3`}>

@@ -11,6 +11,7 @@
  */
 import { type NextRequest, NextResponse } from 'next/server'
 import { decode } from '@auth/core/jwt'
+import { resolverPermissoes, podeAcessarRota } from '@/lib/menu-permissoes'
 
 const isProduction = process.env.NODE_ENV === 'production'
 const PREFIX       = isProduction ? '__Secure-' : ''
@@ -68,20 +69,32 @@ export default async function middleware(req: NextRequest) {
     }
   }
 
-  // ── CRM: só contador / admin ────────────────────────────────────────────
+  // ── CRM: admin / contador / assistente ──────────────────────────────────
   if (path.startsWith('/crm')) {
     const token = await getToken(req, CRM_COOKIE)
     if (!token) return NextResponse.redirect(new URL('/login', req.url))
     const tipo = token.tipo as string
-    if (tipo !== 'contador' && tipo !== 'admin') {
+    if (tipo !== 'contador' && tipo !== 'admin' && tipo !== 'assistente') {
       return NextResponse.redirect(new URL('/login', req.url))
     }
     if (token.precisaTrocarSenha && path !== '/crm/trocar-senha') {
       return NextResponse.redirect(new URL('/crm/trocar-senha', req.url))
     }
-    // Configurações: apenas admin
+    // Páginas sem restrição de menu (infraestrutura)
+    const ROTAS_LIVRES = ['/crm/acesso-negado', '/crm/trocar-senha', '/crm/dashboard']
+    if (ROTAS_LIVRES.some(r => path === r || path.startsWith(r + '/'))) {
+      return NextResponse.next()
+    }
+    // Configurações: apenas admin (regra hard)
     if (tipo !== 'admin' && path.startsWith('/crm/configuracoes')) {
-      return NextResponse.redirect(new URL('/crm/dashboard', req.url))
+      return NextResponse.redirect(new URL('/crm/acesso-negado', req.url))
+    }
+    // Verificar permissões de menu para contador e assistente
+    if (tipo !== 'admin') {
+      const permissoes = resolverPermissoes(token.menuPermissoes)
+      if (!podeAcessarRota(tipo, path, permissoes)) {
+        return NextResponse.redirect(new URL('/crm/acesso-negado', req.url))
+      }
     }
   }
 
@@ -107,7 +120,8 @@ export default async function middleware(req: NextRequest) {
   // ── /login: redireciona CRM autenticado direto pro dashboard ───────────
   if (path === '/login') {
     const token = await getToken(req, CRM_COOKIE)
-    if (token?.tipo === 'contador' || token?.tipo === 'admin') {
+    const t = token?.tipo
+    if (t === 'contador' || t === 'admin' || t === 'assistente') {
       return NextResponse.redirect(new URL('/crm/dashboard', req.url))
     }
   }

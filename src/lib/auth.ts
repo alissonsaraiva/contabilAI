@@ -72,12 +72,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true
     },
 
-    jwt({ token, user, account }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.tipo               = (user as any).tipo
         token.id                 = user.id
         token.precisaTrocarSenha = (user as any).precisaTrocarSenha ?? false
         token.checkedAt          = Date.now()
+        // Carrega permissões de menu no login
+        try {
+          const esc = await prisma.escritorio.findFirst({ select: { menuPermissoes: true } })
+          token.menuPermissoes = esc?.menuPermissoes ?? null
+        } catch {
+          token.menuPermissoes = null
+        }
       }
       // Google: após signIn callback, o id já foi substituído pelo clienteId
       if (account?.provider === 'google' && (user as any)?.tipo === 'cliente') {
@@ -100,16 +107,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       if (token.id && tipo !== 'cliente' && Date.now() - lastCheck > REVALIDAR_INTERVAL) {
         try {
-          const usuario = await prisma.usuario.findUnique({
-            where:  { id: token.id as string },
-            select: { ativo: true, precisaTrocarSenha: true },
-          })
+          const [usuario, escritorio] = await Promise.all([
+            prisma.usuario.findUnique({
+              where:  { id: token.id as string },
+              select: { ativo: true, precisaTrocarSenha: true },
+            }),
+            prisma.escritorio.findFirst({ select: { menuPermissoes: true } }),
+          ])
           if (!usuario?.ativo) {
             return { ...session, user: undefined } as any
           }
           if (session.user) {
             ;(session.user as any).precisaTrocarSenha = usuario.precisaTrocarSenha
           }
+          token.precisaTrocarSenha = usuario.precisaTrocarSenha
+          token.menuPermissoes = escritorio?.menuPermissoes ?? null
           token.checkedAt = Date.now()
         } catch {
           // DB indisponível — mantém sessão com dados do token
