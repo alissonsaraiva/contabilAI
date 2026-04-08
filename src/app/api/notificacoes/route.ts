@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth'
 
 export type Notificacao = {
   id: string
-  tipo: 'escalacao' | 'ia_offline' | 'agente_falhou' | 'documento_enviado' | 'cliente_inadimplente' | 'documento_falhou'
+  tipo: 'escalacao' | 'agente_falhou' | 'documento_enviado' | 'cliente_inadimplente' | 'documento_falhou'
   titulo: string
   descricao?: string
   href: string
@@ -17,7 +17,7 @@ export type Notificacao = {
 // contador   → escalações + eventos de cliente
 // assistente → escalações + eventos de cliente
 const TIPOS_POR_PAPEL: Record<string, string[] | undefined> = {
-  admin:      undefined,                // sem filtro — vê tudo
+  admin:      ['escalacao', 'agente_falhou', 'documento_enviado', 'cliente_inadimplente', 'documento_falhou'],
   contador:   ['escalacao', 'documento_enviado', 'cliente_inadimplente', 'documento_falhou'],
   assistente: ['escalacao', 'documento_enviado', 'cliente_inadimplente', 'documento_falhou'],
 }
@@ -27,9 +27,8 @@ export async function GET() {
   const usuarioId = (session?.user as any)?.id
   const tipo = (session?.user as any)?.tipo as string | undefined
 
-  const tiposPermitidos = tipo ? TIPOS_POR_PAPEL[tipo] : null
-  // null = papel desconhecido/não autorizado; undefined = sem filtro (admin)
-  if (!session || tiposPermitidos === null) {
+  const tiposPermitidos = tipo ? TIPOS_POR_PAPEL[tipo] : undefined
+  if (!session || !tiposPermitidos) {
     return NextResponse.json([] as Notificacao[])
   }
 
@@ -52,8 +51,7 @@ export async function GET() {
           where: {
             usuarioId,
             lida: false,
-            // segurança extra: filtra na leitura além da criação
-            ...(tiposPermitidos ? { tipo: { in: tiposPermitidos } } : {}),
+            tipo: { in: tiposPermitidos },
           },
           orderBy: { criadoEm: 'desc' },
           take: 20,

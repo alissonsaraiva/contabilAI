@@ -2,7 +2,8 @@
  * Helpers para criar notificações no banco de dados.
  *
  * Política de visibilidade por tipo:
- *   ia_offline / agente_falhou / entrega_falhou → somente admin (infra/sistema)
+ *   agente_falhou / entrega_falhou → somente admin (infra/sistema)
+ *   ia_offline → desativada (status visível em /crm/configuracoes/ia/saude)
  *   escalacao                                   → admin + contador + assistente (equipe de atendimento)
  */
 
@@ -67,27 +68,11 @@ async function criarParaTodos(
 // ─── Notificações específicas ──────────────────────────────────────────────────
 
 /**
- * Notifica quando um provider de IA vai offline.
- * Anti-spam: no máximo uma notificação por provider a cada 10 minutos.
+ * Desativada — status de providers já é visível em /crm/configuracoes/ia/saude.
+ * Mantida como no-op para não quebrar os call sites existentes.
  */
-export async function notificarIaOffline(provider: string, erro: string): Promise<void> {
-  const chave = `ia_offline:${provider}`
-  if (dentroDoCooldow(chave)) return
-  registrarCooldown(chave)
-
-  try {
-    const { PROVIDER_LABELS } = await import('@/lib/ai/constants')
-
-    const ids = await buscarAdmins()
-    await criarParaTodos(ids, {
-      tipo:    'ia_offline',
-      titulo:  `Provider offline: ${PROVIDER_LABELS[provider] ?? provider}`,
-      mensagem: erro.slice(0, 200),
-      url:     '/crm/configuracoes/ia/saude',
-    })
-  } catch (err) {
-    console.error('[notificacoes] falha ao criar notificação ia_offline:', err)
-  }
+export async function notificarIaOffline(_provider: string, _erro: string): Promise<void> {
+  return
 }
 
 /**

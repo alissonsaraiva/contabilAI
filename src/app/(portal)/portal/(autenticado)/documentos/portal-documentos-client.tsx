@@ -261,7 +261,12 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                             </span>
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-[13px] font-medium text-on-surface truncate max-w-[calc(100%-48px)]">{d.nome}</p>
+                                <button
+                                  onClick={() => d.url && handleDownload(d)}
+                                  className="text-left text-[13px] font-medium text-on-surface truncate max-w-[calc(100%-48px)] hover:text-primary transition-colors cursor-pointer"
+                                >
+                                  {d.nome}
+                                </button>
                                 {novo && (
                                   <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
                                     Novo
@@ -289,17 +294,18 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center justify-end sm:justify-start gap-2 shrink-0 w-full sm:w-auto ml-10 sm:ml-0 pt-2 sm:pt-0 border-t sm:border-0 border-outline-variant/10">
+                          <div className="flex items-center justify-between sm:justify-start gap-2 shrink-0 w-full sm:w-auto ml-10 sm:ml-0 pt-2 sm:pt-0 border-t sm:border-0 border-outline-variant/10">
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>
                               {s.label}
                             </span>
                             {d.url && (
                               <button
                                 onClick={() => handleDownload(d)}
-                                aria-label={`Baixar ${d.nome}`}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant/60 hover:bg-surface-container hover:text-primary transition-colors"
+                                aria-label={`Abrir ${d.nome}`}
+                                className="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10 active:scale-95 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:h-8 sm:w-8 sm:justify-center sm:rounded-lg sm:hover:bg-surface-container sm:hover:text-primary"
                               >
-                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
+                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">open_in_new</span>
+                                <span className="sm:hidden">Abrir</span>
                               </button>
                             )}
                           </div>

@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { startOfDayBrasilia, cn } from '@/lib/utils'
 import Link from 'next/link'
 import { AutoRefresh } from '@/components/ui/auto-refresh'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 const PLANO_LABEL: Record<string, string> = {
   essencial: 'Essencial',
@@ -32,11 +34,32 @@ const CANAL_ESCALACAO_LABEL: Record<string, string> = {
   portal: 'Portal',
 }
 
-// Em vez de backgrounds pesados, usamos cores sutis de texto ou ícones
 const CANAL_ESCALACAO_COLOR: Record<string, string> = {
   whatsapp: 'text-emerald-600',
   onboarding: 'text-primary',
   portal: 'text-orange-500',
+}
+
+const CANAL_ESCALACAO_ICON: Record<string, string> = {
+  whatsapp: 'chat',
+  onboarding: 'person_add',
+  portal: 'language',
+}
+
+const STATUS_CHAMADO_ICON: Record<string, string> = {
+  aberta: 'radio_button_unchecked',
+  em_andamento: 'pending',
+  aguardando_cliente: 'hourglass_top',
+  resolvida: 'check_circle',
+  cancelada: 'cancel',
+}
+
+const STATUS_CHAMADO_DOT: Record<string, string> = {
+  aberta: 'bg-primary',
+  em_andamento: 'bg-orange-500',
+  aguardando_cliente: 'bg-amber-500',
+  resolvida: 'bg-emerald-500',
+  cancelada: 'bg-on-surface-variant/40',
 }
 
 async function getDashboardData() {
@@ -400,50 +423,86 @@ export default async function DashboardPage() {
           </div>
 
           {/* 3. Filas de Trabalho Combinadas (Escalações + Chamados) */}
-          {/* Para evitar scroll infinito na direita, juntamos em um bloco limpo */}
-          <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card">
-            <div className="border-b border-outline-variant/10 px-6 py-5">
-              <h2 className="font-headline text-[13px] font-bold uppercase tracking-widest text-on-surface">
-                Fila de Operação
-              </h2>
+          <div className="overflow-hidden rounded-[14px] border border-outline-variant/15 bg-card shadow-sm">
+            {/* Header */}
+            <div className="flex items-center gap-3 border-b border-outline-variant/15 px-6 py-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10">
+                <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>inbox</span>
+              </div>
+              <div className="flex-1">
+                <h2 className="font-headline text-[13px] font-bold uppercase tracking-widest text-on-surface">
+                  Fila de Operação
+                </h2>
+              </div>
+              {(d.escalacoesPendentes.length + d.osRecentes.filter(o => o.status !== 'resolvida' && o.status !== 'cancelada').length) > 0 && (
+                <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                  {d.escalacoesPendentes.length + d.osRecentes.filter(o => o.status !== 'resolvida' && o.status !== 'cancelada').length} pendentes
+                </span>
+              )}
             </div>
 
-            <div className="divide-y divide-outline-variant/10">
+            <div className="divide-y divide-outline-variant/15">
               {/* Box A: Escalações Pendentes */}
-              <div className="flex flex-col pb-2">
-                <div className="bg-surface-container-lowest/50 px-6 py-3">
-                  <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <div className="flex items-center justify-between px-6 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-on-surface-variant/50">support_agent</span>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
                       Escalações Recentes
                     </span>
-                    {d.escalacoesPendentes.length > 0 && (
-                      <span className="rounded-[4px] border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[9px] font-bold text-primary">
-                        {d.escalacoesPendentes.length}
-                      </span>
-                    )}
                   </div>
+                  {d.escalacoesPendentes.length > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-error/10 px-1.5 text-[10px] font-bold text-error">
+                      {d.escalacoesPendentes.length}
+                    </span>
+                  )}
                 </div>
                 {d.escalacoesPendentes.length === 0 ? (
-                  <p className="px-6 py-4 text-[12px] font-medium text-on-surface-variant/50">Nenhuma escalação aguardando atendimento.</p>
+                  <div className="flex flex-col items-center justify-center gap-2 px-6 py-8">
+                    <span className="material-symbols-outlined text-[28px] text-on-surface-variant/25">check_circle</span>
+                    <p className="text-[12px] font-medium text-on-surface-variant/40">Nenhuma escalação aguardando</p>
+                  </div>
                 ) : (
-                  <ul className="divide-y divide-outline-variant/5">
+                  <ul className="divide-y divide-outline-variant/10">
                     {d.escalacoesPendentes.map(e => (
                       <li key={e.id}>
                         <Link
                           href={`/crm/atendimentos?esc=${e.id}`}
-                          className="group flex flex-col gap-1.5 px-6 py-3.5 transition-colors hover:bg-surface-container-lowest"
+                          className="group flex items-start gap-3 px-6 py-3.5 transition-colors hover:bg-surface-container-low/50"
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[13px] font-semibold text-on-surface transition-colors group-hover:text-primary">
-                              {e.clienteId ? (d.clienteMap[e.clienteId] ?? 'Cliente') : 'Onboarding'}
+                          <div className={cn(
+                            'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                            e.canal === 'whatsapp' ? 'bg-emerald-500/10' :
+                              e.canal === 'portal' ? 'bg-orange-500/10' : 'bg-primary/10'
+                          )}>
+                            <span className={cn(
+                              'material-symbols-outlined text-[16px]',
+                              CANAL_ESCALACAO_COLOR[e.canal] ?? 'text-on-surface-variant/50'
+                            )}>
+                              {CANAL_ESCALACAO_ICON[e.canal] ?? 'forum'}
                             </span>
-                            <div className="flex items-center gap-1.5">
-                              <span className={cn('text-[10px] font-bold uppercase tracking-wide', CANAL_ESCALACAO_COLOR[e.canal] ?? 'text-on-surface-variant/50')}>
-                                {CANAL_ESCALACAO_LABEL[e.canal] ?? e.canal}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[13px] font-semibold text-on-surface transition-colors group-hover:text-primary">
+                                {e.clienteId ? (d.clienteMap[e.clienteId] ?? 'Cliente') : 'Onboarding'}
+                              </span>
+                              <span className="shrink-0 text-[10px] font-medium text-on-surface-variant/50">
+                                {formatDistanceToNow(e.criadoEm, { locale: ptBR, addSuffix: true })}
                               </span>
                             </div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="truncate text-[12px] font-medium text-on-surface-variant/60">{e.ultimaMensagem}</span>
+                            </div>
+                            <span className={cn(
+                              'mt-1.5 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+                              e.canal === 'whatsapp' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600' :
+                                e.canal === 'portal' ? 'border-orange-500/20 bg-orange-500/10 text-orange-500' :
+                                  'border-primary/20 bg-primary/10 text-primary'
+                            )}>
+                              {CANAL_ESCALACAO_LABEL[e.canal] ?? e.canal}
+                            </span>
                           </div>
-                          <span className="truncate text-[12px] font-medium text-on-surface-variant/60">{e.ultimaMensagem}</span>
                         </Link>
                       </li>
                     ))}
@@ -452,38 +511,63 @@ export default async function DashboardPage() {
               </div>
 
               {/* Box B: Chamados */}
-              <div className="flex flex-col pb-2">
-                <div className="bg-surface-container-lowest/50 px-6 py-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
-                    Chamados Abertos
-                  </span>
+              <div className="flex flex-col">
+                <div className="flex items-center justify-between px-6 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-on-surface-variant/50">confirmation_number</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
+                      Chamados Recentes
+                    </span>
+                  </div>
                 </div>
                 {d.osRecentes.length === 0 ? (
-                  <p className="px-6 py-4 text-[12px] font-medium text-on-surface-variant/50">Nenhum chamado aberto na lista.</p>
+                  <div className="flex flex-col items-center justify-center gap-2 px-6 py-8">
+                    <span className="material-symbols-outlined text-[28px] text-on-surface-variant/25">inbox</span>
+                    <p className="text-[12px] font-medium text-on-surface-variant/40">Nenhum chamado na lista</p>
+                  </div>
                 ) : (
-                  <ul className="divide-y divide-outline-variant/5">
+                  <ul className="divide-y divide-outline-variant/10">
                     {d.osRecentes.map(o => (
                       <li key={o.id}>
                         <Link
                           href={`/crm/chamados/${o.id}`}
-                          className="group flex flex-col gap-2 px-6 py-3.5 transition-colors hover:bg-surface-container-lowest"
+                          className="group flex items-start gap-3 px-6 py-3.5 transition-colors hover:bg-surface-container-low/50"
                         >
-                          <div className="flex items-start justify-between gap-4">
-                            <span className="text-[13px] font-bold leading-snug text-on-surface transition-colors group-hover:text-primary">
-                              {o.titulo}
-                            </span>
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-container">
                             <span className={cn(
-                              'mt-0.5 shrink-0 rounded-[4px] px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide',
-                              // Trocando os backgrounds com /10 por algo mais seco
-                              o.status === 'aberta' ? 'bg-primary/10 text-primary' :
-                                o.status === 'em_andamento' ? 'bg-orange-500/10 text-orange-600' :
-                                  o.status === 'resolvida' ? 'bg-emerald-500/10 text-emerald-600' :
-                                    'bg-surface-container text-on-surface-variant/70'
-                            )}>
-                              {STATUS_CHAMADO_LABEL[o.status] ?? o.status}
+                              'material-symbols-outlined text-[16px]',
+                              o.status === 'aberta' ? 'text-primary' :
+                                o.status === 'em_andamento' ? 'text-orange-500' :
+                                  o.status === 'resolvida' ? 'text-emerald-500' :
+                                    'text-on-surface-variant/50'
+                            )} style={{ fontVariationSettings: o.status === 'resolvida' ? "'FILL' 1" : undefined }}>
+                              {STATUS_CHAMADO_ICON[o.status] ?? 'help'}
                             </span>
                           </div>
-                          <span className="text-[11px] font-medium tracking-wide text-on-surface-variant/60">{o.cliente.nome}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="text-[13px] font-semibold leading-snug text-on-surface transition-colors group-hover:text-primary">
+                                {o.titulo}
+                              </span>
+                              <span className={cn(
+                                'mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+                                o.status === 'aberta' ? 'border-primary/20 bg-primary/10 text-primary' :
+                                  o.status === 'em_andamento' ? 'border-orange-500/20 bg-orange-500/10 text-orange-600' :
+                                    o.status === 'resolvida' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600' :
+                                      o.status === 'aguardando_cliente' ? 'border-amber-500/20 bg-amber-500/10 text-amber-600' :
+                                        'border-outline-variant/20 bg-surface-container text-on-surface-variant/70'
+                              )}>
+                                <span className={cn('h-1.5 w-1.5 rounded-full', STATUS_CHAMADO_DOT[o.status] ?? 'bg-on-surface-variant/40')} />
+                                {STATUS_CHAMADO_LABEL[o.status] ?? o.status}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-medium text-on-surface-variant/60">{o.cliente.nome}</span>
+                              <span className="shrink-0 text-[10px] font-medium text-on-surface-variant/40">
+                                {formatDistanceToNow(o.criadoEm, { locale: ptBR, addSuffix: true })}
+                              </span>
+                            </div>
+                          </div>
                         </Link>
                       </li>
                     ))}

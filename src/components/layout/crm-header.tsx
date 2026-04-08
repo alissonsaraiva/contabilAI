@@ -251,9 +251,11 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
                         style={{ fontVariationSettings: "'FILL' 1" }}
                       >
                         {n.tipo === 'escalacao' ? 'escalator_warning'
-                          : n.tipo === 'ia_offline' ? 'cloud_off'
-                            : n.tipo === 'agente_falhou' ? 'smart_toy'
-                              : 'warning'}
+                          : n.tipo === 'agente_falhou' ? 'smart_toy'
+                            : n.tipo === 'documento_enviado' ? 'upload_file'
+                              : n.tipo === 'cliente_inadimplente' ? 'payments'
+                                : n.tipo === 'documento_falhou' ? 'error'
+                                  : 'warning'}
                       </span>
 
                       {/* Conteúdo */}
