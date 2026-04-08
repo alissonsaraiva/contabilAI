@@ -5,21 +5,6 @@ import { AutoRefresh } from '@/components/ui/auto-refresh'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-const PLANO_LABEL: Record<string, string> = {
-  essencial: 'Essencial',
-  profissional: 'Profissional',
-  empresarial: 'Empresarial',
-  startup: 'Startup',
-}
-
-const REGIME_LABEL: Record<string, string> = {
-  MEI: 'MEI',
-  SimplesNacional: 'Simples',
-  LucroPresumido: 'L. Presumido',
-  LucroReal: 'L. Real',
-  Autonomo: 'Autônomo',
-}
-
 const STATUS_CHAMADO_LABEL: Record<string, string> = {
   aberta: 'Aberta',
   em_andamento: 'Em andamento',
@@ -62,9 +47,31 @@ const STATUS_CHAMADO_DOT: Record<string, string> = {
   cancelada: 'bg-on-surface-variant/40',
 }
 
+const CANAL_CONVERSA_LABEL: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  onboarding: 'Onboarding',
+  portal: 'Portal',
+  crm: 'CRM',
+}
+
+const CANAL_CONVERSA_COLOR: Record<string, string> = {
+  whatsapp: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600',
+  onboarding: 'border-primary/20 bg-primary/10 text-primary',
+  portal: 'border-orange-500/20 bg-orange-500/10 text-orange-500',
+  crm: 'border-violet-500/20 bg-violet-500/10 text-violet-600',
+}
+
+const CANAL_CONVERSA_ICON: Record<string, string> = {
+  whatsapp: 'chat',
+  onboarding: 'person_add',
+  portal: 'language',
+  crm: 'support_agent',
+}
+
 async function getDashboardData() {
   const hoje = startOfDayBrasilia()
   const trintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const quarentaEOitoHorasAtras = new Date(Date.now() - 48 * 60 * 60 * 1000)
 
   const [
     clientesAtivos,
@@ -72,7 +79,6 @@ async function getDashboardData() {
     conversasHoje,
     chamadosAbertos,
     escalacoesPendentes,
-    clientesRecentes,
     osRecentes,
     convHojeTotal,
     escalacaoHojeTotal,
@@ -81,6 +87,7 @@ async function getDashboardData() {
     clientesInadimplentes,
     valorTotalAtraso,
     inadimplentesRecentes,
+    conversasRecentes,
   ] = await Promise.all([
     prisma.cliente.count({ where: { status: 'ativo' } }),
     prisma.cliente.count({ where: { status: 'ativo', criadoEm: { gte: trintaDiasAtras } } }),
@@ -90,12 +97,6 @@ async function getDashboardData() {
       where: { status: 'pendente' },
       orderBy: { criadoEm: 'desc' },
       take: 5,
-    }),
-    prisma.cliente.findMany({
-      where: { status: 'ativo' },
-      orderBy: { atualizadoEm: 'desc' },
-      take: 8,
-      include: { empresa: { select: { nomeFantasia: true, razaoSocial: true, regime: true } } },
     }),
     prisma.chamado.findMany({
       orderBy: { criadoEm: 'desc' },
@@ -128,6 +129,29 @@ async function getDashboardData() {
         },
       },
     }),
+    prisma.conversaIA.findMany({
+      where: {
+        ultimaMensagemEm: { gte: quarentaEOitoHorasAtras },
+        OR: [{ clienteId: { not: null } }, { leadId: { not: null } }, { socioId: { not: null } }],
+      },
+      orderBy: { ultimaMensagemEm: 'desc' },
+      take: 8,
+      select: {
+        id: true,
+        canal: true,
+        pausadaEm: true,
+        ultimaMensagemEm: true,
+        cliente: { select: { id: true, nome: true } },
+        lead: { select: { id: true, contatoEntrada: true } },
+        socio: { select: { id: true, nome: true } },
+        mensagens: {
+          orderBy: { criadaEm: 'desc' },
+          take: 1,
+          where: { excluido: false },
+          select: { conteudo: true, role: true },
+        },
+      },
+    }),
   ])
 
   // Manual join: Escalacao → Cliente
@@ -144,12 +168,12 @@ async function getDashboardData() {
   return {
     clientesAtivos, clientesNovos,
     conversasHoje, chamadosAbertos, leadsHoje,
-    escalacoesPendentes, clienteMap,
-    clientesRecentes, osRecentes,
+    escalacoesPendentes, clienteMap, osRecentes,
     taxaResolucaoIA, convHojeTotal, escalacaoHojeTotal,
     clientesInadimplentes,
     valorTotalAtraso: Number(valorTotalAtraso._sum.valor ?? 0),
     inadimplentesRecentes,
+    conversasRecentes,
   }
 }
 
@@ -226,15 +250,20 @@ export default async function DashboardPage() {
       {/* Em vez do safe split 1fr / 340px, um split mais elegante: 1.5fr / 1fr p/ dar respiro */}
       <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
 
-        {/* COLUNA ESQUERDA: Tabela Elegante */}
-        <div className="flex flex-col overflow-hidden rounded-xl border border-outline-variant/20 bg-card">
+        {/* COLUNA ESQUERDA: Conversas Recentes (Atendimentos) */}
+        <div className="overflow-hidden rounded-xl border border-outline-variant/20 bg-card">
           <div className="flex items-center justify-between border-b border-outline-variant/10 px-6 py-5">
-            <div>
-              <h2 className="font-headline text-[15px] font-semibold text-on-surface">Movimentações Recentes</h2>
-              <p className="mt-1 text-[12px] text-on-surface-variant/60">Clientes ativos recentemente atualizados</p>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10">
+                <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>forum</span>
+              </div>
+              <div>
+                <h2 className="font-headline text-[15px] font-semibold text-on-surface">Conversas Recentes</h2>
+                <p className="mt-0.5 text-[12px] text-on-surface-variant/60">Atendimentos nas últimas 48h</p>
+              </div>
             </div>
             <Link
-              href="/crm/clientes"
+              href="/crm/atendimentos"
               className="group flex items-center gap-1.5 text-[12px] font-semibold tracking-wide text-primary transition-colors hover:text-primary/80"
             >
               Ver todos
@@ -244,66 +273,89 @@ export default async function DashboardPage() {
             </Link>
           </div>
 
-          {d.clientesRecentes.length === 0 ? (
-            <div className="flex h-64 flex-col items-center justify-center gap-3 bg-surface-container-lowest/30">
-              <span className="material-symbols-outlined text-4xl text-on-surface-variant/20">
-                sentiment_dissatisfied
-              </span>
-              <p className="text-[13px] font-medium text-on-surface-variant/50">Nenhum cliente ativo no momento</p>
+          {d.conversasRecentes.length === 0 ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-3 bg-surface-container-lowest/30">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant/20">chat_bubble_outline</span>
+              <p className="text-[13px] font-medium text-on-surface-variant/50">Nenhuma conversa recente</p>
             </div>
           ) : (
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-outline-variant/10 bg-surface-container-lowest/40">
-                    <th className="px-6 py-3.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/50">Cliente</th>
-                    <th className="px-6 py-3.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/50 hidden md:table-cell">Empresa / Regime</th>
-                    <th className="px-6 py-3.5 text-right text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/50">Plano / Tipo</th>
-                  </tr>
-                </thead>
-                {/* Linhas minimalistas com hover sutil que não briga por atençao */}
-                <tbody className="divide-y divide-outline-variant/5 bg-transparent">
-                  {d.clientesRecentes.map((c) => (
-                    <tr key={c.id} className="group transition-colors duration-200 hover:bg-surface-container-lowest/80">
-                      <td className="px-6 py-4 align-top">
-                        <Link href={`/crm/clientes/${c.id}`} className="block">
-                          <p className="text-[13px] font-semibold text-on-surface transition-colors group-hover:text-primary">
-                            {c.nome}
-                          </p>
-                          <p className="mt-0.5 text-[11px] font-medium text-on-surface-variant/60">{c.email}</p>
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 align-top hidden md:table-cell">
-                        {c.empresa ? (
-                          <>
-                            <p className="max-w-[200px] truncate text-[13px] font-medium text-on-surface-variant">
-                              {c.empresa.nomeFantasia ?? c.empresa.razaoSocial ?? '—'}
-                            </p>
-                            {c.empresa.regime && (
-                              <p className="mt-0.5 text-[11px] tracking-wide text-on-surface-variant/50">
-                                {REGIME_LABEL[c.empresa.regime] ?? c.empresa.regime}
-                              </p>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-[13px] font-medium text-on-surface-variant/30">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 align-top text-right">
-                        <div className="flex flex-col items-end gap-1.5">
-                          <span className="inline-block rounded-[4px] border border-outline-variant/20 bg-surface-container px-2 py-0.5 text-[10px] font-medium tracking-wide text-on-surface-variant">
-                            {PLANO_LABEL[c.planoTipo] ?? c.planoTipo}
+            <ul className="divide-y divide-outline-variant/5">
+              {d.conversasRecentes.map(c => {
+                const nomeContato = c.cliente?.nome ?? c.socio?.nome ?? c.lead?.contatoEntrada ?? 'Desconhecido'
+                const previewMsg = c.mensagens[0]?.conteudo
+                  ? (c.mensagens[0].conteudo.length > 80
+                    ? c.mensagens[0].conteudo.slice(0, 80) + '…'
+                    : c.mensagens[0].conteudo)
+                  : 'Sem mensagens'
+                const isHumano = Boolean(c.pausadaEm)
+                const href = `/crm/atendimentos/conversa/${c.id}`
+
+                return (
+                  <li key={c.id}>
+                    <Link
+                      href={href}
+                      className="group flex items-start gap-3 px-6 py-3.5 transition-colors hover:bg-surface-container-lowest/80"
+                    >
+                      <div className={cn(
+                        'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                        c.canal === 'whatsapp' ? 'bg-emerald-500/10' :
+                          c.canal === 'portal' ? 'bg-orange-500/10' :
+                            c.canal === 'crm' ? 'bg-violet-500/10' : 'bg-primary/10'
+                      )}>
+                        <span className={cn(
+                          'material-symbols-outlined text-[16px]',
+                          c.canal === 'whatsapp' ? 'text-emerald-600' :
+                            c.canal === 'portal' ? 'text-orange-500' :
+                              c.canal === 'crm' ? 'text-violet-600' : 'text-primary'
+                        )}>
+                          {CANAL_CONVERSA_ICON[c.canal] ?? 'forum'}
+                        </span>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[13px] font-semibold text-on-surface transition-colors group-hover:text-primary">
+                            {nomeContato}
                           </span>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">
-                            {c.tipoContribuinte}
+                          <span className="shrink-0 text-[10px] font-medium text-on-surface-variant/50">
+                            {c.ultimaMensagemEm
+                              ? formatDistanceToNow(new Date(c.ultimaMensagemEm), { locale: ptBR, addSuffix: true })
+                              : '—'}
                           </span>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+
+                        <p className="mt-0.5 truncate text-[12px] font-medium text-on-surface-variant/60">
+                          {c.mensagens[0]?.role === 'assistant' && (
+                            <span className="text-primary/60">IA: </span>
+                          )}
+                          {previewMsg}
+                        </p>
+
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className={cn(
+                            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+                            CANAL_CONVERSA_COLOR[c.canal] ?? 'border-outline-variant/20 bg-surface-container text-on-surface-variant/70'
+                          )}>
+                            {CANAL_CONVERSA_LABEL[c.canal] ?? c.canal}
+                          </span>
+                          {isHumano ? (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                              Humano
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-600">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              IA Ativa
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </div>
 
