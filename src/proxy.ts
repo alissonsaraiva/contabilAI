@@ -98,6 +98,10 @@ export default async function middleware(req: NextRequest) {
   if (path.startsWith('/portal')) {
     // Páginas públicas do portal
     if (path === '/portal/login' || path.startsWith('/portal/verificar')) {
+      // Se tem token de verificação, SEMPRE prosseguir (re-autentica com JWT novo)
+      if (path.startsWith('/portal/verificar') && req.nextUrl.searchParams.has('token')) {
+        return NextResponse.next()
+      }
       const token = await getToken(req, PORTAL_COOKIE)
       const tipo  = token?.tipo as string | undefined
       if (tipo === 'cliente' || tipo === 'socio') {
