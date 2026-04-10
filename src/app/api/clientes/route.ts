@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -75,13 +76,16 @@ export async function GET(req: Request) {
     where: {
       AND: [
         q
-          ? {
-              OR: [
-                { nome: { contains: q, mode: 'insensitive' } },
-                { email: { contains: q, mode: 'insensitive' } },
-                { cpf: { contains: q.replace(/\D/g, '') } },
-              ],
-            }
+          ? { id: { in: await unaccentSearch({
+              sql: `
+                SELECT id FROM clientes
+                WHERE f_unaccent(nome) ILIKE f_unaccent($1)
+                  OR f_unaccent(email) ILIKE f_unaccent($1)
+                  OR cpf LIKE $2
+              `,
+              term: q,
+              extraParams: [`%${q.replace(/\D/g, '')}%`],
+            }) } }
           : {},
         status ? { status: status as any } : {},
         plano ? { planoTipo: plano as any } : {},

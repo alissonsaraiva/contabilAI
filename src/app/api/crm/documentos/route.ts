@@ -16,6 +16,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { CategoriaDocumento } from '@prisma/client'
 
 export async function GET(req: Request) {
@@ -37,15 +38,11 @@ export async function GET(req: Request) {
 
   // Monta filtro OR para cross-client search
   type WhereDoc = {
+    id?: { in: string[] }
     clienteId?: string
     leadId?: string
     empresaId?: string
     categoria?: CategoriaDocumento
-    OR?: Array<{
-      nome?: { contains: string; mode: 'insensitive' }
-      tipo?: { contains: string; mode: 'insensitive' }
-      cliente?: { nome: { contains: string; mode: 'insensitive' } }
-    }>
   }
   const where: WhereDoc = {}
 
@@ -55,13 +52,21 @@ export async function GET(req: Request) {
 
   if (categoria) where.categoria = categoria as CategoriaDocumento
 
-  // Filtro de busca textual
+  // Filtro de busca textual (accent-insensitive)
   if (search) {
-    where.OR = [
-      { nome:    { contains: search, mode: 'insensitive' } },
-      { tipo:    { contains: search, mode: 'insensitive' } },
-      { cliente: { nome: { contains: search, mode: 'insensitive' } } },
-    ]
+    const docIds = await unaccentSearch({
+      sql: `
+        SELECT DISTINCT d.id FROM documentos d
+        LEFT JOIN clientes c ON c.id = d."clienteId"
+        WHERE d."deletadoEm" IS NULL AND (
+          f_unaccent(d.nome) ILIKE f_unaccent($1)
+          OR f_unaccent(d.tipo) ILIKE f_unaccent($1)
+          OR f_unaccent(c.nome) ILIKE f_unaccent($1)
+        )
+      `,
+      term: search,
+    })
+    where.id = { in: docIds }
   }
 
   // Para cliente PJ: inclui documentos de TODAS as empresas vinculadas (1:N)
@@ -102,10 +107,10 @@ export async function GET(req: Request) {
             deletadoEm: null,
             ...(categoria ? { categoria: categoria as CategoriaDocumento } : {}),
             ...(search ? {
-              OR: [
-                { nome: { contains: search, mode: 'insensitive' } },
-                { tipo: { contains: search, mode: 'insensitive' } },
-              ],
+              id: { in: await unaccentSearch({
+                sql: `SELECT id FROM documentos WHERE "deletadoEm" IS NULL AND (f_unaccent(nome) ILIKE f_unaccent($1) OR f_unaccent(tipo) ILIKE f_unaccent($1))`,
+                term: search,
+              }) },
             } : {}),
           },
           orderBy: { criadoEm: 'desc' },

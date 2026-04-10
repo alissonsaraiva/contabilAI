@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { searchClienteIds } from '@/lib/search'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -87,18 +88,7 @@ const buscarDadosClienteTool: Tool = {
         })
       : await prisma.cliente.findFirst({
           where: {
-            OR: [
-              { nome:  { contains: busca!, mode: 'insensitive' } },
-              { email: { contains: busca!, mode: 'insensitive' } },
-              { empresa: { is: { razaoSocial: { contains: busca!, mode: 'insensitive' } } } },
-              // Busca por CPF/CNPJ com ou sem formatação
-              { cpf:  busca! },
-              { empresa: { is: { cnpj: busca! } } },
-              ...(buscaNorm && buscaNorm !== busca ? [
-                { cpf: buscaNorm },
-                { empresa: { is: { cnpj: buscaNorm } } },
-              ] : []),
-            ],
+            id: { in: await searchClienteIds(busca!, buscaNorm) },
           },
           include: {
             empresa: true,

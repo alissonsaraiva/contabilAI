@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import { registrarInteracao } from '@/lib/services/interacoes'
 import { registrarTool } from './registry'
@@ -61,8 +62,10 @@ const transferirClienteTool: Tool = {
     if (!responsavelId && novoResponsavelNome) {
       const usuario = await prisma.usuario.findFirst({
         where: {
-          nome: { contains: novoResponsavelNome, mode: 'insensitive' },
-          ativo: true,
+          id: { in: await unaccentSearch({
+            sql: `SELECT id FROM usuarios WHERE f_unaccent(nome) ILIKE f_unaccent($1) AND ativo = true`,
+            term: novoResponsavelNome,
+          }) },
         },
         select: { id: true, nome: true },
       }).catch(() => null)

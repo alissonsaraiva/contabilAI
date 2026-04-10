@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { resolverEmpresasDoCliente } from './resolver-empresa'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -69,7 +70,10 @@ Pode filtrar por cliente específico, tipo de documento ou período.`,
       where: {
         status: { in: ['pendente', 'solicitado'] },
         ...clienteWhere,
-        tipo:   tipo ? { contains: tipo, mode: 'insensitive' } : undefined,
+        ...(tipo ? { id: { in: await unaccentSearch({
+          sql: `SELECT id FROM documentos WHERE f_unaccent(tipo) ILIKE f_unaccent($1) AND status IN ('pendente','solicitado') AND "deletadoEm" IS NULL`,
+          term: tipo,
+        }) } } : {}),
       },
       select: {
         id:       true,

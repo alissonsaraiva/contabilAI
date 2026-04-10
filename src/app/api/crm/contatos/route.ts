@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -17,15 +18,26 @@ export async function GET(req: Request) {
   const q = searchParams.get('q')?.trim() ?? ''
   if (q.length < 2) return NextResponse.json({ clientes: [], socios: [] })
 
+  const [clienteIds, socioIds] = await Promise.all([
+    unaccentSearch({
+      sql: `
+        SELECT DISTINCT c.id FROM clientes c
+        LEFT JOIN empresas e ON e.id = c."empresaId"
+        WHERE f_unaccent(c.nome) ILIKE f_unaccent($1)
+          OR f_unaccent(c.email) ILIKE f_unaccent($1)
+          OR f_unaccent(e."razaoSocial") ILIKE f_unaccent($1)
+      `,
+      term: q,
+    }),
+    unaccentSearch({
+      sql: `SELECT id FROM socios WHERE f_unaccent(nome) ILIKE f_unaccent($1)`,
+      term: q,
+    }),
+  ])
+
   const [clientes, socios] = await Promise.all([
     prisma.cliente.findMany({
-      where: {
-        OR: [
-          { nome:  { contains: q, mode: 'insensitive' } },
-          { email: { contains: q, mode: 'insensitive' } },
-          { empresa: { is: { razaoSocial: { contains: q, mode: 'insensitive' } } } },
-        ],
-      },
+      where: { id: { in: clienteIds } },
       select: {
         id:       true,
         nome:     true,
@@ -36,9 +48,7 @@ export async function GET(req: Request) {
       take: 8,
     }),
     prisma.socio.findMany({
-      where: {
-        nome: { contains: q, mode: 'insensitive' },
-      },
+      where: { id: { in: socioIds } },
       select: {
         id:       true,
         nome:     true,

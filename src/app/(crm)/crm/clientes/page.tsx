@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { formatBRL, formatCPF, formatDate } from '@/lib/utils'
 import { STATUS_CLIENTE_LABELS, PLANO_LABELS, STATUS_CLIENTE_COLORS, PLANO_COLORS } from '@/types'
 import { NovoClienteDrawer } from '@/components/crm/novo-cliente-drawer'
@@ -21,20 +22,26 @@ export default async function ClientesPage({ searchParams }: Props) {
   const skip = (page - 1) * PER_PAGE
   const qClean = q.replace(/\D/g, '')
 
-  const searchWhere = q ? {
-    OR: [
-      { nome: { contains: q, mode: 'insensitive' as const } },
-      { email: { contains: q, mode: 'insensitive' as const } },
-      { cpf: { contains: qClean } },
-      { telefone: { contains: qClean.length >= 4 ? qClean : q } },
-      { empresa: { cnpj: { contains: qClean } } },
-      { empresa: { razaoSocial: { contains: q, mode: 'insensitive' as const } } },
-    ]
-  } : {}
+  const searchIds = q ? await unaccentSearch({
+    sql: `
+      SELECT DISTINCT c.id FROM clientes c
+      LEFT JOIN empresas e ON e.id = c."empresaId"
+      WHERE (
+        f_unaccent(c.nome) ILIKE f_unaccent($1)
+        OR f_unaccent(c.email) ILIKE f_unaccent($1)
+        OR c.cpf LIKE $2
+        OR c.telefone LIKE $2
+        OR e.cnpj LIKE $2
+        OR f_unaccent(e."razaoSocial") ILIKE f_unaccent($1)
+      )
+    `,
+    term: q,
+    extraParams: [`%${qClean}%`],
+  }) : null
 
   const filterWhere = {
     AND: [
-      searchWhere,
+      searchIds ? { id: { in: searchIds } } : {},
       status ? { status: status as any } : {},
       plano ? { planoTipo: plano as any } : {},
     ],

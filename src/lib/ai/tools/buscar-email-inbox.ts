@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -67,10 +68,23 @@ const buscarEmailInboxTool: Tool = {
     if (clienteId) where.clienteId = clienteId
 
     if (assunto || corpo) {
-      where.OR = [
-        assunto ? { titulo:  { contains: assunto, mode: 'insensitive' } } : null,
-        corpo   ? { conteudo: { contains: corpo,   mode: 'insensitive' } } : null,
-      ].filter(Boolean)
+      if (assunto && corpo) {
+        // Dois termos diferentes: assunto=$1, corpo=$2
+        const ids = await unaccentSearch({
+          sql: `SELECT id FROM interacoes WHERE tipo = 'email_recebido' AND (f_unaccent(titulo) ILIKE f_unaccent($1) OR f_unaccent(conteudo) ILIKE f_unaccent($2))`,
+          term: assunto,
+          extraParams: [`%${corpo}%`],
+        })
+        where.id = { in: ids }
+      } else {
+        const field = assunto ? 'titulo' : 'conteudo'
+        const term = assunto || corpo!
+        const ids = await unaccentSearch({
+          sql: `SELECT id FROM interacoes WHERE tipo = 'email_recebido' AND f_unaccent("${field}") ILIKE f_unaccent($1)`,
+          term,
+        })
+        where.id = { in: ids }
+      }
     }
 
     if (dataInicio || dataFim) {

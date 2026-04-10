@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Suspense } from 'react'
@@ -77,14 +78,21 @@ export default async function CrmChamadosPage({ searchParams }: Props) {
     if (isNumero) {
       searchWhere = { numero: parseInt(numeroMatch, 10) }
     } else {
-      searchWhere = {
-        OR: [
-          { titulo: { contains: q, mode: 'insensitive' } },
-          { cliente: { nome: { contains: q, mode: 'insensitive' } } },
-          { empresa: { razaoSocial: { contains: q, mode: 'insensitive' } } },
-          { empresa: { nomeFantasia: { contains: q, mode: 'insensitive' } } },
-        ],
-      }
+      const ids = await unaccentSearch({
+        sql: `
+          SELECT DISTINCT os.id FROM ordens_servico os
+          LEFT JOIN clientes c ON c.id = os."clienteId"
+          LEFT JOIN empresas e ON e.id = os."empresaId"
+          WHERE (
+            f_unaccent(os.titulo) ILIKE f_unaccent($1)
+            OR f_unaccent(c.nome) ILIKE f_unaccent($1)
+            OR f_unaccent(e."razaoSocial") ILIKE f_unaccent($1)
+            OR f_unaccent(e."nomeFantasia") ILIKE f_unaccent($1)
+          )
+        `,
+        term: q,
+      })
+      searchWhere = { id: { in: ids } }
     }
   }
 

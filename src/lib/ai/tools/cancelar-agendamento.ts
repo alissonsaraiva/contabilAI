@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -47,12 +48,13 @@ const cancelarAgendamentoTool: Tool = {
     if (agendamentoId) {
       agendamento = await prisma.agendamentoAgente.findUnique({ where: { id: agendamentoId } })
     } else {
-      agendamento = await prisma.agendamentoAgente.findFirst({
-        where: {
-          ativo:     true,
-          descricao: { contains: descricao!, mode: 'insensitive' },
-        },
+      const ids = await unaccentSearch({
+        sql: `SELECT id FROM agendamentos_agente WHERE ativo = true AND f_unaccent(descricao) ILIKE f_unaccent($1)`,
+        term: descricao!,
       })
+      agendamento = ids.length > 0
+        ? await prisma.agendamentoAgente.findUnique({ where: { id: ids[0] } })
+        : null
     }
 
     if (!agendamento) {

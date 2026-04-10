@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { formatCNPJ } from '@/lib/utils'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -34,27 +35,27 @@ export default async function EmpresasPage({ searchParams }: Props) {
   const skip = (page - 1) * PER_PAGE
   const qClean = q.replace(/\D/g, '')
 
+  const searchIds = q ? await unaccentSearch({
+    sql: `
+      SELECT DISTINCT e.id FROM empresas e
+      LEFT JOIN clientes c ON c."empresaId" = e.id
+      WHERE (
+        f_unaccent(e."razaoSocial") ILIKE f_unaccent($1)
+        OR f_unaccent(e."nomeFantasia") ILIKE f_unaccent($1)
+        OR f_unaccent(c.nome) ILIKE f_unaccent($1)
+        OR f_unaccent(c.email) ILIKE f_unaccent($1)
+        ${qClean.length >= 4 ? 'OR e.cnpj LIKE $2' : ''}
+      )
+    `,
+    term: q,
+    extraParams: qClean.length >= 4 ? [`%${qClean}%`] : [],
+  }) : null
+
   const where = {
     AND: [
-      q
-        ? {
-          OR: [
-            { razaoSocial: { contains: q, mode: 'insensitive' as const } },
-            { nomeFantasia: { contains: q, mode: 'insensitive' as const } },
-            ...(qClean.length >= 4 ? [{ cnpj: { contains: qClean } }] : []),
-            {
-              cliente: {
-                OR: [
-                  { nome: { contains: q, mode: 'insensitive' as const } },
-                  { email: { contains: q, mode: 'insensitive' as const } },
-                ],
-              },
-            },
-          ],
-        }
-        : {},
+      searchIds ? { id: { in: searchIds } } : {},
       regime ? { regime: regime as any } : {},
-      status ? { cliente: { status: status as any } } : {},
+      status ? { clientes: { some: { status: status as any } } } : {},
     ],
   }
 

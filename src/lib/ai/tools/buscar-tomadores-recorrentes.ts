@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -74,10 +75,11 @@ const buscarTomadoresRecorrentesTool: Tool = {
           tomadorCpfCnpj: { not: null },
           tomadorNome:    { not: null },
           ...(parsed.data.busca ? {
-            OR: [
-              { tomadorNome:    { contains: parsed.data.busca, mode: 'insensitive' } },
-              { tomadorCpfCnpj: { contains: parsed.data.busca.replace(/\D/g, '') } },
-            ],
+            id: { in: await unaccentSearch({
+              sql: `SELECT id FROM notas_fiscais WHERE f_unaccent("tomadorNome") ILIKE f_unaccent($1) OR "tomadorCpfCnpj" LIKE $2`,
+              term: parsed.data.busca!,
+              extraParams: [`%${parsed.data.busca!.replace(/\D/g, '')}%`],
+            }) },
           } : {}),
         },
         orderBy: { criadoEm: 'desc' },

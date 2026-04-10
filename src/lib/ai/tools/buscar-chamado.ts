@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -103,7 +104,10 @@ const buscarChamadoTool: Tool = {
     // ── Busca por título (retorna lista) ──
     if (titulo) {
       const where: any = {
-        titulo: { contains: titulo, mode: 'insensitive' },
+        id: { in: await unaccentSearch({
+          sql: `SELECT id FROM ordens_servico WHERE f_unaccent(titulo) ILIKE f_unaccent($1)`,
+          term: titulo,
+        }) },
       }
       if (clienteIdEfetivo) where.clienteId = clienteIdEfetivo
 

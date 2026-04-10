@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -44,12 +45,18 @@ export default async function RelatoriosPage({ searchParams }: Props) {
 
   const where: any = {
     AND: [
-      q ? { OR: [
-        { titulo:        { contains: q, mode: 'insensitive' } },
-        { conteudo:      { contains: q, mode: 'insensitive' } },
-        { criadoPorNome: { contains: q, mode: 'insensitive' } },
-        { agendamentoDesc: { contains: q, mode: 'insensitive' } },
-      ]} : {},
+      q ? { id: { in: await unaccentSearch({
+        sql: `
+          SELECT id FROM relatorios_agente
+          WHERE (
+            f_unaccent(titulo) ILIKE f_unaccent($1)
+            OR f_unaccent(conteudo) ILIKE f_unaccent($1)
+            OR f_unaccent("criadoPorNome") ILIKE f_unaccent($1)
+            OR f_unaccent("agendamentoDesc") ILIKE f_unaccent($1)
+          )
+        `,
+        term: q,
+      }) } } : {},
       tipo          ? { tipo }        : {},
       agendamentoId ? { agendamentoId } : {},
       sucessoParam === 'true'  ? { sucesso: true }  : {},

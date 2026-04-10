@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
+import { searchClienteIds } from '@/lib/search'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 import { gerarSegundaVia } from '@/lib/services/asaas-sync'
@@ -56,22 +57,8 @@ const gerarSegundaViaAsaasTool: Tool = {
 
         if (!clienteId && busca && !isCanalRestrito) {
           const buscaNorm = busca.replace(/[.\-\/\s]/g, '')
-          const c = await prisma.cliente.findFirst({
-            where: {
-              OR: [
-                { nome:  { contains: busca, mode: 'insensitive' } },
-                { email: { contains: busca, mode: 'insensitive' } },
-                { empresa: { is: { razaoSocial: { contains: busca, mode: 'insensitive' } } } },
-                { cpf: busca },
-                { empresa: { is: { cnpj: busca } } },
-                ...(buscaNorm !== busca ? [
-                  { cpf: buscaNorm },
-                  { empresa: { is: { cnpj: buscaNorm } } },
-                ] : []),
-              ],
-            },
-            select: { id: true },
-          })
+          const matchIds = await searchClienteIds(busca, buscaNorm !== busca ? buscaNorm : null)
+          const c = matchIds.length > 0 ? { id: matchIds[0] } : null
           clienteId = c?.id
         }
 

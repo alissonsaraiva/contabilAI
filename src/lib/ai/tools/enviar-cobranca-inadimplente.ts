@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
+import { searchClienteIds } from '@/lib/search'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 import { decrypt, isEncrypted } from '@/lib/crypto'
@@ -101,40 +102,32 @@ const enviarCobrancaInadimplenteTool: Tool = {
               },
             },
           })
-        : await prisma.cliente.findFirst({
-            where: {
-              OR: [
-                { nome:  { contains: busca!, mode: 'insensitive' } },
-                { email: { contains: busca!, mode: 'insensitive' } },
-                { empresa: { is: { razaoSocial: { contains: busca!, mode: 'insensitive' } } } },
-                { cpf: busca! },
-                { empresa: { is: { cnpj: busca! } } },
-                ...(buscaNorm && buscaNorm !== busca ? [
-                  { cpf: buscaNorm },
-                  { empresa: { is: { cnpj: buscaNorm } } },
-                ] : []),
-              ],
-            },
-            select: {
-              id: true, nome: true, status: true, whatsapp: true, telefone: true,
-              empresa: {
-                select: {
-                  razaoSocial: true,
-                  socios: {
-                    where:  { principal: true },
-                    select: { nome: true, whatsapp: true, telefone: true },
-                    take:   1,
+        : await (async () => {
+            const ids = await searchClienteIds(busca!, buscaNorm)
+            if (ids.length === 0) return null
+            return prisma.cliente.findFirst({
+              where: { id: { in: ids } },
+              select: {
+                id: true, nome: true, status: true, whatsapp: true, telefone: true,
+                empresa: {
+                  select: {
+                    razaoSocial: true,
+                    socios: {
+                      where:  { principal: true },
+                      select: { nome: true, whatsapp: true, telefone: true },
+                      take:   1,
+                    },
                   },
                 },
+                cobrancasAsaas: {
+                  where:   { status: { in: ['PENDING', 'OVERDUE'] } },
+                  orderBy: { vencimento: 'asc' },
+                  take:    1,
+                  select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true },
+                },
               },
-              cobrancasAsaas: {
-                where:   { status: { in: ['PENDING', 'OVERDUE'] } },
-                orderBy: { vencimento: 'asc' },
-                take:    1,
-                select:  { id: true, valor: true, vencimento: true, linkBoleto: true, pixCopiaECola: true },
-              },
-            },
-          })
+            })
+          })()
 
       if (!cliente) {
         return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Cliente não encontrado.' }

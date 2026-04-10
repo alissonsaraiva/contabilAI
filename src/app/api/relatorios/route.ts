@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { unaccentSearch } from '@/lib/search'
 
 const PER_PAGE = 20
 
@@ -31,11 +32,15 @@ export async function GET(req: Request) {
 
   const where: any = {
     AND: [
-      q ? { OR: [
-        { titulo:   { contains: q, mode: 'insensitive' } },
-        { conteudo: { contains: q, mode: 'insensitive' } },
-        { criadoPorNome: { contains: q, mode: 'insensitive' } },
-      ]} : {},
+      q ? { id: { in: await unaccentSearch({
+        sql: `
+          SELECT id FROM relatorios_agente
+          WHERE f_unaccent(titulo) ILIKE f_unaccent($1)
+            OR f_unaccent(conteudo) ILIKE f_unaccent($1)
+            OR f_unaccent("criadoPorNome") ILIKE f_unaccent($1)
+        `,
+        term: q,
+      }) } } : {},
       tipo           ? { tipo }                                 : {},
       agendamentoId  ? { agendamentoId }                        : {},
       sucesso === 'true'  ? { sucesso: true }                   : {},
