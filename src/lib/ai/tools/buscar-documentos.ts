@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
+import { resolverEmpresasDoCliente } from './resolver-empresa'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -54,29 +55,26 @@ const buscarDocumentosTool: Tool = {
       }
     }
 
-    // Para clientes PJ, documentos são indexados pela empresaId — resolve automaticamente
-    // se o clienteId está no contexto mas empresaId não foi fornecido explicitamente.
-    let empresaIdResolvido = empresaId
-    if (clienteId && !empresaId) {
+    // Agrega documentos de TODAS as empresas vinculadas ao cliente (1:N)
+    const orConditions: object[] = []
+    if (clienteId) {
+      orConditions.push({ clienteId })
       try {
-        const cliente = await prisma.cliente.findUnique({
-          where:  { id: clienteId },
-          select: { empresaId: true },
-        })
-        if (cliente?.empresaId) empresaIdResolvido = cliente.empresaId
+        const empresas = await resolverEmpresasDoCliente(clienteId)
+        for (const emp of empresas) {
+          orConditions.push({ empresaId: emp.empresaId })
+        }
       } catch (err) {
         Sentry.captureException(err, {
-          tags:  { module: 'buscar-documentos', operation: 'resolve-empresa' },
+          tags:  { module: 'buscar-documentos', operation: 'resolve-empresas' },
           extra: { clienteId },
         })
       }
     }
-
-    // OR: documento vinculado ao cliente PF OU à empresa PJ OU ao lead
-    const orConditions: object[] = []
-    if (clienteId)          orConditions.push({ clienteId })
-    if (empresaIdResolvido) orConditions.push({ empresaId: empresaIdResolvido })
-    if (leadId)             orConditions.push({ leadId })
+    if (empresaId && !orConditions.some((c: any) => c.empresaId === empresaId)) {
+      orConditions.push({ empresaId })
+    }
+    if (leadId) orConditions.push({ leadId })
 
     const documentos = await prisma.documento.findMany({
       where: {

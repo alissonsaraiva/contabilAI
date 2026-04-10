@@ -25,10 +25,13 @@ import { ReprocessarPdfButton } from '@/components/crm/reprocessar-pdf-button'
 import { EditarClienteButton } from '@/components/crm/editar-cliente-button'
 import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
+import { DocumentoUpload } from '@/components/crm/documento-upload'
 import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
 import { ClienteFinanceiroTab } from '@/components/crm/cliente-financeiro-tab'
 import { NotasFiscaisTabContent } from '@/components/crm/notas-fiscais-tab'
 import { RegistrarEmpresaButton } from '@/components/crm/registrar-empresa-button'
+import { AdicionarEmpresaButton } from '@/components/crm/adicionar-empresa-button'
+import { EmpresasAccordion } from '@/components/crm/empresas-accordion'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -74,6 +77,10 @@ export default async function ClienteDetailPage({ params }: Props) {
       where: { id },
       include: {
         empresa: { include: { socios: true } },
+        clienteEmpresas: {
+          include: { empresa: { include: { socios: true } } },
+          orderBy: { principal: 'desc' },
+        },
         documentos: { where: { deletadoEm: null } },
         contratos: true,
         responsavel: { select: { nome: true } },
@@ -88,17 +95,18 @@ export default async function ClienteDetailPage({ params }: Props) {
   const nomeIaPortal = aiConfig.nomeAssistentes.portal ?? 'Assistente'
 
 
-  const socios: NonNullable<typeof cliente.empresa>['socios'] = cliente.empresa?.socios ?? []
+  const empresaVinculos = cliente.clienteEmpresas ?? []
+  // Sócios: agrega de todas as empresas vinculadas
+  const socios = empresaVinculos.flatMap(v => v.empresa.socios)
   const contratos = cliente.contratos
-  const isPJ = cliente.tipoContribuinte === 'pj' || !!cliente.empresa?.cnpj
-  // Mostra alerta/botão para clientes sem empresa vinculada — independente do tipoContribuinte,
-  // pois nao_abri pode ter sido criado como 'pj' por bug anterior nos webhooks
-  const semEmpresa = !cliente.empresa
+  const isPJ = cliente.tipoContribuinte === 'pj' || !!cliente.empresa?.cnpj || empresaVinculos.length > 0
+  const semEmpresa = empresaVinculos.length === 0 && !cliente.empresa
 
-  // PJ: busca docs da empresa também; PF: só cliente
-  const empresaDocs = (isPJ && cliente.empresa?.id)
+  // PJ: busca docs de TODAS as empresas vinculadas; PF: só cliente
+  const empresaIds = empresaVinculos.map(v => v.empresaId)
+  const empresaDocs = empresaIds.length > 0
     ? await prisma.documento.findMany({
-      where: { empresaId: cliente.empresa.id, deletadoEm: null },
+      where: { empresaId: { in: empresaIds }, deletadoEm: null },
       orderBy: { criadoEm: 'desc' },
     })
     : []
@@ -140,10 +148,13 @@ export default async function ClienteDetailPage({ params }: Props) {
               <span className="material-symbols-outlined text-[14px]">payments</span>
               <span className="font-semibold text-on-surface">{formatBRL(Number(cliente.valorMensal))}</span>/mês
             </span>
-            {cliente.empresa?.cnpj && (
+            {(empresaVinculos[0]?.empresa.cnpj ?? cliente.empresa?.cnpj) && (
               <span className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px]">badge</span>
-                {formatCNPJ(cliente.empresa.cnpj)}
+                {formatCNPJ(empresaVinculos[0]?.empresa.cnpj ?? cliente.empresa?.cnpj ?? '')}
+                {empresaVinculos.length > 1 && (
+                  <span className="text-[10px] text-on-surface-variant/50">+{empresaVinculos.length - 1}</span>
+                )}
               </span>
             )}
             {cliente.cidade && (
@@ -184,9 +195,9 @@ export default async function ClienteDetailPage({ params }: Props) {
               valorMensal: Number(cliente.valorMensal),
               vencimentoDia: cliente.vencimentoDia,
               formaPagamento: cliente.formaPagamento,
-              cnpj: cliente.empresa?.cnpj ?? null,
-              razaoSocial: cliente.empresa?.razaoSocial ?? null,
-              regime: cliente.empresa?.regime ?? null,
+              cnpj: empresaVinculos[0]?.empresa.cnpj ?? cliente.empresa?.cnpj ?? null,
+              razaoSocial: empresaVinculos[0]?.empresa.razaoSocial ?? cliente.empresa?.razaoSocial ?? null,
+              regime: empresaVinculos[0]?.empresa.regime ?? cliente.empresa?.regime ?? null,
               cep: cliente.cep,
               logradouro: cliente.logradouro,
               numero: cliente.numero,
@@ -207,41 +218,19 @@ export default async function ClienteDetailPage({ params }: Props) {
             )}
             <PortalChatButton clienteId={cliente.id} clienteNome={cliente.nome} status={cliente.status} nomeIa={nomeIaPortal} />
             <PortalLinkButton clienteId={cliente.id} status={cliente.status} />
-            {/* Botão de conversão: visível quando cliente não tem empresa vinculada */}
-            {semEmpresa && (
-              <RegistrarEmpresaButton clienteId={cliente.id} clienteNome={cliente.nome} />
-            )}
           </div>
 
-          {/* Banner de alerta para clientes sem empresa */}
-          {semEmpresa && (
-            <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-orange-status/25 bg-orange-status/10 px-4 py-3">
-              <span className="material-symbols-outlined shrink-0 text-[18px] text-orange-status mt-0.5">warning</span>
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-orange-status">Cliente sem empresa vinculada</p>
-                <p className="mt-0.5 text-[12px] text-orange-status/80 leading-relaxed">
-                  {isPJ
-                    ? 'Este cliente está cadastrado como PJ mas não possui empresa vinculada. Registre a empresa para habilitar NFS-e, Spedy e sócios.'
-                    : 'Este cliente é Pessoa Física sem empresa vinculada. Se o cliente abriu ou vai abrir empresa, use "Registrar Empresa" para converter para PJ.'
-                  }
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Banner de alerta: MEI sem procuração RF ativa */}
-          {cliente.empresa?.regime === 'MEI' && !cliente.empresa.procuracaoRFAtiva && (
+          {empresaVinculos.some(v => v.empresa.regime === 'MEI' && !v.empresa.procuracaoRFAtiva) && (
             <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-error/25 bg-error/10 px-4 py-3">
               <span className="material-symbols-outlined shrink-0 text-[18px] text-error mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>lock_person</span>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-error">Procuração RF não ativa</p>
                 <p className="mt-0.5 text-[12px] text-error/80 leading-relaxed">
-                  Este cliente MEI ainda não concedeu procuração digital ao escritório no e-CAC.
+                  {empresaVinculos.filter(v => v.empresa.regime === 'MEI' && !v.empresa.procuracaoRFAtiva).length === 1 ? 'Uma empresa' : 'Algumas empresas'}
+                  {' '}MEI deste cliente ainda não concederam procuração digital ao escritório no e-CAC.
                   Sem ela, a DAS MEI não pode ser gerada automaticamente.
-                  {cliente.empresa.procuracaoRFVerificadaEm
-                    ? ` Última verificação: ${new Date(cliente.empresa.procuracaoRFVerificadaEm).toLocaleDateString('pt-BR')}.`
-                    : ' Nenhuma verificação realizada ainda.'}
-                  {' '}Oriente o cliente a acessar o Portal e-CAC e conceder a procuração.
+                  Oriente o cliente a acessar o Portal e-CAC e conceder a procuração.
                 </p>
               </div>
             </div>
@@ -290,15 +279,11 @@ export default async function ClienteDetailPage({ params }: Props) {
               {cliente.whatsapp && <InfoRow label="WhatsApp" value={formatTelefone(cliente.whatsapp)} />}
             </InfoCard>
 
-            <InfoCard title="Dados da empresa" icon="business">
+            <InfoCard title="Plano" icon="credit_card">
               <InfoRow label="Plano" value={PLANO_LABELS[cliente.planoTipo]} />
               <InfoRow label="Valor mensal" value={formatBRL(Number(cliente.valorMensal))} />
               <InfoRow label="Vencimento" value={`Dia ${cliente.vencimentoDia}`} />
               <InfoRow label="Pagamento" value={FORMA_PAGAMENTO_LABELS[cliente.formaPagamento]} />
-              {cliente.empresa?.regime && <InfoRow label="Regime" value={REGIME_LABELS[cliente.empresa.regime] ?? cliente.empresa.regime} />}
-              {cliente.empresa?.cnpj && <InfoRow label="CNPJ" value={formatCNPJ(cliente.empresa.cnpj)} />}
-              {cliente.empresa?.razaoSocial && <InfoRow label="Razão social" value={cliente.empresa.razaoSocial} />}
-              {cliente.empresa?.nomeFantasia && <InfoRow label="Nome fantasia" value={cliente.empresa.nomeFantasia} />}
             </InfoCard>
 
             {(cliente.cep || cliente.cidade) && (
@@ -339,6 +324,24 @@ export default async function ClienteDetailPage({ params }: Props) {
               )}
             </InfoCard>
           </div>
+
+          {/* Empresas vinculadas (accordion) */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-headline text-[13px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Empresas ({empresaVinculos.length})
+              </h3>
+              <AdicionarEmpresaButton clienteId={cliente.id} clienteNome={cliente.nome} />
+            </div>
+            {empresaVinculos.length > 0 ? (
+              <EmpresasAccordion vinculos={empresaVinculos} />
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant/40 py-10 text-center">
+                <span className="material-symbols-outlined mb-2 text-[32px] text-on-surface-variant/25">business</span>
+                <p className="text-sm text-on-surface-variant/60">Nenhuma empresa vinculada</p>
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         {/* ── Financeiro ─────────────────────────────────── */}
@@ -348,7 +351,7 @@ export default async function ClienteDetailPage({ params }: Props) {
             vencimentoDia={cliente.vencimentoDia}
             formaPagamento={cliente.formaPagamento}
             valorMensal={Number(cliente.valorMensal)}
-            regime={cliente.empresa?.regime ?? null}
+            regime={empresaVinculos[0]?.empresa.regime ?? cliente.empresa?.regime ?? null}
           />
         </TabsContent>
 
@@ -405,7 +408,15 @@ export default async function ClienteDetailPage({ params }: Props) {
         {/* ── Documentos ─────────────────────────────────── */}
         <TabsContent value="documentos" className="m-0 focus-visible:outline-none">
           <DocumentosTabContent
-            documentos={documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), tamanho: d.tamanho != null ? Number(d.tamanho) : null, xmlMetadata: (d as any).xmlMetadata as unknown }))}
+            documentos={documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), tamanho: d.tamanho != null ? Number(d.tamanho) : null, xmlMetadata: (d as any).xmlMetadata as unknown, visualizadoEm: d.visualizadoEm?.toISOString() ?? null, dataVencimento: d.dataVencimento?.toISOString() ?? null }))}
+            uploadSlot={<DocumentoUpload
+              clienteId={cliente.id}
+              empresaId={empresaVinculos[0]?.empresaId ?? cliente.empresa?.id}
+              empresas={empresaVinculos.length > 1 ? empresaVinculos.map(v => ({
+                id: v.empresaId,
+                label: v.empresa.nomeFantasia ?? v.empresa.razaoSocial ?? v.empresa.cnpj ?? v.empresaId.slice(0, 8),
+              })) : undefined}
+            />}
             empresaLink={isPJ && cliente.empresa ? (
               <div className="flex items-center rounded-xl bg-surface-container-low/60 px-4 py-2.5">
                 <span className="text-[12px] text-on-surface-variant/70">

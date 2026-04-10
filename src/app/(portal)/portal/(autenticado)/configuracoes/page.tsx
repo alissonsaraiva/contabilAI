@@ -13,18 +13,22 @@ export default async function PortalConfiguracoesPage() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
-  const cliente = await prisma.cliente.findUnique({
-    where: { id: clienteId },
-    include: {
-      empresa: {
-        include: { socios: true },
-      },
-    },
-  })
+  const [cliente, empresa] = await Promise.all([
+    prisma.cliente.findUnique({
+      where: { id: clienteId },
+      select: { id: true, nome: true, email: true },
+    }),
+    user.empresaId
+      ? prisma.empresa.findUnique({
+          where: { id: user.empresaId },
+          include: { socios: true },
+        })
+      : Promise.resolve(null),
+  ])
 
   if (!cliente) redirect('/portal/login')
 
-  const sociosComAcesso = cliente.empresa?.socios.filter(s => s.portalAccess) ?? []
+  const sociosComAcesso = empresa?.socios.filter(s => s.portalAccess) ?? []
 
   return (
     <div className="space-y-6">
@@ -62,7 +66,7 @@ export default async function PortalConfiguracoesPage() {
       </Card>
 
       {/* Sócios com acesso (visível apenas para o titular) */}
-      {user.tipo === 'cliente' && cliente.empresa && (
+      {user.tipo === 'cliente' && empresa && (
         <Card className="border-outline-variant/15 bg-card/60 p-4 sm:p-5 rounded-[16px] shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-on-surface-variant/60">group</span>

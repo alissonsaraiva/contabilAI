@@ -14,7 +14,7 @@ type ClienteBasico = {
   id:     string
   nome:   string
   telefone?: string | null
-  empresaId: string
+  empresaId?: string | null
 }
 
 export async function enviarBoasVindasWhatsApp(cliente: ClienteBasico): Promise<void> {
@@ -48,10 +48,22 @@ export async function enviarBoasVindasWhatsApp(cliente: ClienteBasico): Promise<
   const nomeEscritorio = row.nome ?? 'Avos'
   const primeiroNome   = cliente.nome.split(' ')[0]
 
+  // Resolve empresaId: param direto → fallback junção 1:N
+  let empresaId = cliente.empresaId ?? null
+  if (!empresaId) {
+    const vinculo = await prisma.clienteEmpresa.findFirst({
+      where: { clienteId: cliente.id, principal: true },
+      select: { empresaId: true },
+    })
+    empresaId = vinculo?.empresaId ?? null
+  }
+
   // Gera link de acesso ao portal (válido 48h — mais folgado para o canal WhatsApp)
   let link = ''
-  try {
-    const token = await criarTokenPortal(cliente.id, cliente.empresaId, 48 * 60 * 60 * 1000)
+  if (!empresaId) {
+    console.warn('[wa-boas-vindas] Cliente sem empresa vinculada, link do portal não gerado:', { clienteId: cliente.id })
+  } else try {
+    const token = await criarTokenPortal(cliente.id, empresaId, 48 * 60 * 60 * 1000)
     link = token.link
   } catch (err) {
     console.error('[wa-boas-vindas] Falha ao gerar token de portal:', { clienteId: cliente.id, err })

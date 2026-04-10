@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { getAiConfig } from '@/lib/ai/config'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AssistenteContextSetter } from '@/components/crm/assistente-context'
-import { EmpresaDocumentoUpload } from '@/components/crm/empresa-documento-upload'
+import { DocumentoUpload } from '@/components/crm/documento-upload'
 import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 import { ConversasIAList } from '@/components/crm/conversas-ia-list'
 import { NotasFiscaisTabContent } from '@/components/crm/notas-fiscais-tab'
@@ -27,11 +27,12 @@ export default async function EmpresaDetailPage({ params }: Props) {
       where: { id },
       include: {
         documentos: { where: { deletadoEm: null }, orderBy: { criadoEm: 'desc' } },
-        cliente: {
+        clientes: {
           include: {
             contratos: true,
             responsavel: { select: { nome: true } },
           },
+          take: 1,
         },
         socios: true,
         portalTokens: {
@@ -54,7 +55,7 @@ export default async function EmpresaDetailPage({ params }: Props) {
 
   if (!empresa) notFound()
 
-  const cliente = empresa.cliente
+  const cliente = empresa.clientes[0] ?? null
   const socios = empresa.socios
   const nomeIaPortal = aiConfig.nomeAssistentes.portal ?? 'Assistente'
 
@@ -199,8 +200,8 @@ export default async function EmpresaDetailPage({ params }: Props) {
 
         <TabsContent value="documentos" className="m-0 focus-visible:outline-none">
           <DocumentosTabContent
-            documentos={empresa.documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), tamanho: d.tamanho != null ? Number(d.tamanho) : null, xmlMetadata: d.xmlMetadata as unknown }))}
-            uploadSlot={cliente ? <EmpresaDocumentoUpload clienteId={cliente.id} empresaId={empresa.id} /> : undefined}
+            documentos={empresa.documentos.map(d => ({ ...d, criadoEm: d.criadoEm.toISOString(), tamanho: d.tamanho != null ? Number(d.tamanho) : null, xmlMetadata: d.xmlMetadata as unknown, visualizadoEm: d.visualizadoEm?.toISOString() ?? null, dataVencimento: d.dataVencimento?.toISOString() ?? null }))}
+            uploadSlot={cliente ? <DocumentoUpload clienteId={cliente.id} empresaId={empresa.id} /> : undefined}
           />
         </TabsContent>
 

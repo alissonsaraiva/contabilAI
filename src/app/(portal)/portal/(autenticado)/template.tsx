@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
+import { resolveClienteId } from '@/lib/portal-session'
 import { redirect } from 'next/navigation'
 
 // Template re-renderiza a cada navegação (diferente de layout que é cacheado).
@@ -13,23 +14,8 @@ export default async function PortalAutenticadoTemplate({ children }: { children
     redirect('/portal/login')
   }
 
-  // Resolve clienteId: sócio acessa dados da empresa do titular
-  let clienteIdParaVerificar: string
-  if (user.tipo === 'socio') {
-    const titular = await prisma.cliente.findUnique({
-      where:  { empresaId: user.empresaId },
-      select: { id: true, status: true },
-    })
-    if (!titular) redirect('/portal/login')
-    clienteIdParaVerificar = titular.id
-    // Use the found cliente directly for status check
-    if (titular.status === 'suspenso')  redirect('/portal/login?erro=conta_suspensa')
-    if (titular.status === 'cancelado') redirect('/portal/login?erro=conta_cancelada')
-    return <>{children}</>
-  }
-
-  // Verifica o status atual no banco — invalida a sessão se o cliente foi suspenso/cancelado/encerrado
-  clienteIdParaVerificar = user.id
+  // Resolve clienteId: sócio acessa dados da empresa do titular (via ClienteEmpresa)
+  const clienteIdParaVerificar = await resolveClienteId(user) ?? user.id
   const cliente = await prisma.cliente.findUnique({
     where:  { id: clienteIdParaVerificar },
     select: { status: true },

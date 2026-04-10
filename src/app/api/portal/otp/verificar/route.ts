@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { PORTAL_COOKIE_NAME } from '@/lib/auth-portal'
+import { getEmpresasCliente } from '@/lib/portal-session'
 import { encode } from '@auth/core/jwt'
 import crypto from 'crypto'
 import { rateLimit, getClientIp, tooManyRequests } from '@/lib/rate-limit'
@@ -72,12 +73,17 @@ export async function POST(req: NextRequest) {
 
     await prisma.portalToken.update({ where: { id: record!.id }, data: { usedAt: new Date() } })
 
+    const empresaIds = await getEmpresasCliente(cliente.id)
+    const empresaId  = empresaIds[0] ?? cliente.empresaId
+    if (!empresaId) return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
+
     return buildSessionResponse({
-      id:        cliente.id,
-      name:      cliente.nome,
-      email:     cliente.email ?? '',
-      tipo:      'cliente',
-      empresaId: cliente.empresaId!,
+      id:         cliente.id,
+      name:       cliente.nome,
+      email:      cliente.email ?? '',
+      tipo:       'cliente',
+      empresaId,
+      empresaIds,
     })
   }
 
@@ -116,11 +122,12 @@ export async function POST(req: NextRequest) {
     await prisma.portalToken.update({ where: { id: record!.id }, data: { usedAt: new Date() } })
 
     return buildSessionResponse({
-      id:        socio.id,
-      name:      socio.nome,
-      email:     socio.email,
-      tipo:      'socio',
-      empresaId: socio.empresaId,
+      id:         socio.id,
+      name:       socio.nome,
+      email:      socio.email,
+      tipo:       'socio',
+      empresaId:  socio.empresaId,
+      empresaIds: [socio.empresaId],
     })
   }
 
@@ -138,18 +145,19 @@ function validarOtp(record: any, otpHash: string): string | null {
 
 async function buildSessionResponse(payload: {
   id: string; name: string; email: string
-  tipo: 'cliente' | 'socio'; empresaId: string
+  tipo: 'cliente' | 'socio'; empresaId: string; empresaIds: string[]
 }) {
   const maxAge = 30 * 24 * 60 * 60 // 30 dias
 
   const jwt = await encode({
     token: {
-      sub:       payload.id,
-      id:        payload.id,
-      name:      payload.name,
-      email:     payload.email,
-      tipo:      payload.tipo,
-      empresaId: payload.empresaId,
+      sub:        payload.id,
+      id:         payload.id,
+      name:       payload.name,
+      email:      payload.email,
+      tipo:       payload.tipo,
+      empresaId:  payload.empresaId,
+      empresaIds: JSON.stringify(payload.empresaIds),
     },
     secret: process.env.AUTH_SECRET!,
     salt:   PORTAL_COOKIE_NAME,

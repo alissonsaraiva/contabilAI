@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { resolveClienteId } from '@/lib/portal-session'
@@ -21,10 +22,18 @@ export async function PATCH(
   const orConditions: object[] = [{ clienteId }]
   if (user.empresaId) orConditions.push({ empresaId: user.empresaId })
 
-  await prisma.documento.updateMany({
-    where: { id, OR: orConditions, visualizadoEm: null },
-    data:  { visualizadoEm: new Date() },
-  })
+  try {
+    await prisma.documento.updateMany({
+      where: { id, OR: orConditions, visualizadoEm: null, visivelPortal: true },
+      data:  { visualizadoEm: new Date() },
+    })
+  } catch (err) {
+    console.error('[portal/documentos/visualizar] erro:', err)
+    Sentry.captureException(err, {
+      tags: { module: 'portal-documentos', operation: 'marcar-visualizado' },
+      extra: { documentoId: id, clienteId },
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }

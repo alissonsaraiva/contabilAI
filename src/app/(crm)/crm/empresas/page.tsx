@@ -65,7 +65,7 @@ export default async function EmpresasPage({ searchParams }: Props) {
       skip,
       take: PER_PAGE,
       include: {
-        cliente: { select: { id: true, nome: true, email: true, planoTipo: true, valorMensal: true, status: true } },
+        clientes: { select: { id: true, nome: true, email: true, planoTipo: true, valorMensal: true, status: true }, take: 1 },
         socios: { select: { id: true } },
       },
     }),
@@ -161,10 +161,10 @@ export default async function EmpresasPage({ searchParams }: Props) {
                       )}
                     </td>
                     <td className="px-6 py-4 hidden lg:table-cell">
-                      {e.cliente ? (
+                      {e.clientes[0] ? (
                         <div>
-                          <span className="block text-[13px] font-medium text-on-surface">{e.cliente.nome}</span>
-                          <span className="block text-[11px] text-on-surface-variant/60 mt-0.5">{e.cliente.email}</span>
+                          <span className="block text-[13px] font-medium text-on-surface">{e.clientes[0].nome}</span>
+                          <span className="block text-[11px] text-on-surface-variant/60 mt-0.5">{e.clientes[0].email}</span>
                         </div>
                       ) : (
                         <span className="text-[12px] font-medium text-on-surface-variant/40">—</span>
@@ -174,9 +174,9 @@ export default async function EmpresasPage({ searchParams }: Props) {
                       <span className="text-[12px] font-medium text-on-surface-variant/60">{e.socios.length}</span>
                     </td>
                     <td className="px-6 py-4">
-                      {e.cliente?.status ? (
-                        <span className={`rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest border border-current/10 ${STATUS_CLIENTE_COLORS[e.cliente.status]?.split(' ').slice(0, 2).join(' ')}`}>
-                          {STATUS_CLIENTE_LABELS[e.cliente.status] ?? e.cliente.status}
+                      {e.clientes[0]?.status ? (
+                        <span className={`rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest border border-current/10 ${STATUS_CLIENTE_COLORS[e.clientes[0].status]?.split(' ').slice(0, 2).join(' ')}`}>
+                          {STATUS_CLIENTE_LABELS[e.clientes[0].status] ?? e.clientes[0].status}
                         </span>
                       ) : (
                         <span className="text-[12px] font-medium text-on-surface-variant/40">—</span>

@@ -34,6 +34,10 @@ export async function POST(req: Request, { params }: Params) {
   const tipo      = (formData.get('tipo')     as string) || 'documento'
   const categoria = formData.get('categoria') as CategoriaDocumento | null
   const empresaIdForm = formData.get('empresaId') as string | null
+  const visivelPortalRaw = formData.get('visivelPortal') as string | null
+  const visivelPortal = visivelPortalRaw === 'false' ? false : true
+  const dataVencimentoRaw = formData.get('dataVencimento') as string | null
+  const dataVencimento = dataVencimentoRaw || null
 
   if (!file) return NextResponse.json({ error: 'Nenhum arquivo enviado' }, { status: 400 })
 
@@ -45,8 +49,15 @@ export async function POST(req: Request, { params }: Params) {
   const bytes  = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
 
-  // PJ: prefere empresaId do form, senão usa da relação do cliente
-  const empresaId = empresaIdForm || cliente.empresaId || undefined
+  // PJ: prefere empresaId do form, senão resolve do cliente (legado → junção 1:N)
+  let empresaId: string | undefined = empresaIdForm || cliente.empresaId || undefined
+  if (!empresaId) {
+    const vinculo = await prisma.clienteEmpresa.findFirst({
+      where: { clienteId, principal: true },
+      select: { empresaId: true },
+    })
+    empresaId = vinculo?.empresaId ?? undefined
+  }
 
   let documento: Awaited<ReturnType<typeof criarDocumento>>
   try {
@@ -60,6 +71,8 @@ export async function POST(req: Request, { params }: Params) {
       },
       tipo,
       categoria: categoria ?? undefined,
+      visivelPortal,
+      dataVencimento,
       origem:    'crm',
     })
   } catch (err) {
@@ -83,8 +96,18 @@ export async function GET(_req: Request, { params }: Params) {
     select: { empresaId: true },
   })
 
+  // Agrega documentos de todas as empresas vinculadas (1:N)
   const orConditions: object[] = [{ clienteId }]
   if (cliente?.empresaId) orConditions.push({ empresaId: cliente.empresaId })
+  const vinculos = await prisma.clienteEmpresa.findMany({
+    where: { clienteId },
+    select: { empresaId: true },
+  })
+  for (const v of vinculos) {
+    if (v.empresaId !== cliente?.empresaId) {
+      orConditions.push({ empresaId: v.empresaId })
+    }
+  }
 
   const documentos = await prisma.documento.findMany({
     where:   { OR: orConditions, deletadoEm: null },
@@ -93,6 +116,8 @@ export async function GET(_req: Request, { params }: Params) {
       id: true, nome: true, tipo: true, categoria: true,
       origem: true, url: true, mimeType: true, tamanho: true,
       status: true, criadoEm: true, ordemServicoId: true,
+      visivelPortal: true, xmlMetadata: true, resumoStatus: true,
+      observacao: true, visualizadoEm: true, dataVencimento: true,
     },
   })
 

@@ -88,12 +88,19 @@ const atualizarDadosClienteTool: Tool = {
       data:    campos,
       include: {
         empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true, socios: true } },
+        clienteEmpresas: {
+          include: { empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true, socios: true } } },
+          orderBy: { principal: 'desc' },
+        },
       },
     }).catch(() => null)
 
     if (!cliente) {
       return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Atualização falhou: cliente não encontrado.' }
     }
+
+    // Resolve empresa principal (junção 1:N → fallback legado)
+    const empPrincipal = cliente.clienteEmpresas[0]?.empresa ?? cliente.empresa
 
     // Reindexar no RAG para manter dados atualizados
     indexarAsync('cliente', {
@@ -103,17 +110,17 @@ const atualizarDadosClienteTool: Tool = {
       cpf:           cliente.cpf,
       telefone:      cliente.telefone,
       whatsapp:      cliente.whatsapp,
-      cnpj:          cliente.empresa?.cnpj,
-      razaoSocial:   cliente.empresa?.razaoSocial,
-      nomeFantasia:  cliente.empresa?.nomeFantasia,
-      regime:        cliente.empresa?.regime,
+      cnpj:          empPrincipal?.cnpj,
+      razaoSocial:   empPrincipal?.razaoSocial,
+      nomeFantasia:  empPrincipal?.nomeFantasia,
+      regime:        empPrincipal?.regime,
       planoTipo:     cliente.planoTipo,
       valorMensal:   cliente.valorMensal,
       vencimentoDia: cliente.vencimentoDia,
       formaPagamento: cliente.formaPagamento,
       cidade:        cliente.cidade,
       uf:            cliente.uf,
-      socios:        (cliente.empresa?.socios ?? []) as any[],
+      socios:        (empPrincipal?.socios ?? []) as any[],
     })
 
     const camposAlterados = Object.keys(campos).join(', ')

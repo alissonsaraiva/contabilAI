@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { resolverEmpresaIdDoCliente, resolverEmpresasDoCliente, formatarEmpresasParaTexto } from './resolver-empresa'
 import { registrarTool } from './registry'
 import { emitirNotaFiscal } from '@/lib/services/notas-fiscais'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -13,14 +14,11 @@ async function escalarParaHumano(
   descricaoChamado: string,
 ): Promise<void> {
   try {
-    const cliente = await prisma.cliente.findUnique({
-      where:  { id: clienteId },
-      select: { empresaId: true },
-    })
+    const empresaId = await resolverEmpresaIdDoCliente(clienteId)
     await prisma.chamado.create({
       data: {
         clienteId,
-        empresaId:    cliente?.empresaId ?? undefined,
+        empresaId:    empresaId ?? undefined,
         tipo:         'emissao_documento',
         origem:       'ia',
         visivelPortal: false,
@@ -112,6 +110,10 @@ const emitirNotaFiscalTool: Tool = {
           type: 'boolean',
           description: 'OBRIGATÓRIO: deve ser `true`. Confirma que você apresentou todos os dados ao solicitante (descrição, valor, tomador, CPF/CNPJ) e recebeu confirmação explícita antes de emitir. NUNCA passe `true` sem ter apresentado e confirmado os dados com o solicitante.',
         },
+        empresaId: {
+          type: 'string',
+          description: 'ID da empresa que presta o serviço. OBRIGATÓRIO quando o cliente tem mais de uma empresa. Use ctx.empresaId ou pergunte ao cliente qual empresa.',
+        },
       },
       required: ['clienteId', 'descricao', 'valor', 'tomadorNome', 'tomadorCpfCnpj', 'dadosConfirmados'],
     },
@@ -157,6 +159,19 @@ const emitirNotaFiscalTool: Tool = {
       return { sucesso: false, erro: 'clienteId obrigatório', resumo: 'Cliente não identificado.' }
     }
 
+    // Multi-empresa: se cliente tem N > 1, exige empresaId explícito
+    const empresaIdInput = (input.empresaId as string) ?? ctx.empresaId
+    if (!empresaIdInput) {
+      const empresas = await resolverEmpresasDoCliente(clienteId)
+      if (empresas.length > 1) {
+        return {
+          sucesso: false,
+          erro:    'Cliente possui múltiplas empresas — informe qual empresa presta este serviço.',
+          resumo:  `Este cliente tem ${empresas.length} empresas cadastradas:\n${formatarEmpresasParaTexto(empresas)}\n\nPor favor, pergunte ao cliente qual empresa deve emitir esta nota fiscal.`,
+        }
+      }
+    }
+
     // Verifica se a integração NFS-e (Spedy) está configurada antes de coletar dados.
     // Evita conduzir o fluxo inteiro e só falhar no momento da emissão.
     try {
@@ -181,6 +196,7 @@ const emitirNotaFiscalTool: Tool = {
     try {
       const resultado = await emitirNotaFiscal({
         clienteId,
+        empresaId:         empresaIdInput ?? undefined,
         ordemServicoId:    parsed.data.ordemServicoId,
         descricao:         parsed.data.descricao,
         valor:             parsed.data.valor,

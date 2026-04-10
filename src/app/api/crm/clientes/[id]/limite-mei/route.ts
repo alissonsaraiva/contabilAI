@@ -30,12 +30,21 @@ export async function GET(_req: Request, { params }: Params) {
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
     }
 
-    // Guarda explícito: empresa pode ser null (empresaId é FK opcional)
-    if (!cliente.empresa || cliente.empresa.regime !== 'MEI') {
-      return NextResponse.json({ regime: cliente.empresa?.regime ?? null })
+    // Resolve empresa MEI: relação direta → fallback junção 1:N (busca qualquer MEI)
+    let empresa = cliente.empresa
+    if (!empresa || empresa.regime !== 'MEI') {
+      const vinculo = await prisma.clienteEmpresa.findFirst({
+        where: { clienteId, empresa: { regime: 'MEI' } },
+        select: { empresa: { select: { id: true, regime: true } } },
+      })
+      if (vinculo?.empresa) empresa = vinculo.empresa
     }
 
-    const resultado = await calcularLimiteMEI(cliente.empresa.id)
+    if (!empresa || empresa.regime !== 'MEI') {
+      return NextResponse.json({ regime: empresa?.regime ?? null })
+    }
+
+    const resultado = await calcularLimiteMEI(empresa.id)
     return NextResponse.json({ regime: 'MEI', ...resultado })
   } catch (err) {
     Sentry.captureException(err, {

@@ -4,6 +4,7 @@ import { criarDocumento } from '@/lib/services/documentos'
 import { registrarInteracao } from '@/lib/services/interacoes'
 import { askAI } from '@/lib/ai/ask'
 import { classificarDocumento, buildContextoEmail } from '@/lib/services/classificar-documento'
+import { detectarEmpresaPorConteudo } from '@/lib/services/detectar-empresa-documento'
 import type { EmailRecebido } from './imap'
 
 export type ResultadoProcessamento = {
@@ -70,11 +71,24 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
           continue
         }
 
+        // Tenta detectar qual empresa pelo CNPJ no conteúdo do anexo (multi-empresa)
+        let empresaIdAnexo = empresaId
+        if (clienteId && anexo.buffer) {
+          try {
+            const detectada = await detectarEmpresaPorConteudo(clienteId, {
+              buffer: anexo.buffer,
+              mimeType: anexo.mimeType || 'application/octet-stream',
+              nome: anexo.nome,
+            })
+            if (detectada) empresaIdAnexo = detectada
+          } catch { /* fallback para empresa principal */ }
+        }
+
         // Usa criarDocumento() — S3 + banco + RAG + resumo automático
         const doc = await criarDocumento({
           clienteId: clienteId ?? undefined,
           leadId:    leadId    ?? undefined,
-          empresaId: empresaId ?? undefined,
+          empresaId: empresaIdAnexo ?? undefined,
           arquivo: {
             buffer:   anexo.buffer,
             nome:     anexo.nome,
@@ -197,7 +211,17 @@ async function identificarRemetente(emailRemetente: string): Promise<{ clienteId
     where: { email: { equals: emailNorm, mode: 'insensitive' } },
     select: { id: true, empresaId: true },
   })
-  if (cliente) return { clienteId: cliente.id, leadId: null, empresaId: cliente.empresaId }
+  if (cliente) {
+    let empresaId = cliente.empresaId
+    if (!empresaId) {
+      const vinculo = await prisma.clienteEmpresa.findFirst({
+        where: { clienteId: cliente.id, principal: true },
+        select: { empresaId: true },
+      })
+      empresaId = vinculo?.empresaId ?? null
+    }
+    return { clienteId: cliente.id, leadId: null, empresaId }
+  }
 
   const lead = await prisma.lead.findFirst({
     where: { dadosJson: { path: ['email'], equals: emailNorm } },

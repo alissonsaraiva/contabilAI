@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
+import { resolveClienteId } from '@/lib/portal-session'
 import { getOrCreateConversaSession, getHistorico } from '@/lib/ai/conversa'
 import { notificarEscalacaoPortal } from '@/lib/notificacoes'
 import { indexarAsync } from '@/lib/rag/indexar-async'
@@ -14,17 +15,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  let clienteId: string
-  if (user.tipo === 'socio') {
-    const titular = await prisma.cliente.findUnique({
-      where: { empresaId: user.empresaId },
-      select: { id: true },
-    })
-    if (!titular) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 })
-    clienteId = titular.id
-  } else {
-    clienteId = user.id
-  }
+  const clienteId = await resolveClienteId(user)
+  if (!clienteId) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 })
   const { sessionId, motivo } = await req.json() as { sessionId: string; motivo?: string }
 
   if (!sessionId?.trim()) {

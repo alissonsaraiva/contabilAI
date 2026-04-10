@@ -8,6 +8,7 @@
  * Garante que toda conversão cria o par Cliente+Empresa atomicamente.
  */
 import type { PrismaClient, PlanoTipo, FormaPagamento, StatusCliente, TipoContribuinte } from '@prisma/client'
+import { vincularEmpresa } from './vincular-empresa'
 
 type PrismaTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0]
 
@@ -79,10 +80,7 @@ export async function criarClienteDeContrato(
         ...(dados.nomeFantasia && { nomeFantasia: dados.nomeFantasia }),
       },
     })
-    await tx.cliente.update({
-      where: { id: cliente.id },
-      data:  { empresaId: empresa.id },
-    })
+    await vincularEmpresa(tx, cliente.id, empresa.id)
     empresaId = empresa.id
   }
 

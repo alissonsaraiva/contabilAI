@@ -31,23 +31,28 @@ export default async function PortalEmpresaPage() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
-  const cliente = await prisma.cliente.findUnique({
-    where: { id: clienteId },
-    include: {
-      empresa: {
-        include: { socios: { orderBy: { principal: 'desc' } } },
+  const empresaId = user.empresaId as string | undefined
+
+  const [cliente, empresa] = await Promise.all([
+    prisma.cliente.findUnique({
+      where: { id: clienteId },
+      include: {
+        contratos: {
+          orderBy: { criadoEm: 'desc' as const },
+          take: 1,
+          select: { status: true, planoTipo: true, valorMensal: true, assinadoEm: true },
+        },
       },
-      contratos: {
-        orderBy: { criadoEm: 'desc' },
-        take: 1,
-        select: { status: true, planoTipo: true, valorMensal: true, assinadoEm: true },
-      },
-    },
-  })
+    }),
+    empresaId
+      ? prisma.empresa.findUnique({
+          where: { id: empresaId },
+          include: { socios: { orderBy: { principal: 'desc' } } },
+        })
+      : Promise.resolve(null),
+  ])
 
   if (!cliente) redirect('/portal/login')
-
-  const empresa = cliente.empresa
   const plano = cliente.contratos[0]
   const isPF = cliente.tipoContribuinte === 'pf'
 

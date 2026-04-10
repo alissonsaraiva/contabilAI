@@ -16,24 +16,18 @@ export default async function PortalProcuracaoRFPage() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
-  const [escritorio, cliente] = await Promise.all([
+  const [escritorio, empresa] = await Promise.all([
     getEscritorioConfig(),
-    prisma.cliente.findUnique({
-      where:  { id: clienteId },
-      select: {
-        empresa: {
-          select: {
-            regime:                   true,
-            procuracaoRFAtiva:        true,
-            procuracaoRFVerificadaEm: true,
-          },
-        },
-      },
-    }),
+    user.empresaId
+      ? prisma.empresa.findUnique({
+          where:  { id: user.empresaId },
+          select: { regime: true, procuracaoRFAtiva: true, procuracaoRFVerificadaEm: true },
+        })
+      : Promise.resolve(null),
   ])
 
   // Página só faz sentido para MEI
-  if (cliente?.empresa?.regime !== 'MEI') {
+  if (empresa?.regime !== 'MEI') {
     redirect('/portal/financeiro')
   }
 
@@ -52,8 +46,8 @@ export default async function PortalProcuracaoRFPage() {
       <PortalProcuracaoClient
         nomeEscritorio={nomeEscritorio}
         cnpjEscritorio={cnpjEscritorio}
-        procuracaoRFAtiva={cliente.empresa.procuracaoRFAtiva}
-        verificadaEm={cliente.empresa.procuracaoRFVerificadaEm?.toISOString() ?? null}
+        procuracaoRFAtiva={empresa!.procuracaoRFAtiva}
+        verificadaEm={empresa!.procuracaoRFVerificadaEm?.toISOString() ?? null}
       />
     </div>
   )

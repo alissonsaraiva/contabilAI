@@ -23,15 +23,22 @@ export type DocSistema = {
   tamanho:   number | null
   criadoEm:  string
   cliente?:  { id: string; nome: string } | null
+  empresa?:  { id: string; nomeFantasia: string | null; razaoSocial: string | null; cnpj: string | null } | null
 }
 
 type Props = {
-  open:       boolean
-  onClose:    () => void
-  onSelect:   (doc: DocSistema) => void
-  clienteId?: string
-  leadId?:    string
-  titulo?:    string
+  open:              boolean
+  onClose:           () => void
+  onSelect?:         (doc: DocSistema) => void
+  onSelectMultiple?: (docs: DocSistema[]) => void
+  multiSelect?:      boolean
+  clienteId?:        string
+  leadId?:           string
+  titulo?:           string
+  /** Callback para enviar documento via WhatsApp (se fornecido, mostra botão) */
+  onSendWhatsApp?:   (doc: DocSistema) => void
+  /** Callback para enviar documento via email (se fornecido, mostra botão) */
+  onSendEmail?:      (doc: DocSistema) => void
 }
 
 const CATEGORIAS = [
@@ -63,7 +70,7 @@ function formatBytes(n: number | null) {
 
 type ClienteOpt = { id: string; nome: string; email: string | null }
 
-export function DocumentoPicker({ open, onClose, onSelect, clienteId, leadId, titulo }: Props) {
+export function DocumentoPicker({ open, onClose, onSelect, onSelectMultiple, multiSelect, clienteId, leadId, titulo, onSendWhatsApp, onSendEmail }: Props) {
   const hasContext = !!(clienteId || leadId)
 
   // Quando sem contexto: etapa de seleção de cliente
@@ -93,6 +100,8 @@ export function DocumentoPicker({ open, onClose, onSelect, clienteId, leadId, ti
   const effectiveClienteId = clienteId ?? (clienteSelecionado?.id)
   const effectiveLeadId    = leadId
   const hasEffectiveContext = !!(effectiveClienteId || effectiveLeadId)
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const [docs,      setDocs]      = useState<DocSistema[]>([])
   const [loading,   setLoading]   = useState(false)
@@ -140,6 +149,7 @@ export function DocumentoPicker({ open, onClose, onSelect, clienteId, leadId, ti
       setClienteSelecionado(null)
       setClienteBusca('')
       setClienteOpts([])
+      setSelectedIds(new Set())
     }
   }, [open])
 
@@ -299,45 +309,108 @@ export function DocumentoPicker({ open, onClose, onSelect, clienteId, leadId, ti
                 </div>
               ) : (
                 <div className="space-y-1 py-1">
-                  {docs.map(doc => (
-                    <button
-                      key={doc.id}
-                      onClick={() => { onSelect(doc); onClose() }}
-                      className="group w-full flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all hover:bg-primary/6 active:bg-primary/10"
-                    >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-container group-hover:bg-primary/10 transition-colors">
-                        <span className="material-symbols-outlined text-[18px] text-on-surface-variant/60 group-hover:text-primary transition-colors">
-                          {mimeIcon(doc.mimeType)}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-on-surface truncate leading-tight">{doc.nome}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span className="text-[11px] text-on-surface-variant/60 truncate">{doc.tipo}</span>
-                          {doc.cliente?.nome && (
-                            <>
-                              <span className="text-[10px] text-on-surface-variant/30">·</span>
-                              <span className="text-[11px] text-on-surface-variant/50 truncate">{doc.cliente.nome}</span>
-                            </>
+                  {docs.map(doc => {
+                    const isSelected = selectedIds.has(doc.id)
+                    return (
+                      <button
+                        key={doc.id}
+                        onClick={() => {
+                          if (multiSelect) {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev)
+                              if (next.has(doc.id)) next.delete(doc.id)
+                              else next.add(doc.id)
+                              return next
+                            })
+                          } else {
+                            onSelect?.(doc)
+                            onClose()
+                          }
+                        }}
+                        className={`group w-full flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all hover:bg-primary/6 active:bg-primary/10 ${isSelected ? 'bg-primary/5' : ''}`}
+                      >
+                        {multiSelect && (
+                          <div className={`shrink-0 flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors ${
+                            isSelected ? 'border-primary bg-primary' : 'border-outline-variant/40 group-hover:border-primary/50'
+                          }`}>
+                            {isSelected && (
+                              <span className="material-symbols-outlined text-[12px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-container group-hover:bg-primary/10 transition-colors">
+                          <span className="material-symbols-outlined text-[18px] text-on-surface-variant/60 group-hover:text-primary transition-colors">
+                            {mimeIcon(doc.mimeType)}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium text-on-surface truncate leading-tight">{doc.nome}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[11px] text-on-surface-variant/60 truncate">{doc.tipo}</span>
+                            {doc.empresa && (
+                              <>
+                                <span className="text-[10px] text-on-surface-variant/30">·</span>
+                                <span className="inline-flex items-center gap-0.5 rounded bg-primary/8 px-1 py-px text-[10px] font-medium text-primary/80">
+                                  <span className="material-symbols-outlined text-[10px]">business</span>
+                                  {doc.empresa.nomeFantasia ?? doc.empresa.razaoSocial ?? doc.empresa.cnpj}
+                                </span>
+                              </>
+                            )}
+                            {doc.cliente?.nome && !doc.empresa && (
+                              <>
+                                <span className="text-[10px] text-on-surface-variant/30">·</span>
+                                <span className="text-[11px] text-on-surface-variant/50 truncate">{doc.cliente.nome}</span>
+                              </>
+                            )}
+                            {doc.tamanho && (
+                              <>
+                                <span className="text-[10px] text-on-surface-variant/30">·</span>
+                                <span className="text-[11px] text-on-surface-variant/40">{formatBytes(doc.tamanho)}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {/* Ações rápidas: enviar via WhatsApp / email */}
+                        <div className="shrink-0 flex items-center gap-1">
+                          {onSendWhatsApp && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onSendWhatsApp(doc) }}
+                              title="Enviar via WhatsApp"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant/40 hover:bg-green-status/10 hover:text-green-status transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">chat</span>
+                            </button>
                           )}
-                          {doc.tamanho && (
-                            <>
-                              <span className="text-[10px] text-on-surface-variant/30">·</span>
-                              <span className="text-[11px] text-on-surface-variant/40">{formatBytes(doc.tamanho)}</span>
-                            </>
+                          {onSendEmail && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onSendEmail(doc) }}
+                              title="Enviar via e-mail"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-on-surface-variant/40 hover:bg-primary/10 hover:text-primary transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">mail</span>
+                            </button>
+                          )}
+                          {!multiSelect && !onSendWhatsApp && !onSendEmail && (
+                            <div className="text-right">
+                              <p className="text-[10px] text-on-surface-variant/40">
+                                {new Date(doc.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                              </p>
+                              <span className="material-symbols-outlined text-[14px] text-on-surface-variant/20 group-hover:text-primary/50 transition-colors">
+                                chevron_right
+                              </span>
+                            </div>
+                          )}
+                          {(onSendWhatsApp || onSendEmail) && (
+                            <span className="text-[10px] text-on-surface-variant/30 ml-1">
+                              {new Date(doc.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                            </span>
                           )}
                         </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-[10px] text-on-surface-variant/40">
-                          {new Date(doc.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                        </p>
-                        <span className="material-symbols-outlined text-[14px] text-on-surface-variant/20 group-hover:text-primary/50 transition-colors">
-                          chevron_right
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -346,12 +419,38 @@ export function DocumentoPicker({ open, onClose, onSelect, clienteId, leadId, ti
 
         {/* Footer */}
         <div className="border-t border-outline-variant/10 px-5 py-3 shrink-0">
-          <button
-            onClick={onClose}
-            className="w-full rounded-xl py-2 text-[13px] font-medium text-on-surface-variant hover:bg-surface-container transition-colors"
-          >
-            Cancelar
-          </button>
+          {multiSelect ? (
+            <div className="flex gap-2">
+              <button
+                onClick={onClose}
+                className="flex-1 rounded-xl py-2 text-[13px] font-medium text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const selected = docs.filter(d => selectedIds.has(d.id))
+                  if (selected.length > 0) {
+                    onSelectMultiple?.(selected)
+                    onClose()
+                  }
+                }}
+                disabled={selectedIds.size === 0}
+                className="flex-1 rounded-xl py-2 text-[13px] font-semibold bg-primary text-white hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                {selectedIds.size > 0
+                  ? `Anexar ${selectedIds.size} doc${selectedIds.size > 1 ? 'umentos' : 'umento'}`
+                  : 'Selecione documentos'}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onClose}
+              className="w-full rounded-xl py-2 text-[13px] font-medium text-on-surface-variant hover:bg-surface-container transition-colors"
+            >
+              Cancelar
+            </button>
+          )}
         </div>
       </div>
     </div>

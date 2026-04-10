@@ -13,6 +13,7 @@ type DocumentoData = {
   origem: string
   criadoEm?: Date
   resumo?: string | null
+  dataVencimento?: Date | null
 }
 
 // Indexa metadados de documento no canal CRM (e portal quando origem='portal').
@@ -27,13 +28,16 @@ export async function indexarDocumento(doc: DocumentoData): Promise<void> {
 
   const data = doc.criadoEm ? doc.criadoEm.toLocaleDateString('pt-BR') : ''
 
+  const vencimento = doc.dataVencimento ? new Date(doc.dataVencimento).toLocaleDateString('pt-BR') : ''
+
   const linhas = [
     `Documento: ${doc.nome}`,
     `Tipo: ${doc.tipo}`,
-    doc.categoria ? `Categoria: ${doc.categoria}` : '',
-    doc.resumo    ? `Resumo: ${doc.resumo}` : '',
+    doc.categoria  ? `Categoria: ${doc.categoria}` : '',
+    doc.resumo     ? `Resumo: ${doc.resumo}` : '',
     `Origem: ${doc.origem}`,
-    data          ? `Enviado em: ${data}` : '',
+    data           ? `Enviado em: ${data}` : '',
+    vencimento     ? `Vencimento: ${vencimento}` : '',
   ].filter(Boolean).join('\n')
 
   // canal 'geral' para documentos crm/portal (Clara e CRM vêem com 1 entrada)

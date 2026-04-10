@@ -49,16 +49,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Título e descrição são obrigatórios' }, { status: 400 })
   }
 
-  // Get empresaId from the cliente
-  const cliente = await prisma.cliente.findUnique({
-    where:  { id: clienteId },
-    select: { empresaId: true },
-  })
+  // Usa empresaId ativa da sessão do portal (resolvido na autenticação)
+  const empresaId = (user.empresaId as string) ?? null
 
   const ordem = await prisma.chamado.create({
     data: {
       clienteId,
-      empresaId:  cliente?.empresaId ?? null,
+      empresaId,
       tipo:       tipo ?? 'duvida',
       titulo:     titulo.trim(),
       descricao:  descricao.trim(),

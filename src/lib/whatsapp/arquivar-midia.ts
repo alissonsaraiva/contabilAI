@@ -30,10 +30,17 @@ export function arquivarMidiaWhatsappAsync(input: ArquivarMidiaInput): void {
 
   const tipoLabel = input.tipoMidia === 'imagem' ? 'WhatsApp — Imagem' : 'WhatsApp — Documento'
 
-  // Busca empresaId do cliente para que o documento apareça também na ficha da empresa
+  // Busca empresaId do cliente (legado → fallback junção 1:N)
   const getEmpresaId = input.clienteId
     ? prisma.cliente.findUnique({ where: { id: input.clienteId }, select: { empresaId: true } })
-        .then(c => c?.empresaId ?? undefined)
+        .then(async (c) => {
+          if (c?.empresaId) return c.empresaId
+          const v = await prisma.clienteEmpresa.findFirst({
+            where: { clienteId: input.clienteId!, principal: true },
+            select: { empresaId: true },
+          })
+          return v?.empresaId ?? undefined
+        })
         .catch(() => undefined)
     : Promise.resolve(undefined)
 

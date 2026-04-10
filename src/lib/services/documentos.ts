@@ -45,6 +45,12 @@ export type CriarDocumentoInput = {
   status?:    string             // default: 'aprovado' (crm) | 'pendente' (portal)
   observacao?: string
 
+  // Visibilidade no portal
+  visivelPortal?: boolean  // default: true (visível no portal do cliente)
+
+  // Vencimento (guias, certidões, procurações)
+  dataVencimento?: Date | string | null
+
   // Origem e rastreabilidade
   origem:        'crm' | 'portal' | 'integracao' | 'whatsapp' | 'email'
   integracaoId?: string   // ex: 'focus_nfe', 'contaazul', 'sefaz'
@@ -102,6 +108,14 @@ export async function criarDocumento(input: CriarDocumentoInput): Promise<CriarD
       select: { empresaId: true },
     })
     empresaId = clienteRow?.empresaId ?? undefined
+    // Fallback: junção 1:N se campo legado estiver vazio
+    if (!empresaId) {
+      const vinculo = await prisma.clienteEmpresa.findFirst({
+        where: { clienteId: input.clienteId, principal: true },
+        select: { empresaId: true },
+      })
+      empresaId = vinculo?.empresaId ?? undefined
+    }
   }
 
   // 5. Criação no banco
@@ -119,6 +133,8 @@ export async function criarDocumento(input: CriarDocumentoInput): Promise<CriarD
       mimeType:       input.arquivo?.mimeType,
       status,
       observacao:     input.observacao,
+      visivelPortal:  input.visivelPortal ?? true,
+      dataVencimento: input.dataVencimento ? new Date(input.dataVencimento) : null,
       origem:         input.origem,
       integracaoId:   input.integracaoId,
       xmlMetadata:    xmlMetadata as never,
@@ -135,8 +151,9 @@ export async function criarDocumento(input: CriarDocumentoInput): Promise<CriarD
     tipo:      input.tipo,
     nome,
     categoria,
-    origem:    input.origem,
-    criadoEm:  documento.criadoEm,
+    origem:         input.origem,
+    criadoEm:       documento.criadoEm,
+    dataVencimento: documento.dataVencimento,
   })
 
   // 7. Gera resumo IA e re-indexa com conteúdo (fire-and-forget)

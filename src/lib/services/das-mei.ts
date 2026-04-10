@@ -104,12 +104,12 @@ function formatarData(data?: Date | string | null): string {
  * @param competencia Formato AAAAMM (ex: "202601"). Se omitido, usa mês corrente.
  * @returns O registro DasMEI criado ou atualizado.
  */
-export async function gerarESalvarDASMEI(clienteId: string, competencia?: string) {
+export async function gerarESalvarDASMEI(clienteId: string, competencia?: string, empresaIdInput?: string) {
   // Resolve competência padrão = mês corrente
   const agora = new Date()
   const comp  = competencia ?? `${agora.getFullYear()}${String(agora.getMonth() + 1).padStart(2, '0')}`
 
-  const cliente = await prisma.cliente.findUnique({
+  const clienteRow = await prisma.cliente.findUnique({
     where:  { id: clienteId },
     select: {
       id: true, nome: true, email: true, whatsapp: true,
@@ -117,12 +117,29 @@ export async function gerarESalvarDASMEI(clienteId: string, competencia?: string
     },
   })
 
-  if (!cliente) throw new Error(`Cliente ${clienteId} não encontrado.`)
-  if (!cliente.empresa?.cnpj) throw new Error(`Cliente ${clienteId} não possui CNPJ cadastrado.`)
-  if (cliente.empresa.regime !== 'MEI') throw new Error(`Cliente ${clienteId} não é MEI.`)
-  if (!cliente.empresa.procuracaoRFAtiva) throw new Error(`Cliente ${clienteId} não possui procuração RF ativa — DAS não pode ser gerada pelo SERPRO.`)
+  if (!clienteRow) throw new Error(`Cliente ${clienteId} não encontrado.`)
 
-  const cnpj = cliente.empresa.cnpj.replace(/[.\-/\s]/g, '')
+  // Resolve empresa: empresaId explícito > relação direta (legado) > junção 1:N
+  let empresa = empresaIdInput
+    ? await prisma.empresa.findUnique({
+        where: { id: empresaIdInput },
+        select: { id: true, cnpj: true, regime: true, procuracaoRFAtiva: true },
+      })
+    : clienteRow.empresa
+  if (!empresa) {
+    const vinculo = await prisma.clienteEmpresa.findFirst({
+      where: { clienteId, principal: true },
+      select: { empresa: { select: { id: true, cnpj: true, regime: true, procuracaoRFAtiva: true } } },
+    })
+    empresa = vinculo?.empresa ?? null
+  }
+
+  if (!empresa?.cnpj) throw new Error(`Cliente ${clienteId} não possui CNPJ cadastrado.`)
+  if (empresa.regime !== 'MEI') throw new Error(`Cliente ${clienteId} não é MEI.`)
+  if (!empresa.procuracaoRFAtiva) throw new Error(`Cliente ${clienteId} não possui procuração RF ativa — DAS não pode ser gerada pelo SERPRO.`)
+
+  const cliente = { ...clienteRow, empresa }
+  const cnpj = empresa.cnpj.replace(/[.\-/\s]/g, '')
 
   let status: 'pendente' | 'erro' = 'pendente'
   let erroMsg: string | undefined
@@ -156,7 +173,7 @@ export async function gerarESalvarDASMEI(clienteId: string, competencia?: string
 
   // Upsert — idempotente por (empresaId, competencia)
   const das = await prisma.dasMEI.upsert({
-    where:  { empresaId_competencia: { empresaId: cliente.empresa.id, competencia: comp } },
+    where:  { empresaId_competencia: { empresaId: empresa.id, competencia: comp } },
     update: {
       status,
       codigoBarras:  codigoBarras  ?? undefined,
@@ -168,7 +185,7 @@ export async function gerarESalvarDASMEI(clienteId: string, competencia?: string
       atualizadoEm:  new Date(),
     },
     create: {
-      empresaId:    cliente.empresa.id,
+      empresaId:    empresa.id,
       clienteId:    cliente.id,
       competencia:  comp,
       status,

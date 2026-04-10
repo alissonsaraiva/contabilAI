@@ -22,12 +22,13 @@ export async function sincronizarEmpresaNaSpedy(empresaId: string): Promise<{
 }> {
   const empresa = await prisma.empresa.findUnique({
     where:   { id: empresaId },
-    include: { cliente: { select: { nome: true, logradouro: true, numero: true, complemento: true, bairro: true, cidade: true, uf: true, cep: true } } },
+    include: { clientes: { select: { nome: true, logradouro: true, numero: true, complemento: true, bairro: true, cidade: true, uf: true, cep: true }, take: 1 } },
   })
 
   if (!empresa) return { sucesso: false, acao: 'noop', detalhe: 'Empresa não encontrada' }
   if (!empresa.cnpj) return { sucesso: false, acao: 'noop', detalhe: 'Empresa sem CNPJ cadastrado' }
-  if (!empresa.cliente?.cidade || !empresa.cliente?.uf) return { sucesso: false, acao: 'noop', detalhe: 'Empresa sem cidade/UF cadastrados — obrigatório para a Spedy' }
+  const _titular = empresa.clientes[0]
+  if (!_titular?.cidade || !_titular?.uf) return { sucesso: false, acao: 'noop', detalhe: 'Empresa sem cidade/UF cadastrados — obrigatório para a Spedy' }
 
   const escritorio = await prisma.escritorio.findFirst({
     select: { spedyApiKey: true, spedyAmbiente: true },
@@ -42,11 +43,11 @@ export async function sincronizarEmpresaNaSpedy(empresaId: string): Promise<{
   })
 
   const taxRegime = mapRegimeToSpedy(empresa.regime)
-  const name      = empresa.nomeFantasia ?? empresa.razaoSocial ?? empresa.cliente?.nome ?? ''
-  const legalName = empresa.razaoSocial  ?? empresa.cliente?.nome ?? ''
+  const name      = empresa.nomeFantasia ?? empresa.razaoSocial ?? empresa.clientes[0]?.nome ?? ''
+  const legalName = empresa.razaoSocial  ?? empresa.clientes[0]?.nome ?? ''
   const cnpj      = empresa.cnpj.replace(/\D/g, '')
 
-  const c = empresa.cliente
+  const c = empresa.clientes[0]
   const address = (c?.cidade && c?.uf) ? {
     street:    c.logradouro ?? 'Não informado',
     number:    c.numero     ?? 'S/N',

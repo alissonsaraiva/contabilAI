@@ -64,33 +64,41 @@ export async function GET(req: Request) {
     ]
   }
 
-  // Para cliente PJ: inclui documentos da empresa vinculada
-  let empresaIdExtra: string | null = null
+  // Para cliente PJ: inclui documentos de TODAS as empresas vinculadas (1:N)
+  let empresaIds: string[] = []
   if (clienteId && !empresaId) {
-    const c = await prisma.cliente.findUnique({
-      where:  { id: clienteId },
+    const vinculos = await prisma.clienteEmpresa.findMany({
+      where: { clienteId },
       select: { empresaId: true },
     })
-    if (c?.empresaId) empresaIdExtra = c.empresaId
+    empresaIds = vinculos.map(v => v.empresaId)
+    // Fallback legado
+    if (empresaIds.length === 0) {
+      const c = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { empresaId: true } })
+      if (c?.empresaId) empresaIds = [c.empresaId]
+    }
   }
+
+  const docSelect = {
+    id: true, nome: true, tipo: true, categoria: true,
+    origem: true, url: true, mimeType: true, tamanho: true,
+    status: true, criadoEm: true, empresaId: true,
+    cliente: { select: { id: true, nome: true } },
+    empresa: { select: { id: true, nomeFantasia: true, razaoSocial: true, cnpj: true } },
+  } as const
 
   const [docsPrimarios, docsEmpresa] = await Promise.all([
     prisma.documento.findMany({
       where: { ...where, deletadoEm: null },
       orderBy: { criadoEm: 'desc' },
       take: 60,
-      select: {
-        id: true, nome: true, tipo: true, categoria: true,
-        origem: true, url: true, mimeType: true, tamanho: true,
-        status: true, criadoEm: true,
-        cliente: { select: { id: true, nome: true } },
-      },
+      select: docSelect,
     }),
-    // Docs da empresa vinculada (só quando clienteId e empresa PJ)
-    empresaIdExtra
+    // Docs de todas as empresas vinculadas ao cliente
+    empresaIds.length > 0
       ? prisma.documento.findMany({
           where: {
-            empresaId: empresaIdExtra,
+            empresaId: { in: empresaIds },
             deletadoEm: null,
             ...(categoria ? { categoria: categoria as CategoriaDocumento } : {}),
             ...(search ? {
@@ -101,13 +109,8 @@ export async function GET(req: Request) {
             } : {}),
           },
           orderBy: { criadoEm: 'desc' },
-          take: 30,
-          select: {
-            id: true, nome: true, tipo: true, categoria: true,
-            origem: true, url: true, mimeType: true, tamanho: true,
-            status: true, criadoEm: true,
-            cliente: { select: { id: true, nome: true } },
-          },
+          take: 60,
+          select: docSelect,
         })
       : Promise.resolve([]),
   ])

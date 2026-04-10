@@ -119,7 +119,19 @@ export async function POST(req: Request) {
       const mensagem = montarMensagem(nomeDest, valor, dataVenc, nivel, pagStr, nomeEsc)
       const numero = destWA.replace(/\D/g, '')
 
-      await sendText(evoCfg, `${numero}@s.whatsapp.net`, mensagem)
+      const sendResult = await sendText(evoCfg, `${numero}@s.whatsapp.net`, mensagem)
+
+      if (!sendResult.ok) {
+        const erro = (sendResult as any).error ?? 'Falha ao enviar WhatsApp'
+        console.error(`[crm/inadimplentes/mensagem] sendText falhou para cliente ${c.id}:`, erro)
+        Sentry.captureMessage('cobranca-gentil: sendText retornou ok=false', {
+          level: 'warning',
+          tags: { module: 'crm-inadimplentes', operation: 'enviar-mensagem-whatsapp' },
+          extra: { clienteId: c.id, nivel, erro },
+        })
+        results.push({ clienteId: c.id, ok: false, erro })
+        continue
+      }
 
       await prisma.interacao.create({
         data: {

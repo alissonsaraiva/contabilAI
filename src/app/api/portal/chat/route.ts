@@ -8,6 +8,8 @@ import { classificarIntencao } from '@/lib/ai/classificar-intencao'
 import { executarAgente } from '@/lib/ai/agent'
 import { rateLimit } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
+import { resolveClienteId } from '@/lib/portal-session'
+import { resolverEmpresasDoCliente, formatarEmpresasParaTexto } from '@/lib/ai/tools/resolver-empresa'
 import { emitPortalUserMessage } from '@/lib/event-bus'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 // Garante que todas as tools estejam registradas
@@ -86,9 +88,10 @@ export async function POST(req: Request) {
     }
   }
 
-  // Busca dados do titular da empresa para contexto da IA
-  const clienteTitular = await prisma.cliente.findUnique({
-    where:  { empresaId },
+  // Busca dados do titular da empresa para contexto da IA (via ClienteEmpresa)
+  const titularId = await resolveClienteId(user)
+  const clienteTitular = titularId ? await prisma.cliente.findUnique({
+    where:  { id: titularId },
     select: {
       id: true, nome: true, planoTipo: true, valorMensal: true, vencimentoDia: true,
       cidade: true, uf: true, status: true,
@@ -100,7 +103,7 @@ export async function POST(req: Request) {
         select:  { id: true, valor: true, vencimento: true, status: true, pixCopiaECola: true, linkBoleto: true, atualizadoEm: true, pixGeradoEm: true, formaPagamento: true },
       },
     },
-  })
+  }) : null
 
   // Para sócios, vincula conversa ao clienteId do titular; titulares usam o próprio id.
   // Se sócio sem empresa encontrada, bloqueia para evitar contexto de cliente indefinido.
@@ -144,10 +147,28 @@ export async function POST(req: Request) {
   }
   // ────────────────────────────────────────────────────────────────────────────
 
-  const historico = await getHistorico(conversaId)
+  const [historico, empresasCliente, empresaAtiva] = await Promise.all([
+    getHistorico(conversaId),
+    clienteIdParaConversa ? resolverEmpresasDoCliente(clienteIdParaConversa).catch(() => []) : Promise.resolve([]),
+    empresaId
+      ? prisma.empresa.findUnique({ where: { id: empresaId }, select: { regime: true, cnpj: true, razaoSocial: true, nomeFantasia: true } })
+      : Promise.resolve(null),
+  ])
+
   const nomeCara       = aiConfig.nomeAssistentes.portal ?? 'Clara'
   const nomeEscritorio = escritorio?.nome ?? process.env.NEXT_PUBLIC_APP_NAME ?? 'Avos'
   const nomeUsuario    = user.name ?? clienteTitular?.nome ?? 'cliente'
+
+  // Contexto da empresa ativa no portal (selecionada pelo selector ou única)
+  const empresaLabel = empresaAtiva?.nomeFantasia ?? empresaAtiva?.razaoSocial ?? 'não informado'
+  const empresaContexto = empresaAtiva
+    ? `EMPRESA ATIVA NO PORTAL: ${empresaLabel}${empresaAtiva.cnpj ? ` (CNPJ ${empresaAtiva.cnpj})` : ''}${empresaAtiva.regime ? ` — Regime: ${empresaAtiva.regime}` : ''}`
+    : 'Sem empresa vinculada'
+
+  // Se multi-empresa, lista todas
+  const outrasEmpresas = empresasCliente.length > 1
+    ? `\nOUTRAS EMPRESAS DO CLIENTE:\n${formatarEmpresasParaTexto(empresasCliente.filter(e => e.empresaId !== empresaId))}\nSe o cliente perguntar sobre outra empresa, informe que ele pode trocar a empresa ativa no selector do portal.`
+    : ''
 
   let systemExtra = `Você é ${nomeCara}, assistente automatizado do escritório ${nomeEscritorio}. Você está atendendo ${nomeUsuario}${isSocio ? ' (sócio da empresa)' : ''} pelo portal online do escritório.
 
@@ -158,21 +179,22 @@ IDENTIDADE:
 - Não use frases como "como IA, não posso..." — use linguagem natural e direta.
 - Se não souber responder algo, diga que vai verificar com a equipe.
 
-DADOS DA EMPRESA:
+${empresaContexto}${outrasEmpresas}
+
+DADOS DO PLANO:
 - Plano: ${clienteTitular?.planoTipo ?? 'não informado'}
 - Valor mensalidade: R$ ${clienteTitular?.valorMensal ?? '—'}
 - Vencimento dia: ${clienteTitular?.vencimentoDia ?? '—'}
-- Regime tributário: ${clienteTitular?.empresa?.regime ?? 'não informado'}
 - Localidade: ${clienteTitular?.cidade ?? ''}${clienteTitular?.uf ? '/' + clienteTitular.uf : ''}
 - Status financeiro: ${clienteTitular?.status === 'inadimplente' ? 'INADIMPLENTE — mensalidade em atraso' : clienteTitular?.status === 'suspenso' ? 'SUSPENSO' : clienteTitular?.status === 'cancelado' ? 'CANCELADO' : 'em dia'}
 
-ACESSO A DADOS: Você tem acesso em tempo real aos dados da empresa — documentos, histórico de interações, tarefas, planos disponíveis. Os dados já foram consultados automaticamente e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL". Use esses dados para responder diretamente. NUNCA diga "vou verificar" ou "vou consultar" em tempo futuro — você JÁ TEM os dados disponíveis na sessão. Se os dados consultados estiverem disponíveis abaixo, use-os imediatamente na sua resposta.
+ACESSO A DADOS: Você tem acesso em tempo real aos dados da empresa — documentos, histórico de interações, tarefas, planos disponíveis. Os dados já foram consultados automaticamente e aparecerão abaixo sob "DADOS CONSULTADOS EM TEMPO REAL". Use esses dados para responder diretamente. NUNCA diga "vou verificar" ou "vou consultar" em tempo futuro — você JÁ TEM os dados disponíveis na sessão.
 
 REGRAS DE ATENDIMENTO:
 - Responda perguntas sobre serviços contábeis, obrigações fiscais, abertura de empresa, simples nacional, MEI, etc.
 - Quando perguntarem sobre documentos, histórico ou plano, use os dados reais já consultados.
 - Seja cordial, objetivo e use linguagem simples. Evite jargões técnicos desnecessários.
-- NUNCA acesse dados de outras empresas — você atende SOMENTE esta empresa.
+- Você atende no contexto da empresa ativa selecionada no portal.
 - Se o usuário quiser falar com outro membro da equipe ou um especialista, use o botão disponível no chat para encaminhar.`
 
   // NFS-e: injeta instruções de emissão quando o escritório tem Spedy configurado

@@ -12,17 +12,21 @@ export default async function PortalFinanceiroPage() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
-  const cliente = await prisma.cliente.findUnique({
-    where:  { id: clienteId },
-    select: {
-      valorMensal: true,
-      vencimentoDia: true,
-      formaPagamento: true,
-      planoTipo: true,
-      asaasCustomerId: true,
-      empresa: { select: { regime: true, procuracaoRFAtiva: true } },
-    },
-  })
+  const [cliente, empresa] = await Promise.all([
+    prisma.cliente.findUnique({
+      where:  { id: clienteId },
+      select: {
+        valorMensal: true,
+        vencimentoDia: true,
+        formaPagamento: true,
+        planoTipo: true,
+        asaasCustomerId: true,
+      },
+    }),
+    user.empresaId
+      ? prisma.empresa.findUnique({ where: { id: user.empresaId }, select: { regime: true, procuracaoRFAtiva: true } })
+      : Promise.resolve(null),
+  ])
   if (!cliente) redirect('/portal/login')
 
   return (
@@ -40,8 +44,8 @@ export default async function PortalFinanceiroPage() {
         vencimentoDia={cliente.vencimentoDia}
         formaPagamento={cliente.formaPagamento}
         asaasAtivo={!!cliente.asaasCustomerId}
-        regime={cliente.empresa?.regime ?? null}
-        procuracaoRFAtiva={cliente.empresa?.procuracaoRFAtiva ?? true}
+        regime={empresa?.regime ?? null}
+        procuracaoRFAtiva={empresa?.procuracaoRFAtiva ?? true}
       />
     </div>
   )

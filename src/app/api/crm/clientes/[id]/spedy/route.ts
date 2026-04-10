@@ -92,11 +92,20 @@ export async function GET(
     select:  { nome: true, empresaId: true, cidade: true, uf: true, cep: true },
   })
   if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
-  if (!cliente.empresaId) return NextResponse.json({ configurado: false, motivo: 'Cliente sem empresa vinculada' })
+  // Resolve empresaId: campo legado → fallback junção 1:N
+  let empresaId = cliente.empresaId
+  if (!empresaId) {
+    const vinculo = await prisma.clienteEmpresa.findFirst({
+      where: { clienteId: id, principal: true },
+      select: { empresaId: true },
+    })
+    empresaId = vinculo?.empresaId ?? null
+  }
+  if (!empresaId) return NextResponse.json({ configurado: false, motivo: 'Cliente sem empresa vinculada' })
 
   const [empresa, escritorio] = await Promise.all([
     prisma.empresa.findUnique({
-      where:  { id: cliente.empresaId },
+      where:  { id: empresaId },
       select: {
         spedyConfigurado:        true,
         spedyConfiguradoEm:      true,
@@ -166,9 +175,17 @@ export async function POST(
     include: { empresa: true },
   })
   if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
-  if (!cliente.empresa) return NextResponse.json({ error: 'Cliente sem empresa vinculada' }, { status: 422 })
 
-  const empresa = cliente.empresa
+  // Resolve empresa: relação direta (legado) → fallback junção 1:N
+  let empresa = cliente.empresa
+  if (!empresa) {
+    const vinculo = await prisma.clienteEmpresa.findFirst({
+      where: { clienteId: id, principal: true },
+      include: { empresa: true },
+    })
+    empresa = vinculo?.empresa ?? null
+  }
+  if (!empresa) return NextResponse.json({ error: 'Cliente sem empresa vinculada' }, { status: 422 })
 
   // Modo 1: conectar chave própria do cliente
   if (body.modo === 'conectar') {

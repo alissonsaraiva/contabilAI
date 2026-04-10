@@ -15,6 +15,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
+import { resolveClienteId } from '@/lib/portal-session'
 
 export async function GET() {
   const session = await auth()
@@ -46,12 +47,7 @@ export async function GET() {
   }
 
   // ── 2. Primeira vez — resolve o clienteId para buscar conversa existente ────
-  const clienteId = isSocio
-    ? (await prisma.cliente.findUnique({
-        where:  { empresaId: user.empresaId as string },
-        select: { id: true },
-      }))?.id
-    : userId
+  const clienteId = await resolveClienteId(user)
 
   // ── 3. Tenta migrar sessionId de conversa existente (preserva histórico) ────
   let canonicalSessionId: string

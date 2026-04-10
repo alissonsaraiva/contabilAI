@@ -1,7 +1,7 @@
 /**
- * GET   /api/crm/clientes/[id]/das-mei  — lista DAS MEI do cliente
- * POST  /api/crm/clientes/[id]/das-mei  — gera DAS manualmente
- * PATCH /api/crm/clientes/[id]/das-mei  — atualiza procuracaoRFAtiva da empresa
+ * GET   /api/crm/clientes/[id]/das-mei              — lista DAS MEI de TODAS as empresas do cliente
+ * POST  /api/crm/clientes/[id]/das-mei              — gera DAS manualmente (body: { competencia?, empresaId? })
+ * PATCH /api/crm/clientes/[id]/das-mei              — atualiza procuracaoRFAtiva (body: { procuracaoRFAtiva, empresaId? })
  */
 import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
@@ -19,15 +19,20 @@ export async function GET(_req: Request, { params }: Params) {
   const { id: clienteId } = await params
 
   try {
-    const cliente = await prisma.cliente.findUnique({
-      where:  { id: clienteId },
+    // Busca TODAS as empresas vinculadas com DAS (via junção 1:N)
+    const vinculos = await prisma.clienteEmpresa.findMany({
+      where: { clienteId },
       select: {
-        id:      true,
+        empresaId: true,
+        principal: true,
         empresa: {
           select: {
-            id:                    true,
-            regime:                true,
-            procuracaoRFAtiva:     true,
+            id:                       true,
+            cnpj:                     true,
+            razaoSocial:              true,
+            nomeFantasia:             true,
+            regime:                   true,
+            procuracaoRFAtiva:        true,
             procuracaoRFVerificadaEm: true,
             dasMeis: {
               orderBy: { competencia: 'desc' },
@@ -36,18 +41,51 @@ export async function GET(_req: Request, { params }: Params) {
           },
         },
       },
+      orderBy: { principal: 'desc' },
     })
 
-    if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
+    // Fallback: relação legada se junção vazia
+    if (vinculos.length === 0) {
+      const cliente = await prisma.cliente.findUnique({
+        where: { id: clienteId },
+        select: {
+          empresa: {
+            select: {
+              id: true, cnpj: true, razaoSocial: true, nomeFantasia: true,
+              regime: true, procuracaoRFAtiva: true, procuracaoRFVerificadaEm: true,
+              dasMeis: { orderBy: { competencia: 'desc' }, take: 24 },
+            },
+          },
+        },
+      })
+      if (!cliente?.empresa) return NextResponse.json({ empresas: [] })
+      const emp = cliente.empresa
+      return NextResponse.json({
+        empresas: [{
+          empresaId:                emp.id,
+          principal:                true,
+          cnpj:                     emp.cnpj,
+          razaoSocial:              emp.razaoSocial,
+          nomeFantasia:             emp.nomeFantasia,
+          regime:                   emp.regime,
+          procuracaoRFAtiva:        emp.procuracaoRFAtiva,
+          procuracaoRFVerificadaEm: emp.procuracaoRFVerificadaEm,
+          dasMeis: emp.dasMeis.map(d => ({ ...d, valor: d.valor != null ? Number(d.valor) : null })),
+        }],
+      })
+    }
 
     return NextResponse.json({
-      regime:                   cliente.empresa?.regime ?? null,
-      procuracaoRFAtiva:        cliente.empresa?.procuracaoRFAtiva ?? false,
-      procuracaoRFVerificadaEm: cliente.empresa?.procuracaoRFVerificadaEm ?? null,
-      // Converte Decimal → number para serialização JSON correta
-      dasMeis: (cliente.empresa?.dasMeis ?? []).map(d => ({
-        ...d,
-        valor: d.valor != null ? Number(d.valor) : null,
+      empresas: vinculos.map(v => ({
+        empresaId:                v.empresaId,
+        principal:                v.principal,
+        cnpj:                     v.empresa.cnpj,
+        razaoSocial:              v.empresa.razaoSocial,
+        nomeFantasia:             v.empresa.nomeFantasia,
+        regime:                   v.empresa.regime,
+        procuracaoRFAtiva:        v.empresa.procuracaoRFAtiva,
+        procuracaoRFVerificadaEm: v.empresa.procuracaoRFVerificadaEm,
+        dasMeis: v.empresa.dasMeis.map(d => ({ ...d, valor: d.valor != null ? Number(d.valor) : null })),
       })),
     })
   } catch (err) {
@@ -67,42 +105,56 @@ export async function PATCH(req: Request, { params }: Params) {
 
   try {
     const body = await req.json() as Record<string, unknown>
-    const { procuracaoRFAtiva } = body
+    const { procuracaoRFAtiva, empresaId: empresaIdInput } = body
 
     if (typeof procuracaoRFAtiva !== 'boolean') {
       return NextResponse.json({ error: 'procuracaoRFAtiva deve ser boolean.' }, { status: 400 })
     }
 
-    // Atualiza na empresa vinculada ao cliente
-    const cliente = await prisma.cliente.findUnique({
-      where:  { id: clienteId },
-      select: { empresa: { select: { id: true, cnpj: true, razaoSocial: true, regime: true } } },
-    })
-    if (!cliente?.empresa) {
-      return NextResponse.json({ error: 'Cliente sem empresa vinculada.' }, { status: 404 })
+    // Resolve empresa: empresaId explícito > relação direta > junção principal
+    let empresa: { id: string; cnpj: string | null; razaoSocial: string | null; regime: string | null } | null = null
+
+    if (typeof empresaIdInput === 'string') {
+      empresa = await prisma.empresa.findUnique({
+        where: { id: empresaIdInput },
+        select: { id: true, cnpj: true, razaoSocial: true, regime: true },
+      })
+    } else {
+      const clienteRow = await prisma.cliente.findUnique({
+        where: { id: clienteId },
+        select: { empresa: { select: { id: true, cnpj: true, razaoSocial: true, regime: true } } },
+      })
+      empresa = clienteRow?.empresa ?? null
+      if (!empresa) {
+        const vinculo = await prisma.clienteEmpresa.findFirst({
+          where: { clienteId, principal: true },
+          select: { empresa: { select: { id: true, cnpj: true, razaoSocial: true, regime: true } } },
+        })
+        empresa = vinculo?.empresa ?? null
+      }
+    }
+
+    if (!empresa) {
+      return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 })
     }
 
     const agora = new Date()
     await prisma.empresa.update({
-      where: { id: cliente.empresa.id },
-      data:  {
-        procuracaoRFAtiva,
-        procuracaoRFVerificadaEm: agora,
-      },
+      where: { id: empresa.id },
+      data:  { procuracaoRFAtiva, procuracaoRFVerificadaEm: agora },
     })
 
-    // Re-indexa no RAG para que as IAs reflitam o novo status de procuração
     indexarAsync('empresa', {
-      id:                       cliente.empresa.id,
+      id:                       empresa.id,
       clienteId,
-      cnpj:                     cliente.empresa.cnpj,
-      razaoSocial:              cliente.empresa.razaoSocial,
-      regime:                   cliente.empresa.regime ?? undefined,
+      cnpj:                     empresa.cnpj,
+      razaoSocial:              empresa.razaoSocial,
+      regime:                   empresa.regime ?? undefined,
       procuracaoRFAtiva,
       procuracaoRFVerificadaEm: agora,
     })
 
-    return NextResponse.json({ ok: true, procuracaoRFAtiva })
+    return NextResponse.json({ ok: true, procuracaoRFAtiva, empresaId: empresa.id })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     Sentry.captureException(err, {
@@ -122,8 +174,9 @@ export async function POST(req: Request, { params }: Params) {
   try {
     const body        = await req.json().catch(() => ({})) as Record<string, unknown>
     const competencia = body.competencia as string | undefined
+    const empresaId   = body.empresaId  as string | undefined
 
-    const das = await gerarESalvarDASMEI(clienteId, competencia)
+    const das = await gerarESalvarDASMEI(clienteId, competencia, empresaId)
     return NextResponse.json(das)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

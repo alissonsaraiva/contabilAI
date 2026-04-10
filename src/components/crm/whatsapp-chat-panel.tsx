@@ -11,9 +11,11 @@ export type WhatsAppChatPanelProps = {
   apiPath: string
   nomeExibido: string
   onClose: () => void
+  clienteId?: string
+  leadId?: string
 }
 
-export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppChatPanelProps) {
+export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose, clienteId: clienteIdProp, leadId: leadIdProp }: WhatsAppChatPanelProps) {
   if (!WHATSAPP_API_PATH_PATTERN.test(apiPath)) {
     console.error('[WhatsAppChatPanel] apiPath inválido:', apiPath)
     return null
@@ -21,30 +23,36 @@ export function WhatsAppChatPanel({ apiPath, nomeExibido, onClose }: WhatsAppCha
 
   return (
     <WhatsAppChatBoundary onClose={onClose}>
-      <WhatsAppChatPanelInner apiPath={apiPath} nomeExibido={nomeExibido} onClose={onClose} />
+      <WhatsAppChatPanelInner apiPath={apiPath} nomeExibido={nomeExibido} onClose={onClose} clienteId={clienteIdProp} leadId={leadIdProp} />
     </WhatsAppChatBoundary>
   )
 }
 
-function WhatsAppChatPanelInner({ apiPath, nomeExibido, onClose }: WhatsAppChatPanelProps) {
+function WhatsAppChatPanelInner({ apiPath, nomeExibido, onClose, clienteId: clienteIdProp, leadId: leadIdProp }: WhatsAppChatPanelProps) {
   const {
     mensagens, pausada, conversaId, telefone, semNumero,
     texto, setTexto, sending, reativando, assumindo, excluindo,
-    arquivo, uploading, naoModoIA, setNaoModoIA,
+    arquivos, uploading, naoModoIA, setNaoModoIA,
     pickerOpen, setPickerOpen, entity,
     fileInputRef, bottomRef, scrollContainerRef,
-    onScroll, handleFileChange, removerArquivo, handleDocSistema,
+    onScroll, handleFileChange, removerArquivo, handleDocsSistema,
     enviar, assumirControle, reativarIA, excluirMensagem,
   } = useWhatsAppChat(apiPath)
+
+  // Usa o contexto do entity (apiPath) como prioritário; cai no prop como fallback
+  // (ex: sócio, ou conversa não vinculada a cliente/lead)
+  const resolvedClienteId = entity?.entidadeTipo === 'cliente' ? entity.entidadeId : clienteIdProp
+  const resolvedLeadId    = entity?.entidadeTipo === 'lead'    ? entity.entidadeId : leadIdProp
 
   return (
     <>
       <DocumentoPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onSelect={handleDocSistema}
-        clienteId={entity?.entidadeTipo === 'cliente' ? entity.entidadeId : undefined}
-        leadId={entity?.entidadeTipo === 'lead' ? entity.entidadeId : undefined}
+        onSelectMultiple={handleDocsSistema}
+        multiSelect
+        clienteId={resolvedClienteId}
+        leadId={resolvedLeadId}
       />
 
       <ChatHeader
@@ -104,7 +112,7 @@ function WhatsAppChatPanelInner({ apiPath, nomeExibido, onClose }: WhatsAppChatP
 
       {!semNumero && (
         <ChatInput
-          arquivo={arquivo}
+          arquivos={arquivos}
           uploading={uploading}
           texto={texto}
           setTexto={setTexto}

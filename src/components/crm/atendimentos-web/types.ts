@@ -21,7 +21,7 @@ export type EscalacaoWebItem = {
 }
 
 export type SelectedConversation =
-  | { type: 'whatsapp'; apiPath: string; nome: string }
+  | { type: 'whatsapp'; apiPath: string; nome: string; clienteId?: string; leadId?: string }
   | { type: 'portal';   conversaId: string; nome: string; clienteId?: string }
 
 export type FilterTab = 'todas' | 'urgentes' | 'voce' | 'ia'

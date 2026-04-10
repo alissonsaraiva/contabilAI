@@ -7,6 +7,7 @@
  *   escalacao                                   → admin + contador + assistente (equipe de atendimento)
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 
 // Anti-spam: evita criar a mesma notificação múltiplas vezes em curto período
@@ -273,5 +274,44 @@ export async function notificarDocumentoFalhou(opts: {
     }
   } catch (err) {
     console.error('[notificacoes] falha ao notificar documento_falhou:', err)
+  }
+}
+
+/**
+ * Notifica a equipe que um documento está próximo do vencimento.
+ * Chamada pelo cron lembrete-documentos.
+ */
+export async function notificarDocumentoVencendo(opts: {
+  documentoId: string
+  clienteId: string
+  nomeCliente: string
+  nomeDocumento: string
+  dataVencimento: Date
+  diasRestantes: number
+}): Promise<void> {
+  const chave = `doc_vencendo:${opts.documentoId}:${opts.diasRestantes}`
+  if (dentroDoCooldow(chave)) return
+  registrarCooldown(chave)
+
+  try {
+    const label = opts.diasRestantes === 0
+      ? 'vence hoje'
+      : opts.diasRestantes < 0
+        ? `venceu há ${Math.abs(opts.diasRestantes)} dia${Math.abs(opts.diasRestantes) !== 1 ? 's' : ''}`
+        : `vence em ${opts.diasRestantes} dia${opts.diasRestantes !== 1 ? 's' : ''}`
+
+    const ids = await buscarEquipeAtendimento()
+    await criarParaTodos(ids, {
+      tipo:     'documento_vencendo',
+      titulo:   `Documento de ${opts.nomeCliente} ${label}`,
+      mensagem: `"${opts.nomeDocumento}" — vencimento ${opts.dataVencimento.toLocaleDateString('pt-BR')}.`,
+      url:      `/crm/clientes/${opts.clienteId}`,
+    })
+  } catch (err) {
+    console.error('[notificacoes] falha ao notificar documento_vencendo:', err)
+    Sentry.captureException(err, {
+      tags: { module: 'notificacoes', operation: 'documento-vencendo' },
+      extra: { documentoId: opts.documentoId, clienteId: opts.clienteId },
+    })
   }
 }

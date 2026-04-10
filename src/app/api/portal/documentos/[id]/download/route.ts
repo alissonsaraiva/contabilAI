@@ -19,8 +19,12 @@ export async function GET(
   const clienteId = await resolveClienteId(user)
   if (!clienteId) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 400 })
 
+  const empresaId = (user as any).empresaId as string | undefined
+  const orConditions: object[] = [{ clienteId }]
+  if (empresaId) orConditions.push({ empresaId })
+
   const doc = await prisma.documento.findFirst({
-    where: { id, clienteId },
+    where: { id, OR: orConditions, deletadoEm: null, visivelPortal: true },
     select: { url: true, nome: true, mimeType: true },
   })
 

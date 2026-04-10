@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { criarTokenPortal, criarTokenPortalSocio } from '@/lib/portal/tokens'
+import { getEmpresaPrincipal } from '@/lib/portal-session'
 import { sendText, type EvolutionConfig } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { rateLimit, getClientIp, tooManyRequests } from '@/lib/rate-limit'
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
     if (cliente.status === 'suspenso')  return NextResponse.json({ error: 'conta_suspensa' },  { status: 403 })
     if (cliente.status === 'cancelado') return NextResponse.json({ error: 'conta_cancelada' }, { status: 403 })
     if (cliente.status !== 'ativo' && cliente.status !== 'inadimplente') return NextResponse.json({ error: 'conta_inativa' }, { status: 403 })
-    if (!cliente.empresaId)             return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
+    const empresaId = await getEmpresaPrincipal(cliente.id)
+    if (!empresaId)                     return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
 
     const phone = cliente.whatsapp || cliente.telefone
     if (!phone) return NextResponse.json({ error: 'whatsapp_nao_cadastrado' }, { status: 400 })
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
     const cfg = await getEvolutionConfig()
     if (!cfg) return NextResponse.json({ error: 'whatsapp_indisponivel' }, { status: 503 })
 
-    const { otp } = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000)
+    const { otp } = await criarTokenPortal(cliente.id, empresaId, 30 * 60 * 1000)
     const result = await sendText(cfg, buildRemoteJid(phone),
       `🔐 *Código de acesso ao Portal*\n\n*${otp}*\n\nVálido por 10 minutos. Não compartilhe com ninguém.`,
     )

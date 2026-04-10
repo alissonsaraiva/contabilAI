@@ -172,8 +172,17 @@ export async function provisionarClienteAsaas(clienteId: string): Promise<void> 
     return
   }
 
-  // ── BUG 11: validar CNPJ/CPF antes de chamar a API ───────────────────────────
-  const cpfCnpjRaw = (cliente.empresa?.cnpj ?? cliente.cpf ?? '').replace(/\D/g, '')
+  // Resolve CNPJ: relação direta → fallback junção 1:N
+  let cnpjEmpresa = cliente.empresa?.cnpj ?? null
+  if (!cnpjEmpresa) {
+    const vinculo = await prisma.clienteEmpresa.findFirst({
+      where: { clienteId, principal: true },
+      select: { empresa: { select: { cnpj: true } } },
+    })
+    cnpjEmpresa = vinculo?.empresa.cnpj ?? null
+  }
+
+  const cpfCnpjRaw = (cnpjEmpresa ?? cliente.cpf ?? '').replace(/\D/g, '')
   if (!cpfCnpjRaw) {
     throw new Error(
       '[asaas-sync] Não é possível provisionar: cliente sem CNPJ (empresa) nem CPF cadastrado. ' +

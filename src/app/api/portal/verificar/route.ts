@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { PORTAL_COOKIE_NAME } from '@/lib/auth-portal'
+import { getEmpresasCliente } from '@/lib/portal-session'
 import { encode } from '@auth/core/jwt'
 import crypto from 'crypto'
 
@@ -48,16 +49,17 @@ export async function GET(req: NextRequest) {
 
   async function buildSessionResponse(payload: {
     id: string; name: string; email: string
-    tipo: 'cliente' | 'socio'; empresaId: string
+    tipo: 'cliente' | 'socio'; empresaId: string; empresaIds: string[]
   }) {
     const jwt = await encode({
       token: {
-        sub: payload.id,
-        id: payload.id,
-        name: payload.name,
-        email: payload.email,
-        tipo: payload.tipo,
-        empresaId: payload.empresaId,
+        sub:        payload.id,
+        id:         payload.id,
+        name:       payload.name,
+        email:      payload.email,
+        tipo:       payload.tipo,
+        empresaId:  payload.empresaId,
+        empresaIds: JSON.stringify(payload.empresaIds),
       },
       secret: process.env.AUTH_SECRET!,
       salt: PORTAL_COOKIE_NAME,
@@ -79,12 +81,15 @@ export async function GET(req: NextRequest) {
     const { status } = record.cliente
     if (status !== 'ativo' && status !== 'inadimplente') return loginError('conta_inativa')
 
+    const empresaIds = await getEmpresasCliente(record.cliente.id)
+
     const res = await buildSessionResponse({
-      id: record.cliente.id,
-      name: record.cliente.nome,
-      email: record.cliente.email ?? '',
-      tipo: 'cliente',
-      empresaId: record.empresaId!,
+      id:         record.cliente.id,
+      name:       record.cliente.nome,
+      email:      record.cliente.email ?? '',
+      tipo:       'cliente',
+      empresaId:  record.empresaId!,
+      empresaIds: empresaIds.length > 0 ? empresaIds : [record.empresaId!],
     })
 
     // Marca o token como usado apenas APÓS o JWT ter sido criado com sucesso.
@@ -99,11 +104,12 @@ export async function GET(req: NextRequest) {
     if (!record.socio.email) return loginError('token_invalido')
 
     const res = await buildSessionResponse({
-      id: record.socio.id,
-      name: record.socio.nome,
-      email: record.socio.email!,
-      tipo: 'socio',
-      empresaId: record.empresaId!,
+      id:         record.socio.id,
+      name:       record.socio.nome,
+      email:      record.socio.email!,
+      tipo:       'socio',
+      empresaId:  record.empresaId!,
+      empresaIds: [record.empresaId!],
     })
 
     // Mesmo critério: só consome o token após sessão criada com sucesso.

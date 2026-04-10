@@ -1,6 +1,6 @@
 # DOCUMENTOS — Gerenciamento de Documentos e Notificações
 
-> **Sistema:** AVOS v3.10.23 | **Fonte:** revisão geral do código
+> **Sistema:** AVOS v3.10.38 | **Fonte:** revisão geral do código
 
 ---
 
@@ -21,13 +21,30 @@ Fluxo:
 2. Parse XML automático (NFe, CT-e, NFS-e) → extrai metadata
 3. Resolução de categoria: explícita > inferida do XML > 'geral'
 4. Status default: 'aprovado' para crm/integracao | 'pendente' para portal
-5. Auto-fill empresaId a partir do clienteId (documentos PJ aparecem na empresa)
-6. Cria registro no banco com todos os vínculos
-7. indexarAsync('documento') → RAG (fire-and-forget)
-8. resumirDocumentoAsync(documentoId) → resumo IA + re-indexa (fire-and-forget)
+5. visivelPortal: default true — se false, documento é interno (não aparece no portal)
+6. Auto-fill empresaId a partir do clienteId (documentos PJ aparecem na empresa)
+7. Cria registro no banco com todos os vínculos
+8. indexarAsync('documento') → RAG (fire-and-forget)
+9. resumirDocumentoAsync(documentoId) → resumo IA + re-indexa (fire-and-forget)
 ```
 
 **Retorna**: `{ id, url, nome, categoria, xmlMetadata }`
+
+## Modelo `Documento` — Campos Principais
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `visivelPortal` | `Boolean` (default: `true`) | Se `false`, documento é interno — não aparece no portal do cliente |
+| `nome` | `String` | Nome do arquivo — editável via PATCH pelo operador |
+| `tipo` | `String` | Descrição livre (ex: "Guia DAS", "Nota Fiscal") |
+| `categoria` | `CategoriaDocumento` | Enum: geral, nota_fiscal, imposto_renda, guias_tributos, relatorios, outros |
+| `status` | `String` | pendente, aprovado, rejeitado, enviado, **vencido** |
+| `observacao` | `String?` | Nota interna do operador |
+| `origem` | `String` | crm, portal, integracao, whatsapp, email |
+| `resumoStatus` | `String` | pendente, processando, ok, falhou, esgotado |
+| `dataVencimento` | `DateTime?` | Data de vencimento (guias, certidões, procurações) |
+| `lembrete5dEnviadoEm` | `DateTime?` | Lembrete 5 dias antes enviado em |
+| `lembreteDiaEnviadoEm` | `DateTime?` | Lembrete no dia do vencimento enviado em |
 
 ## Categorias de Documento (`CategoriaDocumento`)
 
@@ -40,17 +57,102 @@ Enum Prisma. Categorias comuns inferidas do XML:
 
 | Rota | Método | Descrição |
 |------|--------|-----------|
-| `/api/crm/documentos` | GET/POST | Listar / upload de documento |
-| `/api/crm/documentos/[id]` | GET/PATCH/DELETE | Detalhe, editar, soft-delete |
+| `/api/crm/clientes/[id]/documentos` | POST | Upload de documento (aceita `visivelPortal` no form) |
+| `/api/crm/clientes/[id]/documentos` | GET | Listar docs do cliente (inclui empresa se PJ) |
+| `/api/crm/documentos` | GET | Picker genérico — busca cross-client |
+| `/api/crm/documentos/[id]` | PATCH | Edição parcial: nome, tipo, categoria, status, visivelPortal, observacao |
+| `/api/crm/documentos/[id]` | DELETE | Soft-delete + deindex RAG + remove S3 |
 | `/api/crm/documentos/[id]/download` | GET | Download com URL assinada R2 |
 | `/api/crm/documentos/backfill-resumos` | POST | Admin: (re)processar resumos IA pendentes |
+
+### PATCH `/api/crm/documentos/[id]`
+
+Campos editáveis (todos opcionais no body JSON):
+- `nome` (string) — renomear o documento
+- `tipo` (string) — alterar descrição
+- `categoria` (enum) — reclassificar
+- `status` (string) — mudar status
+- `visivelPortal` (boolean) — toggle de visibilidade no portal
+- `observacao` (string) — nota interna
+
+Re-indexa RAG automaticamente se nome/tipo/categoria mudaram.
 
 ## Rotas Portal
 
 | Rota | Auth | Descrição |
 |------|------|-----------|
-| `/api/portal/documentos` | Portal session | Listar documentos do cliente |
+| `/api/portal/documentos/upload` | Portal session | Upload pelo cliente (classificação IA + limite 10MB) |
 | `/api/portal/documentos/[id]/download` | Portal session | Download com URL assinada R2 |
+| `/api/portal/documentos/[id]/visualizar` | Portal session | Marca como visualizado pelo cliente |
+
+**Visibilidade no portal**: a query filtra `visivelPortal: true` + `deletadoEm: null`. Documentos marcados como internos no CRM nunca aparecem para o cliente.
+
+## Componentes CRM — Documentos
+
+### `DocumentosTabContent` (`src/components/crm/documentos-tab-content.tsx`)
+Componente principal da aba de documentos. Recursos:
+- **Agrupamento por ano/mês** (ex: "Abril 2026", "Março 2026")
+- **Filtros**: busca por nome/tipo, categoria, origem, status, **visibilidade no portal** (Visível/Interno)
+- **Resumo**: "X documentos · Y internos · Z não vistos pelo cliente"
+- **Seleção múltipla**: checkbox por doc e por grupo (mês), com estado indeterminate
+- **Ações em lote** (DocumentoBulkActions): excluir, disponibilizar no portal, tornar interno
+- **Modais**: edição completa (DocumentoEditModal) e preview inline (DocumentoPreviewModal)
+
+### `DocumentoRow` (`src/components/crm/documento-row.tsx`)
+Linha individual de documento. Ações rápidas:
+- **Checkbox de seleção** para ações em lote
+- **Renomear inline**: clique no nome → input editável → Enter salva, Esc cancela
+- **Toggle visibilidade**: ícone olho (visibility/visibility_off) com feedback otimista
+- **Badge "Não visto"**: indica docs enviados pelo escritório que o cliente ainda não visualizou
+- **Preview**: ícone preview para PDFs e imagens (abre modal com iframe/img)
+- **Download**: link direto para download
+- **Editar**: abre modal de edição completa
+- **Deletar**: com confirmação em dois passos
+
+### `DocumentoBulkActions` (`src/components/crm/documento-bulk-actions.tsx`)
+Barra de ações em lote (aparece quando há seleção):
+- Contador de selecionados, selecionar todos, limpar seleção
+- **Disponibilizar no portal** (bulk PATCH visivelPortal: true)
+- **Tornar interno** (bulk PATCH visivelPortal: false)
+- **Excluir** com confirmação em dois passos
+- Concorrência limitada a 5 requests simultâneos
+
+### `DocumentoEditModal` (`src/components/crm/documento-edit-modal.tsx`)
+Modal para edição completa: nome, tipo, categoria, status, observação, checkbox visivelPortal.
+
+### `DocumentoPreviewModal` (`src/components/crm/documento-preview-modal.tsx`)
+Modal de preview inline para PDFs (iframe) e imagens (img). Botão para abrir em nova aba.
+
+### `DocumentoUpload` (`src/components/crm/documento-upload.tsx`)
+Upload de documentos — usado tanto na aba do cliente (PF e PJ) quanto na página da empresa:
+- **Upload em lote**: selecionar múltiplos arquivos de uma vez
+- **Drag & drop**: arrastar arquivos para a drop zone
+- **Concorrência limitada**: 3 uploads simultâneos
+- **Progress individual**: status por arquivo (pending/uploading/done/error)
+- **Checkbox "Portal"**: controla `visivelPortal` para todo o lote
+- **Validação client-side**: extensão e tamanho (25 MB)
+- **Retry**: arquivos que falharam podem ser reenviados
+- **empresaId opcional**: PJ passa empresaId, PF não — o service auto-resolve
+
+## Vencimento de Documentos
+
+Documentos com `dataVencimento` (guias de imposto, certidões, procurações) recebem tratamento automático:
+
+**Fluxo:**
+1. Operador define `dataVencimento` no upload ou edição do documento
+2. CRM exibe badge visual: "Vence em Xd" (verde >15d, azul 6-15d, laranja 1-5d, vermelho hoje/vencido)
+3. Cron diário (`lembrete-documentos`, 9h) envia 2 lembretes: 5 dias antes + no dia
+4. Cron marca `status = 'vencido'` para documentos já expirados
+
+**Cron:** `/api/cron/lembrete-documentos` (diário 0 9 * * *)
+- **Lembrete D-5**: docs com vencimento em 5 dias + `lembrete5dEnviadoEm = null`
+- **Lembrete D-0**: docs com vencimento hoje + `lembreteDiaEnviadoEm = null`
+- **Marca vencidos**: docs com `dataVencimento < hoje` + `status != 'vencido'`
+- Notificação: `notificarDocumentoVencendo()` → sino do CRM para equipe de atendimento
+- Healthcheck: `HC_LEMBRETE_DOCUMENTOS`
+- Batch: max 50 docs por etapa
+
+**Ao alterar vencimento via PATCH**: campos `lembrete5dEnviadoEm` e `lembreteDiaEnviadoEm` são resetados para que novos lembretes sejam enviados.
 
 ## Resumo IA de Documentos (`src/lib/services/resumir-documento.ts`)
 
@@ -71,6 +173,7 @@ Helpers para criar notificações no sino do CRM. Anti-spam: cooldown de 10 min 
 | `notificarEscalacaoPortal(clienteId, escalacaoId)` | Equipe atendimento | Cliente solicita humano pelo portal |
 | `notificarClienteInadimplente(opts)` | Equipe atendimento | PAYMENT_OVERDUE do Asaas; 2 camadas anti-spam (in-memory + DB para multi-instância) |
 | `notificarDocumentoFalhou(opts)` | Equipe atendimento | Resumo IA falhou 3x; abre Chamado automático se houver clienteId |
+| `notificarDocumentoVencendo(opts)` | Equipe atendimento | Documento próximo do vencimento (D-5 ou D-0); cooldown por doc+dias |
 
 **Tipos de usuário por audiência**:
 - Admins: `tipo = 'admin'`

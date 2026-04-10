@@ -222,13 +222,14 @@ model Empresa {
   procuracaoRFAtiva          Boolean   @default(false)
   procuracaoRFVerificadaEm   DateTime?
 
-  cliente       Cliente?
-  socios        Socio[]
-  portalTokens  PortalToken[]
-  chamados     Chamado[]
-  documentos    Documento[]
-  notasFiscais  NotaFiscal[]
-  dasMeis       DasMEI[]
+  clientes         Cliente[]
+  socios           Socio[]
+  portalTokens     PortalToken[]
+  chamados         Chamado[]
+  documentos       Documento[]
+  notasFiscais     NotaFiscal[]
+  dasMeis          DasMEI[]
+  clienteEmpresas  ClienteEmpresa[]
 
   @@index([cnpj], name: "empresa_cnpj_partial")
   @@map("empresas")
@@ -238,7 +239,7 @@ model Cliente {
   id                  String          @id @default(uuid())
   leadId              String?         @unique
   lead                Lead?           @relation(fields: [leadId], references: [id])
-  empresaId           String?         @unique
+  empresaId           String?
   empresa             Empresa?        @relation(fields: [empresaId], references: [id])
   nome                String
   cpf                 String          @unique
@@ -295,10 +296,29 @@ model Cliente {
   notasFiscais      NotaFiscal[]
   comunicadoEnvios  ComunicadoEnvio[]
   dasMeis           DasMEI[]
+  clienteEmpresas   ClienteEmpresa[]
 
   @@index([leadId], name: "cliente_leadId_partial")
   @@index([empresaId], name: "cliente_empresaId_partial")
   @@map("clientes")
+}
+
+// Tabela de junção: permite 1 cliente → N empresas
+// Fase 1 da migração 1:1 → 1:N (backward-compatible com Cliente.empresaId)
+model ClienteEmpresa {
+  id         String   @id @default(uuid())
+  clienteId  String
+  empresaId  String
+  principal  Boolean  @default(false)
+  criadoEm   DateTime @default(now())
+
+  cliente    Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([clienteId, empresaId])
+  @@index([clienteId])
+  @@index([empresaId])
+  @@map("cliente_empresas")
 }
 
 model PushSubscription {
@@ -407,6 +427,10 @@ model Documento {
   resumoStatus     String    @default("pendente")   // pendente|ok|falhou|esgotado
   resumoTentativas Int       @default(0)
   resumoErro       String?   @db.Text
+  visivelPortal  Boolean            @default(true)   // false = doc interno, não aparece no portal
+  dataVencimento          DateTime?           // null = sem vencimento (guias, certidões, procurações)
+  lembrete5dEnviadoEm     DateTime?           // lembrete 5 dias antes enviado em
+  lembreteDiaEnviadoEm    DateTime?           // lembrete no dia do vencimento enviado em
   visualizadoEm  DateTime?           // null = não visualizado pelo cliente (origem 'crm')
   deletadoEm     DateTime?
   criadoEm       DateTime           @default(now())
@@ -414,6 +438,7 @@ model Documento {
   @@index([clienteId, criadoEm])
   @@index([empresaId, criadoEm])
   @@index([clienteId, deletadoEm])
+  @@index([dataVencimento, deletadoEm])
   @@map("documentos")
 }
 

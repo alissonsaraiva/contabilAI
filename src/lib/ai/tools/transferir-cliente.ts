@@ -90,11 +90,12 @@ const transferirClienteTool: Tool = {
       const cliente = await prisma.cliente.update({
         where: { id: clienteId },
         data:  { responsavelId },
-        select: { id: true, nome: true, email: true, telefone: true, whatsapp: true, planoTipo: true, valorMensal: true, vencimentoDia: true, formaPagamento: true, cidade: true, uf: true, empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true, socios: true } } },
+        select: { id: true, nome: true, email: true, telefone: true, whatsapp: true, planoTipo: true, valorMensal: true, vencimentoDia: true, formaPagamento: true, cidade: true, uf: true, empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true, socios: true } }, clienteEmpresas: { include: { empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true, socios: true } } }, orderBy: { principal: 'desc' } } },
       }).catch(() => null)
 
       if (!cliente) return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Transferência cancelada: cliente não encontrado.' }
-      nomeEntidade = cliente.empresa?.razaoSocial ?? cliente.nome
+      const empPrincipal = cliente.clienteEmpresas[0]?.empresa ?? cliente.empresa
+      nomeEntidade = empPrincipal?.razaoSocial ?? cliente.nome
 
       // Registrar interação de transferência (service garante indexação RAG)
       registrarInteracao({
@@ -111,12 +112,12 @@ const transferirClienteTool: Tool = {
       indexarAsync('cliente', {
         id: cliente.id, nome: cliente.nome, email: cliente.email,
         telefone: cliente.telefone, whatsapp: cliente.whatsapp,
-        cnpj: cliente.empresa?.cnpj, razaoSocial: cliente.empresa?.razaoSocial,
-        nomeFantasia: cliente.empresa?.nomeFantasia, regime: cliente.empresa?.regime,
+        cnpj: empPrincipal?.cnpj, razaoSocial: empPrincipal?.razaoSocial,
+        nomeFantasia: empPrincipal?.nomeFantasia, regime: empPrincipal?.regime,
         planoTipo: cliente.planoTipo, valorMensal: cliente.valorMensal,
         vencimentoDia: cliente.vencimentoDia, formaPagamento: cliente.formaPagamento,
         cidade: cliente.cidade, uf: cliente.uf,
-        socios: (cliente.empresa?.socios ?? []) as any[],
+        socios: (empPrincipal?.socios ?? []) as any[],
       })
 
     } else if (leadId) {

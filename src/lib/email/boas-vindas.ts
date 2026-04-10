@@ -18,9 +18,19 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
   const nomeEscritorio = escritorio?.nome ?? 'Avos'
   const primeiroNome   = cliente.nome.split(' ')[0]
 
-  if (!clienteRow?.empresaId) {
-    console.error('[boas-vindas] cliente sem empresaId — não é possível criar token de portal:', { clienteId: cliente.id })
-    Sentry.captureMessage('boas-vindas: cliente sem empresaId, email não enviado', {
+  // Resolve empresaId: campo legado → fallback junção 1:N
+  let empresaId = clienteRow?.empresaId ?? null
+  if (!empresaId) {
+    const vinculo = await prisma.clienteEmpresa.findFirst({
+      where: { clienteId: cliente.id, principal: true },
+      select: { empresaId: true },
+    })
+    empresaId = vinculo?.empresaId ?? null
+  }
+
+  if (!empresaId) {
+    console.error('[boas-vindas] cliente sem empresa vinculada — não é possível criar token de portal:', { clienteId: cliente.id })
+    Sentry.captureMessage('boas-vindas: cliente sem empresa, email não enviado', {
       level: 'warning',
       tags:  { module: 'email-boas-vindas', operation: 'criar-token' },
       extra: { clienteId: cliente.id, email: cliente.email },
@@ -29,7 +39,7 @@ export async function enviarBoasVindas(cliente: ClienteBasico): Promise<void> {
   }
 
   // Link válido por 24h — tempo suficiente para o cliente acessar com calma
-  const { link } = await criarTokenPortal(cliente.id, clienteRow.empresaId, 24 * 60 * 60 * 1000)
+  const { link } = await criarTokenPortal(cliente.id, empresaId, 24 * 60 * 60 * 1000)
 
   // Usa enviarEmailComHistorico para que o email apareça no histórico do cliente
   // wrapEmailHtml detecta HTML e passa o template sem modificar (isHtml = true)

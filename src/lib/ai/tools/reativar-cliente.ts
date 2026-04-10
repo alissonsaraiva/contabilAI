@@ -45,7 +45,7 @@ const reativarClienteTool: Tool = {
 
     const cliente = await prisma.cliente.findUnique({
       where:  { id: clienteId },
-      select: { id: true, nome: true, status: true, empresa: { select: { razaoSocial: true } } },
+      select: { id: true, nome: true, status: true, empresa: { select: { razaoSocial: true } }, clienteEmpresas: { include: { empresa: { select: { razaoSocial: true } } }, orderBy: { principal: 'desc' }, take: 1 } },
     })
 
     if (!cliente) {
@@ -60,7 +60,7 @@ const reativarClienteTool: Tool = {
       return {
         sucesso: true,
         dados:   { id: clienteId, status: 'ativo' },
-        resumo:  `${cliente.empresa?.razaoSocial ?? cliente.nome} já está com status "ativo". Nenhuma alteração necessária.`,
+        resumo:  `${cliente.clienteEmpresas[0]?.empresa.razaoSocial ?? cliente.empresa?.razaoSocial ?? cliente.nome} já está com status "ativo". Nenhuma alteração necessária.`,
       }
     }
 
@@ -99,7 +99,7 @@ const reativarClienteTool: Tool = {
     return {
       sucesso: true,
       dados:   { id: clienteId, statusAnterior, statusNovo: 'ativo' },
-      resumo:  `${cliente.empresa?.razaoSocial ?? cliente.nome} reativado com sucesso. Status anterior: "${statusAnterior}". Motivo: ${motivo}.`,
+      resumo:  `${cliente.clienteEmpresas[0]?.empresa.razaoSocial ?? cliente.empresa?.razaoSocial ?? cliente.nome} reativado com sucesso. Status anterior: "${statusAnterior}". Motivo: ${motivo}.`,
     }
   },
 }

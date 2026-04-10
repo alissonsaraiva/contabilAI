@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { criarTokenPortalSocio } from '@/lib/portal/tokens'
 import { sendEmail } from '@/lib/email/send'
+import { resolverEmpresaIdDoCliente, resolverEmpresasDoCliente, formatarEmpresasParaTexto } from './resolver-empresa'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -51,12 +52,9 @@ const convidarSocioPortalTool: Tool = {
         }
       }
 
-      const cliente = await prisma.cliente.findUnique({
-        where:   { id: clienteId },
-        select:  { empresaId: true },
-      })
-
-      if (!cliente?.empresaId) {
+      // Multi-empresa: se N > 1 sem empresaId no contexto, lista sócios de TODAS
+      const empresas = await resolverEmpresasDoCliente(clienteId)
+      if (empresas.length === 0) {
         return {
           sucesso: false,
           erro:   'Cliente não possui empresa vinculada.',
@@ -64,8 +62,11 @@ const convidarSocioPortalTool: Tool = {
         }
       }
 
+      const empresaId = ctx.empresaId ?? empresas[0].empresaId
       const socios = await prisma.socio.findMany({
-        where: { empresaId: cliente.empresaId },
+        where: empresas.length > 1
+          ? { empresaId: { in: empresas.map(e => e.empresaId) } }
+          : { empresaId },
         select: { id: true, nome: true, email: true, portalAccess: true },
       })
 

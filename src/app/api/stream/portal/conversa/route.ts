@@ -8,6 +8,7 @@
 
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
+import { resolveClienteId } from '@/lib/portal-session'
 import { eventBus } from '@/lib/event-bus'
 import type { EventConversaMensagem, EventMensagemExcluida } from '@/lib/event-bus'
 
@@ -35,9 +36,7 @@ export async function GET(req: Request) {
   if (!conversa) return new Response('conversa não encontrada', { status: 404 })
 
   // Garante que o cliente autenticado é o dono da conversa
-  const clienteId = user.tipo === 'socio'
-    ? (await prisma.cliente.findUnique({ where: { empresaId: user.empresaId }, select: { id: true } }))?.id
-    : user.id
+  const clienteId = await resolveClienteId(user)
 
   if (!clienteId) return new Response('forbidden', { status: 403 })
   if (conversa.clienteId !== clienteId) {

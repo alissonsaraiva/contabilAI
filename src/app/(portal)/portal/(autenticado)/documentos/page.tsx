@@ -4,9 +4,15 @@ import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
 import { PortalDocumentosUpload } from '@/components/portal/portal-documentos-upload'
 import { PortalDocumentosClient } from './portal-documentos-client'
-import type { CategoriaDocumento } from '@prisma/client'
 
 type Props = { searchParams: Promise<Record<string, string>> }
+
+const DOC_SELECT = {
+  id: true, nome: true, tipo: true, categoria: true,
+  origem: true, url: true, mimeType: true, tamanho: true,
+  status: true, criadoEm: true, xmlMetadata: true,
+  visualizadoEm: true, dataVencimento: true,
+} as const
 
 export default async function PortalDocumentosPage({ searchParams }: Props) {
   const session = await auth()
@@ -19,12 +25,13 @@ export default async function PortalDocumentosPage({ searchParams }: Props) {
   const empresaId = user.empresaId as string | undefined
 
   const baseWhere: any = empresaId
-    ? { OR: [{ clienteId }, { empresaId }], deletadoEm: null }
-    : { clienteId, deletadoEm: null }
+    ? { OR: [{ clienteId }, { empresaId }], deletadoEm: null, visivelPortal: true }
+    : { clienteId, deletadoEm: null, visivelPortal: true }
 
   const documentos = await prisma.documento.findMany({
     where:   baseWhere,
     orderBy: { criadoEm: 'desc' },
+    select:  DOC_SELECT,
   })
 
   // Stats por categoria
@@ -50,10 +57,11 @@ export default async function PortalDocumentosPage({ searchParams }: Props) {
       <PortalDocumentosClient
         documentos={documentos.map(d => ({
           ...d,
-          criadoEm: d.criadoEm.toISOString(),
-          visualizadoEm: d.visualizadoEm?.toISOString() ?? null,
-          tamanho: d.tamanho != null ? Number(d.tamanho) : null,
-          xmlMetadata: d.xmlMetadata as unknown,
+          criadoEm:       d.criadoEm.toISOString(),
+          visualizadoEm:  d.visualizadoEm?.toISOString() ?? null,
+          dataVencimento: d.dataVencimento?.toISOString() ?? null,
+          tamanho:        d.tamanho != null ? Number(d.tamanho) : null,
+          xmlMetadata:    d.xmlMetadata as unknown,
         }))}
         contagemMap={contagemMap}
         totalGeral={totalGeral}

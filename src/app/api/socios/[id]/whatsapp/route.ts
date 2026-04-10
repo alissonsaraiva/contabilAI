@@ -113,7 +113,7 @@ export async function POST(req: Request, { params }: Params) {
       where:   { id: socioId },
       select: {
         whatsapp: true, telefone: true, nome: true,
-        empresa: { select: { cliente: { select: { id: true } } } },
+        empresa: { select: { clientes: { select: { id: true }, take: 1 } } },
       },
     })
     if (!socio) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -127,7 +127,7 @@ export async function POST(req: Request, { params }: Params) {
     const cfg = await getEvolutionConfig()
     if (!cfg) return NextResponse.json({ error: 'WhatsApp não configurado no escritório' }, { status: 400 })
 
-    const clienteId = socio.empresa.cliente?.id  // titular da empresa
+    const clienteId = socio.empresa.clientes[0]?.id  // titular da empresa
 
     // Busca conversa existente pelo remoteJid ou cria com socioId
     let conversa = await prisma.conversaIA.findFirst({

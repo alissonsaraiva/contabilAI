@@ -10,6 +10,7 @@ import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import Google from 'next-auth/providers/google'
 import { prisma } from '@/lib/prisma'
+import { getEmpresasCliente, getEmpresaPrincipal } from '@/lib/portal-session'
 
 const IS_PROD = process.env.NODE_ENV === 'production'
 
@@ -61,20 +62,22 @@ const portalAuth = NextAuth({
     Credentials({
       id: 'portal-token',
       credentials: {
-        id:        { type: 'text' },
-        nome:      { type: 'text' },
-        email:     { type: 'email' },
-        tipo:      { type: 'text' },   // 'cliente' | 'socio'
-        empresaId: { type: 'text' },
+        id:         { type: 'text' },
+        nome:       { type: 'text' },
+        email:      { type: 'email' },
+        tipo:       { type: 'text' },   // 'cliente' | 'socio'
+        empresaId:  { type: 'text' },
+        empresaIds: { type: 'text' },   // JSON array
       },
       async authorize(credentials) {
         if (!credentials?.id || !credentials?.email || !credentials?.empresaId) return null
         return {
-          id:        credentials.id        as string,
-          name:      credentials.nome      as string,
-          email:     credentials.email     as string,
-          tipo:      credentials.tipo      as string,
-          empresaId: credentials.empresaId as string,
+          id:         credentials.id         as string,
+          name:       credentials.nome       as string,
+          email:      credentials.email      as string,
+          tipo:       credentials.tipo       as string,
+          empresaId:  credentials.empresaId  as string,
+          empresaIds: credentials.empresaIds as string,
         }
       },
     }),
@@ -98,11 +101,14 @@ const portalAuth = NextAuth({
         if (!cliente) return '/portal/login?erro=email_nao_cadastrado'
         if (cliente.status === 'suspenso')  return '/portal/login?erro=conta_suspensa'
         if (cliente.status === 'cancelado') return '/portal/login?erro=conta_cancelada'
-        if (!cliente.empresaId)             return '/portal/login?erro=empresa_nao_vinculada'
-        ;(user as any).id        = cliente.id
-        ;(user as any).nome      = cliente.nome
-        ;(user as any).tipo      = 'cliente'
-        ;(user as any).empresaId = cliente.empresaId
+        const empresaIds = await getEmpresasCliente(cliente.id)
+        const empresaId  = empresaIds[0] ?? cliente.empresaId
+        if (!empresaId)                     return '/portal/login?erro=empresa_nao_vinculada'
+        ;(user as any).id         = cliente.id
+        ;(user as any).nome       = cliente.nome
+        ;(user as any).tipo       = 'cliente'
+        ;(user as any).empresaId  = empresaId
+        ;(user as any).empresaIds = JSON.stringify(empresaIds)
         return true
       }
       return true
@@ -110,18 +116,20 @@ const portalAuth = NextAuth({
 
     jwt({ token, user }) {
       if (user) {
-        token.id        = user.id
-        token.tipo      = (user as any).tipo
-        token.empresaId = (user as any).empresaId
+        token.id         = user.id
+        token.tipo       = (user as any).tipo
+        token.empresaId  = (user as any).empresaId
+        token.empresaIds = (user as any).empresaIds // JSON string
       }
       return token
     },
 
     session({ session, token }) {
       if (session.user) {
-        ;(session.user as any).id        = token.id
-        ;(session.user as any).tipo      = token.tipo
-        ;(session.user as any).empresaId = token.empresaId
+        ;(session.user as any).id         = token.id
+        ;(session.user as any).tipo       = token.tipo
+        ;(session.user as any).empresaId  = token.empresaId
+        ;(session.user as any).empresaIds = token.empresaIds
       }
       return session
     },

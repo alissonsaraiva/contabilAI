@@ -19,40 +19,38 @@ export async function GET() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 400 })
 
-  // Verifica se o cliente é MEI
-  const cliente = await prisma.cliente.findUnique({
-    where:  { id: clienteId },
+  // Busca empresa ativa da sessão (não a relação 1:1 legada)
+  const empresaId = user.empresaId as string | undefined
+  if (!empresaId) return NextResponse.json({ regime: null, dasMeis: [] })
+
+  const empresa = await prisma.empresa.findUnique({
+    where: { id: empresaId },
     select: {
-      empresa: {
+      regime: true,
+      dasMeis: {
+        orderBy: { competencia: 'desc' },
+        take:    24,
         select: {
-          regime:    true,
-          dasMeis: {
-            orderBy: { competencia: 'desc' },
-            take:    24,
-            select: {
-              id:             true,
-              competencia:    true,
-              valor:          true,
-              dataVencimento: true,
-              codigoBarras:   true,
-              urlDas:         true,
-              status:         true,
-              criadoEm:       true,
-              // Não expõe erroMsg nem raw para o portal
-            },
-          },
+          id:             true,
+          competencia:    true,
+          valor:          true,
+          dataVencimento: true,
+          codigoBarras:   true,
+          urlDas:         true,
+          status:         true,
+          criadoEm:       true,
         },
       },
     },
   })
 
-  if (cliente?.empresa?.regime !== 'MEI') {
-    return NextResponse.json({ regime: cliente?.empresa?.regime ?? null, dasMeis: [] })
+  if (empresa?.regime !== 'MEI') {
+    return NextResponse.json({ regime: empresa?.regime ?? null, dasMeis: [] })
   }
 
   return NextResponse.json({
     regime: 'MEI',
-    dasMeis: (cliente.empresa.dasMeis ?? []).map(d => ({
+    dasMeis: (empresa.dasMeis ?? []).map(d => ({
       ...d,
       valor: d.valor != null ? Number(d.valor) : null,
     })),

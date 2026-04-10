@@ -83,10 +83,11 @@ export async function POST(req: Request) {
     const mes = String(agora.getMonth() + 1).padStart(2, '0')
     const competencia = `${ano}${mes}`
 
-    // Busca clientes MEI com procuração ativa
-    const clientes = await prisma.cliente.findMany({
+    // Busca TODAS as empresas MEI com procuração ativa (via junção 1:N)
+    // Inclui empresas vinculadas como secundárias que antes eram invisíveis
+    const vinculos = await prisma.clienteEmpresa.findMany({
       where: {
-        status:  { not: 'cancelado' },
+        cliente: { status: { not: 'cancelado' } },
         empresa: {
           regime:           'MEI',
           procuracaoRFAtiva: true,
@@ -94,11 +95,11 @@ export async function POST(req: Request) {
         },
       },
       select: {
-        id:      true,
-        nome:    true,
+        clienteId: true,
+        empresaId: true,
+        cliente:   { select: { nome: true } },
         empresa: {
           select: {
-            id:      true,
             cnpj:    true,
             dasMeis: {
               where:  { competencia },
@@ -110,24 +111,24 @@ export async function POST(req: Request) {
       },
     })
 
-    for (const cliente of clientes) {
+    for (const vinculo of vinculos) {
       // Já existe DAS para esta competência e não é erro
-      const dasExistente = cliente.empresa?.dasMeis?.[0]
+      const dasExistente = vinculo.empresa.dasMeis[0]
       if (dasExistente && dasExistente.status !== 'erro') {
         jaExistiam++
         continue
       }
 
       try {
-        await gerarESalvarDASMEI(cliente.id, competencia)
+        await gerarESalvarDASMEI(vinculo.clienteId, competencia, vinculo.empresaId)
         geradas++
       } catch (err) {
         erros++
         const msg = err instanceof Error ? err.message : String(err)
-        errosDetalhe.push(`${cliente.nome} (${cliente.empresa?.cnpj}): ${msg}`)
+        errosDetalhe.push(`${vinculo.cliente.nome} (${vinculo.empresa.cnpj}): ${msg}`)
         Sentry.captureException(err, {
           tags:  { module: 'cron-gerar-das-mei', operation: 'gerar-cliente' },
-          extra: { clienteId: cliente.id, competencia },
+          extra: { clienteId: vinculo.clienteId, empresaId: vinculo.empresaId, competencia },
         })
       }
     }

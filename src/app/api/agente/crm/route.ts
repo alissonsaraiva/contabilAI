@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { executarAgente } from '@/lib/ai/agent'
 import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
+import { getEmpresaPrincipal } from '@/lib/portal-session'
 // Garante que todas as tools internas estejam registradas antes de qualquer execução
 import '@/lib/ai/tools'
 
@@ -33,11 +34,15 @@ export async function POST(req: Request) {
   }
 
   try {
+    // Resolve empresa principal para o contexto do agente (multi-empresa)
+    const empresaId = clienteId ? await getEmpresaPrincipal(clienteId) : null
+
     const resultado = await executarAgente({
       instrucao,
       contexto: {
         clienteId,
         leadId,
+        empresaId: empresaId ?? undefined,
         solicitanteAI: 'crm',
         usuarioId:   usuario.id,
         usuarioNome: usuario.nome ?? usuario.name ?? undefined,

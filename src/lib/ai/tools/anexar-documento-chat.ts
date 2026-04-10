@@ -13,6 +13,8 @@
 
 import { prisma } from '@/lib/prisma'
 import { criarDocumento } from '@/lib/services/documentos'
+import { detectarEmpresaPorConteudo } from '@/lib/services/detectar-empresa-documento'
+import { resolverEmpresaIdDoCliente, resolverEmpresasDoCliente, formatarEmpresasParaTexto } from './resolver-empresa'
 import type { CategoriaDocumento } from '@prisma/client'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -103,14 +105,30 @@ const anexarDocumentoChatTool: Tool = {
     const fileName    = mensagem.mediaFileName ?? `documento_${Date.now()}.bin`
     const canal       = solicitanteAI === 'portal' ? 'portal' : 'whatsapp'
 
-    // Busca empresaId do cliente para vincular também à empresa (PJ)
-    let empresaId: string | undefined
-    if (clienteId) {
-      const cliente = await prisma.cliente.findUnique({
-        where:  { id: clienteId },
-        select: { empresaId: true },
-      }).catch(() => null)
-      empresaId = cliente?.empresaId ?? undefined
+    // Busca empresaId: tenta detectar pelo CNPJ no conteúdo, fallback para empresa principal
+    let empresaId = clienteId ? await resolverEmpresaIdDoCliente(clienteId) : undefined
+    let empresaDetectada = false
+    if (clienteId && mensagem.mediaBuffer) {
+      try {
+        const detectada = await detectarEmpresaPorConteudo(clienteId, {
+          buffer: mensagem.mediaBuffer as Buffer,
+          mimeType,
+          nome: fileName,
+        })
+        if (detectada) { empresaId = detectada; empresaDetectada = true }
+      } catch { /* fallback para empresa principal */ }
+    }
+
+    // Multi-empresa: se não detectou CNPJ e cliente tem N > 1, pede confirmação
+    if (clienteId && !empresaDetectada) {
+      const empresas = await resolverEmpresasDoCliente(clienteId)
+      if (empresas.length > 1) {
+        // Vincula à principal mas informa na resposta qual empresa foi usada
+        const principal = empresas.find(e => e.principal) ?? empresas[0]
+        empresaId = principal.empresaId
+        // A IA vai incluir essa info na resposta ao usuário
+        // (o doc é salvo, e se errou de empresa o operador pode reclassificar)
+      }
     }
 
     try {
@@ -133,10 +151,25 @@ const anexarDocumentoChatTool: Tool = {
         },
       })
 
+      // Monta resumo com info da empresa (quando multi-empresa)
+      let resumo = `Documento "${doc.nome}" cadastrado com sucesso no sistema (${tipoLabel}).`
+      if (clienteId && empresaId) {
+        const empresas = await resolverEmpresasDoCliente(clienteId).catch(() => [])
+        if (empresas.length > 1) {
+          const empUsada = empresas.find(e => e.empresaId === empresaId)
+          const label = empUsada?.nomeFantasia ?? empUsada?.razaoSocial ?? empUsada?.cnpj
+          if (label) {
+            resumo += empresaDetectada
+              ? ` Vinculado automaticamente à empresa "${label}" (CNPJ detectado no documento).`
+              : ` Vinculado à empresa principal "${label}". Se deveria ser em outra empresa, o operador pode alterar na aba de documentos.`
+          }
+        }
+      }
+
       return {
         sucesso: true,
         dados:   { documentoId: doc.id, nome: doc.nome, categoria: doc.categoria },
-        resumo:  `Documento "${doc.nome}" cadastrado com sucesso no sistema (${tipoLabel}). O cliente pode visualizá-lo na aba de documentos.`,
+        resumo,
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)

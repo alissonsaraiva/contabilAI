@@ -4,6 +4,8 @@ export type { StatusNotaFiscal }
 
 export interface EmitirNotaInput {
   clienteId: string
+  /** ID da empresa emissora. Se omitido, resolve a principal do cliente. */
+  empresaId?: string
   ordemServicoId?: string
   descricao: string
   valor: number                  // valor total em reais

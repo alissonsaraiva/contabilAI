@@ -12,6 +12,7 @@ import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 import { prisma } from '@/lib/prisma'
 import { calcularLimiteMEI } from '@/lib/services/limite-mei'
+import { resolverEmpresasDoCliente } from './resolver-empresa'
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
@@ -57,27 +58,31 @@ const consultarLimiteMEITool: Tool = {
     }
 
     try {
-      const cliente = await prisma.cliente.findUnique({
+      const clienteRow = await prisma.cliente.findUnique({
         where:  { id: clienteId },
-        select: {
-          nome:    true,
-          empresa: { select: { id: true, regime: true } },
-        },
+        select: { nome: true },
       })
 
-      if (!cliente) {
+      if (!clienteRow) {
         return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Cliente não encontrado.' }
       }
 
-      if (cliente.empresa?.regime !== 'MEI') {
+      // Busca todas as empresas e filtra as MEI
+      const empresas = await resolverEmpresasDoCliente(clienteId)
+      const meis = empresas.filter(e => e.regime === 'MEI')
+
+      if (meis.length === 0) {
+        const regimes = empresas.map(e => e.regime).filter(Boolean).join(', ') || 'não informado'
         return {
           sucesso: true,
-          dados:   { regime: cliente.empresa?.regime },
-          resumo:  `${cliente.nome} não é MEI (regime: ${cliente.empresa?.regime ?? 'não informado'}). Limite MEI não aplicável.`,
+          dados:   { regime: regimes },
+          resumo:  `${clienteRow.nome} não possui empresa MEI (regime(s): ${regimes}). Limite MEI não aplicável.`,
         }
       }
 
-      const resultado = await calcularLimiteMEI(cliente.empresa.id, ano)
+      // Se múltiplos MEI, usa o primeiro (raro, mas possível)
+      const empresa = meis[0]
+      const resultado = await calcularLimiteMEI(empresa.empresaId, ano)
 
       const zonaLabel: Record<string, string> = {
         verde:    '🟢 Verde (dentro do limite)',
@@ -92,7 +97,7 @@ const consultarLimiteMEITool: Tool = {
         : '  Nenhuma NFS-e autorizada no período.'
 
       const resumo = [
-        `Limite MEI — ${cliente.nome} (${resultado.ano})`,
+        `Limite MEI — ${clienteRow.nome} (${resultado.ano})`,
         ``,
         `Faturado:   R$ ${resultado.acumulado.toFixed(2)}`,
         `Limite:     R$ ${resultado.limite.toFixed(2)}`,

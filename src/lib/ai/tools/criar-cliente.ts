@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { vincularEmpresa } from '@/lib/clientes/vincular-empresa'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -138,10 +139,7 @@ const criarClienteTool: Tool = {
               ...(regime      && { regime: regime as never }),
             },
           })
-          await tx.cliente.update({
-            where: { id: novoCliente.id },
-            data:  { empresaId: empresa.id },
-          })
+          await vincularEmpresa(tx, novoCliente.id, empresa.id)
           return { ...novoCliente, empresaId: empresa.id }
         }
 

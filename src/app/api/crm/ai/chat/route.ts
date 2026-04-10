@@ -94,6 +94,7 @@ export async function POST(req: Request) {
   // Resolve nome do cliente/lead para o contexto (evita expor UUID ao modelo)
   let escopoLabel = 'escopo geral do escritório'
   let dadosContextoExtra = ''
+  let empresaIdPrincipal: string | undefined
 
   if (clienteId) {
     const cliente = await prisma.cliente.findUnique({
@@ -112,11 +113,16 @@ export async function POST(req: Request) {
         cidade: true,
         uf: true,
         tipoContribuinte: true,
-        empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true } },
+        clienteEmpresas: {
+          include: { empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true } } },
+          orderBy: { principal: 'desc' },
+        },
         responsavel: { select: { nome: true } },
       },
     })
-    const nome = cliente?.empresa?.razaoSocial ?? cliente?.nome
+    const empresaPrincipal = cliente?.clienteEmpresas[0]?.empresa
+    empresaIdPrincipal = cliente?.clienteEmpresas[0]?.empresaId
+    const nome = empresaPrincipal?.razaoSocial ?? cliente?.nome
     escopoLabel = nome ? `cliente: ${nome}` : 'cliente (dados não encontrados)'
     if (cliente) {
       const linhas: string[] = []
@@ -125,10 +131,15 @@ export async function POST(req: Request) {
       if (cliente.telefone)          linhas.push(`Telefone: ${cliente.telefone}`)
       if (cliente.whatsapp)          linhas.push(`WhatsApp: ${cliente.whatsapp}`)
       if (cliente.cpf)               linhas.push(`CPF: ${mascararCpf(cliente.cpf)}`)
-      if (cliente.empresa?.cnpj)     linhas.push(`CNPJ: ${mascararCnpj(cliente.empresa.cnpj)}`)
-      if (cliente.empresa?.razaoSocial) linhas.push(`Razão Social: ${cliente.empresa.razaoSocial}`)
-      if (cliente.empresa?.nomeFantasia) linhas.push(`Nome Fantasia: ${cliente.empresa.nomeFantasia}`)
-      if (cliente.empresa?.regime)   linhas.push(`Regime: ${cliente.empresa.regime}`)
+      // Lista todas as empresas vinculadas no contexto da IA
+      for (const ce of cliente.clienteEmpresas) {
+        const emp = ce.empresa
+        const prefix = cliente.clienteEmpresas.length > 1 ? `[Empresa ${ce.principal ? 'Principal' : 'Secundária'}] ` : ''
+        if (emp.cnpj)         linhas.push(`${prefix}CNPJ: ${mascararCnpj(emp.cnpj)}`)
+        if (emp.razaoSocial)  linhas.push(`${prefix}Razão Social: ${emp.razaoSocial}`)
+        if (emp.nomeFantasia) linhas.push(`${prefix}Nome Fantasia: ${emp.nomeFantasia}`)
+        if (emp.regime)       linhas.push(`${prefix}Regime: ${emp.regime}`)
+      }
       if (cliente.planoTipo)         linhas.push(`Plano: ${cliente.planoTipo}`)
       if (cliente.valorMensal)       linhas.push(`Valor mensal: R$ ${cliente.valorMensal}`)
       if (cliente.vencimentoDia)     linhas.push(`Vencimento: dia ${cliente.vencimentoDia}`)
@@ -246,6 +257,7 @@ REGRAS OBRIGATÓRIAS:
         contexto: {
           clienteId,
           leadId,
+          empresaId: empresaIdPrincipal,
           solicitanteAI: 'crm',
         },
       })

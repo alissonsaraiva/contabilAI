@@ -52,7 +52,7 @@ const enviarWhatsAppSocioTool: Tool = {
       where:  { id: socioId },
       select: {
         id: true, nome: true, whatsapp: true, telefone: true,
-        empresa: { select: { cliente: { select: { id: true } } } },
+        empresa: { select: { clientes: { select: { id: true }, take: 1 } } },
       },
     })
 
@@ -83,7 +83,7 @@ const enviarWhatsAppSocioTool: Tool = {
     const rawKey    = row.evolutionApiKey
     const apiKey    = isEncrypted(rawKey) ? decrypt(rawKey) : rawKey
     const remoteJid = buildRemoteJid(phone)
-    const clienteId = socio.empresa.cliente?.id
+    const clienteId = socio.empresa.clientes[0]?.id
 
     // Busca ou cria conversa para o remoteJid
     let conversa = await prisma.conversaIA.findFirst({

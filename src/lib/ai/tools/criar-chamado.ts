@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { resolverEmpresaIdDoCliente } from './resolver-empresa'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -72,16 +73,16 @@ const criarChamadoTool: Tool = {
       return { sucesso: false, erro: 'clienteId obrigatório.', resumo: 'Não foi possível criar o chamado: cliente não identificado.' }
     }
 
-    // Busca empresa vinculada ao cliente
-    const cliente = await prisma.cliente.findUnique({
-      where:  { id: clienteId },
-      select: { empresaId: true, nome: true },
-    })
+    // Busca empresa vinculada ao cliente (suporta 1:N via junção)
+    const [empresaId, cliente] = await Promise.all([
+      resolverEmpresaIdDoCliente(clienteId),
+      prisma.cliente.findUnique({ where: { id: clienteId }, select: { nome: true } }),
+    ])
 
     const os = await prisma.chamado.create({
       data: {
         clienteId,
-        empresaId:    cliente?.empresaId ?? undefined,
+        empresaId:    empresaId ?? undefined,
         tipo:         tipo        as never,
         origem:       origem      as never,
         visivelPortal,

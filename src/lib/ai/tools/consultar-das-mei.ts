@@ -3,6 +3,7 @@
  *
  * Consulta as DAS MEI armazenadas no banco para um cliente.
  * Retorna status, valores, vencimentos e histórico de geração.
+ * Suporta multi-empresa: busca DAS de TODAS as empresas MEI vinculadas.
  *
  * Nota: diferente de `gerarDASMEI` (que chama o SERPRO para gerar nova DAS),
  * este tool apenas lista o que já foi gerado e está salvo localmente.
@@ -11,6 +12,7 @@ import * as Sentry from '@sentry/nextjs'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 import { prisma } from '@/lib/prisma'
+import { resolverEmpresasDoCliente } from './resolver-empresa'
 
 const STATUS_LABEL: Record<string, string> = {
   pendente: 'Pendente (não paga)',
@@ -29,7 +31,7 @@ const consultarDASMEITool: Tool = {
       'o código de barras ou link da DAS para pagamento. ' +
       'Para gerar uma nova DAS via SERPRO, use a tool gerarDASMEI. ' +
       'Para enviar a DAS diretamente ao cliente via WhatsApp/email, use enviarDASMEICliente. ' +
-      'Requer que o cliente seja MEI.',
+      'Requer que o cliente tenha pelo menos uma empresa MEI.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -54,7 +56,7 @@ const consultarDASMEITool: Tool = {
   },
 
   async execute(input: Record<string, unknown>, _ctx: ToolContext): Promise<ToolExecuteResult> {
-    const clienteId  = input.clienteId as string | undefined
+    const clienteId   = input.clienteId  as string | undefined
     const competencia = input.competencia as string | undefined
 
     if (!clienteId) {
@@ -62,54 +64,58 @@ const consultarDASMEITool: Tool = {
     }
 
     try {
-      const cliente = await prisma.cliente.findUnique({
+      const clienteRow = await prisma.cliente.findUnique({
         where:  { id: clienteId },
-        select: {
-          nome:    true,
-          empresa: {
-            select: {
-              regime:           true,
-              procuracaoRFAtiva: true,
-              dasMeis: {
-                where:   competencia ? { competencia } : undefined,
-                orderBy: { competencia: 'desc' },
-                take:    24,
-                select: {
-                  id:             true,
-                  competencia:    true,
-                  valor:          true,
-                  dataVencimento: true,
-                  codigoBarras:   true,
-                  urlDas:         true,
-                  status:         true,
-                  erroMsg:        true,
-                  criadoEm:       true,
-                },
-              },
-            },
-          },
-        },
+        select: { nome: true },
       })
-
-      if (!cliente) {
+      if (!clienteRow) {
         return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Cliente não encontrado.' }
       }
 
-      if (cliente.empresa?.regime !== 'MEI') {
+      // Busca TODAS as empresas vinculadas e filtra as MEI
+      const empresas = await resolverEmpresasDoCliente(clienteId)
+      const meis = empresas.filter(e => e.regime === 'MEI')
+
+      if (meis.length === 0) {
+        const regimes = empresas.map(e => e.regime).filter(Boolean).join(', ') || 'não informado'
         return {
           sucesso: true,
-          dados:   { regime: cliente.empresa?.regime },
-          resumo:  `${cliente.nome} não é MEI (regime: ${cliente.empresa?.regime ?? 'não informado'}). DAS MEI não aplicável.`,
+          dados:   { regime: regimes },
+          resumo:  `${clienteRow.nome} não possui empresa MEI (regime(s): ${regimes}). DAS MEI não aplicável.`,
         }
       }
 
-      const dasMeis = cliente.empresa.dasMeis ?? []
+      // Busca DAS de TODAS as empresas MEI
+      const dasWhere: any = {
+        empresaId: { in: meis.map(e => e.empresaId) },
+        ...(competencia && { competencia }),
+      }
+      const dasMeis = await prisma.dasMEI.findMany({
+        where:   dasWhere,
+        orderBy: { competencia: 'desc' },
+        take:    48,  // 24 per empresa, até 2 MEI
+        select: {
+          id: true, competencia: true, valor: true, dataVencimento: true,
+          codigoBarras: true, urlDas: true, status: true, erroMsg: true,
+          criadoEm: true, empresaId: true,
+        },
+      })
+
+      // Busca status de procuração por empresa
+      const empresasComProc = await prisma.empresa.findMany({
+        where: { id: { in: meis.map(e => e.empresaId) } },
+        select: { id: true, procuracaoRFAtiva: true, cnpj: true, razaoSocial: true, nomeFantasia: true },
+      })
+      const empMap = new Map(empresasComProc.map(e => [e.id, e]))
 
       if (dasMeis.length === 0) {
+        const procInfo = empresasComProc.map(e =>
+          `${e.nomeFantasia ?? e.razaoSocial ?? e.cnpj}: procuração ${e.procuracaoRFAtiva ? 'ativa' : 'não ativa'}`
+        ).join('; ')
         return {
           sucesso: true,
           dados:   { dasMeis: [] },
-          resumo:  `${cliente.nome} — nenhuma DAS MEI gerada ainda.${!cliente.empresa.procuracaoRFAtiva ? ' (Procuração RF não ativa — DAS automática desabilitada)' : ''}`,
+          resumo:  `${clienteRow.nome} — nenhuma DAS MEI gerada ainda. (${procInfo})`,
         }
       }
 
@@ -118,24 +124,30 @@ const consultarDASMEITool: Tool = {
         const valor = d.valor != null ? `R$ ${Number(d.valor).toFixed(2)}` : '—'
         const venc  = d.dataVencimento ? new Date(d.dataVencimento).toLocaleDateString('pt-BR') : '—'
         const status = STATUS_LABEL[d.status] ?? d.status
+        const emp = empMap.get(d.empresaId)
+        const empLabel = meis.length > 1 ? `[${emp?.nomeFantasia ?? emp?.razaoSocial ?? emp?.cnpj ?? ''}] ` : ''
         const extras = [
           d.codigoBarras ? `Código: ${d.codigoBarras}` : '',
           d.urlDas ? `Link: ${d.urlDas}` : '',
           d.erroMsg ? `Erro: ${d.erroMsg.slice(0, 80)}` : '',
         ].filter(Boolean).join(' | ')
-        return `${comp}: ${status} — ${valor} — vence ${venc}${extras ? `\n   ${extras}` : ''}`
+        return `${empLabel}${comp}: ${status} — ${valor} — vence ${venc}${extras ? `\n   ${extras}` : ''}`
       })
 
+      const procLines = empresasComProc.map(e =>
+        `${meis.length > 1 ? `[${e.nomeFantasia ?? e.razaoSocial ?? e.cnpj}] ` : ''}Procuração RF: ${e.procuracaoRFAtiva ? 'ativa' : 'não ativa'}`
+      )
+
       const resumo = [
-        `DAS MEI — ${cliente.nome}`,
-        `Procuração RF: ${cliente.empresa.procuracaoRFAtiva ? 'ativa' : 'não ativa'}`,
+        `DAS MEI — ${clienteRow.nome}`,
+        ...procLines,
         '',
         ...itens,
       ].join('\n')
 
       return {
         sucesso: true,
-        dados:   { dasMeis, procuracaoRFAtiva: cliente.empresa.procuracaoRFAtiva },
+        dados:   { dasMeis, empresas: empresasComProc },
         resumo,
       }
     } catch (err) {

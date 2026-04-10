@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import { deleteEmbeddings } from '@/lib/rag/store'
+import { vincularEmpresa } from '@/lib/clientes/vincular-empresa'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -20,6 +21,18 @@ export async function GET(req: Request, { params }: Params) {
             select: { id: true, nome: true, cpf: true, email: true, qualificacao: true, participacao: true, portalAccess: true, criadoEm: true },
           },
         },
+      },
+      clienteEmpresas: {
+        include: {
+          empresa: {
+            include: {
+              socios: {
+                select: { id: true, nome: true, cpf: true, email: true, qualificacao: true, participacao: true, portalAccess: true, criadoEm: true },
+              },
+            },
+          },
+        },
+        orderBy: { principal: 'desc' },
       },
       documentos: {
         where:   { deletadoEm: null },
@@ -64,16 +77,12 @@ export async function PUT(req: Request, { params }: Params) {
       if (updated.empresaId) {
         await tx.empresa.update({ where: { id: updated.empresaId }, data: empresaFields })
       } else {
-        // Cliente sem empresa ainda — cria e vincula
+        // Cliente sem empresa ainda — cria e vincula (ambos: legado + junção)
         const empresa = await tx.empresa.create({ data: empresaFields })
-        await tx.cliente.update({
-          where: { id },
-          data: {
-            empresaId: empresa.id,
-            // Se está criando empresa com CNPJ, converte automaticamente para PJ
-            ...(empresaFields.cnpj ? { tipoContribuinte: 'pj' } : {}),
-          },
-        })
+        await vincularEmpresa(tx, id, empresa.id)
+        if (empresaFields.cnpj) {
+          await tx.cliente.update({ where: { id }, data: { tipoContribuinte: 'pj' } })
+        }
       }
     }
 
@@ -81,20 +90,25 @@ export async function PUT(req: Request, { params }: Params) {
       where: { id },
       include: {
         empresa: { include: { socios: true } },
+        clienteEmpresas: {
+          include: { empresa: { include: { socios: true } } },
+          orderBy: { principal: 'desc' },
+        },
         contratos: { orderBy: { criadoEm: 'desc' }, take: 1 },
       },
     })
   })
 
   if (cliente) {
+    const empPrincipal = cliente.clienteEmpresas?.[0]?.empresa ?? cliente.empresa
     const contratoAtual = cliente.contratos?.[0] ?? null
     indexarAsync('cliente', {
       ...cliente,
-      cnpj: cliente.empresa?.cnpj ?? null,
-      razaoSocial: cliente.empresa?.razaoSocial ?? null,
-      nomeFantasia: cliente.empresa?.nomeFantasia ?? null,
-      regime: cliente.empresa?.regime ?? null,
-      socios: cliente.empresa?.socios ?? [],
+      cnpj: empPrincipal?.cnpj ?? null,
+      razaoSocial: empPrincipal?.razaoSocial ?? null,
+      nomeFantasia: empPrincipal?.nomeFantasia ?? null,
+      regime: empPrincipal?.regime ?? null,
+      socios: empPrincipal?.socios ?? [],
       contrato: contratoAtual ? {
         planoTipo:     contratoAtual.planoTipo,
         valorMensal:   contratoAtual.valorMensal,

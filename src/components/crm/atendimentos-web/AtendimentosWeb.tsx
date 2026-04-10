@@ -42,7 +42,7 @@ export function AtendimentosWeb({
       return
     }
     const apiPath = getApiPath(c) ?? `/api/conversas/${c.id}`
-    setSelected({ type: 'whatsapp', apiPath, nome: getNome(c) })
+    setSelected({ type: 'whatsapp', apiPath, nome: getNome(c), clienteId: c.cliente?.id, leadId: c.lead?.id })
   }
 
   function filterByBusca(list: ConversaWebItem[]) {
@@ -207,6 +207,8 @@ export function AtendimentosWeb({
               key={selected.apiPath}
               apiPath={selected.apiPath}
               nomeExibido={selected.nome}
+              clienteId={selected.clienteId}
+              leadId={selected.leadId}
               onClose={() => setSelected(null)}
             />
           )

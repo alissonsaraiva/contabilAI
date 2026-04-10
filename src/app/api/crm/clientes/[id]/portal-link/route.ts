@@ -22,11 +22,20 @@ export async function POST(
   if (cliente.status === 'cancelado') {
     return NextResponse.json({ error: 'conta_cancelada' }, { status: 403 })
   }
-  if (!cliente.empresaId) {
+  // Resolve empresaId: campo legado → fallback junção 1:N
+  let empresaId = cliente.empresaId
+  if (!empresaId) {
+    const vinculo = await prisma.clienteEmpresa.findFirst({
+      where: { clienteId: cliente.id, principal: true },
+      select: { empresaId: true },
+    })
+    empresaId = vinculo?.empresaId ?? null
+  }
+  if (!empresaId) {
     return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
   }
 
-  const { link } = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000) // 30 min
+  const { link } = await criarTokenPortal(cliente.id, empresaId, 30 * 60 * 1000) // 30 min
 
   return NextResponse.json({ link })
 }

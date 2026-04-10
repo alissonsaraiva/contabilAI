@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
+import { resolveClienteId } from '@/lib/portal-session'
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -21,18 +22,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Subscription incompleta' }, { status: 400 })
   }
 
-  // Resolve clienteId — sócios usam o clienteId do titular da empresa
-  let clienteId: string
-  if (user.tipo === 'socio') {
-    const cliente = await prisma.cliente.findUnique({
-      where:  { empresaId: user.empresaId },
-      select: { id: true },
-    })
-    if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
-    clienteId = cliente.id
-  } else {
-    clienteId = user.id
-  }
+  // Resolve clienteId — sócios usam o clienteId do titular da empresa (via ClienteEmpresa)
+  const clienteId = await resolveClienteId(user)
+  if (!clienteId) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
 
   // Upsert por endpoint — atualiza chaves se o mesmo device re-subscrever
   await prisma.pushSubscription.upsert({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email/send'
 import { criarTokenPortal, criarTokenPortalSocio } from '@/lib/portal/tokens'
+import { getEmpresasCliente, getEmpresaPrincipal } from '@/lib/portal-session'
 
 // ── Rate limiting em memória por IP ───────────────────────────────────────────
 // Limite: 5 tentativas por IP a cada 10 minutos
@@ -59,9 +60,10 @@ export async function POST(req: NextRequest) {
   if (cliente) {
     if (cliente.status === 'suspenso') return NextResponse.json({ error: 'conta_suspensa' }, { status: 403 })
     if (cliente.status === 'cancelado') return NextResponse.json({ error: 'conta_cancelada' }, { status: 403 })
-    if (!cliente.empresaId) return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
+    const empresaId = await getEmpresaPrincipal(cliente.id)
+    if (!empresaId) return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
 
-    const { link, otp } = await criarTokenPortal(cliente.id, cliente.empresaId, 30 * 60 * 1000)
+    const { link, otp } = await criarTokenPortal(cliente.id, empresaId, 30 * 60 * 1000)
     await enviarEmailAcesso(emailNorm, cliente.nome, link, otp)
     return NextResponse.json({ ok: true })
   }

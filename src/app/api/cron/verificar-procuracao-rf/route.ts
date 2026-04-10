@@ -75,27 +75,34 @@ export async function POST(req: Request) {
     const limiteRecheck = new Date()
     limiteRecheck.setDate(limiteRecheck.getDate() - RECHECK_ATIVA_DIAS)
 
-    // Busca clientes MEI com CNPJ
-    const empresas = await prisma.empresa.findMany({
+    // Busca TODAS as empresas MEI via ClienteEmpresa (suporta multi-empresa)
+    const vinculos = await prisma.clienteEmpresa.findMany({
       where: {
-        regime: 'MEI',
-        cnpj:   { not: null },
-        cliente: {
-          status: { not: 'cancelado' },
-        },
+        cliente: { status: { not: 'cancelado' } },
+        empresa: { regime: 'MEI', cnpj: { not: null } },
       },
       select: {
-        id:                      true,
-        cnpj:                    true,
-        procuracaoRFAtiva:       true,
-        procuracaoRFVerificadaEm: true,
-        cliente: {
-          select: { id: true, nome: true },
+        clienteId: true,
+        empresa: {
+          select: {
+            id:                      true,
+            cnpj:                    true,
+            procuracaoRFAtiva:       true,
+            procuracaoRFVerificadaEm: true,
+          },
         },
+        cliente: { select: { nome: true } },
       },
     })
 
-    for (const empresa of empresas) {
+    // Deduplica por empresaId (um cliente pode ter múltiplos vínculos mas empresa é única)
+    const empresasMap = new Map<string, typeof vinculos[number]>()
+    for (const v of vinculos) {
+      if (!empresasMap.has(v.empresa.id)) empresasMap.set(v.empresa.id, v)
+    }
+
+    for (const [, vinculo] of empresasMap) {
+      const empresa = vinculo.empresa
       const cnpjCliente = empresa.cnpj!.replace(/[.\-/\s]/g, '')
 
       // Clientes com procuração ativa: só re-verifica após 30 dias
@@ -122,7 +129,7 @@ export async function POST(req: Request) {
         // Re-indexa no RAG para que as IAs reflitam o novo status de procuração
         indexarAsync('empresa', {
           id:                       empresa.id,
-          clienteId:                empresa.cliente?.id,
+          clienteId:                vinculo.clienteId,
           cnpj:                     empresa.cnpj,
           regime:                   'MEI',
           procuracaoRFAtiva:        ativa,
@@ -137,9 +144,9 @@ export async function POST(req: Request) {
         const msg = err instanceof Error ? err.message : String(err)
         Sentry.captureException(err, {
           tags:  { module: 'cron-verificar-procuracao-rf', operation: 'verificar-cliente' },
-          extra: { empresaId: empresa.id, cnpjCliente, clienteNome: empresa.cliente?.nome },
+          extra: { empresaId: empresa.id, cnpjCliente, clienteNome: vinculo.cliente.nome },
         })
-        console.error(`[cron-verificar-procuracao-rf] Erro para ${empresa.cliente?.nome} (${cnpjCliente}): ${msg}`)
+        console.error(`[cron-verificar-procuracao-rf] Erro para ${vinculo.cliente.nome} (${cnpjCliente}): ${msg}`)
       }
     }
 

@@ -25,7 +25,7 @@ export default async function PortalDashboardPage() {
   const clienteId = await resolveClienteId(user)
   if (!clienteId) redirect('/portal/login')
 
-  const [aiConfig, cliente] = await Promise.all([
+  const [aiConfig, cliente, empresa] = await Promise.all([
     getAiConfig(),
     prisma.cliente.findUnique({
       where: { id: clienteId },
@@ -33,18 +33,20 @@ export default async function PortalDashboardPage() {
         nome: true, cpf: true, planoTipo: true, valorMensal: true,
         dataInicio: true, status: true, tipoContribuinte: true,
         responsavel: { select: { nome: true } },
-        empresa: {
-          select: { cnpj: true, razaoSocial: true, nomeFantasia: true, regime: true, procuracaoRFAtiva: true },
-        },
       },
     }),
+    user.empresaId
+      ? prisma.empresa.findUnique({
+          where: { id: user.empresaId },
+          select: { cnpj: true, razaoSocial: true, nomeFantasia: true, regime: true, procuracaoRFAtiva: true },
+        })
+      : Promise.resolve(null),
   ])
 
   if (!cliente) redirect('/portal/login')
 
   const nomeIa = aiConfig.nomeAssistentes.portal ?? 'Assistente'
   const primeiroNome = (user.tipo === 'socio' ? (user.name ?? cliente.nome) : cliente.nome).split(' ')[0]
-  const empresa = cliente.empresa
   const regime = empresa?.regime ?? null
 
   return (

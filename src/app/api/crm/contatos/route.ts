@@ -44,7 +44,7 @@ export async function GET(req: Request) {
         nome:     true,
         whatsapp: true,
         telefone: true,
-        empresa:  { select: { razaoSocial: true, cliente: { select: { nome: true } } } },
+        empresa:  { select: { razaoSocial: true, clientes: { select: { nome: true }, take: 1 } } },
       },
       take: 5,
     }),

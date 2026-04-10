@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { resolverEmpresaIdDoCliente } from './resolver-empresa'
 import { registrarTool } from './registry'
 import { reemitirNotaFiscal } from '@/lib/services/notas-fiscais'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
@@ -13,14 +14,11 @@ async function escalarReemissaoParaHumano(
 ): Promise<void> {
   if (!clienteId) return
   try {
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: clienteId },
-      select: { empresaId: true },
-    })
+    const empresaId = await resolverEmpresaIdDoCliente(clienteId)
     await prisma.chamado.create({
       data: {
         clienteId,
-        empresaId:    cliente?.empresaId ?? undefined,
+        empresaId:    empresaId ?? undefined,
         tipo:         'emissao_documento',
         origem:       'ia',
         visivelPortal: false,

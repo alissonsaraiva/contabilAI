@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
+import { resolverEmpresasDoCliente } from './resolver-empresa'
 import { registrarTool } from './registry'
 import type { Tool, ToolContext, ToolExecuteResult } from './types'
 
@@ -51,12 +52,9 @@ Pode filtrar por cliente específico, tipo de documento ou período.`,
     let clienteWhere: object | undefined
     if (clienteId) {
       try {
-        const cliente = await prisma.cliente.findUnique({
-          where:  { id: clienteId },
-          select: { empresaId: true },
-        })
+        const empresas = await resolverEmpresasDoCliente(clienteId)
         const orConditions: object[] = [{ clienteId }]
-        if (cliente?.empresaId) orConditions.push({ empresaId: cliente.empresaId })
+        for (const emp of empresas) orConditions.push({ empresaId: emp.empresaId })
         clienteWhere = { OR: orConditions }
       } catch (err) {
         Sentry.captureException(err, {

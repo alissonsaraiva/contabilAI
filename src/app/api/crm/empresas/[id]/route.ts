@@ -29,12 +29,12 @@ export async function PATCH(req: Request, { params }: Params) {
       nomeFantasia: body.nomeFantasia  || null,
       regime:       body.regime       || null,
     },
-    include: { cliente: true, socios: true },
+    include: { clientes: { take: 1 }, socios: true },
   })
 
   indexarAsync('empresa', {
     id:           empresa.id,
-    clienteId:    empresa.cliente?.id ?? null,
+    clienteId:    empresa.clientes[0]?.id ?? null,
     cnpj:         empresa.cnpj,
     razaoSocial:  empresa.razaoSocial,
     nomeFantasia: empresa.nomeFantasia,

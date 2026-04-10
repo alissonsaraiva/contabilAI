@@ -1,6 +1,11 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import {
+  CATEGORIAS_LABELS,
+  STATUS_DOCUMENTO_COLORS,
+} from '@/lib/services/documento-categorias'
+import { getDocIcon, formatSize, getVencimentoInfo } from '@/components/crm/documento-row'
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -8,20 +13,21 @@ const MESES = [
 ]
 
 const CATEGORIAS_INFO: { value: string; label: string; icon: string }[] = [
-  { value: 'todos', label: 'Todos', icon: 'folder_open' },
-  { value: 'geral', label: 'Geral', icon: 'description' },
-  { value: 'nota_fiscal', label: 'Notas Fiscais', icon: 'receipt_long' },
-  { value: 'imposto_renda', label: 'Imposto de Renda', icon: 'account_balance' },
-  { value: 'guias_tributos', label: 'Guias e Tributos', icon: 'payments' },
-  { value: 'relatorios', label: 'Relatórios', icon: 'bar_chart' },
-  { value: 'outros', label: 'Outros', icon: 'more_horiz' },
+  { value: 'todos',          label: 'Todos',              icon: 'folder_open' },
+  { value: 'geral',          label: 'Geral',              icon: 'description' },
+  { value: 'nota_fiscal',    label: 'Notas Fiscais',      icon: 'receipt_long' },
+  { value: 'imposto_renda',  label: 'Imposto de Renda',   icon: 'account_balance' },
+  { value: 'guias_tributos', label: 'Guias e Tributos',   icon: 'payments' },
+  { value: 'relatorios',     label: 'Relatórios',         icon: 'bar_chart' },
+  { value: 'outros',         label: 'Outros',             icon: 'more_horiz' },
 ]
 
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  pendente: { label: 'Pendente', color: 'text-yellow-600 bg-yellow-500/10' },
-  enviado: { label: 'Enviado', color: 'text-blue-600 bg-blue-500/10' },
-  aprovado: { label: 'Aprovado', color: 'text-green-600 bg-green-500/10' },
-  rejeitado: { label: 'Rejeitado', color: 'text-red-600 bg-red-500/10' },
+const STATUS_LABELS: Record<string, string> = {
+  pendente:  'Pendente',
+  enviado:   'Enviado',
+  aprovado:  'Aprovado',
+  rejeitado: 'Rejeitado',
+  vencido:   'Vencido',
 }
 
 type Doc = {
@@ -36,6 +42,7 @@ type Doc = {
   tamanho: number | null
   criadoEm: string
   visualizadoEm: string | null
+  dataVencimento?: string | null
   xmlMetadata?: unknown
 }
 
@@ -45,26 +52,9 @@ type Props = {
   totalGeral: number
 }
 
-function getIcon(mime: string | null, nome: string): string {
-  const ext = nome.split('.').pop()?.toLowerCase() ?? ''
-  if (mime === 'application/pdf' || ext === 'pdf') return 'picture_as_pdf'
-  if (mime?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image'
-  if (mime?.includes('xml') || ext === 'xml') return 'code'
-  if (mime?.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) return 'table_chart'
-  if (mime?.includes('word') || ['doc', 'docx'].includes(ext)) return 'article'
-  if (mime?.includes('zip') || ['zip', 'rar', '7z'].includes(ext)) return 'folder_zip'
-  return 'description'
-}
+type Grupo = { key: string; label: string; docs: Doc[] }
 
-function formatSize(bytes: number | null) {
-  if (!bytes) return ''
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
-function grupoPorAnoMes(docs: Doc[]) {
-  const grupos: { ano: number; mes: number; label: string; key: string; docs: Doc[] }[] = []
+function grupoPorAnoMes(docs: Doc[]): Grupo[] {
   const mapa = new Map<string, Doc[]>()
   for (const d of docs) {
     const dt = new Date(d.criadoEm)
@@ -72,11 +62,12 @@ function grupoPorAnoMes(docs: Doc[]) {
     if (!mapa.has(key)) mapa.set(key, [])
     mapa.get(key)!.push(d)
   }
-  for (const [key, items] of mapa.entries()) {
-    const [ano, mes] = key.split('-').map(Number)
-    grupos.push({ ano, mes, key, label: `${MESES[mes - 1]} ${ano}`, docs: items })
-  }
-  return grupos.sort((a, b) => b.ano !== a.ano ? b.ano - a.ano : b.mes - a.mes)
+  return [...mapa.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, items]) => {
+      const [ano, mes] = key.split('-').map(Number)
+      return { key, label: `${MESES[mes - 1]} ${ano}`, docs: items }
+    })
 }
 
 export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: Props) {
@@ -84,7 +75,6 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
   const [q, setQ] = useState('')
   const [origem, setOrigem] = useState('')
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
-  // IDs de docs marcados como vistos nesta sessão (otimístico)
   const [vistos, setVistos] = useState<Set<string>>(new Set())
 
   const isNovo = useCallback((d: Doc) =>
@@ -99,7 +89,6 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
     window.open(`/api/portal/documentos/${d.id}/download`, '_blank', 'noopener,noreferrer')
   }
 
-  // Contagem de novos por categoria (para badge nas tabs)
   const novosMap = useMemo(() => {
     const map: Record<string, number> = {}
     for (const d of documentos) {
@@ -226,7 +215,6 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
         <div className="space-y-6">
           {grupos.map(grupo => (
             <div key={grupo.key}>
-              {/* Cabeçalho mês/ano — clicável */}
               <button
                 onClick={() => toggleGrupo(grupo.key)}
                 className="mb-3 flex w-full items-center gap-2 rounded-xl px-1 py-1.5 hover:bg-surface-container-low/50 transition-colors"
@@ -245,11 +233,13 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                 <div className="overflow-hidden rounded-[16px] border border-outline-variant/15 bg-card/60 shadow-sm">
                   <ul className="divide-y divide-outline-variant/10">
                     {grupo.docs.map(d => {
-                      const s = STATUS_LABEL[d.status] ?? { label: d.status, color: 'text-on-surface-variant bg-surface-container' }
-                      const icon = getIcon(d.mimeType, d.nome)
+                      const statusColor = STATUS_DOCUMENTO_COLORS[d.status] ?? 'text-on-surface-variant bg-surface-container'
+                      const statusLabel = STATUS_LABELS[d.status] ?? d.status
+                      const icon = getDocIcon(d.mimeType, d.nome)
                       const isXML = d.mimeType?.includes('xml') || d.nome.toLowerCase().endsWith('.xml')
                       const xmlMeta = d.xmlMetadata as any
                       const novo = isNovo(d)
+                      const vencInfo = getVencimentoInfo(d.dataVencimento)
                       return (
                         <li key={d.id} className={`flex flex-col sm:flex-row sm:items-start gap-3 p-4 sm:px-5 sm:py-3.5 transition-colors ${novo ? 'bg-primary/[0.03]' : ''}`}>
                           <div className="flex items-start gap-3 w-full sm:w-auto flex-1 min-w-0">
@@ -282,6 +272,18 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                                   <span className="text-[10px] font-semibold text-primary/70">↑ enviado por você</span>
                                 )}
                               </div>
+
+                              {/* Badge de vencimento */}
+                              {vencInfo && (
+                                <div className="mt-1">
+                                  <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${vencInfo.color}`}>
+                                    <span className="material-symbols-outlined text-[11px]">schedule</span>
+                                    {vencInfo.label}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* XML metadata */}
                               {isXML && xmlMeta && xmlMeta.tipo !== 'desconhecido' && (
                                 <div className="mt-1.5 rounded-lg bg-primary/5 px-3 py-2 text-[11px] text-on-surface-variant/80 space-y-0.5">
                                   {xmlMeta.emitenteNome && <p><span className="font-semibold">Emitente:</span> {xmlMeta.emitenteNome}</p>}
@@ -295,8 +297,8 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
                             </div>
                           </div>
                           <div className="flex items-center justify-between sm:justify-start gap-2 shrink-0 w-full sm:w-auto ml-10 sm:ml-0 pt-2 sm:pt-0 border-t sm:border-0 border-outline-variant/10">
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.color}`}>
-                              {s.label}
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusColor}`}>
+                              {statusLabel}
                             </span>
                             {d.url && (
                               <button

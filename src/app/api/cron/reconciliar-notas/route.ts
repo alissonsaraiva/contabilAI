@@ -174,14 +174,23 @@ export async function POST(req: Request) {
 
 async function abrirOsReconciliacao(notaId: string, clienteId: string, motivo: string): Promise<void> {
   try {
-    const cliente = await prisma.cliente.findUnique({
+    // Resolve empresaId: campo legado → fallback junção 1:N
+    const clienteRow = await prisma.cliente.findUnique({
       where:  { id: clienteId },
       select: { empresaId: true },
     })
+    let empresaId = clienteRow?.empresaId ?? undefined
+    if (!empresaId) {
+      const vinculo = await prisma.clienteEmpresa.findFirst({
+        where: { clienteId, principal: true },
+        select: { empresaId: true },
+      })
+      empresaId = vinculo?.empresaId ?? undefined
+    }
     await prisma.chamado.create({
       data: {
         clienteId,
-        empresaId:    cliente?.empresaId ?? undefined,
+        empresaId:    empresaId ?? undefined,
         tipo:         'emissao_documento',
         origem:       'operador',
         visivelPortal: false,

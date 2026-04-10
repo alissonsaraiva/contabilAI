@@ -3,6 +3,37 @@
 import { useState }                      from 'react'
 import type { ThreadItem, MensagemThread } from './_shared'
 
+const URL_REGEX = /(https?:\/\/[^\s)]+)/g
+
+/** Renderiza texto com URLs como links clicáveis */
+function CorpoEmail({ texto }: { texto: string }) {
+  const partes = texto.split(URL_REGEX)
+
+  return (
+    <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-on-surface/80 break-words">
+      {partes.map((parte, i) => {
+        if (/^https?:\/\//.test(parte)) {
+          let label: string
+          try {
+            const url = new URL(parte)
+            const path = url.pathname !== '/' ? url.pathname.slice(0, 30) + (url.pathname.length > 30 ? '…' : '') : ''
+            label = url.hostname + path
+          } catch {
+            label = parte.slice(0, 50) + (parte.length > 50 ? '…' : '')
+          }
+          return (
+            <a key={i} href={parte} target="_blank" rel="noopener noreferrer"
+              className="text-primary underline underline-offset-2 hover:opacity-75 transition-opacity break-all">
+              {label}
+            </a>
+          )
+        }
+        return parte
+      })}
+    </p>
+  )
+}
+
 export function MensagemBubble({ msg, thread, arquivandoAnexos, anexosArquivados, onArquivarAnexo }: {
   msg:              MensagemThread
   thread:           ThreadItem
@@ -63,9 +94,7 @@ export function MensagemBubble({ msg, thread, arquivandoAnexos, anexosArquivados
           </div>
 
           {/* Corpo do email */}
-          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-on-surface/80">
-            {msg.conteudo}
-          </p>
+          {msg.conteudo ? <CorpoEmail texto={msg.conteudo} /> : null}
 
           {/* Anexos */}
           {msg.anexos.length > 0 && (

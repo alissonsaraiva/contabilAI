@@ -46,7 +46,14 @@ export default async function ClientesPage({ searchParams }: Props) {
       orderBy: { criadoEm: 'desc' },
       skip,
       take: PER_PAGE,
-      include: { responsavel: { select: { nome: true } }, empresa: { select: { cnpj: true, razaoSocial: true, regime: true, procuracaoRFAtiva: true } } },
+      include: {
+        responsavel: { select: { nome: true } },
+        empresa: { select: { cnpj: true, razaoSocial: true, regime: true, procuracaoRFAtiva: true } },
+        clienteEmpresas: {
+          include: { empresa: { select: { cnpj: true, razaoSocial: true, regime: true } } },
+          orderBy: { principal: 'desc' },
+        },
+      },
     }),
     prisma.cliente.count({ where: filterWhere }),
   ])
@@ -55,8 +62,9 @@ export default async function ClientesPage({ searchParams }: Props) {
     ...c,
     valorMensal: Number(c.valorMensal),
     dataNascimento: c.dataNascimento ? c.dataNascimento.toISOString() : null,
-    cnpj: c.empresa?.cnpj ?? null,
-    razaoSocial: c.empresa?.razaoSocial ?? null,
+    cnpj: c.clienteEmpresas[0]?.empresa.cnpj ?? c.empresa?.cnpj ?? null,
+    razaoSocial: c.clienteEmpresas[0]?.empresa.razaoSocial ?? c.empresa?.razaoSocial ?? null,
+    totalEmpresas: c.clienteEmpresas.length,
     regime: c.empresa?.regime ?? null,
     procuracaoRFAtiva: c.empresa?.procuracaoRFAtiva ?? true,
   }))

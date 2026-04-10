@@ -65,27 +65,29 @@ const enviarDASMEIClienteTool: Tool = {
     try {
       const cliente = await prisma.cliente.findUnique({
         where:  { id: clienteId },
-        select: {
-          nome:     true,
-          email:    true,
-          whatsapp: true,
+        select: { nome: true, email: true, whatsapp: true },
+      })
+
+      if (!cliente) {
+        return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Cliente não encontrado.' }
+      }
+
+      // Busca empresa MEI com DAS (via junção 1:N — pega qualquer empresa MEI do cliente)
+      const dasWhere = competencia
+        ? { competencia }
+        : { status: { in: ['pendente', 'vencida'] as ('pendente' | 'vencida')[] } }
+      const vinculoMei = await prisma.clienteEmpresa.findFirst({
+        where: { clienteId, empresa: { regime: 'MEI' } },
+        include: {
           empresa: {
-            select: {
-              regime: true,
+            include: {
               dasMeis: {
-                where: competencia
-                  ? { competencia }
-                  : { status: { in: ['pendente', 'vencida'] } },
+                where: dasWhere,
                 orderBy: { competencia: 'desc' },
-                take:    1,
+                take: 1,
                 select: {
-                  id:             true,
-                  competencia:    true,
-                  valor:          true,
-                  dataVencimento: true,
-                  codigoBarras:   true,
-                  urlDas:         true,
-                  status:         true,
+                  id: true, competencia: true, valor: true, dataVencimento: true,
+                  codigoBarras: true, urlDas: true, status: true,
                 },
               },
             },
@@ -93,14 +95,20 @@ const enviarDASMEIClienteTool: Tool = {
         },
       })
 
-      if (!cliente) {
-        return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Cliente não encontrado.' }
-      }
-      if (cliente.empresa?.regime !== 'MEI') {
+      // Fallback: relação legada
+      const empresaMei = vinculoMei?.empresa ?? await prisma.cliente.findUnique({
+        where: { id: clienteId },
+        select: { empresa: { include: { dasMeis: {
+          where: dasWhere, orderBy: { competencia: 'desc' }, take: 1,
+          select: { id: true, competencia: true, valor: true, dataVencimento: true, codigoBarras: true, urlDas: true, status: true },
+        } } } },
+      }).then(c => c?.empresa ?? null)
+
+      if (empresaMei?.regime !== 'MEI') {
         return { sucesso: false, erro: 'Cliente não é MEI.', resumo: `${cliente.nome} não é MEI — DAS não aplicável.` }
       }
 
-      const das = cliente.empresa.dasMeis?.[0]
+      const das = empresaMei.dasMeis?.[0]
       if (!das) {
         const msg = competencia
           ? `DAS de ${competencia.slice(4, 6)}/${competencia.slice(0, 4)} não encontrada. Gere primeiro via gerarDASMEI.`

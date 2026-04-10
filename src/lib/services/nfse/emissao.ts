@@ -11,15 +11,17 @@ import { onNotaAutorizada } from './eventos'
 // ─── Emissão ──────────────────────────────────────────────────────────────────
 
 export async function emitirNotaFiscal(input: EmitirNotaInput): Promise<EmitirNotaOutput> {
-  const { clienteId, ordemServicoId, descricao, valor, tomadorNome, tomadorCpfCnpj } = input
+  const { clienteId, empresaId: empresaIdInput, ordemServicoId, descricao, valor, tomadorNome, tomadorCpfCnpj } = input
 
-  // 1. Busca cliente + empresa
+  // 1. Busca cliente + empresa (empresaId explícito tem prioridade sobre resolução automática)
   const cliente = await getClienteComEmpresa(clienteId)
   if (!cliente) {
     return { sucesso: false, motivo: 'dados_incompletos', detalhe: 'Cliente não encontrado.' }
   }
 
-  const empresa = cliente.empresa
+  const empresa = empresaIdInput
+    ? await prisma.empresa.findUnique({ where: { id: empresaIdInput } })
+    : cliente.empresa
   if (!empresa?.spedyConfigurado || !empresa?.spedyApiKey) {
     return {
       sucesso: false,
