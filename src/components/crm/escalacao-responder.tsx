@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { DocumentoPicker, type DocSistema } from '@/components/crm/documento-picker'
+import { inferMimeFromDoc } from '@/components/crm/whatsapp-chat/use-whatsapp-chat'
 
 type ArquivoAnexo = {
   url: string
@@ -78,9 +79,9 @@ export function EscalacaoResponder({ escalacaoId, canal, nomeIa = 'Clara', entid
   function handleDocSistema(doc: DocSistema) {
     setArquivo({
       url:      doc.url,
-      type:     'document',
+      type:     doc.mimeType?.startsWith('image/') ? 'image' : 'document',
       name:     doc.nome,
-      mimeType: doc.mimeType ?? 'application/octet-stream',
+      mimeType: inferMimeFromDoc(doc.nome, doc.mimeType),
     })
   }
 

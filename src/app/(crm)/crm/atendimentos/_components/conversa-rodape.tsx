@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import * as Sentry from '@sentry/nextjs'
 import { DocumentoPicker, type DocSistema } from '@/components/crm/documento-picker'
-import type { ArquivoAnexo } from '@/components/crm/whatsapp-chat/use-whatsapp-chat'
+import { inferMimeFromDoc, type ArquivoAnexo } from '@/components/crm/whatsapp-chat/use-whatsapp-chat'
 
 type Props = {
   conversaId: string
@@ -86,9 +86,9 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
   function handleDocsSistema(docs: DocSistema[]) {
     const novos = docs.map(doc => ({
       url:      doc.url,
-      type:     'document' as const,
+      type:     (doc.mimeType?.startsWith('image/') ? 'image' : 'document') as 'image' | 'document',
       name:     doc.nome,
-      mimeType: doc.mimeType ?? 'application/octet-stream',
+      mimeType: inferMimeFromDoc(doc.nome, doc.mimeType),
     }))
     setArquivos(prev => [...prev, ...novos])
   }

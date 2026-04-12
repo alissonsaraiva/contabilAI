@@ -33,6 +33,27 @@ export type EntityInfo = {
   entidadeId: string
 }
 
+// Infere MIME type pela extensão do nome do arquivo quando o campo está vazio no banco
+export function inferMimeFromDoc(nome: string, mimeType: string | null): string {
+  if (mimeType) return mimeType
+  const ext = nome.split('.').pop()?.toLowerCase() ?? ''
+  const map: Record<string, string> = {
+    pdf:  'application/pdf',
+    jpg:  'image/jpeg',
+    jpeg: 'image/jpeg',
+    png:  'image/png',
+    gif:  'image/gif',
+    webp: 'image/webp',
+    doc:  'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls:  'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    csv:  'text/csv',
+    txt:  'text/plain',
+  }
+  return map[ext] ?? 'application/octet-stream'
+}
+
 // Regex compartilhada entre hook e panel — evita duplicação (FIX #9)
 export const WHATSAPP_API_PATH_PATTERN = /^\/api\/(leads|clientes|socios)\/([a-z0-9-]+)\/whatsapp$/
 
@@ -276,9 +297,9 @@ export function useWhatsAppChat(apiPath: string) {
   function handleDocsSistema(docs: DocSistema[]) {
     const novos = docs.map(doc => ({
       url:      doc.url,
-      type:     'document' as const,
+      type:     (doc.mimeType?.startsWith('image/') ? 'image' : 'document') as 'image' | 'document',
       name:     doc.nome,
-      mimeType: doc.mimeType ?? 'application/octet-stream',
+      mimeType: inferMimeFromDoc(doc.nome, doc.mimeType),
     }))
     setArquivos(prev => [...prev, ...novos])
   }
