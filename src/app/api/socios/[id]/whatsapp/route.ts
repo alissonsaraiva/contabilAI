@@ -16,6 +16,7 @@ import {
   getEvolutionConfig,
   isMediaUrlTrusted,
   checkRateLimit,
+  resolveMediaUrl,
   WHATSAPP_ALLOWED_MIME,
 } from '@/lib/whatsapp-utils'
 
@@ -163,13 +164,15 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     // Envia via Evolution
-    const sendResult = mediaUrl
+    // URLs R2 diretas retornam 403 — gera URL assinada (5 min) antes de passar à Evolution
+    const mediaUrlParaEnvio = mediaUrl ? await resolveMediaUrl(mediaUrl, `socioId:${socioId}`) : null
+    const sendResult = mediaUrlParaEnvio
       ? await sendMedia(cfg, remoteJid, {
           mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
           mimetype:  mediaMimeType ?? 'application/octet-stream',
           fileName:  mediaFileName ?? 'arquivo',
           caption:   conteudo || undefined,
-          mediaUrl,
+          mediaUrl:  mediaUrlParaEnvio,
         })
       : await sendText(cfg, remoteJid, conteudo)
 

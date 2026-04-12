@@ -107,18 +107,22 @@ export async function getOrCreateConversaSession(
   })
 
   if (existente) {
-    // Atualiza clienteId/leadId se a sessão foi criada antes da identidade ser resolvida
+    // Atualiza clienteId/leadId se a sessão foi criada antes da identidade ser resolvida.
+    // await garante que o clienteId esteja persistido antes de o caller retornar, evitando
+    // que o CRM carregue a conversa ainda sem contexto.
     if (opts?.clienteId || opts?.leadId) {
-      prisma.conversaIA.update({
-        where: { id: existente.id },
-        data: {
-          clienteId: opts.clienteId ?? undefined,
-          leadId:    opts.leadId    ?? undefined,
-        },
-      }).catch((err: unknown) => {
+      try {
+        await prisma.conversaIA.update({
+          where: { id: existente.id },
+          data: {
+            clienteId: opts.clienteId ?? undefined,
+            leadId:    opts.leadId    ?? undefined,
+          },
+        })
+      } catch (err: unknown) {
         console.error('[conversa] erro ao atualizar identidade (session):', { conversaId: existente.id, err })
         Sentry.captureException(err, { tags: { module: 'conversa', operation: 'atualizar-identidade-session' }, extra: { conversaId: existente.id } })
-      })
+      }
     }
     return existente.id
   }

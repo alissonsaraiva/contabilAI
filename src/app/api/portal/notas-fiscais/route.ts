@@ -10,6 +10,7 @@ import { resolveClienteId } from '@/lib/portal-session'
 import { emitirNotaFiscal } from '@/lib/services/notas-fiscais'
 import { notificarEquipeNfsSolicitadaPortal } from '@/lib/services/nfse/notificacoes'
 import { logger } from '@/lib/logger'
+import { resolverEmpresaPrincipalDoObjeto } from '@/lib/ai/tools/resolver-empresa'
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -99,12 +100,23 @@ export async function POST(req: Request) {
   // PF não emite NFS-e
   const cliente = await prisma.cliente.findUnique({
     where:   { id: clienteId },
-    select:  { tipoContribuinte: true, nome: true, empresa: { select: { spedyConfigurado: true } } },
+    select:  {
+      tipoContribuinte: true,
+      nome:             true,
+      empresa:          { select: { spedyConfigurado: true } },
+      clienteEmpresas:  {
+        where:   { principal: true },
+        select:  { empresa: { select: { spedyConfigurado: true } } },
+        orderBy: { principal: 'desc' as const },
+        take:    1,
+      },
+    },
   })
-  if (cliente?.tipoContribuinte === 'pf') {
+  if (!cliente) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
+  if (cliente.tipoContribuinte === 'pf') {
     return NextResponse.json({ error: 'NFS-e não aplicável para pessoa física' }, { status: 422 })
   }
-  if (!cliente?.empresa?.spedyConfigurado) {
+  if (!resolverEmpresaPrincipalDoObjeto(cliente)?.spedyConfigurado) {
     return NextResponse.json({ error: 'Empresa não configurada para emissão de NFS-e' }, { status: 422 })
   }
 

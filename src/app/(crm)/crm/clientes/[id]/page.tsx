@@ -114,7 +114,7 @@ export default async function ClienteDetailPage({ params }: Props) {
     .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
 
   const escritorioSpedyOk = !!escritorio?.spedyApiKey
-  const spedyConfigurado = !!cliente?.empresa?.spedyConfigurado
+  const spedyConfigurado = !!empresaVinculos[0]?.empresa?.spedyConfigurado || !!cliente?.empresa?.spedyConfigurado
 
   const tabs = [
     { value: 'dados', label: 'Dados', count: null },
@@ -417,12 +417,12 @@ export default async function ClienteDetailPage({ params }: Props) {
                 label: v.empresa.nomeFantasia ?? v.empresa.razaoSocial ?? v.empresa.cnpj ?? v.empresaId.slice(0, 8),
               })) : undefined}
             />}
-            empresaLink={isPJ && cliente.empresa ? (
+            empresaLink={isPJ && (empresaVinculos.length > 0 || cliente.empresa) ? (
               <div className="flex items-center rounded-xl bg-surface-container-low/60 px-4 py-2.5">
                 <span className="text-[12px] text-on-surface-variant/70">
                   <span className="material-symbols-outlined text-[14px] align-middle mr-1">info</span>
                   Inclui documentos da empresa.{' '}
-                  <Link href={`/crm/empresas/${cliente.empresa.id}`} className="text-primary font-semibold hover:underline">
+                  <Link href={`/crm/empresas/${empresaVinculos[0]?.empresaId ?? cliente.empresa?.id}`} className="text-primary font-semibold hover:underline">
                     Ver na aba Empresa →
                   </Link>
                 </span>

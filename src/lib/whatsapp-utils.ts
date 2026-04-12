@@ -5,7 +5,9 @@
 
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { getDownloadUrl } from '@/lib/storage'
 import type { EvolutionConfig } from '@/lib/evolution'
+import * as Sentry from '@sentry/nextjs'
 
 // Domínio de storage confiável — mesma var do .env.example
 const STORAGE_TRUSTED_HOST: string | null = (() => {
@@ -95,4 +97,30 @@ export function checkRateLimit(userId: string): { ok: boolean; retryAfter?: numb
 
   entry.count++
   return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// URL assinada para mídia no R2 (bucket privado)
+// URLs públicas diretas retornam 403 — a Evolution API precisa de URL assinada.
+// ---------------------------------------------------------------------------
+
+/**
+ * Converte uma URL pública do R2 em URL assinada (5 min) para que a Evolution API
+ * consiga baixar o arquivo. Se a URL não for do R2 configurado, retorna sem alteração.
+ */
+export async function resolveMediaUrl(mediaUrl: string, context?: string): Promise<string> {
+  const publicBase = (process.env.STORAGE_PUBLIC_URL ?? '').replace(/\/$/, '')
+  if (!publicBase || !mediaUrl.startsWith(publicBase)) return mediaUrl
+
+  const key = mediaUrl.slice(publicBase.length + 1)
+  try {
+    return await getDownloadUrl(key, 300)
+  } catch (err) {
+    console.error(`[whatsapp-utils] erro ao gerar URL assinada para mídia${context ? ` (${context})` : ''}:`, { key, err })
+    Sentry.captureException(err, {
+      tags:  { module: 'whatsapp-utils', operation: 'resolveMediaUrl' },
+      extra: { key, context },
+    })
+    return mediaUrl // fallback: tenta com URL original
+  }
 }

@@ -68,6 +68,19 @@ export async function resolverEmpresasDoCliente(clienteId: string): Promise<Empr
   return []
 }
 
+/**
+ * Resolve a empresa principal de um objeto cliente **já carregado** (com `empresa` legado
+ * e/ou `clienteEmpresas`). Prioriza 1:N; fallback para 1:1 legado.
+ *
+ * Genérico: T é inferido do tipo de `empresa` no objeto passado — sem `as any`.
+ */
+export function resolverEmpresaPrincipalDoObjeto<T>(
+  cliente: { empresa?: T | null; clienteEmpresas?: Array<{ empresa: T }> | null } | null | undefined,
+): T | null {
+  if (!cliente) return null
+  return cliente.clienteEmpresas?.[0]?.empresa ?? cliente.empresa ?? null
+}
+
 /** Formata lista de empresas para texto legível (system prompt / resposta ao usuário). */
 export function formatarEmpresasParaTexto(empresas: EmpresaResolvida[]): string {
   return empresas.map((e, i) => {

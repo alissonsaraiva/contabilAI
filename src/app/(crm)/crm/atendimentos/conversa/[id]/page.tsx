@@ -21,6 +21,35 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
 
   if (!conversa) notFound()
 
+  // Conversa de portal pode ter clienteId null em registros legados (criados antes da
+  // migração de sessões). Tenta resolver via portalSessionId do Cliente ou do Sócio.
+  let resolvedClienteId: string | null = conversa.clienteId ?? null
+  if (!resolvedClienteId && !conversa.leadId && conversa.canal === 'portal' && conversa.sessionId) {
+    const byCliente = await prisma.cliente.findUnique({
+      where:  { portalSessionId: conversa.sessionId },
+      select: { id: true },
+    })
+    if (byCliente) {
+      resolvedClienteId = byCliente.id
+    } else {
+      const bySocio = await prisma.socio.findFirst({
+        where:  { portalSessionId: conversa.sessionId },
+        select: {
+          empresa: {
+            select: {
+              clienteEmpresas: {
+                where:  { principal: true },
+                select: { clienteId: true },
+                take:   1,
+              },
+            },
+          },
+        },
+      })
+      resolvedClienteId = bySocio?.empresa?.clienteEmpresas?.[0]?.clienteId ?? null
+    }
+  }
+
   const nomeExibido =
     conversa.cliente?.nome ??
     getNomeFromDadosJson(conversa.lead?.dadosJson) ??
@@ -148,8 +177,8 @@ export default async function ConversaDetalhe({ params }: { params: Promise<{ id
         conversaId={conversa.id}
         canal={conversa.canal}
         pausada={!!conversa.pausadaEm}
-        entidadeTipo={conversa.clienteId ? 'cliente' : conversa.leadId ? 'lead' : undefined}
-        entidadeId={conversa.clienteId ?? conversa.leadId ?? undefined}
+        entidadeTipo={resolvedClienteId ? 'cliente' : conversa.leadId ? 'lead' : undefined}
+        entidadeId={resolvedClienteId ?? conversa.leadId ?? undefined}
       />
     </div>
   )

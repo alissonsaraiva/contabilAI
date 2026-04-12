@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { sendText, sendMedia } from '@/lib/evolution'
+import { resolveMediaUrl } from '@/lib/whatsapp-utils'
 import { getProvider } from '@/lib/ai/providers'
 import { getAiConfig } from '@/lib/ai/config'
 import { indexarAsync } from '@/lib/rag/indexar-async'
@@ -106,12 +107,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       let sendResult
       if (hasMedia) {
+        // URLs R2 diretas retornam 403 — gera URL assinada (5 min) antes de passar à Evolution
+        const mediaUrlParaEnvio = await resolveMediaUrl(mediaUrl!, `escalacaoId:${id}`)
         sendResult = await sendMedia(evoCfg, esc.remoteJid, {
           mediatype: mediaType!,
           mimetype:  mediaMimeType!,
           fileName:  mediaFileName!,
           caption:   mensagemFinal || undefined,
-          mediaUrl:  mediaUrl!,
+          mediaUrl:  mediaUrlParaEnvio,
         })
       } else {
         sendResult = await sendText(evoCfg, esc.remoteJid, mensagemFinal)

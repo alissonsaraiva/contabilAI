@@ -12,6 +12,7 @@ import { auth } from '@/lib/auth-portal'
 import { prisma } from '@/lib/prisma'
 import { resolveClienteId } from '@/lib/portal-session'
 import { calcularLimiteMEI } from '@/lib/services/limite-mei'
+import { resolverEmpresaPrincipalDoObjeto } from '@/lib/ai/tools/resolver-empresa'
 
 export async function GET() {
   const session = await auth()
@@ -29,15 +30,25 @@ export async function GET() {
 
     const cliente = await prisma.cliente.findUnique({
       where:  { id: clienteId },
-      select: { empresa: { select: { id: true, regime: true } } },
+      select: {
+        empresa: { select: { id: true, regime: true } },
+        clienteEmpresas: {
+          where:   { principal: true },
+          select:  { empresa: { select: { id: true, regime: true } } },
+          orderBy: { principal: 'desc' as const },
+          take:    1,
+        },
+      },
     })
 
-    // Guarda explícito: empresa pode ser null (empresaId é FK opcional)
-    if (!cliente?.empresa || cliente.empresa.regime !== 'MEI') {
-      return NextResponse.json({ regime: cliente?.empresa?.regime ?? null })
+    // Resolve empresa principal; verifica se é MEI em seguida
+    const empPrincipal = resolverEmpresaPrincipalDoObjeto(cliente)
+
+    if (empPrincipal?.regime !== 'MEI') {
+      return NextResponse.json({ regime: empPrincipal?.regime ?? null })
     }
 
-    const resultado = await calcularLimiteMEI(cliente.empresa.id)
+    const resultado = await calcularLimiteMEI(empPrincipal.id)
     return NextResponse.json({ regime: 'MEI', ...resultado })
   } catch (err) {
     Sentry.captureException(err, {

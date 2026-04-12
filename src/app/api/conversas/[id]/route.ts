@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { sendText, sendMedia, type EvolutionConfig } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { resolveMediaUrl } from '@/lib/whatsapp-utils'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -122,13 +123,15 @@ export async function POST(
     })
   }
 
-  const sendResult = mediaUrl
+  // URLs R2 diretas retornam 403 — gera URL assinada (5 min) antes de passar à Evolution
+  const mediaUrlParaEnvio = mediaUrl ? await resolveMediaUrl(mediaUrl, `conversaId:${id}`) : null
+  const sendResult = mediaUrlParaEnvio
     ? await sendMedia(cfg, conversa.remoteJid, {
         mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
         mimetype:  mediaMimeType ?? 'application/octet-stream',
         fileName:  mediaFileName ?? 'arquivo',
         caption:   conteudo || undefined,
-        mediaUrl,
+        mediaUrl:  mediaUrlParaEnvio,
       })
     : await sendText(cfg, conversa.remoteJid, conteudo)
 

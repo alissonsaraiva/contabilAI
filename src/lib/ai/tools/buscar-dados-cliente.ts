@@ -69,11 +69,26 @@ const buscarDadosClienteTool: Tool = {
       },
     }
 
+    const incluirEmpresas = {
+      empresa: true,
+      clienteEmpresas: {
+        include: {
+          empresa: {
+            select: {
+              id: true, cnpj: true, razaoSocial: true, nomeFantasia: true,
+              regime: true, procuracaoRFAtiva: true, procuracaoRFVerificadaEm: true,
+            },
+          },
+        },
+        orderBy: { principal: 'desc' as const },
+      },
+    }
+
     const cliente = clienteId
       ? await prisma.cliente.findUnique({
           where: { id: clienteId },
           include: {
-            empresa: true,
+            ...incluirEmpresas,
             responsavel: { select: { nome: true } },
             interacoes: {
               where: ctx.solicitanteAI === 'portal'
@@ -91,7 +106,7 @@ const buscarDadosClienteTool: Tool = {
             id: { in: await searchClienteIds(busca!, buscaNorm) },
           },
           include: {
-            empresa: true,
+            ...incluirEmpresas,
             responsavel: { select: { nome: true } },
             interacoes: {
               where: ctx.solicitanteAI === 'portal'
@@ -113,7 +128,22 @@ const buscarDadosClienteTool: Tool = {
       }
     }
 
-    const empresa = (cliente as any).empresa as { regime?: string; cnpj?: string; razaoSocial?: string; procuracaoRFAtiva?: boolean; procuracaoRFVerificadaEm?: Date | null } | null
+    type EmpresaInfo = {
+      id?: string; cnpj?: string | null; razaoSocial?: string | null; nomeFantasia?: string | null;
+      regime?: string | null; procuracaoRFAtiva?: boolean; procuracaoRFVerificadaEm?: Date | null
+    }
+    type VinculoEmpresa = { principal: boolean; empresa: EmpresaInfo }
+
+    // Prefere relação N:N (clienteEmpresas); cai no legado 1:1 se vazio
+    const vinculosEmpresas: VinculoEmpresa[] = (() => {
+      const vinculos = (cliente as any).clienteEmpresas as VinculoEmpresa[] | undefined
+      if (vinculos && vinculos.length > 0) return vinculos
+      const legado = (cliente as any).empresa as EmpresaInfo | null
+      return legado ? [{ principal: true, empresa: legado }] : []
+    })()
+
+    const empresaPrincipal = vinculosEmpresas.find(v => v.principal)?.empresa ?? vinculosEmpresas[0]?.empresa ?? null
+
     const cobrancaAberta = (cliente as any).cobrancasAsaas?.[0] as {
       id: string; valor: unknown; vencimento: Date; status: string;
       formaPagamento: string; pixCopiaECola: string | null; linkBoleto: string | null
@@ -123,21 +153,31 @@ const buscarDadosClienteTool: Tool = {
       `Cliente: ${cliente.nome}`,
       `Status: ${cliente.status}`,
       `Plano: ${cliente.planoTipo} — R$ ${cliente.valorMensal}/mês`,
-      `Regime: ${empresa?.regime ?? 'não informado'}`,
+      `Regime (principal): ${empresaPrincipal?.regime ?? 'não informado'}`,
       `Email: ${cliente.email}`,
       `Telefone: ${cliente.telefone}`,
-      ...(empresa?.cnpj ? [`CNPJ: ${empresa.cnpj}`] : []),
-      ...(empresa?.razaoSocial ? [`Razão social: ${empresa.razaoSocial}`] : []),
-      ...(empresa?.regime === 'MEI' ? [
-        `Procuração RF (e-CAC): ${empresa.procuracaoRFAtiva ? 'ativa' : 'PENDENTE — cliente ainda não concedeu procuração ao escritório'}`,
-        ...(empresa.procuracaoRFVerificadaEm
-          ? [`Última verificação RF: ${new Date(empresa.procuracaoRFVerificadaEm).toLocaleDateString('pt-BR')}`]
-          : []),
-      ] : []),
       `Responsável: ${(cliente as any).responsavel?.nome ?? 'não atribuído'}`,
       `Vencimento: dia ${cliente.vencimentoDia}`,
       `Pagamento: ${cliente.formaPagamento}`,
     ]
+
+    // Lista todas as empresas vinculadas
+    if (vinculosEmpresas.length > 0) {
+      linhas.push('', `Empresas (${vinculosEmpresas.length}):`)
+      vinculosEmpresas.forEach((v, i) => {
+        const e = v.empresa
+        const nome = e.razaoSocial ?? e.nomeFantasia ?? '(sem nome)'
+        const tag  = v.principal ? ' [PRINCIPAL]' : ''
+        linhas.push(`  ${i + 1}. ${nome}${tag}`)
+        if (e.cnpj)   linhas.push(`     CNPJ: ${e.cnpj}`)
+        if (e.regime) linhas.push(`     Regime: ${e.regime}`)
+        if (e.regime === 'MEI') {
+          linhas.push(`     Procuração RF (e-CAC): ${e.procuracaoRFAtiva ? 'ativa' : 'PENDENTE'}`)
+          if (e.procuracaoRFVerificadaEm)
+            linhas.push(`     Última verificação RF: ${new Date(e.procuracaoRFVerificadaEm).toLocaleDateString('pt-BR')}`)
+        }
+      })
+    }
 
     // Situação financeira — inclui cobrança em aberto se existir
     if (cobrancaAberta) {

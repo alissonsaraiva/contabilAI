@@ -297,6 +297,15 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
             <span className="material-symbols-outlined text-[20px]">help_outline</span>
           </button>
 
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="hidden md:flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[13px] font-medium text-on-surface-variant/70 transition-colors hover:bg-error/10 hover:text-error"
+            title="Sair"
+          >
+            <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 0" }}>logout</span>
+            <span>Sair</span>
+          </button>
+
           <div className="mx-3 hidden md:block h-6 w-px bg-outline-variant/15" />
 
           <DropdownMenu>

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { FEATURE_LABELS } from '@/lib/ai/constants'
 import '@/lib/ai/tools'
 import { getCapacidades } from '@/lib/ai/tools/registry'
+import { resolverEmpresaPrincipalDoObjeto } from '@/lib/ai/tools/resolver-empresa'
 
 function buildDateFilter(periodo: string | null): Date | null {
   if (!periodo || periodo === 'all') return null
@@ -59,13 +60,28 @@ export async function GET(req: Request) {
   const leadIds    = [...new Set(acoes.map(a => a.leadId).filter(Boolean))]    as string[]
   const [clientes, leads] = await Promise.all([
     clienteIds.length > 0
-      ? prisma.cliente.findMany({ where: { id: { in: clienteIds } }, select: { id: true, nome: true, empresa: { select: { razaoSocial: true } } } })
+      ? prisma.cliente.findMany({
+          where:  { id: { in: clienteIds } },
+          select: {
+            id: true, nome: true,
+            empresa: { select: { razaoSocial: true } },
+            clienteEmpresas: {
+              where:   { principal: true },
+              select:  { empresa: { select: { razaoSocial: true } } },
+              orderBy: { principal: 'desc' as const },
+              take:    1,
+            },
+          },
+        })
       : [],
     leadIds.length > 0
       ? prisma.lead.findMany({ where: { id: { in: leadIds } }, select: { id: true, contatoEntrada: true, dadosJson: true } })
       : [],
   ])
-  const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.empresa?.razaoSocial ?? c.nome ?? '']))
+  const clienteMap = Object.fromEntries(clientes.map(c => [
+    c.id,
+    resolverEmpresaPrincipalDoObjeto(c)?.razaoSocial ?? c.nome ?? '',
+  ]))
   const leadMap    = Object.fromEntries(leads.map(l => {
     const d = (l.dadosJson ?? {}) as Record<string, string>
     return [l.id, d['Nome completo'] ?? d['Razão Social'] ?? l.contatoEntrada ?? '']

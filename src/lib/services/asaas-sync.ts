@@ -12,6 +12,7 @@
  */
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
+import { resolverEmpresaPrincipalDoObjeto } from '@/lib/ai/tools/resolver-empresa'
 import {
   asaasCreateCustomer,
   asaasCreateSubscription,
@@ -161,6 +162,12 @@ export async function provisionarClienteAsaas(clienteId: string): Promise<void> 
       asaasCustomerId:     true,
       asaasSubscriptionId: true,
       empresa: { select: { cnpj: true, razaoSocial: true } },
+      clienteEmpresas: {
+        where:   { principal: true },
+        select:  { empresa: { select: { cnpj: true, razaoSocial: true } } },
+        orderBy: { principal: 'desc' as const },
+        take:    1,
+      },
     },
   })
 
@@ -172,15 +179,9 @@ export async function provisionarClienteAsaas(clienteId: string): Promise<void> 
     return
   }
 
-  // Resolve CNPJ: relação direta → fallback junção 1:N
-  let cnpjEmpresa = cliente.empresa?.cnpj ?? null
-  if (!cnpjEmpresa) {
-    const vinculo = await prisma.clienteEmpresa.findFirst({
-      where: { clienteId, principal: true },
-      select: { empresa: { select: { cnpj: true } } },
-    })
-    cnpjEmpresa = vinculo?.empresa.cnpj ?? null
-  }
+  // Resolve empresa: prioriza 1:N, fallback para legado 1:1
+  const empResolvida = resolverEmpresaPrincipalDoObjeto(cliente)
+  const cnpjEmpresa  = empResolvida?.cnpj ?? null
 
   const cpfCnpjRaw = (cnpjEmpresa ?? cliente.cpf ?? '').replace(/\D/g, '')
   if (!cpfCnpjRaw) {
@@ -200,9 +201,8 @@ export async function provisionarClienteAsaas(clienteId: string): Promise<void> 
   let customerId = cliente.asaasCustomerId
 
   if (!customerId) {
-    const emp      = cliente.empresa
     const customer = await asaasCreateCustomer({
-      name:              emp?.razaoSocial ?? cliente.nome,
+      name:              empResolvida?.razaoSocial ?? cliente.nome,
       cpfCnpj:           cpfCnpjRaw,
       email:             cliente.email,
       mobilePhone:       cliente.whatsapp,

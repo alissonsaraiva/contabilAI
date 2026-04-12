@@ -11,6 +11,7 @@
 
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
+import { resolverEmpresaPrincipalDoObjeto } from '@/lib/ai/tools/resolver-empresa'
 import { sendEmail } from '@/lib/email/send'
 import { sendText } from '@/lib/evolution'
 import { sendPushToCliente } from '@/lib/push'
@@ -114,25 +115,24 @@ export async function gerarESalvarDASMEI(clienteId: string, competencia?: string
     select: {
       id: true, nome: true, email: true, whatsapp: true,
       empresa: { select: { id: true, cnpj: true, regime: true, procuracaoRFAtiva: true } },
+      clienteEmpresas: {
+        where:   { principal: true },
+        select:  { empresa: { select: { id: true, cnpj: true, regime: true, procuracaoRFAtiva: true } } },
+        orderBy: { principal: 'desc' as const },
+        take:    1,
+      },
     },
   })
 
   if (!clienteRow) throw new Error(`Cliente ${clienteId} não encontrado.`)
 
-  // Resolve empresa: empresaId explícito > relação direta (legado) > junção 1:N
+  // Resolve empresa: empresaId explícito > 1:N principal > legado 1:1
   let empresa = empresaIdInput
     ? await prisma.empresa.findUnique({
         where: { id: empresaIdInput },
         select: { id: true, cnpj: true, regime: true, procuracaoRFAtiva: true },
       })
-    : clienteRow.empresa
-  if (!empresa) {
-    const vinculo = await prisma.clienteEmpresa.findFirst({
-      where: { clienteId, principal: true },
-      select: { empresa: { select: { id: true, cnpj: true, regime: true, procuracaoRFAtiva: true } } },
-    })
-    empresa = vinculo?.empresa ?? null
-  }
+    : resolverEmpresaPrincipalDoObjeto(clienteRow)
 
   if (!empresa?.cnpj) throw new Error(`Cliente ${clienteId} não possui CNPJ cadastrado.`)
   if (empresa.regime !== 'MEI') throw new Error(`Cliente ${clienteId} não é MEI.`)

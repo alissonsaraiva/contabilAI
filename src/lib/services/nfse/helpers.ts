@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+import { resolverEmpresaPrincipalDoObjeto } from '@/lib/ai/tools/resolver-empresa'
 
 // ─── Helpers internos — não exportados via index.ts ───────────────────────────
 
@@ -13,24 +14,26 @@ export function isCpf(cpfCnpj: string): boolean {
 
 /**
  * Busca cliente com empresa principal.
- * Tenta relação direta (legado), fallback para ClienteEmpresa (junção 1:N).
+ * Prioriza junção 1:N (clienteEmpresas.principal), fallback para relação direta legada.
+ * Usa query única para evitar round-trips extras.
  */
 export async function getClienteComEmpresa(clienteId: string) {
   const cliente = await prisma.cliente.findUnique({
     where: { id: clienteId },
-    include: { empresa: true },
+    include: {
+      empresa: true,
+      clienteEmpresas: {
+        where:   { principal: true },
+        include: { empresa: true },
+        orderBy: { principal: 'desc' as const },
+        take:    1,
+      },
+    },
   })
   if (!cliente) return null
-  if (cliente.empresa) return cliente
 
-  // Fallback: resolve empresa via junção 1:N
-  const vinculo = await prisma.clienteEmpresa.findFirst({
-    where:  { clienteId, principal: true },
-    select: { empresaId: true },
-  })
-  if (!vinculo) return { ...cliente, empresa: null }
-
-  const empresa = await prisma.empresa.findUnique({ where: { id: vinculo.empresaId } })
+  // Prefere 1:N; fallback para legado 1:1
+  const empresa = resolverEmpresaPrincipalDoObjeto(cliente)
   return { ...cliente, empresa }
 }
 
