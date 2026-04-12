@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 
 type Empresa = { id: string; label: string }
 
@@ -14,17 +14,31 @@ export function EmpresaSelector({ empresas, empresaAtiva }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [value, setValue] = useState(empresaAtiva)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [])
 
   if (empresas.length <= 1) return null
 
-  async function trocar(novaEmpresaId: string) {
+  const labelAtivo = empresas.find(e => e.id === value)?.label ?? value
+
+  async function trocar(novaId: string) {
+    if (novaId === value) { setOpen(false); return }
     const anterior = value
-    setValue(novaEmpresaId)
+    setValue(novaId)
+    setOpen(false)
     try {
       const res = await fetch('/api/portal/empresa/trocar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ empresaId: novaEmpresaId }),
+        body: JSON.stringify({ empresaId: novaId }),
       })
       if (res.ok) {
         startTransition(() => router.refresh())
@@ -37,15 +51,75 @@ export function EmpresaSelector({ empresas, empresaAtiva }: Props) {
   }
 
   return (
-    <select
-      value={value}
-      onChange={(e) => trocar(e.target.value)}
-      disabled={isPending}
-      className="rounded-md border border-outline-variant/30 bg-surface-container-low px-2 py-1 text-[12px] font-medium text-on-surface max-w-[200px] truncate disabled:opacity-50"
-    >
-      {empresas.map((emp) => (
-        <option key={emp.id} value={emp.id}>{emp.label}</option>
-      ))}
-    </select>
+    <div ref={ref} className="relative inline-block">
+      {/* Label de contexto */}
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50">
+        Empresa ativa
+      </p>
+
+      {/* Botão trigger */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        disabled={isPending}
+        className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[13px] font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container disabled:opacity-50"
+      >
+        <span
+          className="material-symbols-outlined shrink-0 text-[17px] text-primary"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
+          domain
+        </span>
+        <span className="max-w-[260px] truncate">{labelAtivo}</span>
+        <span
+          className="material-symbols-outlined shrink-0 text-[17px] text-on-surface-variant/50 transition-transform"
+          style={{
+            fontVariationSettings: "'FILL' 0, 'wght' 300",
+            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          }}
+        >
+          expand_more
+        </span>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1.5 min-w-[280px] rounded-xl border border-outline-variant/20 bg-surface-container shadow-lg ring-1 ring-black/5">
+          <div className="flex items-center gap-2 border-b border-outline-variant/15 px-3 py-2.5">
+            <span
+              className="material-symbols-outlined text-[15px] text-on-surface-variant/50"
+              style={{ fontVariationSettings: "'FILL' 0" }}
+            >
+              swap_horiz
+            </span>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
+              Trocar empresa
+            </p>
+          </div>
+          <ul className="py-1">
+            {empresas.map((emp) => {
+              const isActive = emp.id === value
+              return (
+                <li key={emp.id}>
+                  <button
+                    onClick={() => trocar(emp.id)}
+                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-primary/5"
+                  >
+                    <span
+                      className={`material-symbols-outlined shrink-0 text-[16px] ${isActive ? 'text-primary' : 'text-transparent'}`}
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      check_circle
+                    </span>
+                    <span className={`truncate ${isActive ? 'font-semibold text-primary' : 'text-on-surface'}`}>
+                      {emp.label}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
   )
 }
