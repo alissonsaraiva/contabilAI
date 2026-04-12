@@ -330,10 +330,9 @@ export function useWhatsAppChat(apiPath: string) {
       let lastRes: Response | null = null
 
       if (arquivos.length > 0) {
-        for (let i = 0; i < arquivos.length; i++) {
-          const arq = arquivos[i]
+        for (const arq of arquivos) {
           const res = await enviarPost({
-            conteudo: i === 0 ? texto.trim() : '',
+            conteudo: '',
             pausarIA: !naoModoIA,
             mediaUrl:      arq.url,
             mediaType:     arq.type,
@@ -342,6 +341,10 @@ export function useWhatsAppChat(apiPath: string) {
           })
           if (!res.ok) await tratarErroEnvio(res, 'arquivo')
           lastRes = res
+        }
+        if (texto.trim()) {
+          lastRes = await enviarPost({ conteudo: texto.trim(), pausarIA: !naoModoIA })
+          if (!lastRes.ok) await tratarErroEnvio(lastRes, 'mensagem')
         }
       } else {
         lastRes = await enviarPost({ conteudo: texto.trim(), pausarIA: !naoModoIA })

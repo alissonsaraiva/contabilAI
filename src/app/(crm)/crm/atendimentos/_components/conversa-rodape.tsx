@@ -75,8 +75,12 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
         })
       }
       if (novos.length > 0) setArquivos(prev => [...prev, ...novos])
-    } catch {
+    } catch (err) {
       toast.error('Erro ao fazer upload do arquivo')
+      Sentry.captureException(err, {
+        tags: { module: 'conversa-rodape', operation: 'upload' },
+        extra: { conversaId },
+      })
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -112,13 +116,12 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
     setEnviando(true)
     try {
       if (arquivos.length > 0) {
-        for (let i = 0; i < arquivos.length; i++) {
-          const arq = arquivos[i]
+        for (const arq of arquivos) {
           const res = await fetch(`/api/conversas/${conversaId}/mensagem`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              texto: i === 0 ? texto : '',
+              texto: '',
               mediaUrl:      arq.url,
               mediaType:     arq.type,
               mediaFileName: arq.name,
@@ -127,6 +130,16 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
           })
           if (!res.ok) {
             toast.error(`Falha ao enviar "${arq.name}"`)
+          }
+        }
+        if (texto.trim()) {
+          const res = await fetch(`/api/conversas/${conversaId}/mensagem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ texto }),
+          })
+          if (!res.ok) {
+            toast.error('Erro ao enviar mensagem de texto')
           }
         }
       } else {
@@ -142,7 +155,6 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
       }
       setTexto('')
       removerTodos()
-      router.refresh()
     } catch (err) {
       toast.error('Erro ao enviar mensagem')
       Sentry.captureException(err, {
@@ -151,6 +163,7 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
       })
     } finally {
       setEnviando(false)
+      router.refresh()
     }
   }
 

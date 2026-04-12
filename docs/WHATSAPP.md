@@ -643,6 +643,7 @@ Webhook detecta pausadaEm IS NOT NULL
 | De-duplicação in-memory | ⚠️ Aberto | Set de 5000 IDs por worker; duplicatas entre workers possíveis |
 | PIX com > 20h pode estar expirado | ✅ Resolvido v3.10.26 | `refresharPixCobranca()` renova QR Code automaticamente no contexto WhatsApp antes da IA responder — sem cancelar cobrança |
 | Sem health check Evolution API | ⚠️ Aberto | Instância desconectada não detectada proativamente |
+| Arquivos enviados não apareciam no histórico de /atendimentos | ✅ Resolvido v3.10.43 | `router.refresh()` estava no `try` de `conversa-rodape.tsx` — se `sendMedia` demorava e a conexão sofria timeout, o cliente recebia `TypeError: Failed to fetch`, caía no `catch`, e o `refresh` nunca era chamado. Movido para `finally`. |
 
 ---
 
@@ -677,6 +678,10 @@ src/
 │   ├─ whatsapp-utils.ts             # buildRemoteJid, isMediaUrlTrusted, checkRateLimit, MIME whitelist
 │   ├─ evolution.ts                  # Client Evolution API (sendText, sendMedia, retry, circuit breaker)
 │   └─ event-bus.ts                  # EventEmitter (SSE events)
+├─ app/(crm)/crm/atendimentos/
+│   └─ _components/
+│       └─ conversa-rodape.tsx        # Rodapé da conversa em /atendimentos (assumir, enviar, upload, docs sistema)
+│           # IMPORTANTE: router.refresh() no finally — garante refresh mesmo se sendMedia sofrer timeout
 └─ components/crm/
     ├─ whatsapp-chat-panel.tsx        # Orquestrador do drawer
     └─ whatsapp-chat/
