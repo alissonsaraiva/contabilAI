@@ -71,7 +71,7 @@ export default function SimuladorPage({ searchParams }: Props) {
         if (sim?.faturamento) setFaturamento(sim.faturamento)
         if (sim?.funcionarios) setFuncionarios(sim.funcionarios)
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [leadId])
 
   // Auto-lookup quando CNPJ é restaurado do banco (14 dígitos, sem dados ainda)

@@ -84,7 +84,7 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
   function handleDownload(d: Doc) {
     if (isNovo(d)) {
       setVistos(prev => new Set(prev).add(d.id))
-      fetch(`/api/portal/documentos/${d.id}/visualizar`, { method: 'PATCH' }).catch(() => { })
+      fetch(`/api/portal/documentos/${d.id}/visualizar`, { method: 'PATCH' }).catch(err => console.error('[portal/documentos] falha ao marcar como visualizado:', err))
     }
     window.open(`/api/portal/documentos/${d.id}/download`, '_blank', 'noopener,noreferrer')
   }

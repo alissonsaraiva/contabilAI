@@ -57,7 +57,7 @@ export function PortalPWA() {
           setTimeout(() => setShowPushBanner(true), 8000)
         }
       })
-      .catch(() => {})
+      .catch(err => console.error('[portal/pwa] falha ao registrar SW:', err))
 
     // Capturar o evento de instalação do PWA
     const handler = (e: Event) => {

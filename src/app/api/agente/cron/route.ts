@@ -47,7 +47,7 @@ export async function POST(req: Request) {
       expiradoEm: null,
     },
     data: { status: 'expirado', expiradoEm: agora },
-  }).catch(() => {})
+  }).catch(err => { console.error('[agente/cron] falha ao expirar leads:', err); Sentry.captureException(err, { tags: { module: 'agente-cron', operation: 'expirar-leads' } }) })
   await prisma.lead.updateMany({
     where: {
       status: { in: ['contrato_gerado', 'aguardando_assinatura'] },
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
       expiradoEm: null,
     },
     data: { status: 'expirado', expiradoEm: agora },
-  }).catch(() => {})
+  }).catch(err => { console.error('[agente/cron] falha ao expirar leads:', err); Sentry.captureException(err, { tags: { module: 'agente-cron', operation: 'expirar-leads' } }) })
   // ─────────────────────────────────────────────────────────────────────────
 
   // Busca no máximo 3 agendamentos por tick — cada executarAgente leva até 45s,

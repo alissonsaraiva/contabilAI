@@ -57,7 +57,7 @@ const aprovarDocumentoTool: Tool = {
     const doc = await prisma.documento.findUnique({
       where:  { id: documentoId },
       select: { id: true, nome: true, clienteId: true, leadId: true, empresaId: true, tipo: true, origem: true },
-    }).catch(() => null)
+    }).catch(err => { console.error('[tool/aprovar-documento] falha:', err); return null })
 
     if (!doc) {
       return { sucesso: false, erro: 'Documento não encontrado.', resumo: 'Ação cancelada: documento não encontrado.' }
@@ -74,7 +74,7 @@ const aprovarDocumentoTool: Tool = {
     await prisma.documento.update({
       where: { id: documentoId },
       data:  updateData,
-    }).catch(() => null)
+    }).catch(err => { console.error('[tool/aprovar-documento] falha:', err); return null })
 
     // Indexar no RAG para histórico do cliente
     indexarAsync('documento', {

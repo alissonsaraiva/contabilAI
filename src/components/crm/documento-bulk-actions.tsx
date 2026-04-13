@@ -50,7 +50,7 @@ export function DocumentoBulkActions({
       try {
         const res = await fetch(`/api/crm/documentos/${id}`, { method: 'DELETE' })
         return res.ok
-      } catch { return false }
+      } catch (err) { console.error('[documento-bulk-actions] falha ao deletar:', err); return false }
     })
     setLoading(false)
     setConfirmandoDelete(false)
@@ -73,7 +73,7 @@ export function DocumentoBulkActions({
           body: JSON.stringify({ visivelPortal }),
         })
         return res.ok
-      } catch { return false }
+      } catch (err) { console.error('[documento-bulk-actions] falha ao atualizar visibilidade:', err); return false }
     })
     setLoading(false)
     if (succeeded.length > 0) {

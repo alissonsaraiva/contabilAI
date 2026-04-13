@@ -27,7 +27,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   await prisma.relatorioAgente.delete({ where: { id } })
 
   // Limpa o índice RAG — fire-and-forget (não bloqueia nem propaga erro)
-  deleteEmbeddings({ documentoId: `relatorio:${id}` }).catch(() => {})
+  deleteEmbeddings({ documentoId: `relatorio:${id}` }).catch(err => console.error('[relatorios/DELETE] falha ao limpar embeddings:', err))
 
   return NextResponse.json({ ok: true })
 }

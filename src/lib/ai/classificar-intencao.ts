@@ -243,7 +243,8 @@ export async function classificarIntencao(
     const parsed = JSON.parse(result.text.trim()) as Intencao
     if (parsed.tipo !== 'pergunta' && parsed.tipo !== 'acao') return { tipo: 'pergunta' }
     return canal === 'portal' ? adaptarInstrucaoPortal(parsed) : parsed
-  } catch {
+  } catch (err) {
+    console.error('[classificar-intencao] falha na classificação IA, usando heurística:', err)
     // Parse/rede falhou → heurística semântica como fallback
     const r = classificarPorKeyword(mensagem, ultimaMsgIA)
     return canal === 'portal' ? adaptarInstrucaoPortal(r) : r

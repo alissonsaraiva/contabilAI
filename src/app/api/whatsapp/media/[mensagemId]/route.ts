@@ -77,7 +77,7 @@ export async function GET(
       mediaMimeType: media.mimeType,
       mediaFileName: media.fileName ?? null,
     },
-  }).catch(() => null)
+  }).catch(err => { console.error('[whatsapp/media] falha ao buscar mídia:', err); return null })
 
   const contentType = media.mimeType || 'application/octet-stream'
   const isInline = contentType.startsWith('audio/') || contentType.startsWith('image/')

@@ -170,7 +170,7 @@ export function useWhatsAppChat(apiPath: string) {
             ))
             return
           }
-        } catch { }
+        } catch (err) { console.error('[whatsapp-chat] falha ao processar evento SSE:', err) }
         carregar()
       }
       es.onerror = () => {

@@ -30,14 +30,14 @@ export default function ConfirmacaoPage({ searchParams }: Props) {
       .then((data: { contrato?: { pdfUrl?: string } }) => {
         if (data.contrato?.pdfUrl) setPdfUrl(`/api/leads/${leadId}/contrato/download`)
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [leadId, isAguardando])
 
   useEffect(() => {
     fetch('/api/escritorio')
       .then(r => r.json())
       .then((e: { whatsapp?: string | null }) => { if (e?.whatsapp) setWhatsapp(e.whatsapp) })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [])
 
   if (isAguardando) {

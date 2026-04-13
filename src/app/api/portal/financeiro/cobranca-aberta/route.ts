@@ -65,7 +65,7 @@ export async function GET() {
   let pixExpiradoFinal   = pixExpirado
 
   if (pixExpirado && cobranca.status === 'PENDING') {
-    const refreshed = await refresharPixCobranca(cobranca.id).catch(() => null)
+    const refreshed = await refresharPixCobranca(cobranca.id).catch(err => { console.error('[portal/cobranca-aberta] falha ao renovar PIX:', err); return null })
     if (refreshed) {
       pixQrCodeFinal     = refreshed.pixQrCode
       pixCopiaEColaFinal = refreshed.pixCopiaECola

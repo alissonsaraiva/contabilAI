@@ -30,7 +30,8 @@ export async function indexarRelatorio(rel: RelatorioAgenteData): Promise<void> 
     const { relatorioJSONParaTexto, parseRelatorioJSON } = await import('@/lib/relatorio-schema')
     const parsed = parseRelatorioJSON(rel.conteudo)
     if (parsed) conteudoTexto = relatorioJSONParaTexto(parsed)
-  } catch {
+  } catch (err) {
+    console.error('[rag/ingestores/agente] falha no parse, usando texto bruto:', err)
     // fallback para texto bruto
   }
 
@@ -120,7 +121,7 @@ export async function indexarAgenteAcao(acao: AgenteAcaoData): Promise<void> {
       .filter(([, v]) => v != null && String(v).length < 200)
       .map(([k, v]) => `${k}: ${String(v)}`)
       .join(', ')
-  } catch { /* ignora */ }
+  } catch (err) { console.error('[rag/ingestores/agente] falha:', err) }
 
   const linhas = [
     `Ação do agente: ${acao.tool}`,

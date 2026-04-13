@@ -225,7 +225,8 @@ export async function getIntegraContadorConfig(): Promise<IntegraContadorConfig 
   try {
     const parsed = JSON.parse(esc.integraContadorModulos ?? '[]')
     modulos = Array.isArray(parsed) ? parsed : []
-  } catch {
+  } catch (err) {
+    console.error('[integra-contador] falha ao buscar módulos:', err)
     modulos = []
   }
 

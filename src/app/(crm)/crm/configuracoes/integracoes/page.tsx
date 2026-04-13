@@ -140,7 +140,7 @@ function IntegraContadorSection() {
         if (data.dasMeiCanalWhatsapp    != null) setDasMeiCanalWhatsapp(Boolean(data.dasMeiCanalWhatsapp))
         if (data.dasMeiCanalPwa         != null) setDasMeiCanalPwa(Boolean(data.dasMeiCanalPwa))
       })
-      .catch(() => {})
+      .catch(err => console.error('[crm/integracoes] falha ao reindexar:', err))
   }, [])
 
   const handleCertFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

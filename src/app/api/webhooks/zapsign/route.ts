@@ -86,7 +86,8 @@ export async function POST(req: Request) {
   let payload: ZapSignWebhookPayload
   try {
     payload = await req.json() as ZapSignWebhookPayload
-  } catch {
+  } catch (err) {
+    console.error('[webhooks/zapsign] falha ao parsear payload:', err)
     return NextResponse.json({ error: 'payload inválido' }, { status: 400 })
   }
 

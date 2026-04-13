@@ -35,7 +35,7 @@ export default function RevisaoPage({ searchParams }: Props) {
     fetch('/api/planos')
       .then(r => r.json())
       .then((data: PlanoInfo[]) => { if (Array.isArray(data) && data.length > 0) setPlanos(data) })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
 
     fetch('/api/escritorio')
       .then(r => r.json())
@@ -47,7 +47,7 @@ export default function RevisaoPage({ searchParams }: Props) {
           pixDescontoPercent: e?.pixDescontoPercent ?? 5.0,
         })
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [])
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function RevisaoPage({ searchParams }: Props) {
         if (lead.vencimentoDia) setVencimento(lead.vencimentoDia)
         if (lead.formaPagamento) setFormaPagamento(lead.formaPagamento)
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [leadId])
 
   async function handleConcluir() {

@@ -149,7 +149,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
           })))
         }
       })
-      .catch(() => {})
+      .catch(err => console.error('[portal/clara] falha:', err))
   }, [sessionId])
 
   // ── SSE para receber mensagens do operador — ativo sempre que há conversaId ──
@@ -187,7 +187,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
             }])
             if (!openRef.current) setUnread(n => n + 1)
           }
-        } catch {}
+        } catch (err) { console.error('[portal-clara] falha ao processar evento SSE:', err) }
       }
 
       es.onerror = () => {
@@ -286,7 +286,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
             })),
           ]
         })
-      } catch {}
+      } catch (err) { console.error('[portal-clara] falha no polling de mensagens:', err) }
     }, 8_000)
     return () => clearInterval(id)
   }, [conversaId, sessionId])

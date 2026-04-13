@@ -73,7 +73,7 @@ export default function PlanoPage({ searchParams }: Props) {
           servicos: p.servicos,
         })))
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [])
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function PlanoPage({ searchParams }: Props) {
       .then((lead: { planoTipo?: PlanoTipo }) => {
         if (lead.planoTipo) setSelecionado(lead.planoTipo)
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [leadId])
 
   async function handleEscolher() {

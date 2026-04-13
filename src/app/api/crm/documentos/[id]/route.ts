@@ -128,7 +128,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   })
 
   // Remove embeddings do RAG (falha silenciosa — não bloqueia a resposta)
-  deleteBySourceId(id).catch(() => {})
+  deleteBySourceId(id).catch(err => { console.error('[documentos/DELETE] falha ao remover embeddings RAG:', err); Sentry.captureException(err, { tags: { module: 'crm-documentos', operation: 'delete-embeddings' }, extra: { id } }) })
 
   // Remove arquivo do S3 (fire-and-forget — falha não impede o delete)
   if (doc.url) {

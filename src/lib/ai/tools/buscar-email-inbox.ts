@@ -109,7 +109,7 @@ const buscarEmailInboxTool: Tool = {
         clienteId: true,
         cliente:  { select: { nome: true } },
       },
-    }).catch(() => [])
+    }).catch(err => { console.error('[tool/buscar-email-inbox] falha:', err); return [] as any[] })
 
     // Filtro por remetente (no conteúdo — e-mails têm "De: X" no conteúdo indexado)
     const filtrados = de

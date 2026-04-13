@@ -85,7 +85,7 @@ export function AssistenteCRM({ nomeIa = 'Clara' }: { nomeIa?: string }) {
           })))
         }
       })
-      .catch(() => {})
+      .catch(err => console.error('[crm/assistente] falha ao carregar conversas:', err))
   }, [open])
 
   useEffect(() => {

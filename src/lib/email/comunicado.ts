@@ -108,7 +108,8 @@ export async function enviarComunicadoPorEmail(
           create: { id: crypto.randomUUID(), comunicadoId: comunicado.id, clienteId: cliente.id, email: cliente.email, status: 'falhou', erro: err instanceof Error ? err.message : String(err) },
           update: { status: 'falhou', erro: err instanceof Error ? err.message : String(err) },
         })
-      } catch {
+      } catch (err) {
+        console.error('[email/comunicado] falha ao salvar status de envio:', err)
         // Não propaga — manter loop rodando para os demais clientes
       }
     }

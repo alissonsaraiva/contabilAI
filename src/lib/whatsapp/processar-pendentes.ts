@@ -161,7 +161,7 @@ export async function processarMensagensPendentes(): Promise<{
                   continue
                 }
               }
-              await prisma.mensagemIA.update({ where: { id: m.id }, data: updateData }).catch(() => null)
+              await prisma.mensagemIA.update({ where: { id: m.id }, data: updateData }).catch(err => { console.error('[whatsapp/processar-pendentes] falha ao atualizar mensagemIA:', err); return null })
             }
           } catch (err: unknown) {
             // retry de download falhou — mantém placeholder [document] visível no CRM para o operador
@@ -345,7 +345,7 @@ export async function processarMensagensPendentes(): Promise<{
         await prisma.conversaIA.update({
           where: { id: conversa.id },
           data:  { pausadaEm: new Date() },
-        }).catch(() => null)
+        }).catch(err => { console.error('[whatsapp/processar-pendentes] falha:', err); return null })
         await prisma.mensagemIA.updateMany({
           where: { id: { in: msgs.map(m => m.id) } },
           data:  { aiProcessado: true },

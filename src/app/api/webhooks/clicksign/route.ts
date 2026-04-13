@@ -219,7 +219,7 @@ export async function POST(req: Request) {
         await prisma.contrato.update({
           where: { id: contrato.id },
           data: { clienteId },
-        }).catch(() => { /* ignora se já vinculado */ })
+        }).catch(err => { console.error('[webhooks/clicksign] falha ao vincular contrato ao cliente:', err) /* ignora se já vinculado */ })
       }
     } else {
       console.error('[ClickSign webhook] Falha na transação de conversão lead→cliente:', err)

@@ -48,12 +48,12 @@ export default function ContratoPage({ searchParams }: Props) {
     fetch('/api/planos')
       .then(r => r.json())
       .then((data: PlanoInfo[]) => { if (Array.isArray(data) && data.length > 0) setPlanos(data) })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
 
     fetch('/api/escritorio')
       .then(r => r.json())
       .then((e: EscritorioInfo) => { if (e) setEscritorio(e) })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [])
 
   useEffect(() => {

@@ -48,7 +48,7 @@ export async function enviarEmailComHistorico(
   const customMessageId = `<${nanoid(16)}@${escritorioHost}>`
 
   // Busca nome do escritório para o template
-  const escritorio = await prisma.escritorio.findFirst({ select: { nome: true } }).catch(() => null)
+  const escritorio = await prisma.escritorio.findFirst({ select: { nome: true } }).catch(err => { console.error('[email/com-historico] falha ao buscar escritório:', err); return null })
   const corpoHtml  = wrapEmailHtml(input.corpo, {
     nomeEscritorio: escritorio?.nome ?? 'Avos',
     assunto:        input.assunto,
@@ -76,7 +76,8 @@ export async function enviarEmailComHistorico(
         ids.unshift(input.inReplyToMessageId)
       }
       if (ids.length > 0) referencesChain = ids.join(' ')
-    } catch {
+    } catch (err) {
+      console.error('[email/com-historico] falha ao buscar cadeia de referências:', err)
       // Falha ao buscar cadeia — usa apenas inReplyTo como fallback
       referencesChain = input.inReplyToMessageId
     }

@@ -101,7 +101,7 @@ const buscarCobrancaAbertaTool: Tool = {
     // PENDING + PIX expirado → renova QR code sem cancelar a cobrança
     let pixAtualizado = cobranca.pixCopiaECola
     if (pixExpirado && cobranca.status === 'PENDING') {
-      const refreshed = await refresharPixCobranca(cobranca.id).catch(() => null)
+      const refreshed = await refresharPixCobranca(cobranca.id).catch(err => { console.error('[tool/buscar-cobranca] falha ao renovar PIX:', err); return null })
       if (refreshed) pixAtualizado = refreshed.pixCopiaECola
     }
 

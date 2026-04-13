@@ -39,7 +39,7 @@ function HeaderInner() {
     fetch('/api/escritorio')
       .then(r => r.json())
       .then((e: { nome?: string | null }) => { if (e?.nome) setNomeEscritorio(e.nome) })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [])
 
   const leadId = searchParams.get('leadId')
@@ -55,7 +55,7 @@ function HeaderInner() {
       .then((lead: { stepAtual?: number }) => {
         if (lead.stepAtual) setMaxStep(lead.stepAtual)
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [leadId])
 
   function handleSalvarSair() {

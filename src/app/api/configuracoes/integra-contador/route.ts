@@ -142,7 +142,7 @@ export async function PUT(req: Request) {
       select: { nome: true, nomeFantasia: true, cnpj: true },
     }).then(esc => {
       if (esc) indexarAsync('escritorio', esc)
-    }).catch(() => {})
+    }).catch(err => console.error('[integra-contador/PUT] falha na reindexação:', err))
 
     return NextResponse.json({ ok: true })
   } catch (err) {

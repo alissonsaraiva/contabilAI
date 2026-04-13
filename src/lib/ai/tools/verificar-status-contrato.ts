@@ -73,7 +73,7 @@ const verificarStatusContratoTool: Tool = {
           },
         },
       },
-    }).catch(() => null)
+    }).catch(err => { console.error('[tool/verificar-status-contrato] falha:', err); return null })
 
     if (!contrato) {
       return {

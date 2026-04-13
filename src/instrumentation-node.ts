@@ -72,7 +72,7 @@ async function checkAiHealth() {
         const eraOk = anteriorCheckedAt === 0 || anteriorOk
         if (eraOk) {
           const { notificarIaOffline } = await import('@/lib/notificacoes')
-          notificarIaOffline(provider, erro).catch(() => {})
+          notificarIaOffline(provider, erro).catch(err => console.error('[instrumentation] falha ao notificar IA offline:', err))
         }
       }
     }

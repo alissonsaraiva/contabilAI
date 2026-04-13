@@ -45,7 +45,7 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
           )
         }
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding/chat] falha ao carregar:', err))
   }, [])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)

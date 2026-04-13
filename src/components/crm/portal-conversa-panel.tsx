@@ -83,7 +83,7 @@ export function PortalConversaPanel({
             ))
             return
           }
-        } catch { }
+        } catch (err) { console.error('[crm/portal-conversa] falha ao processar evento SSE:', err) }
         carregar()
       }
       es.onerror = () => {

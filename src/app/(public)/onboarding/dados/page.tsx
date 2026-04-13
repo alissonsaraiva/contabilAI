@@ -150,7 +150,7 @@ export default function DadosPage({ searchParams }: Props) {
           else if (/\S+@\S+\.\S+/.test(contato)) setForm(f => ({ ...f, email: contato }))
         }
       })
-      .catch(() => {})
+      .catch(err => console.error('[onboarding] falha ao salvar progresso:', err))
   }, [leadId])
 
   function set(field: string, value: string) {

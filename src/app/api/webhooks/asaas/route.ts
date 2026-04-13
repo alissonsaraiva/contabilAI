@@ -106,7 +106,8 @@ export async function POST(req: Request) {
   let payload: AsaasWebhookPayload
   try {
     payload = await req.json() as AsaasWebhookPayload
-  } catch {
+  } catch (err) {
+    console.error('[webhooks/asaas] falha ao parsear payload:', err)
     return NextResponse.json({ error: 'payload inválido' }, { status: 400 })
   }
 

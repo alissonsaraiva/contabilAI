@@ -101,8 +101,8 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
             select:  { id: true, valor: true, vencimento: true, status: true, pixCopiaECola: true, linkBoleto: true, atualizadoEm: true, pixGeradoEm: true, formaPagamento: true },
           },
         },
-      }).catch(() => null),
-      resolverEmpresasDoCliente(conversa.clienteId).catch(() => []),
+      }).catch(err => { console.error('[whatsapp/contexto] falha ao carregar contexto:', err); return null }),
+      resolverEmpresasDoCliente(conversa.clienteId).catch(err => { console.error('[whatsapp/contexto] falha ao resolver empresas:', err); return [] as any[] }),
     ])
     empresasCliente = _emps
     const nomeLabel = empresasCliente[0]?.razaoSocial ?? empresasCliente[0]?.nomeFantasia ?? clienteRow?.nome ?? ''
@@ -189,7 +189,7 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
       const socioRow = await prisma.socio.findUnique({
         where:  { id: conversa.socioId },
         select: { nome: true },
-      }).catch(() => null)
+      }).catch(err => { console.error('[whatsapp/contexto] falha ao carregar contexto:', err); return null })
       systemExtra += `\n\nCONTEXTO: SÓCIO DA EMPRESA${nomeLabel ? ` — ${nomeLabel}` : ''}${socioRow?.nome ? ` | Sócio: ${socioRow.nome}` : ''}${inadimplenteSuffix}\n\n${whatsappGuardrail}`
     } else {
       systemExtra += `\n\nCONTEXTO: CLIENTE${clienteRow?.status === 'inadimplente' ? ' INADIMPLENTE' : ' ATIVO'}${nomeLabel ? ` — ${nomeLabel}` : ''}${inadimplenteSuffix}\n\n${whatsappGuardrail}`
@@ -199,7 +199,7 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
     const leadRow = await prisma.lead.findUnique({
       where:  { id: conversa.leadId },
       select: { dadosJson: true },
-    }).catch(() => null)
+    }).catch(err => { console.error('[whatsapp/contexto] falha ao carregar contexto:', err); return null })
     const dados = (leadRow?.dadosJson ?? {}) as Record<string, string>
     const nomeLead = dados['Nome completo'] ?? dados['Razão Social'] ?? ''
     systemExtra += `\n\nCONTEXTO: LEAD${nomeLead ? ` — ${nomeLead}` : ''}\n\n${whatsappGuardrail}`
@@ -262,7 +262,7 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
       orderBy: { criadoEm: 'desc' },
       take:    3,
       select:  { canal: true, motivoIA: true, criadoEm: true, status: true },
-    }).catch(() => [])
+    }).catch(err => { console.error('[whatsapp/contexto] falha ao carregar dados:', err); return [] as any[] })
     if (escalacoesPendentes.length > 0) {
       const linhasEsc = escalacoesPendentes.map(e => {
         const data = e.criadoEm.toLocaleDateString('pt-BR')

@@ -134,7 +134,7 @@ export async function PUT(req: Request) {
   }).then(esc => {
     if (esc) indexarAsync('escritorio', esc)
     indexarAsync('planos', null)   // indexarPlanos() faz seu próprio fetch
-  }).catch(() => {})
+  }).catch(err => console.error('[configuracoes/ia] falha na reindexação:', err))
 
   return NextResponse.json({ ok: true })
 }

@@ -137,7 +137,8 @@ Retorna:
         if (parsed.urgencia && parsed.tipo) {
           classificacao = { urgencia: parsed.urgencia, tipo: parsed.tipo }
         }
-      } catch {
+      } catch (err) {
+        console.error('[tool/classificar-email] falha na classificação IA:', err)
         // Fallback para classificação padrão
         classificacao = { urgencia: 'baixa', tipo: 'informativo' }
       }

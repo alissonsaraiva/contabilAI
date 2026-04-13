@@ -26,7 +26,7 @@ export function useBadges(inicial?: Partial<Badges>): Badges {
         if (!res.ok) return
         const data = await res.json() as Badges
         setBadges(data)
-      } catch { /* silencia — não interrompe a navegação */ }
+      } catch (err) { console.error('[use-badges] falha ao carregar badges:', err) /* não interrompe a navegação */ }
     }
 
     load()

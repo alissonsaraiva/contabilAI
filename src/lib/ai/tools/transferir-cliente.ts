@@ -68,7 +68,7 @@ const transferirClienteTool: Tool = {
           }) },
         },
         select: { id: true, nome: true },
-      }).catch(() => null)
+      }).catch(err => { console.error('[tool/transferir-cliente] falha:', err); return null })
 
       if (!usuario) {
         return { sucesso: false, erro: `Usuário "${novoResponsavelNome}" não encontrado.`, resumo: `Transferência cancelada: usuário "${novoResponsavelNome}" não encontrado.` }
@@ -83,7 +83,7 @@ const transferirClienteTool: Tool = {
 
     // Busca nome do responsável se não foi fornecido
     if (!responsavelNome) {
-      const u = await prisma.usuario.findUnique({ where: { id: responsavelId }, select: { nome: true } }).catch(() => null)
+      const u = await prisma.usuario.findUnique({ where: { id: responsavelId }, select: { nome: true } }).catch(err => { console.error('[tool/transferir-cliente] falha:', err); return null })
       responsavelNome = u?.nome ?? responsavelId
     }
 
@@ -94,7 +94,7 @@ const transferirClienteTool: Tool = {
         where: { id: clienteId },
         data:  { responsavelId },
         select: { id: true, nome: true, email: true, telefone: true, whatsapp: true, planoTipo: true, valorMensal: true, vencimentoDia: true, formaPagamento: true, cidade: true, uf: true, empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true, socios: true } }, clienteEmpresas: { include: { empresa: { select: { razaoSocial: true, cnpj: true, regime: true, nomeFantasia: true, socios: true } } }, orderBy: { principal: 'desc' } } },
-      }).catch(() => null)
+      }).catch(err => { console.error('[tool/transferir-cliente] falha:', err); return null })
 
       if (!cliente) return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Transferência cancelada: cliente não encontrado.' }
       const empPrincipal = cliente.clienteEmpresas[0]?.empresa ?? cliente.empresa
@@ -128,7 +128,7 @@ const transferirClienteTool: Tool = {
         where: { id: leadId },
         data:  { responsavelId },
         select: { id: true, contatoEntrada: true },
-      }).catch(() => null)
+      }).catch(err => { console.error('[tool/transferir-cliente] falha:', err); return null })
 
       if (!lead) return { sucesso: false, erro: 'Lead não encontrado.', resumo: 'Transferência cancelada: lead não encontrado.' }
       nomeEntidade = lead.contatoEntrada

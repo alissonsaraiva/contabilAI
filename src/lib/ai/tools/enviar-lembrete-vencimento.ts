@@ -51,7 +51,7 @@ const enviarLembreteVencimentoTool: Tool = {
       const c = await prisma.cliente.findUnique({
         where:  { id: clienteId },
         select: { id: true, nome: true, email: true, telefone: true, whatsapp: true, vencimentoDia: true, valorMensal: true, planoTipo: true, status: true },
-      }).catch(() => null)
+      }).catch(err => { console.error('[tool/enviar-lembrete] falha ao buscar documento:', err); return null })
       if (!c || c.status !== 'ativo') {
         return { sucesso: false, erro: 'Cliente não encontrado ou não está ativo.', resumo: 'Lembrete não enviado.' }
       }
@@ -70,7 +70,7 @@ const enviarLembreteVencimentoTool: Tool = {
         where:  { status: 'ativo', vencimentoDia: { in: diasAlvo } },
         select: { id: true, nome: true, email: true, telefone: true, whatsapp: true, vencimentoDia: true, valorMensal: true, planoTipo: true },
         take:   50,
-      }).catch(() => [])
+      }).catch(err => { console.error('[tool/enviar-lembrete] falha ao buscar documentos:', err); return [] as any[] })
     }
 
     if (clientes.length === 0) {

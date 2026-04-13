@@ -67,7 +67,7 @@ export default function EmailPage() {
     fetch('/api/email/sync')
       .then(r => r.json())
       .then(data => setEmailHealth(data))
-      .catch(() => { })
+      .catch(err => console.error('[crm/email-config] falha:', err))
   }, [])
 
   function set(field: keyof EmailConfig, value: string) {

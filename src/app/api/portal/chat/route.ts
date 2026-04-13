@@ -121,7 +121,7 @@ export async function POST(req: Request) {
     dadosSocio = await prisma.socio.findUnique({
       where: { id: sessionUserId },
       select: { nome: true, email: true, qualificacao: true, participacao: true },
-    }).catch(() => null)
+    }).catch(err => { console.error('[portal/chat] falha ao carregar sócio:', err); return null })
   }
 
   const [conversaId, aiConfig, escritorio] = await Promise.all([
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
 
   const [historico, empresasCliente, empresaAtiva] = await Promise.all([
     getHistorico(conversaId),
-    clienteIdParaConversa ? resolverEmpresasDoCliente(clienteIdParaConversa).catch(() => []) : Promise.resolve([]),
+    clienteIdParaConversa ? resolverEmpresasDoCliente(clienteIdParaConversa).catch(err => { console.error('[portal/chat] falha ao resolver empresas:', err); return [] as any[] }) : Promise.resolve([]),
     empresaId
       ? prisma.empresa.findUnique({ where: { id: empresaId }, select: { regime: true, cnpj: true, razaoSocial: true, nomeFantasia: true } })
       : Promise.resolve(null),
@@ -234,7 +234,7 @@ REGRAS DE ATENDIMENTO:
         // PENDING + PIX expirado → renova QR code sem cancelar a cobrança
         let pixAtualizado = cob.pixCopiaECola
         if (cob.pixCopiaECola && pixPodeEstarExpirado && cob.status === 'PENDING') {
-          const refreshed = await refresharPixCobranca(cob.id).catch(() => null)
+          const refreshed = await refresharPixCobranca(cob.id).catch(err => { console.error('[portal/chat] falha ao renovar PIX:', err); return null })
           if (refreshed) pixAtualizado = refreshed.pixCopiaECola
         }
 
@@ -262,7 +262,7 @@ REGRAS DE ATENDIMENTO:
       // PENDING + PIX expirado → renova QR code sem cancelar a cobrança
       let pixAtivoAtualizado = cob.pixCopiaECola
       if (pixExpiradoAtivo) {
-        const refreshed = await refresharPixCobranca(cob.id).catch(() => null)
+        const refreshed = await refresharPixCobranca(cob.id).catch(err => { console.error('[portal/chat] falha ao renovar PIX:', err); return null })
         if (refreshed) pixAtivoAtualizado = refreshed.pixCopiaECola
       }
 
@@ -284,7 +284,7 @@ REGRAS DE ATENDIMENTO:
     orderBy: { criadoEm: 'desc' },
     take: 3,
     select: { canal: true, motivoIA: true, criadoEm: true, status: true },
-  }).catch(() => [])
+  }).catch(err => { console.error('[portal/chat] falha ao carregar dados:', err); return [] as any[] })
   if (escalacoesPendentes.length > 0) {
     const linhasEsc = escalacoesPendentes.map(e => {
       const data = e.criadoEm.toLocaleDateString('pt-BR')

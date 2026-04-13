@@ -84,7 +84,7 @@ export async function POST(req: Request) {
       comunicado.anexoNome = anexo.name
     } catch (err) {
       // Falha no upload — desfaz o comunicado para evitar registro sem anexo
-      await prisma.comunicado.delete({ where: { id: comunicado.id } }).catch(() => {})
+      await prisma.comunicado.delete({ where: { id: comunicado.id } }).catch(delErr => { console.error('[comunicados/POST] falha ao desfazer comunicado após erro de upload:', delErr); Sentry.captureException(delErr, { tags: { module: 'crm-comunicados', operation: 'rollback-comunicado' }, extra: { comunicadoId: comunicado.id } }) })
       console.error('[comunicados] falha no upload do anexo:', err)
       Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'upload-anexo' }, extra: { comunicadoId: comunicado.id } })
       return NextResponse.json({ error: 'Falha ao enviar o anexo. Tente novamente.' }, { status: 502 })

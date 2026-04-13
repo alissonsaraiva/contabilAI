@@ -61,7 +61,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
         setConversas(data.conversas ?? [])
         if (data.conversas?.length === 1) setConversaAberta(data.conversas[0].id)
       })
-      .catch(() => {})
+      .catch(err => console.error('[crm/portal-chat-drawer] falha ao carregar:', err))
       .finally(() => setLoading(false))
   }, [open, clienteId])
 

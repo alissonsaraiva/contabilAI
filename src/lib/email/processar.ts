@@ -81,7 +81,7 @@ export async function processarEmailRecebido(email: EmailRecebido): Promise<Resu
               nome: anexo.nome,
             })
             if (detectada) empresaIdAnexo = detectada
-          } catch { /* fallback para empresa principal */ }
+          } catch (err) { console.error('[email/processar] falha ao detectar empresa, usando principal:', err) }
         }
 
         // Usa criarDocumento() — S3 + banco + RAG + resumo automático

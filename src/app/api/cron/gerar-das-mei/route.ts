@@ -143,7 +143,7 @@ export async function POST(req: Request) {
           <ul>${errosDetalhe.map(e => `<li>${e}</li>`).join('')}</ul>
           <p>Verifique o Sentry para mais detalhes ou gere manualmente pelo CRM.</p>
         `,
-      }).catch(() => {})
+      }).catch(err => { console.error('[cron/gerar-das-mei] falha ao enviar email de erros:', err); Sentry.captureException(err, { tags: { module: 'cron-gerar-das-mei', operation: 'email-erros' } }) })
     }
 
     void hc.ok(process.env.HC_GERAR_DAS_MEI)

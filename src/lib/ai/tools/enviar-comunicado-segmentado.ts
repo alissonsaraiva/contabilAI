@@ -145,7 +145,8 @@ Segmento pode filtrar por:
         const { indexarAsync } = await import('@/lib/rag/indexar-async')
         // O comunicado será re-indexado pelo hook do prisma (se existir), ou manualmente aqui:
         // indexarAsync é fire-and-forget, não precisamos aguardar
-      } catch {
+      } catch (err) {
+        console.error('[tool/enviar-comunicado-segmentado] falha ao enviar:', err)
         falhas++
       }
     }
@@ -157,7 +158,7 @@ Segmento pode filtrar por:
           const { getTool } = require('./registry')
           return getTool('enviarWhatsappCliente')
         })
-        .catch(() => null)
+        .catch(err => { console.error('[tool/enviar-comunicado-segmentado] falha ao carregar tool whatsapp:', err); return null })
 
       for (const cliente of clientes) {
         const tel = cliente.whatsapp ?? cliente.telefone
@@ -174,7 +175,8 @@ Segmento pode filtrar por:
           } else {
             falhas++
           }
-        } catch {
+        } catch (err) {
+          console.error('[tool/enviar-comunicado-segmentado] falha ao enviar:', err)
           falhas++
         }
       }

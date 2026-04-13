@@ -91,7 +91,7 @@ const reativarClienteTool: Tool = {
         planoTipo: true, valorMensal: true, vencimentoDia: true, formaPagamento: true,
         cidade: true, uf: true,
       },
-    }).catch(() => null)
+    }).catch(err => { console.error('[tool/reativar-cliente] falha na reindexação:', err); return null })
     if (clienteAtualizado) {
       indexarAsync('cliente', clienteAtualizado)
     }

@@ -60,7 +60,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
         setMunicipioIntegrado(data.municipioIntegrado ?? null)
         setMunicipioNome(data.municipioNome ?? null)
       })
-      .catch(() => {/* silencioso */})
+      .catch(err => console.error('[crm/notas-fiscais] falha ao buscar:', err))
   }, [clienteId, spedyOk])
 
   // Polling automático quando há notas em processamento — evita o usuário ter que recarregar manualmente

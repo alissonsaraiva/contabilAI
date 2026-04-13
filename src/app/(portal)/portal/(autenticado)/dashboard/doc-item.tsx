@@ -14,7 +14,7 @@ interface DocItemProps {
 export function DocItem({ id, nome, ext, criadoEm, visualizadoEm, extColor }: DocItemProps) {
   function handleClick() {
     if (!visualizadoEm) {
-      fetch(`/api/portal/documentos/${id}/visualizar`, { method: 'PATCH' }).catch(() => {})
+      fetch(`/api/portal/documentos/${id}/visualizar`, { method: 'PATCH' }).catch(err => console.error('[portal/doc-item] falha ao marcar como visualizado:', err))
     }
     window.open(`/api/portal/documentos/${id}/download`, '_blank', 'noopener,noreferrer')
   }

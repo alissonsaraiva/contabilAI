@@ -41,7 +41,7 @@ export function arquivarMidiaWhatsappAsync(input: ArquivarMidiaInput): void {
           })
           return v?.empresaId ?? undefined
         })
-        .catch(() => undefined)
+        .catch(err => { console.error('[whatsapp/arquivar-midia] falha:', err); return undefined })
     : Promise.resolve(undefined)
 
   Promise.all([buildContextoConversa(input.conversaId, 5), getEmpresaId])

@@ -69,7 +69,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   // Lead cancelado não deve permanecer indexado no RAG
   import('@/lib/rag/store').then(({ deleteEmbeddings }) =>
     deleteEmbeddings({ leadId: id })
-  ).catch(() => {})
+  ).catch(err => console.error('[leads/DELETE] falha ao limpar embeddings:', err))
 
   return NextResponse.json({ ok: true })
 }

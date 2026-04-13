@@ -130,7 +130,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   await prisma.cliente.delete({ where: { id } })
 
   // Limpa todos os embeddings do cliente (tarefas, interações, documentos, dados_empresa, etc.)
-  deleteEmbeddings({ clienteId: id }).catch(() => {})
+  deleteEmbeddings({ clienteId: id }).catch(err => console.error('[clientes/DELETE] falha ao limpar embeddings:', err))
 
   return NextResponse.json({ ok: true })
 }

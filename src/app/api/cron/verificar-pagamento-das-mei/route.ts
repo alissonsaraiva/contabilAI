@@ -134,7 +134,7 @@ export async function POST(req: Request) {
             <ul>${atrasadasAdmin.map(n => `<li>${n}</li>`).join('')}</ul>
             <p>Verifique o CRM para mais detalhes e acione os clientes se necessário.</p>
           `,
-        }).catch(() => {})
+        }).catch(err => { console.error('[cron/verificar-pagamento-das-mei] falha ao enviar email admin:', err); Sentry.captureException(err, { tags: { module: 'cron-verificar-pagamento-das', operation: 'email-admin' } }) })
       }
     }
 

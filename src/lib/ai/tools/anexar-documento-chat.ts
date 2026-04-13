@@ -89,7 +89,7 @@ const anexarDocumentoChatTool: Tool = {
         mediaMimeType: true,
         mediaFileName: true,
       },
-    }).catch(() => null)
+    }).catch(err => { console.error('[tool/anexar-documento] falha:', err); return null })
 
     if (!mensagem?.mediaBuffer) {
       return {
@@ -116,7 +116,7 @@ const anexarDocumentoChatTool: Tool = {
           nome: fileName,
         })
         if (detectada) { empresaId = detectada; empresaDetectada = true }
-      } catch { /* fallback para empresa principal */ }
+      } catch (err) { console.error('[tool/anexar-documento] falha ao resolver empresa, usando principal:', err) }
     }
 
     // Multi-empresa: se não detectou CNPJ e cliente tem N > 1, pede confirmação
@@ -154,7 +154,7 @@ const anexarDocumentoChatTool: Tool = {
       // Monta resumo com info da empresa (quando multi-empresa)
       let resumo = `Documento "${doc.nome}" cadastrado com sucesso no sistema (${tipoLabel}).`
       if (clienteId && empresaId) {
-        const empresas = await resolverEmpresasDoCliente(clienteId).catch(() => [])
+        const empresas = await resolverEmpresasDoCliente(clienteId).catch(err => { console.error('[tool/anexar-documento] falha ao resolver empresas:', err); return [] as any[] })
         if (empresas.length > 1) {
           const empUsada = empresas.find(e => e.empresaId === empresaId)
           const label = empUsada?.nomeFantasia ?? empUsada?.razaoSocial ?? empUsada?.cnpj

@@ -64,7 +64,7 @@ const gerarRelatorioInadimplenciaTool: Tool = {
         },
       },
       orderBy: { vencimentoDia: 'asc' },
-    }).catch(() => [])
+    }).catch(err => { console.error('[tool/gerar-relatorio-inadimplencia] falha:', err); return [] as any[] })
 
     if (clientes.length === 0) {
       return {

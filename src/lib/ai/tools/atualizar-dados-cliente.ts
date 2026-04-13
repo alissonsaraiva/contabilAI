@@ -93,7 +93,7 @@ const atualizarDadosClienteTool: Tool = {
           orderBy: { principal: 'desc' },
         },
       },
-    }).catch(() => null)
+    }).catch(err => { console.error('[tool/atualizar-dados-cliente] falha na reindexação:', err); return null })
 
     if (!cliente) {
       return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Atualização falhou: cliente não encontrado.' }
