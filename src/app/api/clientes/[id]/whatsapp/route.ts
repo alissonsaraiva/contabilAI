@@ -51,9 +51,17 @@ export async function GET(_req: Request, { params }: Params) {
     ? conversas.reduce((prev, curr) => curr.atualizadaEm > prev.atualizadaEm ? curr : prev)
     : null
 
-  // Consolida todas as mensagens em ordem cronológica
+  // Consolida todas as mensagens em ordem cronológica GLOBAL.
+  // IMPORTANTE: sort ANTES do map — conversas são ordenadas por criadaEm (data da conversa),
+  // mas mensagens de conversas mais antigas podem ser mais recentes que mensagens de conversas
+  // criadas depois. Ex: conversa A criada em 02/04 tem msgs até 13/04; conversa B criada em
+  // 05/04 tem msgs até 05/04. Sem sort global, msgs de B aparecem no fim do array mesmo sendo
+  // mais antigas, causando o bug: painel scrolla para o "fundo" = mensagens de 8 dias atrás.
   // hasWhatsappMedia: mensagem tem mídia no proxy (whatsappMsgData) mas não em mediaUrl direto
-  const mensagens = conversas.flatMap(c => c.mensagens).map(({ whatsappMsgData, ...m }) => ({
+  const mensagens = conversas
+    .flatMap(c => c.mensagens)
+    .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime())
+    .map(({ whatsappMsgData, ...m }) => ({
     ...m,
     // Mensagem excluída: apaga conteúdo e mídia — front renderiza placeholder
     conteudo:      m.excluido ? null : m.conteudo,

@@ -55,7 +55,10 @@ export async function GET(_req: Request, { params }: Params) {
   const conversaAtual = conversas.length > 0
     ? conversas.reduce((prev, curr) => curr.atualizadaEm > prev.atualizadaEm ? curr : prev)
     : null
-  const mensagens = conversas.flatMap(c => c.mensagens).map(({ whatsappMsgData, ...m }) => ({
+  const mensagens = conversas
+    .flatMap(c => c.mensagens)
+    .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime())
+    .map(({ whatsappMsgData, ...m }) => ({
     ...m,
     // Mensagem excluída: apaga conteúdo e mídia — front renderiza placeholder
     conteudo:      m.excluido ? null : m.conteudo,
