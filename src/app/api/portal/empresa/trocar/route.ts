@@ -8,6 +8,8 @@
 import * as Sentry from '@sentry/nextjs'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth, PORTAL_COOKIE_NAME } from '@/lib/auth-portal'
+
+const IS_PROD = process.env.NODE_ENV === 'production'
 import { prisma } from '@/lib/prisma'
 import { getEmpresasCliente } from '@/lib/portal-session'
 import { encode } from '@auth/core/jwt'
@@ -69,8 +71,11 @@ export async function POST(req: NextRequest) {
       httpOnly: true,
       sameSite: 'lax',
       path:     '/',
-      secure:   process.env.NODE_ENV === 'production',
+      secure:   IS_PROD,
       maxAge,
+      // Mesmo domain do cookie original (auth-portal.ts sessionToken.options.domain)
+      // Sem isso, em produção cria cookie duplicado e o NextAuth lê o antigo
+      domain:   IS_PROD ? '.avos.digital' : undefined,
     })
     return res
   } catch (err) {

@@ -112,7 +112,8 @@ export function useWhatsAppChat(apiPath: string) {
   const carregar = useCallback(async () => {
     const version = ++carregarVersionRef.current
     try {
-      const res = await fetch(apiPath)
+      // cache: 'no-store' impede browser de servir resposta cacheada em vez de ir ao servidor
+      const res = await fetch(apiPath, { cache: 'no-store' })
       // Descarta resposta stale: outra chamada mais recente já foi disparada
       if (version !== carregarVersionRef.current) return
       if (!res.ok) return

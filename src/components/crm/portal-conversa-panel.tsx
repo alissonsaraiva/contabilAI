@@ -58,7 +58,7 @@ export function PortalConversaPanel({
   const carregar = useCallback(async () => {
     const version = ++carregarVersionRef.current
     try {
-      const res = await fetch(`/api/conversas/${conversaId}`)
+      const res = await fetch(`/api/conversas/${conversaId}`, { cache: 'no-store' })
       if (version !== carregarVersionRef.current) return
       if (!res.ok) return
       const data = await res.json()

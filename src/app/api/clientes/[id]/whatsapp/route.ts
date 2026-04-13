@@ -12,6 +12,7 @@ import {
   resolveMediaUrl,
   WHATSAPP_ALLOWED_MIME,
 } from '@/lib/whatsapp-utils'
+import { emitWhatsAppRefresh } from '@/lib/event-bus'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -189,6 +190,12 @@ export async function POST(req: Request, { params }: Params) {
         mediaMimeType,
       },
     })
+
+    // Notifica o painel CRM via SSE — essencial para o caso de o browser ter recebido
+    // timeout de Nginx antes do sendText terminar (o POST pode durar até 125s com retries).
+    // O carregar() do finally roda antes da mensagem ser salva; sem este emit, o painel
+    // nunca recebe sinal e a mensagem só aparece via AutoRefresh (30s).
+    emitWhatsAppRefresh(conversa.id)
 
     // Indexa no RAG (fire-and-forget — erros já tratados internamente em indexarAsync)
     indexarAsync('interacao', {

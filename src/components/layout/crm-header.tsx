@@ -174,17 +174,7 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
 
       {/* Right side */}
       <div className="flex items-center gap-3">
-        {/* Search — oculto no mobile */}
-        <div className="relative mr-2 hidden md:block group">
-          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant/40 transition-colors group-focus-within:text-primary">
-            search
-          </span>
-          <input
-            className="h-[36px] w-64 rounded-full border border-transparent bg-surface-container-lowest/80 pl-10 pr-4 text-[13px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/50 transition-all hover:bg-surface-container-lowest focus:w-80 focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5"
-            placeholder="Pressione ⌘K para buscar..."
-            type="text"
-          />
-        </div>
+
 
         <div className="flex items-center gap-1.5">
           {aiDown && (

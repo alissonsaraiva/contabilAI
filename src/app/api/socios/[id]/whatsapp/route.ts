@@ -19,6 +19,7 @@ import {
   resolveMediaUrl,
   WHATSAPP_ALLOWED_MIME,
 } from '@/lib/whatsapp-utils'
+import { emitWhatsAppRefresh } from '@/lib/event-bus'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -194,6 +195,10 @@ export async function POST(req: Request, { params }: Params) {
         mediaMimeType,
       },
     })
+
+    // Notifica o painel CRM via SSE — mesmo motivo que a rota de clientes:
+    // o POST pode durar até 125s com retries; o browser pode ter sofrido timeout antes.
+    emitWhatsAppRefresh(conversa.id)
 
     // RAG — indexa no escopo do cliente titular (fire-and-forget — erros tratados em indexarAsync)
     if (clienteId) {

@@ -45,7 +45,8 @@ export function EmpresaSelector({ empresas, empresaAtiva }: Props) {
       } else {
         setValue(anterior)
       }
-    } catch {
+    } catch (err) {
+      console.error('[empresa-selector] Erro ao trocar empresa:', err)
       setValue(anterior)
     }
   }

@@ -1,6 +1,6 @@
 # Fluxo Completo de WhatsApp
 
-> Última atualização: 2026-04-04 (v3.10.23)
+> Última atualização: 2026-04-13 (v3.10.48)
 
 ---
 
@@ -297,6 +297,10 @@ Fase 2 — Envio
 
 Fase 3 — Persistência + Observabilidade
   ├─ CREATE MensagemIA: role='assistant', status='sent'|'failed'
+  ├─ emitWhatsAppRefresh(conversa.id) — notifica painel CRM via SSE
+  │   └─ CRÍTICO: sendText pode demorar até 125s (4 retries × 15s + delays)
+  │       Se Nginx cortar o browser antes, carregar() do finally roda sem a msg
+  │       no banco. O SSE garante que o painel atualiza quando a msg é salva.
   ├─ indexarAsync('interacao', ...) — RAG, fire-and-forget
   └─ Sentry.captureException em qualquer erro (try/catch global)
 ```
@@ -407,6 +411,14 @@ useEffect([conversaId]):
     └─ polling só ativa quando SSE não está saudável
 ```
 
+### Proteção contra race condition em `carregar()`
+
+`carregar()` usa um `carregarVersionRef` (contador incremental). Cada chamada recebe um `version`. Após cada `await`, verifica se ainda é a mais recente. Se não for (uma nova chamada foi disparada), a resposta é descartada.
+
+**Cenário prevenido:** SSE dispara `void carregar()` enquanto o POST está em andamento. A resposta HTTP dessa chamada chega *depois* que o `finally { await carregar() }` já atualizou o estado com dados frescos. Sem o version ref, a resposta stale do SSE sobrescreveria as mensagens recém-salvas.
+
+Fetch usa `cache: 'no-store'` para prevenir que o browser sirva resposta HTTP cacheada.
+
 ### Tipos de Mensagem Renderizados por `MessageItem`
 
 | Condição | Renderização |
@@ -438,9 +450,11 @@ Ao enviar: `POST apiPath` com `mediaUrl`, `mediaType`, `mediaFileName`, `mediaMi
 
 | Evento | Emitido por | Consumido por |
 |--------|------------|---------------|
-| `whatsapp:{conversaId}` | Webhook (msg recebida), cron (resposta enviada) | Drawer do CRM |
+| `whatsapp:{conversaId}` | Webhook (msg recebida), cron (resposta enviada), **POST clientes/socios/whatsapp (msg enviada pelo CRM)** | Drawer do CRM |
 | `portal-user:{conversaId}` | Chat do portal | Drawer do CRM |
 | `mensagem-excluida:{conversaId}` | `DELETE /api/conversas/[id]/mensagens/[msgId]` | Drawer do CRM |
+
+> **Atenção:** As rotas de envio do CRM (`/api/clientes/[id]/whatsapp` e `/api/socios/[id]/whatsapp`) emitem `whatsapp:{conversaId}` *após* `prisma.mensagemIA.create()`. Isso é essencial porque o `sendText` pode demorar até 125 segundos com retries — se o Nginx cortar a conexão do browser antes, o `carregar()` do `finally` roda antes da mensagem ser salva. O SSE garante que o painel atualiza assim que a persistência completa.
 
 **Rota SSE:** `GET /api/stream/conversas/[id]`
 
@@ -645,6 +659,7 @@ Webhook detecta pausadaEm IS NOT NULL
 | Sem health check Evolution API | ⚠️ Aberto | Instância desconectada não detectada proativamente |
 | Arquivos enviados não apareciam no histórico de /atendimentos | ✅ Resolvido v3.10.43 | `router.refresh()` estava no `try` de `conversa-rodape.tsx` — se `sendMedia` demorava e a conexão sofria timeout, o cliente recebia `TypeError: Failed to fetch`, caía no `catch`, e o `refresh` nunca era chamado. Movido para `finally`. |
 | Mensagens do operador não apareciam no WhatsApp chat panel de /atendimentos; badge "IA ativa" persistia após envio | ✅ Resolvido v3.10.45 | Mesmo padrão do v3.10.43: `carregar()` estava só no `try` de `enviar()` em `use-whatsapp-chat.ts`. Quando Evolution API demora e Nginx fecha conexão (timeout), `fetch` lança exceção, `catch` captura mas não chamava `carregar()`. Mensagem JÁ salva no banco mas painel não atualizava. Fix: `carregar()` movido para `finally`. Varredura completa: mesmo fix em `portal-conversa-panel.tsx` e `notas-fiscais-tab.tsx`. Também corrigido: mismatch entre GET (`conversas.at(-1)` por `criadaEm`) e POST (`findFirst` por `atualizadaEm`) — GET agora usa `reduce()` por `atualizadaEm` para `conversaAtual`. |
+| Mensagem enviada pelo CRM aparecia na barra lateral mas não no painel de chat (reiterativo) | ✅ Resolvido v3.10.48 | **Causa raiz real:** `sendText` tem até 4 tentativas com delays (5s+15s+45s) e timeout de 15s cada → worst case 125s. Se Nginx cortar o browser antes (~60s), `enviarPost()` lança exceção, `catch` → `finally { await carregar() }` roda, mas o servidor ainda está nos retries e a mensagem ainda não foi salva no DB. `carregar()` volta vazio. Servidor eventualmente salva; sidebar atualiza via `AutoRefresh` (30s) mas painel não tem trigger. **Fix:** `emitWhatsAppRefresh(conversa.id)` adicionado após `prisma.mensagemIA.create()` em ambas as rotas de envio do CRM (`/api/clientes/[id]/whatsapp` e `/api/socios/[id]/whatsapp`). SSE é conexão separada e persiste mesmo após timeout do POST. **Fixes adicionais:** `carregarVersionRef` em `use-whatsapp-chat.ts` e `portal-conversa-panel.tsx` (descarta respostas stale de chamadas concorrentes); `sseHealthyRef` no polling do Portal (prevenia SSE+polling simultâneos); `cache: 'no-store'` no fetch de `carregar()`; `Sentry.captureException` no `WhatsAppChatBoundary.componentDidCatch` e catchs críticos do Portal. |
 
 ---
 
