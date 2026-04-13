@@ -13,23 +13,22 @@ export default async function PortalNotasFiscaisPage() {
   if (!clienteId) redirect('/portal/login')
 
   // NFS-e não se aplica a pessoas físicas — redireciona para o dashboard
-  const cliente = await prisma.cliente.findUnique({
-    where:   { id: clienteId },
-    select:  {
-      tipoContribuinte: true,
-      empresa: {
-        select: {
-          razaoSocial:     true,
-          nomeFantasia:    true,
-          cnpj:            true,
-          spedyConfigurado: true,
-        },
-      },
-    },
-  })
+  // Empresas buscadas por user.empresaId (ativo no JWT), não por cliente.empresa
+  // (relação legada 1:1 que não reflete a empresa selecionada após trocar)
+  const [cliente, empresa] = await Promise.all([
+    prisma.cliente.findUnique({
+      where:  { id: clienteId },
+      select: { tipoContribuinte: true },
+    }),
+    user.empresaId
+      ? prisma.empresa.findUnique({
+          where:  { id: user.empresaId },
+          select: { razaoSocial: true, nomeFantasia: true, cnpj: true, spedyConfigurado: true },
+        })
+      : Promise.resolve(null),
+  ])
   if (cliente?.tipoContribuinte === 'pf') redirect('/portal/dashboard')
 
-  const empresa = cliente?.empresa ?? null
   const spedyConfigurado = empresa?.spedyConfigurado ?? false
 
   return (

@@ -1,7 +1,7 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
+import { useState, useRef, useEffect } from 'react'
 
 type Empresa = { id: string; label: string }
 
@@ -11,8 +11,8 @@ type Props = {
 }
 
 export function EmpresaSelector({ empresas, empresaAtiva }: Props) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const pathname = usePathname()
+  const [isPending, setIsPending] = useState(false)
   const [value, setValue] = useState(empresaAtiva)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -30,10 +30,11 @@ export function EmpresaSelector({ empresas, empresaAtiva }: Props) {
   const labelAtivo = empresas.find(e => e.id === value)?.label ?? value
 
   async function trocar(novaId: string) {
-    if (novaId === value) { setOpen(false); return }
+    if (novaId === value || isPending) { setOpen(false); return }
     const anterior = value
     setValue(novaId)
     setOpen(false)
+    setIsPending(true)
     try {
       const res = await fetch('/api/portal/empresa/trocar', {
         method: 'POST',
@@ -41,13 +42,18 @@ export function EmpresaSelector({ empresas, empresaAtiva }: Props) {
         body: JSON.stringify({ empresaId: novaId }),
       })
       if (res.ok) {
-        startTransition(() => router.refresh())
+        // Navegação completa: garante que o layout e todas as páginas re-executem
+        // no servidor com o novo cookie (router.refresh() não invalida o RSC cache
+        // de forma confiável após a segunda chamada em App Router)
+        window.location.assign(pathname)
       } else {
         setValue(anterior)
+        setIsPending(false)
       }
     } catch (err) {
       console.error('[empresa-selector] Erro ao trocar empresa:', err)
       setValue(anterior)
+      setIsPending(false)
     }
   }
 

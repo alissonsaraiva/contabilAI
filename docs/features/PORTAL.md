@@ -143,16 +143,16 @@ Compartilhado entre CRM (`variant="crm"`) e portal (`variant="portal"` — padr�
 - **Passo 3 — CNPJ do escritório** (v3.10.28): exibe o CNPJ formatado com botão "Copiar CNPJ" para facilitar o preenchimento no e-CAC; prop `cnpjEscritorio` passada pelo server component
 - **Seção "Por que é necessária"**: explica DAS automática, situação fiscal, certidões e alertas
 
-## Troca de Empresa Ativa (fix v3.10.49)
+## Troca de Empresa Ativa (fix v3.10.49 + v3.10.50)
 
 **Componente:** `src/components/portal/empresa-selector.tsx`
 **Rota:** `POST /api/portal/empresa/trocar`
 
-Clientes com mais de uma empresa vinculada veem o `EmpresaSelector` no topo do portal. A troca:
+Clientes/sócios com mais de uma empresa vinculada veem o `EmpresaSelector` no topo do portal. A troca:
 
 1. Chama `POST /api/portal/empresa/trocar` com `{ empresaId: novaId }`
 2. Servidor valida acesso, re-emite JWT com `empresaId` atualizado e seta novo cookie
-3. Cliente chama `router.refresh()` — todos os Server Components re-executam com o novo JWT
+3. Cliente faz `window.location.assign(pathname)` — navegação GET completa que garante re-execução de todo o RSC tree com o novo cookie
 
 ### Regra crítica — `domain` do cookie (produção)
 
@@ -171,6 +171,49 @@ res.cookies.set(PORTAL_COOKIE_NAME, jwt, {
 ```
 
 Em desenvolvimento (`localhost`) o `domain` é `undefined` nos dois casos — o cookie novo substitui o antigo e tudo funciona. O bug manifesta somente em produção.
+
+### Por que `window.location.assign` e não `router.refresh()`
+
+`router.refresh()` no Next.js App Router invalida o Router Cache, mas em chamadas subsequentes sobre um segmento cujo cache foi populado pelo próprio `router.refresh()` anterior, o RSC pode ser servido stale — segunda troca não atualizava as seções. `window.location.assign(pathname)` força uma navegação GET completa: o browser envia o novo cookie ao servidor, o SSR re-executa layout + página a partir do zero. A UX é indistinguível (carrega a mesma rota).
+
+### Regras críticas para sócios com múltiplas empresas (fix v3.10.50)
+
+Cada empresa tem um registro `Socio` próprio com `id` distinto. O `user.id` no JWT é o `Socio.id` da empresa em que o sócio fez login — não serve para identificar o sócio em outra empresa.
+
+**Validação:** nunca usar `{ id: user.id, empresaId: novaEmpresaId }` — esses dois campos jamais coexistem num mesmo registro. Usar CPF para localizar o `Socio` da empresa-alvo:
+
+```typescript
+// trocar/route.ts — validação correta para sócios
+const socioAtual = await prisma.socio.findUnique({ where: { id: user.id }, select: { cpf: true } })
+const novoSocio  = await prisma.socio.findFirst({
+  where:  { cpf: socioAtual.cpf, empresaId: novaEmpresaId, portalAccess: true },
+  select: { id: true, nome: true },
+})
+```
+
+**JWT após troca:** `id` e `name` devem ser atualizados para o registro `Socio` da nova empresa. Sem isso, rotas que validam `{ id: user.id, empresaId }` (ex.: `portal/chat`) retornam 403 após a troca.
+
+**`empresaIds` no JWT:** para sócios, buscar todas as empresas via CPF (`portalAccess: true`). Se reduzido a `[novaEmpresaId]`, o layout avalia `empresaIdsParsed.length <= 1` → `empresasSelector = []` → seletor desaparece.
+
+### Regra crítica — página de Notas Fiscais (fix v3.10.50)
+
+`notas-fiscais/page.tsx` **não deve** usar `cliente.empresa` (relação legada 1:1 via `Cliente.empresaId`). Essa relação sempre retorna a empresa original do cadastro, ignorando a empresa ativa no JWT. Usar `prisma.empresa.findUnique({ where: { id: user.empresaId } })` em paralelo com a query do cliente:
+
+```typescript
+// notas-fiscais/page.tsx — correto
+const [cliente, empresa] = await Promise.all([
+  prisma.cliente.findUnique({ where: { id: clienteId }, select: { tipoContribuinte: true } }),
+  user.empresaId
+    ? prisma.empresa.findUnique({ where: { id: user.empresaId }, select: { ... } })
+    : Promise.resolve(null),
+])
+```
+
+O mesmo princípio vale para qualquer página portal que precise de dados da empresa ativa: sempre `user.empresaId`, nunca `cliente.empresa`.
+
+### Parsing de `empresaIds` no layout
+
+`user.empresaIds` vem do JWT como JSON string. O `JSON.parse` no layout deve ter log rastreável no catch — falha silenciosa esconde JWTs corrompidos e faz o seletor desaparecer sem diagnóstico.
 
 ---
 

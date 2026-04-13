@@ -80,7 +80,9 @@ export default async function PortalAutenticadoLayout({ children }: { children: 
   let empresaIdsParsed: string[] = []
   try {
     empresaIdsParsed = user.empresaIds ? JSON.parse(user.empresaIds) : []
-  } catch { /* fallback vazio */ }
+  } catch (err) {
+    console.error('[portal/layout] Falha ao parsear empresaIds do JWT:', { userId: user.id, empresaIds: user.empresaIds, err })
+  }
 
   const empresaIdAtiva = user.empresaId as string | undefined
 

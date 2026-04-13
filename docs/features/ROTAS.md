@@ -54,24 +54,24 @@ Proxy público para consulta de CNPJ via **BrasilAPI**. Não requer autenticaç�
 
 ## Upload Genérico (`POST /api/upload`)
 
-Gera URL assinada de upload para o R2. Upload público para leads (onboarding), autenticado para escritório.
+Faz upload de arquivo para o R2 **via servidor** (server-side). Upload público para leads (onboarding), autenticado para escritório.
 
-**Body:**
-```json
-{
-  "tipo": "contrato | documento | rg | cpf | logo | favicon | ...",
-  "entidadeId": "uuid",
-  "entidadeTipo": "lead | cliente | escritorio",
-  "contentType": "application/pdf"
-}
-```
+> **Histórico (v3.10.51):** O padrão anterior gerava uma URL presignada e o browser fazia PUT direto ao R2. Isso exigia CORS configurado no bucket. Como o CORS não estava configurado, o upload falhava com `TypeError: Failed to fetch (*.r2.cloudflarestorage.com)`. Substituído por upload server-side com `multipart/form-data`.
 
-**Tipos MIME permitidos**: PDF, JPEG, PNG, WebP, GIF, DOC/DOCX, XLS/XLSX, TXT, CSV, **XML** (`application/xml`, `text/xml` — para NFe, CT-e, NFS-e)
+**Body:** `multipart/form-data`
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `file` | File | sim | Arquivo a enviar |
+| `entidadeId` | string | sim | UUID da entidade |
+| `tipo` | string | não | Categoria — padrão `'outro'` |
+| `entidadeTipo` | string | não | `'lead' \| 'cliente' \| 'escritorio'` |
+
+**Tipos MIME permitidos**: PDF, JPEG, PNG, WebP, GIF, DOC/DOCX, XLS/XLSX, TXT, CSV, **XML** (`application/xml`, `text/xml` — para NFe, CT-e, NFS-e). Limite: **25 MB**.
 
 **Retorno:**
 ```json
 {
-  "uploadUrl": "https://...assinada",
   "publicUrl": "https://storage.../key",
   "key": "clientes/uuid/docs/tipo-abc123"
 }
@@ -79,6 +79,16 @@ Gera URL assinada de upload para o R2. Upload público para leads (onboarding), 
 
 - `entidadeTipo === 'escritorio'` → requer `admin` ou `contador`
 - Logo/favicon sempre sobrescreve a chave fixa (`storageKeys.logoEscritorio()`)
+
+**Callers (todos usam `FormData`):**
+```ts
+const formData = new FormData()
+formData.append('file', file)
+formData.append('tipo', 'outro')
+formData.append('entidadeId', entityId)
+formData.append('entidadeTipo', entityType)
+const { publicUrl } = await fetch('/api/upload', { method: 'POST', body: formData }).then(r => r.json())
+```
 
 ---
 

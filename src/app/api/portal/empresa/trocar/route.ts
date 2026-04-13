@@ -28,34 +28,55 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Valida acesso: cliente precisa ter a empresa na ClienteEmpresa; sócio precisa pertencer à empresa
-    if (user.tipo === 'cliente') {
-      const empresaIds = await getEmpresasCliente(user.id)
-      if (!empresaIds.includes(novaEmpresaId)) {
-        return NextResponse.json({ error: 'Sem acesso a esta empresa' }, { status: 403 })
-      }
-    } else {
-      const socio = await prisma.socio.findFirst({
-        where: { id: user.id, empresaId: novaEmpresaId, portalAccess: true },
-        select: { id: true },
-      })
-      if (!socio) {
-        return NextResponse.json({ error: 'Sem acesso a esta empresa' }, { status: 403 })
-      }
-    }
+    // id e nome podem mudar quando sócio troca de empresa (cada empresa tem seu registro Socio)
+    let novoUserId   = user.id   as string
+    let novoUserName = user.name as string | null | undefined
+    let empresaIds:    string[]
 
-    // Re-emite JWT com nova empresaId ativa
-    const empresaIds = user.tipo === 'cliente'
-      ? await getEmpresasCliente(user.id)
-      : [novaEmpresaId]
+    if (user.tipo === 'cliente') {
+      // Cliente: valida via ClienteEmpresa
+      const ids = await getEmpresasCliente(user.id)
+      if (!ids.includes(novaEmpresaId)) {
+        return NextResponse.json({ error: 'Sem acesso a esta empresa' }, { status: 403 })
+      }
+      empresaIds = ids
+    } else {
+      // Sócio: cada empresa tem um registro Socio distinto (com id próprio).
+      // A validação NÃO pode usar { id: user.id, empresaId: novaEmpresaId } porque
+      // user.id é o Socio.id da empresa ATUAL — nunca bate com outra empresa.
+      // Usamos CPF para localizar o registro Socio da empresa-alvo.
+      const socioAtual = await prisma.socio.findUnique({
+        where:  { id: user.id },
+        select: { cpf: true },
+      })
+      if (!socioAtual?.cpf) {
+        return NextResponse.json({ error: 'Sem acesso a esta empresa' }, { status: 403 })
+      }
+      const novoSocio = await prisma.socio.findFirst({
+        where:  { cpf: socioAtual.cpf, empresaId: novaEmpresaId, portalAccess: true },
+        select: { id: true, nome: true },
+      })
+      if (!novoSocio) {
+        return NextResponse.json({ error: 'Sem acesso a esta empresa' }, { status: 403 })
+      }
+      // Atualiza id e nome para o registro Socio da nova empresa
+      novoUserId   = novoSocio.id
+      novoUserName = novoSocio.nome
+      // Preserva a lista completa de empresas via CPF
+      const todos = await prisma.socio.findMany({
+        where:  { cpf: socioAtual.cpf, portalAccess: true },
+        select: { empresaId: true },
+      })
+      empresaIds = todos.length > 0 ? todos.map(s => s.empresaId) : [novaEmpresaId]
+    }
 
     const maxAge = 30 * 24 * 60 * 60
 
     const jwt = await encode({
       token: {
-        sub:        user.id,
-        id:         user.id,
-        name:       user.name,
+        sub:        novoUserId,
+        id:         novoUserId,
+        name:       novoUserName,
         email:      user.email,
         tipo:       user.tipo,
         empresaId:  novaEmpresaId,
