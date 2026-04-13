@@ -18,6 +18,10 @@ type Mensagem = {
   conteudo: string | null
   criadaEm: string | Date
   excluido?: boolean
+  mediaUrl?: string | null
+  mediaType?: string | null
+  mediaFileName?: string | null
+  hasWhatsappMedia?: boolean
 }
 
 export function PortalConversaPanel({
@@ -313,6 +317,26 @@ export function PortalConversaPanel({
                     <span className="material-symbols-outlined text-[13px]">block</span>
                     Mensagem excluída
                   </p>
+                ) : m.mediaUrl && m.mediaType === 'image' ? (
+                  <div className="flex flex-col gap-1.5">
+                    <img src={m.mediaUrl} alt={m.mediaFileName ?? 'imagem'} className="max-w-full rounded-xl object-cover" />
+                    {m.conteudo && <p className="whitespace-pre-wrap text-[13px]">{m.conteudo}</p>}
+                  </div>
+                ) : m.mediaUrl ? (
+                  <div className="flex flex-col gap-1.5">
+                    <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 hover:bg-surface-container transition-colors">
+                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>
+                      <span className="text-[12px] truncate max-w-[9rem] sm:max-w-[200px]">{m.mediaFileName ?? 'Arquivo'}</span>
+                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 shrink-0">download</span>
+                    </a>
+                    {m.conteudo && <p className="whitespace-pre-wrap text-[13px]">{m.conteudo}</p>}
+                  </div>
+                ) : m.hasWhatsappMedia ? (
+                  <a href={`/api/whatsapp/media/${m.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 hover:bg-surface-container transition-colors">
+                    <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>
+                    <span className="text-[12px] truncate max-w-[9rem] sm:max-w-[200px]">Arquivo do cliente</span>
+                    <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 shrink-0">download</span>
+                  </a>
                 ) : (
                   <p className="whitespace-pre-wrap">{m.conteudo}</p>
                 )}

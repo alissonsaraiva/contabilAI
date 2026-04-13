@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 
-type Msg = { id?: string; role: 'user' | 'assistant'; text: string; excluido?: boolean }
+type Msg = { id?: string; role: 'user' | 'assistant'; text: string; excluido?: boolean; mediaUrl?: string | null; mediaType?: string | null; mediaFileName?: string | null }
 
 // ── Detecta código PIX EMV e envolve em bloco de código se ainda não estiver ─
 function preprocessarPix(text: string): string {
@@ -138,11 +138,14 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         if (cid) setConversaId(cid)
         if (pausada) setEscalada(true)
         if (Array.isArray(mensagens) && mensagens.length > 0) {
-          setMsgs(mensagens.map((m: { id: string; role: string; conteudo: string | null; excluido?: boolean }) => ({
-            id:      m.id,
-            role:    m.role as 'user' | 'assistant',
-            text:    m.excluido ? '' : (m.conteudo ?? ''),
-            excluido: m.excluido ?? false,
+          setMsgs(mensagens.map((m: { id: string; role: string; conteudo: string | null; excluido?: boolean; mediaUrl?: string | null; mediaType?: string | null; mediaFileName?: string | null }) => ({
+            id:           m.id,
+            role:         m.role as 'user' | 'assistant',
+            text:         m.excluido ? '' : (m.conteudo ?? ''),
+            excluido:     m.excluido ?? false,
+            mediaUrl:     m.excluido ? null : m.mediaUrl,
+            mediaType:    m.excluido ? null : m.mediaType,
+            mediaFileName: m.excluido ? null : m.mediaFileName,
           })))
         }
       })
@@ -165,16 +168,23 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         retryCount = 0
         sseHealthyRef.current = true
         try {
-          const data = JSON.parse(e.data) as { type?: string; id?: string; role?: string; conteudo?: string; mensagemId?: string }
+          const data = JSON.parse(e.data) as { type?: string; id?: string; role?: string; conteudo?: string; mensagemId?: string; mediaUrl?: string | null; mediaType?: string | null; mediaFileName?: string | null }
           if (data.type === 'mensagem_excluida' && data.mensagemId) {
             setMsgs(prev => prev.map(m =>
               m.id === data.mensagemId ? { ...m, excluido: true, text: '' } : m
             ))
             return
           }
-          if (data.role && data.conteudo) {
+          if (data.role && (data.conteudo || data.mediaUrl)) {
             // Inclui o id para que exclusões futuras possam ser rastreadas
-            setMsgs(prev => [...prev, { id: data.id, role: 'assistant', text: data.conteudo! }])
+            setMsgs(prev => [...prev, {
+              id:           data.id,
+              role:         'assistant',
+              text:         data.conteudo ?? '',
+              mediaUrl:     data.mediaUrl ?? null,
+              mediaType:    data.mediaType ?? null,
+              mediaFileName: data.mediaFileName ?? null,
+            }])
             if (!openRef.current) setUnread(n => n + 1)
           }
         } catch {}
@@ -213,7 +223,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         const res = await fetch(`/api/portal/chat?sessionId=${sessionId}`)
         if (!res.ok) return
         const { mensagens: fetched, pausada } = await res.json() as {
-          mensagens: { id: string; role: string; conteudo: string | null; excluido?: boolean }[]
+          mensagens: { id: string; role: string; conteudo: string | null; excluido?: boolean; mediaUrl?: string | null; mediaType?: string | null; mediaFileName?: string | null }[]
           pausada?: boolean
         }
         if (!Array.isArray(fetched)) return
@@ -247,10 +257,13 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
             )
             if (idxIdless !== -1) {
               resultado[idxIdless] = {
-                id:       nova.id,
-                role:     nova.role as 'user' | 'assistant',
-                text:     nova.excluido ? '' : (nova.conteudo ?? ''),
-                excluido: nova.excluido ?? false,
+                id:           nova.id,
+                role:         nova.role as 'user' | 'assistant',
+                text:         nova.excluido ? '' : (nova.conteudo ?? ''),
+                excluido:     nova.excluido ?? false,
+                mediaUrl:     nova.excluido ? null : nova.mediaUrl,
+                mediaType:    nova.excluido ? null : nova.mediaType,
+                mediaFileName: nova.excluido ? null : nova.mediaFileName,
               }
             } else {
               realNovas.push(nova)
@@ -263,10 +276,13 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
           return [
             ...resultado,
             ...realNovas.map(m => ({
-              id:       m.id,
-              role:     m.role as 'user' | 'assistant',
-              text:     m.excluido ? '' : (m.conteudo ?? ''),
-              excluido: m.excluido ?? false,
+              id:           m.id,
+              role:         m.role as 'user' | 'assistant',
+              text:         m.excluido ? '' : (m.conteudo ?? ''),
+              excluido:     m.excluido ?? false,
+              mediaUrl:     m.excluido ? null : m.mediaUrl,
+              mediaType:    m.excluido ? null : m.mediaType,
+              mediaFileName: m.excluido ? null : m.mediaFileName,
             })),
           ]
         })
@@ -441,6 +457,20 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
                       <span className="material-symbols-outlined text-[13px]">block</span>
                       Mensagem excluída
                     </p>
+                  ) : m.mediaUrl && m.mediaType === 'image' ? (
+                    <div className="flex flex-col gap-1.5">
+                      <img src={m.mediaUrl} alt={m.mediaFileName ?? 'imagem'} className="max-w-full rounded-xl object-cover" />
+                      {m.text && <p className="whitespace-pre-wrap text-[13px]">{m.text}</p>}
+                    </div>
+                  ) : m.mediaUrl ? (
+                    <div className="flex flex-col gap-1.5">
+                      <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 hover:bg-surface-container transition-colors">
+                        <span className="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0">attach_file</span>
+                        <span className="text-[12px] truncate max-w-[9rem]">{m.mediaFileName ?? 'Arquivo'}</span>
+                        <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 shrink-0">download</span>
+                      </a>
+                      {m.text && <p className="whitespace-pre-wrap text-[13px]">{m.text}</p>}
+                    </div>
                   ) : m.role === 'assistant' ? (
                     <ReactMarkdown
                       components={{

@@ -38,7 +38,7 @@ export async function GET(req: Request) {
       pausadaEm: true,
       mensagens: {
         orderBy: { criadaEm: 'asc' },
-        select:  { id: true, role: true, conteudo: true, excluido: true },
+        select:  { id: true, role: true, conteudo: true, excluido: true, mediaUrl: true, mediaType: true, mediaFileName: true },
       },
     },
   })

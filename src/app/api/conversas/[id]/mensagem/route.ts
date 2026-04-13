@@ -155,7 +155,7 @@ export async function POST(
   ])
 
   // Notifica o portal Clara via SSE (substitui setInterval de 5s)
-  emitConversaMensagem(id, { id: novaMensagem.id, role: 'assistant', conteudo: texto || '', mediaUrl })
+  emitConversaMensagem(id, { id: novaMensagem.id, role: 'assistant', conteudo: texto || '', mediaUrl, mediaType, mediaFileName })
 
   return NextResponse.json({ ok: true })
 }
