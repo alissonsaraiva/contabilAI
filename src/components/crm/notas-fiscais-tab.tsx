@@ -99,11 +99,11 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       toast.success('NFS-e enviada para processamento!')
       setShowModal(false)
       setForm(INITIAL_FORM)
-      fetchNotas()
     } catch {
       toast.error('Erro ao emitir nota fiscal')
     } finally {
       setSaving(false)
+      fetchNotas(true)  // FIX: sempre recarregar — nota pode já estar salva se houve timeout
     }
   }
 
@@ -120,11 +120,11 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       toast.success('Nota cancelada com sucesso')
       setShowCancelarModal(null)
       setJustificativa('')
-      fetchNotas()
     } catch {
       toast.error('Erro ao cancelar')
     } finally {
       setCancelando(null)
+      fetchNotas(true)  // FIX: sempre recarregar — status pode já ter mudado se houve timeout
     }
   }
 
@@ -187,11 +187,11 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       toast.success('NFS-e reenviada para processamento!')
       setShowReemitirModal(null)
       setReemitirForm(INITIAL_FORM)
-      fetchNotas()
     } catch {
       toast.error('Erro ao reemitir nota fiscal')
     } finally {
       setReemitirSaving(false)
+      fetchNotas(true)  // FIX: sempre recarregar — nota pode já estar salva se houve timeout
     }
   }
 

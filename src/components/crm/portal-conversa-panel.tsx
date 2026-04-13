@@ -249,13 +249,15 @@ export function PortalConversaPanel({
         return
       }
       removerArquivo()
-      await carregar()
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao enviar mensagem:', { conversaId, err })
       toast.error('Erro ao enviar mensagem')
       setTexto(textoEnviar)
     } finally {
       setSending(false)
+      // FIX: sempre recarregar após envio — mesmo se fetch lançou exceção
+      // (mensagem pode já estar salva no banco quando a conexão TCP sofre timeout)
+      await carregar()
     }
   }
 

@@ -350,7 +350,6 @@ export function useWhatsAppChat(apiPath: string) {
         lastRes = await enviarPost({ conteudo: texto.trim(), pausarIA: !naoModoIA })
         if (!lastRes.ok) {
           await tratarErroEnvio(lastRes, 'mensagem')
-          await carregar()
           return
         }
       }
@@ -366,7 +365,6 @@ export function useWhatsAppChat(apiPath: string) {
           console.error('[whatsapp-chat] erro ao extrair conversaId:', cloneErr)
         }
       }
-      await carregar()
     } catch (err) {
       toast.error('Erro ao enviar mensagem')
       Sentry.captureException(err, {
@@ -375,6 +373,10 @@ export function useWhatsAppChat(apiPath: string) {
       })
     } finally {
       setSending(false)
+      // FIX: sempre recarregar após envio — mesmo se fetch lançou exceção
+      // (ex: Nginx fecha conexão por timeout enquanto Evolution API processa)
+      // A mensagem JÁ pode estar no banco; sem este carregar() ela não aparece no painel.
+      await carregar()
     }
   }
 

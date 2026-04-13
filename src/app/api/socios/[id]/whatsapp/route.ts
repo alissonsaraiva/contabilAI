@@ -50,7 +50,10 @@ export async function GET(_req: Request, { params }: Params) {
     include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
   })
 
-  const conversaAtual = conversas.at(-1) ?? null
+  // Conversa mais recentemente ATUALIZADA (alinhado com POST — evita mismatch de pausada)
+  const conversaAtual = conversas.length > 0
+    ? conversas.reduce((prev, curr) => curr.atualizadaEm > prev.atualizadaEm ? curr : prev)
+    : null
   const mensagens = conversas.flatMap(c => c.mensagens).map(({ whatsappMsgData, ...m }) => ({
     ...m,
     // Mensagem excluída: apaga conteúdo e mídia — front renderiza placeholder

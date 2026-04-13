@@ -644,6 +644,7 @@ Webhook detecta pausadaEm IS NOT NULL
 | PIX com > 20h pode estar expirado | ✅ Resolvido v3.10.26 | `refresharPixCobranca()` renova QR Code automaticamente no contexto WhatsApp antes da IA responder — sem cancelar cobrança |
 | Sem health check Evolution API | ⚠️ Aberto | Instância desconectada não detectada proativamente |
 | Arquivos enviados não apareciam no histórico de /atendimentos | ✅ Resolvido v3.10.43 | `router.refresh()` estava no `try` de `conversa-rodape.tsx` — se `sendMedia` demorava e a conexão sofria timeout, o cliente recebia `TypeError: Failed to fetch`, caía no `catch`, e o `refresh` nunca era chamado. Movido para `finally`. |
+| Mensagens do operador não apareciam no WhatsApp chat panel de /atendimentos; badge "IA ativa" persistia após envio | ✅ Resolvido v3.10.45 | Mesmo padrão do v3.10.43: `carregar()` estava só no `try` de `enviar()` em `use-whatsapp-chat.ts`. Quando Evolution API demora e Nginx fecha conexão (timeout), `fetch` lança exceção, `catch` captura mas não chamava `carregar()`. Mensagem JÁ salva no banco mas painel não atualizava. Fix: `carregar()` movido para `finally`. Varredura completa: mesmo fix em `portal-conversa-panel.tsx` e `notas-fiscais-tab.tsx`. Também corrigido: mismatch entre GET (`conversas.at(-1)` por `criadaEm`) e POST (`findFirst` por `atualizadaEm`) — GET agora usa `reduce()` por `atualizadaEm` para `conversaAtual`. |
 
 ---
 

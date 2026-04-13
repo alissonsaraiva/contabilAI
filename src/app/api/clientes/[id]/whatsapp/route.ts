@@ -43,8 +43,12 @@ export async function GET(_req: Request, { params }: Params) {
     include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
   })
 
-  // Conversa mais recente determina o estado de pausa
-  const conversaAtual = conversas.at(-1) ?? null
+  // Conversa mais recentemente ATUALIZADA determina o estado de pausa
+  // (alinhado com POST que usa findFirst({ orderBy: atualizadaEm: 'desc' }))
+  // Evita mismatch: POST pausa conversa A, GET reporta pausada da conversa B (criada mais tarde mas sem atividade)
+  const conversaAtual = conversas.length > 0
+    ? conversas.reduce((prev, curr) => curr.atualizadaEm > prev.atualizadaEm ? curr : prev)
+    : null
 
   // Consolida todas as mensagens em ordem cronológica
   // hasWhatsappMedia: mensagem tem mídia no proxy (whatsappMsgData) mas não em mediaUrl direto
