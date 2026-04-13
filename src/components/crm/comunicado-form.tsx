@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import * as Sentry from '@sentry/nextjs'
 import { Card } from '@/components/ui/card'
 import { DocumentoPicker, type DocSistema } from '@/components/crm/documento-picker'
 
@@ -106,7 +107,9 @@ export function ComunicadoForm() {
       if (fileRef.current) fileRef.current.value = ''
       setOpen(false)
       router.refresh()
-    } catch {
+    } catch (err) {
+      console.error('[crm/comunicados] erro ao salvar comunicado:', err)
+      Sentry.captureException(err, { tags: { module: 'crm-comunicados-form', operation: 'salvar' } })
       toast.error('Erro ao salvar comunicado')
     } finally {
       setLoading(false)

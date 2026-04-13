@@ -207,13 +207,59 @@ Detecção de breakpoint mobile para exibição condicional de elementos respons
 
 ## Comunicados (`/crm/comunicados`)
 
+Publicações do escritório visíveis no portal do cliente. A tool `publicarComunicado` permite que a IA publique comunicados segmentados por plano/status.
+
+### Rotas de API
+
 | Rota | Método | Descrição |
 |------|--------|-----------|
 | `/api/crm/comunicados` | GET/POST | Listar / criar comunicado |
-| `/api/crm/comunicados/[id]` | GET/PATCH/DELETE | Detalhe, editar, despublicar |
-| `/api/portal/comunicados` | GET | Comunicados visíveis ao cliente |
+| `/api/crm/comunicados/[id]` | GET/PATCH/DELETE | Detalhe, publicar/despublicar, excluir |
+| `/api/portal/comunicados` | GET | Comunicados visíveis ao cliente autenticado |
 
-Comunicados são publicações do escritório visíveis no portal do cliente. A tool `publicarComunicado` permite que a IA publique comunicados segmentados por plano/status.
+### Página CRM (`src/app/(crm)/crm/comunicados/page.tsx`)
+
+Server Component com filtros via `searchParams`. Parâmetros aceitos:
+
+| Param | Valores | Default |
+|-------|---------|---------|
+| `secao` | `ativos` \| `expirados` \| `rascunhos` | `ativos` |
+| `tipo` | `informativo` \| `alerta` \| `obrigacao` \| `promocional` | — (todos) |
+| `busca` | string | — |
+| `pagina` | número inteiro ≥ 1 | `1` |
+
+**Lógica de seções:**
+- `ativos` — `publicado: true` AND (`expiradoEm IS NULL` OR `expiradoEm >= agora`)
+- `expirados` — `publicado: true` AND `expiradoEm < agora`
+- `rascunhos` — `publicado: false`
+
+**Paginação:** 20 por página, server-side. Counters das tabs são independentes dos filtros de tipo/busca — mostram o total da seção.
+
+**Agrupamento:** resultados são agrupados por ano (`criadoEm`) dentro de cada seção.
+
+**Alcance:** cada card mostra quantos emails foram disparados via `_count.envios` (total de `ComunicadoEnvio` criados — inclui pendentes e falhos).
+
+### Componentes
+
+| Componente | Tipo | Função |
+|------------|------|--------|
+| `ComunicadosFiltros` | Client | Tabs de seção + chips de tipo + busca com debounce 400ms. Input controlado (`useState` + `useEffect`). Timer com cleanup ao desmontar. |
+| `ComunicadosPaginacao` | Client | Navegação primeira/anterior/próxima/última + contador "X–Y de N". Oculto se há apenas 1 página. |
+| `ComunicadoForm` | Client | Formulário de criação: título, conteúdo, tipo, expiração, anexo (upload ou doc do sistema), opção de publicar + enviar email. |
+| `ComunicadoPublishButton` | Client | Abre modal com opção de segmentação de email por status do cliente (ativo/inadimplente/suspenso). |
+| `ComunicadoUnpublishButton` | Client | Despublica com loading state. |
+| `ComunicadoDeleteButton` | Client | Confirma via `ConfirmDialog` antes de excluir. |
+
+### Tipos (`enum TipoComunicado`)
+
+`informativo` · `alerta` · `obrigacao` · `promocional`
+
+### Schema relevante
+
+```
+Comunicado         → publicado, publicadoEm, expiradoEm, tipo, anexoUrl/anexoNome
+ComunicadoEnvio    → comunicadoId, clienteId, email, status (pendente|enviado|falhou)
+```
 
 ## PDF e Contratos (`src/lib/pdf/`)
 

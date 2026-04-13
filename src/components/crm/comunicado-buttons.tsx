@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import * as Sentry from '@sentry/nextjs'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 async function patchComunicado(id: string, data: object) {
@@ -51,7 +52,9 @@ export function ComunicadoPublishButton({ id }: { id: string }) {
       }
       setOpen(false)
       router.refresh()
-    } catch {
+    } catch (err) {
+      console.error('[crm/comunicados] erro ao publicar:', { id, err })
+      Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'publicar' }, extra: { comunicadoId: id } })
       toast.error('Erro ao publicar')
     } finally {
       setLoading(false)
@@ -165,16 +168,30 @@ export function ComunicadoPublishButton({ id }: { id: string }) {
 
 export function ComunicadoUnpublishButton({ id }: { id: string }) {
   const router = useRouter()
+  const [loading, setLoading] = useState(false)
+
   async function handle() {
+    setLoading(true)
     try {
       await patchComunicado(id, { publicar: false })
       toast.success('Comunicado despublicado')
       router.refresh()
-    } catch { toast.error('Erro ao despublicar') }
+    } catch (err) {
+      console.error('[crm/comunicados] erro ao despublicar:', { id, err })
+      Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'despublicar' }, extra: { comunicadoId: id } })
+      toast.error('Erro ao despublicar')
+    } finally {
+      setLoading(false)
+    }
   }
+
   return (
-    <button onClick={handle} className="rounded-lg bg-surface-container px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors">
-      Despublicar
+    <button
+      onClick={() => void handle()}
+      disabled={loading}
+      className="rounded-lg border border-outline-variant/50 px-2.5 py-1 text-[11px] font-semibold text-on-surface hover:bg-surface-container disabled:opacity-50 transition-colors"
+    >
+      {loading ? '…' : 'Despublicar'}
     </button>
   )
 }
@@ -191,7 +208,13 @@ export function ComunicadoDeleteButton({ id }: { id: string }) {
       if (!res.ok) throw new Error()
       toast.success('Comunicado excluído')
       router.refresh()
-    } catch { toast.error('Erro ao excluir') } finally { setLoading(false) }
+    } catch (err) {
+      console.error('[crm/comunicados] erro ao excluir:', { id, err })
+      Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'excluir' }, extra: { comunicadoId: id } })
+      toast.error('Erro ao excluir')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
