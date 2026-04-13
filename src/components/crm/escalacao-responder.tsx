@@ -52,14 +52,14 @@ export function EscalacaoResponder({ escalacaoId, canal, nomeIa = 'Clara', entid
 
     setUploading(true)
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo: 'outro', entidadeId, entidadeTipo, contentType: file.type }),
-      })
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('tipo', 'outro')
+      formData.append('entidadeId', entidadeId)
+      formData.append('entidadeTipo', entidadeTipo)
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
       if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
-      const { uploadUrl, publicUrl } = await res.json() as { uploadUrl: string; publicUrl: string }
-      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      const { publicUrl } = await res.json() as { publicUrl: string }
       const isImage = file.type.startsWith('image/')
       setArquivo({
         url: publicUrl,

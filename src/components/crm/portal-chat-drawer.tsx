@@ -117,14 +117,14 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
     if (file.size > 25 * 1024 * 1024) { toast.error('Arquivo muito grande. O limite é 25 MB.'); return }
     setUploading(true)
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo: 'outro', entidadeId: clienteId, entidadeTipo: 'cliente', contentType: file.type }),
-      })
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('tipo', 'outro')
+      formData.append('entidadeId', clienteId)
+      formData.append('entidadeTipo', 'cliente')
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
       if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
-      const { uploadUrl, publicUrl } = await res.json() as { uploadUrl: string; publicUrl: string }
-      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      const { publicUrl } = await res.json() as { publicUrl: string }
       const isImage = file.type.startsWith('image/')
       setArquivo({
         url: publicUrl,

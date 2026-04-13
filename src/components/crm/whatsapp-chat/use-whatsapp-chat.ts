@@ -254,19 +254,14 @@ export function useWhatsAppChat(apiPath: string) {
           toast.error(`"${file.name}" excede 25 MB.`)
           continue
         }
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tipo: 'outro',
-            entidadeId: entity.entidadeId,
-            entidadeTipo: entity.entidadeTipo,
-            contentType: file.type,
-          }),
-        })
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('tipo', 'outro')
+        formData.append('entidadeId', entity.entidadeId)
+        formData.append('entidadeTipo', entity.entidadeTipo)
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
         if (!res.ok) { toast.error(`Tipo não permitido: ${file.name}`); continue }
-        const { uploadUrl, publicUrl } = await res.json() as { uploadUrl: string; publicUrl: string }
-        await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+        const { publicUrl } = await res.json() as { publicUrl: string }
         const isImage = file.type.startsWith('image/')
         novos.push({
           url: publicUrl,
