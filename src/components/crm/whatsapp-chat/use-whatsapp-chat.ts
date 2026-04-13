@@ -96,6 +96,10 @@ export function useWhatsAppChat(apiPath: string) {
   const arquivosPreviewRef = useRef<string[]>([])
   // Bug #6: rastreia saúde do SSE para evitar polling duplicado quando SSE está ativo
   const sseHealthyRef = useRef(false)
+  // Race condition: versão incremental para descartar respostas stale de carregar() concorrentes.
+  // Se SSE dispara void carregar() enquanto o POST ainda está em andamento e a resposta HTTP
+  // chega depois do finally's await carregar(), ela sobrescreveria o estado correto.
+  const carregarVersionRef = useRef(0)
 
   const entity = parseEntityFromPath(apiPath)
 
@@ -106,10 +110,14 @@ export function useWhatsAppChat(apiPath: string) {
   }
 
   const carregar = useCallback(async () => {
+    const version = ++carregarVersionRef.current
     try {
       const res = await fetch(apiPath)
+      // Descarta resposta stale: outra chamada mais recente já foi disparada
+      if (version !== carregarVersionRef.current) return
       if (!res.ok) return
       const data = await res.json()
+      if (version !== carregarVersionRef.current) return
       if (!data.telefone && !data.conversa) {
         setSemNumero(true)
         return

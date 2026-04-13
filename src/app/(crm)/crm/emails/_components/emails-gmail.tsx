@@ -3,11 +3,14 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { toast }                                from 'sonner'
 import Link                                     from 'next/link'
+import { useRouter }                            from 'next/navigation'
 import type { ThreadItem, MensagemThread, ClienteOpt, Aba, PainelDireito } from './emails/_shared'
 import { ThreadRow }    from './emails/thread-row'
 import { PainelVazio }  from './emails/painel-vazio'
 import { PainelThread } from './emails/painel-thread'
 import { PainelCompor } from './emails/painel-compor'
+
+const POLL_INTERVAL_MS = 60_000
 
 export function EmailsGmail({
   threadsEntrada:   initialEntrada,
@@ -34,10 +37,14 @@ export function EmailsGmail({
   const [aba,      setAba]      = useState<Aba>('entrada')
   const [busca,    setBusca]    = useState('')
   const [painel,   setPainel]   = useState<PainelDireito>({ tipo: 'vazio' })
-  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
-  const [bulkLoading,  setBulkLoading]  = useState(false)
+  const [selecionados,  setSelecionados]  = useState<Set<string>>(new Set())
+  const [bulkLoading,   setBulkLoading]   = useState(false)
+  const [novosEmails,   setNovosEmails]   = useState(0)
   // Pula o reset de painel quando a mudança de aba é intencional (ex: onSent)
   const skipAbaResetRef = useRef(false)
+  const router          = useRouter()
+  // Marca o momento em que a página foi carregada — detecta apenas emails chegados após isso
+  const carregadoEmRef  = useRef(new Date().toISOString())
 
   useEffect(() => {
     if (skipAbaResetRef.current) { skipAbaResetRef.current = false; return }
@@ -45,6 +52,22 @@ export function EmailsGmail({
     setSelecionados(new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba])
+
+  // Polling: verifica novos emails a cada 60s sem forçar reload automático
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/email/inbox/count?desde=${encodeURIComponent(carregadoEmRef.current)}`)
+        if (!res.ok) return
+        const data = await res.json() as { count: number }
+        setNovosEmails(data.count)
+      } catch {
+        // sem rede — silencia para não spammar console em modo offline
+      }
+    }
+    const id = setInterval(() => void poll(), POLL_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [])
 
   const lista: ThreadItem[] = useMemo(() => {
     const base = aba === 'entrada' ? entrada : aba === 'tratados' ? tratados : enviados
@@ -171,7 +194,7 @@ export function EmailsGmail({
     e.stopPropagation()
     setSelecionados(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
       return next
     })
   }
@@ -256,6 +279,17 @@ export function EmailsGmail({
             Novo
           </button>
         </div>
+
+        {/* Banner de novos emails */}
+        {novosEmails > 0 && (
+          <button
+            onClick={() => { setNovosEmails(0); carregadoEmRef.current = new Date().toISOString(); router.refresh() }}
+            className="flex w-full items-center justify-center gap-2 border-b border-primary/20 bg-primary/8 px-3 py-2 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/15"
+          >
+            <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>mark_email_unread</span>
+            {novosEmails === 1 ? '1 novo e-mail' : `${novosEmails} novos e-mails`} — clique para atualizar
+          </button>
+        )}
 
         {/* Banner de período */}
         <div className="flex items-center gap-1.5 border-b border-outline-variant/10 bg-surface-container-low/60 px-3 py-1.5">

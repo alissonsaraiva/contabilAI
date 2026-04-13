@@ -1,12 +1,19 @@
 'use client'
 
-import { useState }                      from 'react'
-import type { ThreadItem, MensagemThread } from './_shared'
+import { useState }                        from 'react'
+import type { ThreadItem, MensagemThread }  from './_shared'
+import { EmailHtml }                        from './email-html'
 
 const URL_REGEX = /(https?:\/\/[^\s)]+)/g
 
-/** Renderiza texto com URLs como links clicáveis */
-function CorpoEmail({ texto }: { texto: string }) {
+/** Retorna true se o conteúdo parece ser HTML (email com formatação rica) */
+function isHtml(texto: string): boolean {
+  const t = texto.trimStart()
+  return /^<!doctype\s/i.test(t) || /^<html[\s>]/i.test(t) || /^<\w[\s\S]{0,500}<\//.test(t)
+}
+
+/** Renderiza texto plano com URLs como links clicáveis */
+function CorpoTexto({ texto }: { texto: string }) {
   const partes = texto.split(URL_REGEX)
 
   return (
@@ -32,6 +39,12 @@ function CorpoEmail({ texto }: { texto: string }) {
       })}
     </p>
   )
+}
+
+/** Renderiza corpo do email detectando automaticamente HTML vs texto plano */
+function CorpoEmail({ texto }: { texto: string }) {
+  if (isHtml(texto)) return <EmailHtml html={texto} />
+  return <CorpoTexto texto={texto} />
 }
 
 export function MensagemBubble({ msg, thread, arquivandoAnexos, anexosArquivados, onArquivarAnexo }: {

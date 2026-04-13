@@ -1,6 +1,7 @@
 'use client'
 
 import { Component, type ReactNode, type ErrorInfo } from 'react'
+import * as Sentry from '@sentry/nextjs'
 
 export class WhatsAppChatBoundary extends Component<
   { children: ReactNode; onClose: () => void },
@@ -14,6 +15,10 @@ export class WhatsAppChatBoundary extends Component<
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[WhatsAppChatPanel] render error:', error, info.componentStack)
+    Sentry.captureException(error, {
+      tags: { module: 'whatsapp-chat', operation: 'render' },
+      extra: { componentStack: info.componentStack },
+    })
   }
 
   render() {

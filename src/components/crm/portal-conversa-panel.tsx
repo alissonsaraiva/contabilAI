@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
+import * as Sentry from '@sentry/nextjs'
 import { DocumentoPicker, type DocSistema } from '@/components/crm/documento-picker'
 
 type ArquivoAnexo = {
@@ -49,12 +50,19 @@ export function PortalConversaPanel({
   const bottomRef = useRef<HTMLDivElement>(null)
   const isFirstLoadRef = useRef(true)
   const msgCountRef = useRef(0)
+  // Race condition: versão incremental para descartar respostas stale de carregar() concorrentes.
+  const carregarVersionRef = useRef(0)
+  // SSE health: evita polling duplicado quando SSE está ativo.
+  const sseHealthyRef = useRef(false)
 
   const carregar = useCallback(async () => {
+    const version = ++carregarVersionRef.current
     try {
       const res = await fetch(`/api/conversas/${conversaId}`)
+      if (version !== carregarVersionRef.current) return
       if (!res.ok) return
       const data = await res.json()
+      if (version !== carregarVersionRef.current) return
       setMensagens(data.mensagens ?? [])
       setPausada(data.pausada ?? false)
     } catch (err: unknown) {
@@ -75,6 +83,7 @@ export function PortalConversaPanel({
       es = new EventSource(`/api/stream/conversas/${conversaId}`)
       es.onmessage = (e) => {
         tentativas = 0
+        sseHealthyRef.current = true
         try {
           const data = JSON.parse(e.data)
           if (data?.type === 'mensagem_excluida' && data.mensagemId) {
@@ -88,6 +97,7 @@ export function PortalConversaPanel({
       }
       es.onerror = () => {
         es?.close()
+        sseHealthyRef.current = false
         if (encerrado || tentativas >= 5) return
         tentativas++
         timeoutId = setTimeout(conectar, Math.min(1000 * 2 ** tentativas, 30_000))
@@ -97,15 +107,16 @@ export function PortalConversaPanel({
     conectar()
     return () => {
       encerrado = true
+      sseHealthyRef.current = false
       if (timeoutId) clearTimeout(timeoutId)
       es?.close()
     }
   }, [conversaId, carregar])
 
-  // Polling de 8s como fallback (múltiplos workers não compartilham eventBus)
+  // Polling de 8s — fallback quando SSE falha (múltiplos workers não compartilham eventBus)
   useEffect(() => {
     const id = setInterval(() => {
-      if (!document.hidden) void carregar()
+      if (!document.hidden && !sseHealthyRef.current) void carregar()
     }, 8_000)
     return () => clearInterval(id)
   }, [carregar])
@@ -139,6 +150,7 @@ export function PortalConversaPanel({
       toast.success('Você assumiu o controle da conversa')
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao assumir controle:', { conversaId, err })
+      Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'assumir' }, extra: { conversaId } })
       toast.error('Erro ao assumir controle')
     } finally {
       setAssumindo(false)
@@ -154,6 +166,7 @@ export function PortalConversaPanel({
       toast.success('IA reativada')
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao reativar IA:', { conversaId, err })
+      Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'reativar-ia' }, extra: { conversaId } })
       toast.error('Erro ao devolver à IA')
     } finally {
       setReativando(false)
@@ -172,6 +185,7 @@ export function PortalConversaPanel({
       ))
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao excluir mensagem:', { mensagemId, err })
+      Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'excluir-mensagem' }, extra: { conversaId, mensagemId } })
       toast.error('Erro ao excluir mensagem')
     } finally {
       setExcluindo(null)
@@ -201,7 +215,9 @@ export function PortalConversaPanel({
         mimeType: file.type,
         previewUrl: isImage ? URL.createObjectURL(file) : undefined,
       })
-    } catch {
+    } catch (err: unknown) {
+      console.error('[PortalConversaPanel] erro ao fazer upload:', { clienteId, err })
+      Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'upload' }, extra: { clienteId } })
       toast.error('Erro ao fazer upload do arquivo')
     } finally {
       setUploading(false)
@@ -251,6 +267,7 @@ export function PortalConversaPanel({
       removerArquivo()
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao enviar mensagem:', { conversaId, err })
+      Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'enviar' }, extra: { conversaId } })
       toast.error('Erro ao enviar mensagem')
       setTexto(textoEnviar)
     } finally {

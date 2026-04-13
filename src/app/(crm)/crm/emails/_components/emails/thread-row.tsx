@@ -3,6 +3,21 @@
 import type { ThreadItem } from './_shared'
 import type { Aba }        from './_shared'
 
+/** Remove tags HTML e normaliza espaços — para exibir preview de emails com corpo HTML */
+function stripHtml(texto: string): string {
+  return texto
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function ThreadRow({ thread, aba, selecionado, marcado, onToggle, onClick }: {
   thread:      ThreadItem
   aba:         Aba
@@ -16,6 +31,11 @@ export function ThreadRow({ thread, aba, selecionado, marcado, onToggle, onClick
   const contagem  = thread.mensagens.length
   const dataFormatada = new Date(thread.ultimaData)
     .toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+  // Badge de urgência: thread de entrada sem resposta há mais de 48h
+  // eslint-disable-next-line react-hooks/purity -- Date.now() intencional: badge de urgência, imprecisão de segundos é irrelevante para o threshold de 48h
+  const horasSemResposta = naoLido ? (Date.now() - new Date(thread.ultimaData).getTime()) / 36e5 : 0
+  const urgente = horasSemResposta >= 48
 
   // Remetente mais recente
   const ultimo = thread.mensagens[thread.mensagens.length - 1]!
@@ -51,7 +71,7 @@ export function ThreadRow({ thread, aba, selecionado, marcado, onToggle, onClick
         {thread.assunto}
       </p>
       <p className="truncate text-[11px] text-on-surface-variant/50">
-        {ultimo.tipo === 'email_enviado' ? '↩ Você: ' : ''}{ultimaMsg.conteudo?.slice(0, 70)}
+        {ultimo.tipo === 'email_enviado' ? '↩ Você: ' : ''}{ultimaMsg.conteudo ? stripHtml(ultimaMsg.conteudo).slice(0, 70) : ''}
       </p>
       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
         {thread.clienteNome && aba !== 'enviados' && (
@@ -59,6 +79,14 @@ export function ThreadRow({ thread, aba, selecionado, marcado, onToggle, onClick
         )}
         {aba === 'entrada' && !thread.clienteNome && (
           <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-medium text-amber-500/80">Sem vínculo</span>
+        )}
+        {urgente && (
+          <span className="flex items-center gap-0.5 rounded-full bg-error/10 px-2 py-0.5 text-[9px] font-semibold text-error">
+            <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
+            {Math.floor(horasSemResposta) < 72
+              ? `${Math.floor(horasSemResposta)}h sem resposta`
+              : `${Math.floor(horasSemResposta / 24)}d sem resposta`}
+          </span>
         )}
         {aba === 'tratados' && (
           thread.mensagens.some(m => m.tipo === 'email_enviado')
