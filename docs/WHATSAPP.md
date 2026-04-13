@@ -367,12 +367,21 @@ Não retenta erros 4xx (número inválido, bloqueado pelo cliente, etc.)
 
 ### sendHumanLike
 
-1. Splitta texto em chunks de ~1024 chars
-2. Por chunk: calcula delay (`1200ms + comprimento/velocidade × random(0.8–1.2)`)
+1. Divide texto em chunks via `splitIntoChunks` (ver abaixo)
+2. Por chunk: calcula delay proporcional ao tamanho (`min 1200ms, max 4500ms`)
 3. Envia typing indicator por `delay` ms
 4. Aguarda `delay` ms
 5. Envia texto
 6. Retorna erro no primeiro chunk que falha
+
+### splitIntoChunks (`src/lib/utils/split-chunks.ts`)
+
+Divide a resposta da IA em parágrafos — **sem quebra artificial de sentença**.
+
+- Divisão por `\n\n` (parágrafo duplo): cada parágrafo = uma mensagem WhatsApp
+- `stripMarkdown` aplicado antes: remove `**bold**`, `# headers`, code blocks, etc.
+- Guardrail: parágrafo > 4000 chars é subdividido por `\n` simples (caso patológico)
+- Resultado: o texto da IA chega íntegro ao cliente, preservando a estrutura natural
 
 ---
 

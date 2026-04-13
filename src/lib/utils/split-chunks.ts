@@ -1,7 +1,8 @@
 // Utilitário compartilhado — sem dependências de servidor
 // Usado pelo WhatsApp (human-like.ts) e pelo chat widget do onboarding
 
-const MAX_CHUNK_CHARS = 220
+// Guardrail: parágrafo acima desse limite é dividido por \n simples como fallback
+const MAX_CHUNK_CHARS = 4000
 
 // Remove formatação markdown que não fica bem em chats
 export function stripMarkdown(text: string): string {
@@ -20,37 +21,25 @@ export function stripMarkdown(text: string): string {
     .trim()
 }
 
-// Quebra texto em chunks curtos e naturais
-export function splitIntoChunks(text: string, maxChars = MAX_CHUNK_CHARS): string[] {
+// Divide por parágrafos (\n\n) preservando cada um como mensagem inteira.
+// Sem quebra artificial de sentença — o texto da IA chega íntegro ao cliente.
+// Guardrail: parágrafo > MAX_CHUNK_CHARS é subdividido por \n simples.
+export function splitIntoChunks(text: string): string[] {
   const cleaned = stripMarkdown(text)
-  const paragraphs = cleaned.split(/\n{1,}/).map(p => p.trim()).filter(Boolean)
   const chunks: string[] = []
 
-  for (const para of paragraphs) {
-    if (para.length <= maxChars) {
+  for (const para of cleaned.split(/\n\n+/).map(p => p.trim()).filter(Boolean)) {
+    if (para.length <= MAX_CHUNK_CHARS) {
       chunks.push(para)
-      continue
-    }
-
-    const sentences = para.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g) ?? [para]
-    let current = ''
-
-    for (const s of sentences) {
-      const trimmed = s.trim()
-      if (!trimmed) continue
-
-      if (current && (current + ' ' + trimmed).length > maxChars) {
-        chunks.push(current.trim())
-        current = trimmed
-      } else {
-        current = current ? current + ' ' + trimmed : trimmed
+    } else {
+      // parágrafo anormalmente longo (>4000 chars) — divide por \n simples
+      for (const line of para.split(/\n/).map(l => l.trim()).filter(Boolean)) {
+        chunks.push(line)
       }
     }
-
-    if (current.trim()) chunks.push(current.trim())
   }
 
-  return chunks.filter(Boolean)
+  return chunks
 }
 
 // Delay proporcional ao tamanho do chunk (simula digitação humana)
