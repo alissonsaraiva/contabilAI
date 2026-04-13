@@ -53,6 +53,7 @@ export async function GET(
       const enc = new TextEncoder()
 
       const send = (payload: object) => {
+        // eslint-disable-next-line no-empty -- controller já fechado se cliente desconectou
         try { controller.enqueue(enc.encode(`data: ${JSON.stringify(payload)}\n\n`)) } catch {}
       }
 
@@ -65,6 +66,7 @@ export async function GET(
 
       // Keepalive a cada 25s para não cair por inatividade
       const keepalive = setInterval(() => {
+        // eslint-disable-next-line no-empty -- controller já fechado se cliente desconectou
         try { controller.enqueue(enc.encode(': ping\n\n')) } catch {}
       }, KEEPALIVE_MS)
 
@@ -84,6 +86,7 @@ export async function GET(
 
       req.signal.addEventListener('abort', () => {
         cleanup()
+        // eslint-disable-next-line no-empty -- controller pode já estar fechado no abort
         try { controller.close() } catch {}
       })
     },

@@ -87,7 +87,7 @@ export function PlanoActionsMenu({ plano }: Props) {
       <ConfirmDialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+        onConfirm={() => { setConfirmOpen(false); void handleDelete() }}
         title="Excluir plano?"
         description="Esta ação não pode ser desfeita."
         confirmLabel="Excluir"

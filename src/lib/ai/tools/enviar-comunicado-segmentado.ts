@@ -80,7 +80,7 @@ Segmento pode filtrar por:
       segmento:        z.record(z.string(), z.unknown()).optional(),
       limiteClientes:  z.number().optional(),
     }).safeParse(input)
-    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     const titulo   = parsed.data.titulo
     const mensagem = parsed.data.mensagem
 

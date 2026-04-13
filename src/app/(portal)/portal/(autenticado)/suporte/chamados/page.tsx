@@ -90,7 +90,7 @@ export default async function ChamadosPage({ searchParams }: Props) {
         <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
           <ul className="divide-y divide-outline-variant/10">
             {ordens.map(o => {
-              const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
+              const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO['aberta']!
               return (
                 <li key={o.id}>
                   <Link
@@ -98,7 +98,7 @@ export default async function ChamadosPage({ searchParams }: Props) {
                     className="flex items-start gap-3 px-5 py-3.5 hover:bg-surface-container/50 transition-colors"
                   >
                     <span
-                      className={`material-symbols-outlined mt-0.5 text-[18px] shrink-0 ${s.color.split(' ')[0]}`}
+                      className={`material-symbols-outlined mt-0.5 text-[18px] shrink-0 ${s.color.split(' ')[0]!}`}
                       style={{ fontVariationSettings: "'FILL' 1" }}
                     >
                       {s.icon}

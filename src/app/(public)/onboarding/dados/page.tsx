@@ -22,15 +22,15 @@ function validarCPF(cpf: string): boolean {
   const d = cpf.replace(/\D/g, '')
   if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false
   let sum = 0
-  for (let i = 0; i < 9; i++) sum += parseInt(d[i]) * (10 - i)
+  for (let i = 0; i < 9; i++) sum += parseInt(d.charAt(i)) * (10 - i)
   let r = (sum * 10) % 11
   if (r === 10 || r === 11) r = 0
-  if (r !== parseInt(d[9])) return false
+  if (r !== parseInt(d.charAt(9))) return false
   sum = 0
-  for (let i = 0; i < 10; i++) sum += parseInt(d[i]) * (11 - i)
+  for (let i = 0; i < 10; i++) sum += parseInt(d.charAt(i)) * (11 - i)
   r = (sum * 10) % 11
   if (r === 10 || r === 11) r = 0
-  return r === parseInt(d[10])
+  return r === parseInt(d.charAt(10))
 }
 
 function validarCNPJ(cnpj: string): boolean {
@@ -38,13 +38,13 @@ function validarCNPJ(cnpj: string): boolean {
   if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false
   const calcDigito = (s: string, weights: number[]) => {
     let sum = 0
-    for (let i = 0; i < weights.length; i++) sum += parseInt(s[i]) * weights[i]
+    for (let i = 0; i < weights.length; i++) sum += parseInt(s.charAt(i)) * (weights[i] ?? 0)
     const r = sum % 11
     return r < 2 ? 0 : 11 - r
   }
   const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
   const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-  return calcDigito(d, w1) === parseInt(d[12]) && calcDigito(d, w2) === parseInt(d[13])
+  return calcDigito(d, w1) === parseInt(d.charAt(12)) && calcDigito(d, w2) === parseInt(d.charAt(13))
 }
 
 function formatCEP(v: string) {
@@ -340,7 +340,7 @@ export default function DadosPage({ searchParams }: Props) {
                 onChange={e => {
                   const v = formatCEP(e.target.value)
                   set('cep', v)
-                  if (v.replace(/\D/g, '').length === 8) buscarCEP(v, '')
+                  if (v.replace(/\D/g, '').length === 8) void buscarCEP(v, '')
                 }}
                 inputMode="numeric"
                 maxLength={9}
@@ -405,7 +405,7 @@ export default function DadosPage({ searchParams }: Props) {
                 onChange={e => {
                   const v = formatCNPJ(e.target.value)
                   set('cnpj', v)
-                  if (v.replace(/\D/g, '').length === 14) preencherCNPJ(v)
+                  if (v.replace(/\D/g, '').length === 14) void preencherCNPJ(v)
                 }}
                 inputMode="numeric"
                 maxLength={18}
@@ -451,7 +451,7 @@ export default function DadosPage({ searchParams }: Props) {
                 onChange={e => {
                   const v = formatCEP(e.target.value)
                   set('cepEmpresa', v)
-                  if (v.replace(/\D/g, '').length === 8) buscarCEP(v, 'Empresa')
+                  if (v.replace(/\D/g, '').length === 8) void buscarCEP(v, 'Empresa')
                 }}
                 inputMode="numeric"
                 maxLength={9}

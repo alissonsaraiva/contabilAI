@@ -108,7 +108,8 @@ export async function embedText(text: string, keys?: EmbedKeys): Promise<number[
   const cached = queryCache.get(text)
   if (cached && cached.expiresAt > now) return cached.embedding
 
-  const [embedding] = await embedTexts([text], keys)
+  const results = await embedTexts([text], keys)
+  const embedding = results[0]!
 
   // Evict entrada mais antiga se chegou no limite
   if (queryCache.size >= QUERY_CACHE_MAX) {

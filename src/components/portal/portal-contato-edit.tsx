@@ -265,7 +265,7 @@ export function PortalContatoEdit({ initial }: Props) {
                     onChange={e => {
                       const v = e.target.value
                       set('cep', v)
-                      if (v.replace(/\D/g, '').length === 8) preencherCEP(v)
+                      if (v.replace(/\D/g, '').length === 8) void preencherCEP(v)
                     }}
                     inputMode="numeric"
                     maxLength={9}

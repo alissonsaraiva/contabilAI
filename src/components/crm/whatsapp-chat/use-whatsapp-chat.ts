@@ -66,7 +66,7 @@ function parseEntityFromPath(apiPath: string): EntityInfo | null {
     clientes: 'cliente',
     socios: 'socio',
   }
-  return { entidadeTipo: mapa[m[1]], entidadeId: m[2] }
+  return { entidadeTipo: mapa[m[1]!]!, entidadeId: m[2]! }
 }
 
 export function useWhatsAppChat(apiPath: string) {
@@ -130,7 +130,7 @@ export function useWhatsAppChat(apiPath: string) {
   }, [apiPath])
 
   useEffect(() => {
-    carregar()
+    void carregar()
   }, [carregar])
 
   useEffect(() => {
@@ -171,7 +171,7 @@ export function useWhatsAppChat(apiPath: string) {
             return
           }
         } catch (err) { console.error('[whatsapp-chat] falha ao processar evento SSE:', err) }
-        carregar()
+        void carregar()
       }
       es.onerror = () => {
         es?.close()
@@ -199,7 +199,7 @@ export function useWhatsAppChat(apiPath: string) {
   useEffect(() => {
     if (!conversaId) return
     const id = setInterval(() => {
-      if (!document.hidden && !sseHealthyRef.current) carregar()
+      if (!document.hidden && !sseHealthyRef.current) void carregar()
     }, 8_000)
     return () => clearInterval(id)
   }, [conversaId, carregar])

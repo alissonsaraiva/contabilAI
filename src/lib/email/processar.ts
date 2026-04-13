@@ -292,7 +292,7 @@ async function gerarSugestao(
           contextLines.push(`Chamado em aberto: "${osAberta.titulo}" (${osAberta.status})`)
         }
         if (ultimasInteracoes.length > 0) {
-          const ultimo = ultimasInteracoes[0]
+          const ultimo = ultimasInteracoes[0]!
           const dataUltimo = ultimo.criadoEm.toLocaleDateString('pt-BR')
           contextLines.push(`Último contato: ${ultimo.titulo ?? ultimo.tipo} em ${dataUltimo}`)
         }

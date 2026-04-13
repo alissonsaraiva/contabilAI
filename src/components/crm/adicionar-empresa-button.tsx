@@ -140,7 +140,7 @@ function AdicionarEmpresaDrawer({
                   onChange={e => {
                     const v = formatCNPJ(e.target.value)
                     set('cnpj', v)
-                    if (v.replace(/\D/g, '').length === 14) preencherCNPJ(v)
+                    if (v.replace(/\D/g, '').length === 14) void preencherCNPJ(v)
                   }}
                   inputMode="numeric"
                   maxLength={18}

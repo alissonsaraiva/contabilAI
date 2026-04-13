@@ -42,13 +42,13 @@ export default async function CrmComunicadosPage() {
           <h2 className="mb-3 text-[14px] font-semibold text-on-surface">Publicados ({publicados.length})</h2>
           <div className="space-y-3">
             {publicados.map(c => {
-              const tc = TIPO_COM[c.tipo] ?? TIPO_COM.informativo
+              const tc = TIPO_COM[c.tipo] ?? TIPO_COM['informativo']!
               const expirado = c.expiradoEm && new Date(c.expiradoEm) < new Date()
               return (
                 <Card key={c.id} className={`border-outline-variant/15 bg-card/60 p-4 rounded-[16px] shadow-sm ${expirado ? 'opacity-60' : ''}`}>
                   <div className="flex items-start gap-3">
                     <span
-                      className={`material-symbols-outlined mt-0.5 text-[20px] shrink-0 ${tc.color.split(' ')[0]}`}
+                      className={`material-symbols-outlined mt-0.5 text-[20px] shrink-0 ${tc.color.split(' ')[0]!}`}
                       style={{ fontVariationSettings: "'FILL' 1" }}
                     >
                       {tc.icon}
@@ -82,12 +82,12 @@ export default async function CrmComunicadosPage() {
           <h2 className="mb-3 text-[14px] font-semibold text-on-surface">Rascunhos ({rascunhos.length})</h2>
           <div className="space-y-3">
             {rascunhos.map(c => {
-              const tc = TIPO_COM[c.tipo] ?? TIPO_COM.informativo
+              const tc = TIPO_COM[c.tipo] ?? TIPO_COM['informativo']!
               return (
                 <Card key={c.id} className="border-outline-variant/15 bg-card/60 p-4 rounded-[16px] shadow-sm opacity-70">
                   <div className="flex items-start gap-3">
                     <span
-                      className={`material-symbols-outlined mt-0.5 text-[20px] shrink-0 ${tc.color.split(' ')[0]}`}
+                      className={`material-symbols-outlined mt-0.5 text-[20px] shrink-0 ${tc.color.split(' ')[0]!}`}
                       style={{ fontVariationSettings: "'FILL' 0" }}
                     >
                       {tc.icon}

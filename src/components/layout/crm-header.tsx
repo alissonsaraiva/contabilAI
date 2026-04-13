@@ -97,8 +97,8 @@ function useAiHealthAlert() {
         setAnyDown(down)
       } catch { /* silencia */ }
     }
-    check()
-    const id = setInterval(check, 5 * 60 * 1000)
+    void check()
+    const id = setInterval(() => void check(), 5 * 60 * 1000)
     return () => clearInterval(id)
   }, [])
 
@@ -127,8 +127,8 @@ function useNotificacoes() {
   }
 
   useEffect(() => {
-    load()
-    const id = setInterval(load, 30_000)
+    void load()
+    const id = setInterval(() => void load(), 30_000)
     return () => clearInterval(id)
   }, [])
 
@@ -241,7 +241,7 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
                       href={n.href}
                       className="group flex items-start gap-2 px-4 py-3 hover:bg-surface-container/50 cursor-pointer transition-colors"
                       onClick={() => {
-                        descartar(n.id)
+                        void descartar(n.id)
                         fecharNotif()
                       }}
                     >
@@ -276,7 +276,7 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
                         </span>
                         {n.podeDescartar ? (
                           <button
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); descartar(n.id) }}
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); void descartar(n.id) }}
                             className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded-full text-on-surface-variant/40 hover:bg-surface-container hover:text-on-surface transition-all"
                             title="Descartar"
                           >

@@ -62,7 +62,7 @@ export function PortalConversaPanel({
     }
   }, [conversaId])
 
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => { void carregar() }, [carregar])
 
   // SSE — atualizações em tempo real quando cliente envia mensagem
   useEffect(() => {
@@ -84,7 +84,7 @@ export function PortalConversaPanel({
             return
           }
         } catch (err) { console.error('[crm/portal-conversa] falha ao processar evento SSE:', err) }
-        carregar()
+        void carregar()
       }
       es.onerror = () => {
         es?.close()
@@ -105,7 +105,7 @@ export function PortalConversaPanel({
   // Polling de 8s como fallback (múltiplos workers não compartilham eventBus)
   useEffect(() => {
     const id = setInterval(() => {
-      if (!document.hidden) carregar()
+      if (!document.hidden) void carregar()
     }, 8_000)
     return () => clearInterval(id)
   }, [carregar])
@@ -420,7 +420,7 @@ export function PortalConversaPanel({
               placeholder={arquivo ? 'Legenda (opcional)...' : 'Digite uma resposta...'}
               value={texto}
               onChange={e => setTexto(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void enviar() } }}
               disabled={sending}
             />
             <button

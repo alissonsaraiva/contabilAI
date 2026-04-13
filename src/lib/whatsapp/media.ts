@@ -51,14 +51,14 @@ function mediaKeyToBuffer(raw: unknown): Buffer | null {
     const len = Object.keys(obj).length
     if (len === 0) return null
     const arr = new Uint8Array(len)
-    for (let i = 0; i < len; i++) arr[i] = obj[String(i)]
+    for (let i = 0; i < len; i++) arr[i] = obj[String(i)] ?? 0
     return Buffer.from(arr)
   }
   return null
 }
 
 function decryptWhatsAppMedia(encrypted: Buffer, mediaKey: Buffer, mediaType: string): Buffer {
-  const info = WHATSAPP_HKDF_INFO[mediaType] ?? WHATSAPP_HKDF_INFO.document
+  const info = WHATSAPP_HKDF_INFO[mediaType] ?? WHATSAPP_HKDF_INFO['document']!
   const expanded  = hkdfSha256(mediaKey, 112, info)
   const iv        = expanded.subarray(0, 16)
   const cipherKey = expanded.subarray(16, 48)

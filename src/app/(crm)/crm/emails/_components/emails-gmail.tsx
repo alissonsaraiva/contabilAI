@@ -93,7 +93,7 @@ export function EmailsGmail({
 
     const threadAtualizada = [...entrada, ...tratados].find(t => t.threadId === threadId)
     if (threadAtualizada) {
-      const updated = atualizar([threadAtualizada])[0]
+      const updated = atualizar([threadAtualizada])[0]!
       skipAbaResetRef.current = true  // evita que useEffect([aba]) feche o painel
       setEntrada(prev => prev.filter(t => t.threadId !== threadId))
       setTratados(prev => [updated, ...prev.filter(t => t.threadId !== threadId)])
@@ -161,7 +161,7 @@ export function EmailsGmail({
     setEnviados(prev => atualizar(prev))
     if (painel.tipo === 'thread' && painel.thread.threadId === threadId) {
       setPainel(prev => prev.tipo === 'thread'
-        ? { ...prev, thread: atualizar([prev.thread])[0] }
+        ? { ...prev, thread: atualizar([prev.thread])[0]! }
         : prev
       )
     }

@@ -137,7 +137,7 @@ export function DocumentoPicker({ open, onClose, onSelect, onSelectMultiple, mul
 
   useEffect(() => {
     if (!open) return
-    fetchDocs()
+    void fetchDocs()
   }, [open, fetchDocs])
 
   // Reseta ao fechar

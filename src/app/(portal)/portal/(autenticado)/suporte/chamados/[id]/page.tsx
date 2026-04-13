@@ -56,8 +56,8 @@ export default async function ChamadoDetailPage({ params }: Props) {
 
   const documentosNorm = documentos.map(d => ({ ...d, tamanho: d.tamanho != null ? Number(d.tamanho) : null }))
 
-  const s  = STATUS_CHAMADO[ordem.status] ?? STATUS_CHAMADO.aberta
-  const p  = PRIORIDADE[ordem.prioridade] ?? PRIORIDADE.media
+  const s  = STATUS_CHAMADO[ordem.status] ?? STATUS_CHAMADO['aberta']!
+  const p  = PRIORIDADE[ordem.prioridade] ?? PRIORIDADE['media']!
   const podeAvaliar = ordem.status === 'resolvida' && !ordem.avaliacaoNota
   const podeCancelar = ordem.status === 'aberta'
 

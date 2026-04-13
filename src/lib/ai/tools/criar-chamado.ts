@@ -56,7 +56,7 @@ const criarChamadoTool: Tool = {
       origem:     z.string().max(50).optional(),
       visivelPortal: z.boolean().optional(),
     }).safeParse(input)
-    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     const clienteId    = parsed.data.clienteId ?? ctx.clienteId
     const tipo         = parsed.data.tipo ?? 'outros'
     const titulo       = parsed.data.titulo

@@ -78,7 +78,7 @@ export default function SimuladorPage({ searchParams }: Props) {
   useEffect(() => {
     const digits = cnpj.replace(/\D/g, '')
     if (digits.length === 14 && !cnpjDados) {
-      buscarCnpj(digits).then(d => { if (d) setCnpjDados(d) })
+      void buscarCnpj(digits).then(d => { if (d) setCnpjDados(d) })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cnpj])

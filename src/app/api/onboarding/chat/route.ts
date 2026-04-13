@@ -312,13 +312,13 @@ export async function POST(req: Request) {
       Sentry.captureException(err, { tags: { module: 'onboarding-chat', operation: 'escalacao-humano' }, extra: { conversaId, leadId } })
     }
 
-    if (conversaId) addMensagens(conversaId, message, escalInfo.textoLimpo)
+    if (conversaId) void addMensagens(conversaId, message, escalInfo.textoLimpo)
 
     return NextResponse.json({ reply: escalInfo.textoLimpo, escalado: true, escalacaoId })
   }
 
   // ── Persiste no banco ─────────────────────────────────────────────────────
-  if (conversaId) addMensagens(conversaId, message, respostaRaw)
+  if (conversaId) void addMensagens(conversaId, message, respostaRaw)
 
   return NextResponse.json({ reply: respostaRaw })
 }

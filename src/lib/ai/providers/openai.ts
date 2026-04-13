@@ -184,7 +184,7 @@ export const openaiProvider: AIProvider = {
     }
 
     const data = await res.json() as OpenAIToolCallResponse
-    const choice = data.choices[0]
+    const choice = data.choices[0]!
 
     const text      = choice.message.content ?? ''
     const toolCalls = (choice.message.tool_calls ?? []).map(tc => ({

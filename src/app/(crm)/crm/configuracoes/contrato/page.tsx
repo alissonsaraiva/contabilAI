@@ -30,7 +30,7 @@ export default function ContratoPage() {
   const { register, handleSubmit, reset } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
-    fetch('/api/escritorio')
+    void fetch('/api/escritorio')
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
         if (!data) return

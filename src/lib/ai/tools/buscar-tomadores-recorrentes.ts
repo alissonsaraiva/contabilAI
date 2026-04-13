@@ -56,7 +56,7 @@ const buscarTomadoresRecorrentesTool: Tool = {
     if (!parsed.success) {
       return {
         sucesso: false,
-        erro:    `Parâmetro inválido: ${parsed.error.issues[0]?.message}`,
+        erro:    `Parâmetro inválido: ${parsed.error.issues[0]!?.message}`,
         resumo:  'Parâmetros inválidos para busca de tomadores.',
       }
     }

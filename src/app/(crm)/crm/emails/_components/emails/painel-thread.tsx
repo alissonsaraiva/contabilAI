@@ -144,7 +144,7 @@ export function PainelThread({ thread, aba, clientes, operadorNome, escritorioNo
     if (!emailsParaVincular.length) return
     try {
       // Primeiro email: usa resposta para obter clienteNome
-      const res = await fetch(`/api/email/inbox/${emailsParaVincular[0].id}/vincular`, {
+      const res = await fetch(`/api/email/inbox/${emailsParaVincular[0]!.id}/vincular`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ clienteId: vincularClienteId }),

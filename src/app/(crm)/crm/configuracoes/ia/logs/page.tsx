@@ -164,7 +164,7 @@ export default async function LogsPage({ searchParams }: Props) {
     solicitanteAI: a.solicitanteAI,
     usuarioNome: a.usuarioNome,
     usuarioTipo: a.usuarioTipo,
-    contexto: a.clienteId ? clienteMap[a.clienteId] : a.leadId ? leadMap[a.leadId] : null,
+    contexto: a.clienteId ? (clienteMap[a.clienteId] ?? null) : a.leadId ? (leadMap[a.leadId] ?? null) : null,
     input: a.input,
     resultado: a.resultado,
     criadoEm: a.criadoEm.toISOString(),

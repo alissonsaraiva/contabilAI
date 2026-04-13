@@ -46,7 +46,7 @@ const responderChamadoTool: Tool = {
       resposta: z.string().min(1).max(5000).optional(),
       status:   z.string().max(50).optional(),
     }).safeParse(input)
-    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     const { ordemId, numero, resposta, status } = parsed.data
 
     if (!ordemId && numero === undefined) {

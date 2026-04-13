@@ -66,7 +66,7 @@ export async function CardChamados({ clienteId }: { clienteId: string }) {
         <>
           <ul className="divide-y divide-outline-variant/8">
             {chamados.map(o => {
-              const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
+              const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO['aberta']!
               return (
                 <li key={o.id}>
                   <Link

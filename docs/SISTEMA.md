@@ -1,5 +1,5 @@
 # AVOS — Índice da Documentação do Sistema
-> **Versão**: v3.10.29 | **Atualizado**: 2026-04-06 | **Fonte da verdade**: código-fonte
+> **Versão**: v3.10.46 | **Atualizado**: 2026-04-12 | **Fonte da verdade**: código-fonte
 >
 > 📄 **Documentação específica:** [WhatsApp — Fluxo Completo](./WHATSAPP.md)
 >
@@ -31,6 +31,7 @@
 | Storage | Cloudflare R2 (S3-compatible) | — |
 | Deploy | Docker + VPS (6 containers) via ghcr.io | — |
 | Monitoramento | Sentry (client + server + edge) + healthchecks.io (crons) | — |
+| MCP Sentry | `@sentry/mcp-server` via stdio no `.mcp.json` — acesso direto a issues/eventos do Claude Code | — |
 | Auth CRM | NextAuth.js (credentials) | — |
 | Auth Portal | Magic link + OTP WhatsApp + sessions | — |
 

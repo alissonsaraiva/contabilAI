@@ -149,7 +149,7 @@ export function RagDiagnostico() {
               <input
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleAvaliar() }}
+                onKeyDown={e => { if (e.key === 'Enter') void handleAvaliar() }}
                 className={INPUT}
                 placeholder="Ex: prazo DAS MEI 2025, CNPJ empresa…"
               />

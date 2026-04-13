@@ -41,7 +41,7 @@ const reenviarEmailNotaFiscalTool: Tool = {
     }).safeParse(input)
 
     if (!parsed.success) {
-      return { sucesso: false, erro: parsed.error.issues[0].message, resumo: 'ID da nota inválido.' }
+      return { sucesso: false, erro: parsed.error.issues[0]!.message, resumo: 'ID da nota inválido.' }
     }
 
     const nota = await prisma.notaFiscal.findUnique({

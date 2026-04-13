@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       LIMIT 1
     `
     if (clienteRows.length > 0) {
-      const clientePorTel = await prisma.cliente.findUnique({ where: { id: clienteRows[0].id }, select: clienteSelect })
+      const clientePorTel = await prisma.cliente.findUnique({ where: { id: clienteRows[0]!.id }, select: clienteSelect })
       if (clientePorTel) return enviarOtpCliente(clientePorTel)
     }
 
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
       LIMIT 1
     `
     if (socioRows.length > 0) {
-      const socioPorTel = await prisma.socio.findUnique({ where: { id: socioRows[0].id }, select: socioSelect })
+      const socioPorTel = await prisma.socio.findUnique({ where: { id: socioRows[0]!.id }, select: socioSelect })
       if (socioPorTel) return enviarOtpSocio(socioPorTel)
     }
 

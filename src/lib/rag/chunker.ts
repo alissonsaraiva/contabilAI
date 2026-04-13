@@ -63,11 +63,11 @@ export function chunkText(text: string, tipo?: string): string[] {
 
   // Aplica sobreposição entre chunks
   if (chunks.length <= 1) return chunks
-  const overlapped: string[] = [chunks[0]]
+  const overlapped: string[] = [chunks[0]!]
   for (let i = 1; i < chunks.length; i++) {
-    const prev = chunks[i - 1]
+    const prev = chunks[i - 1]!
     const overlap = prev.slice(-overlapTokens * CHARS_PER_TOKEN)
-    overlapped.push(`${overlap}\n${chunks[i]}`.trim())
+    overlapped.push(`${overlap}\n${chunks[i]!}`.trim())
   }
   return overlapped.filter(c => c.length > 20)
 }

@@ -45,7 +45,7 @@ const enviarWhatsAppSocioTool: Tool = {
       socioId:  z.string().min(1).max(200),
       mensagem: z.string().min(1).max(5000),
     }).safeParse(input)
-    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     const { socioId, mensagem } = parsed.data
 
     const socio = await prisma.socio.findUnique({

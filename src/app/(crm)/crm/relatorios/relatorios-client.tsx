@@ -68,8 +68,8 @@ function grupoPorMesAno(relatorios: Relatorio[]) {
     mapa.get(key)!.push(r)
   }
   for (const [key, items] of mapa.entries()) {
-    const [ano, mes] = key.split('-')
-    grupos.push({ key, label: `${MESES[parseInt(mes) - 1]} ${ano}`, items })
+    const [ano, mes] = key.split('-') as [string, string]
+    grupos.push({ key, label: `${MESES[parseInt(mes) - 1]!} ${ano}`, items })
   }
   return grupos
 }

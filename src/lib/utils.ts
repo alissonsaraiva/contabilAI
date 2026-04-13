@@ -67,15 +67,15 @@ export function validarCPF(cpf: string): boolean {
   const n = cpf.replace(/\D/g, '')
   if (n.length !== 11 || /^(\d)\1+$/.test(n)) return false
   let sum = 0
-  for (let i = 0; i < 9; i++) sum += parseInt(n[i]) * (10 - i)
+  for (let i = 0; i < 9; i++) sum += parseInt(n.charAt(i)) * (10 - i)
   let d = 11 - (sum % 11)
   if (d > 9) d = 0
-  if (d !== parseInt(n[9])) return false
+  if (d !== parseInt(n.charAt(9))) return false
   sum = 0
-  for (let i = 0; i < 10; i++) sum += parseInt(n[i]) * (11 - i)
+  for (let i = 0; i < 10; i++) sum += parseInt(n.charAt(i)) * (11 - i)
   d = 11 - (sum % 11)
   if (d > 9) d = 0
-  return d === parseInt(n[10])
+  return d === parseInt(n.charAt(10))
 }
 
 export function validarCNPJ(cnpj: string): boolean {
@@ -85,19 +85,19 @@ export function validarCNPJ(cnpj: string): boolean {
     let sum = 0
     let pos = len - 7
     for (let i = len; i >= 1; i--) {
-      sum += parseInt(s[len - i]) * pos--
+      sum += parseInt(s.charAt(len - i)) * pos--
       if (pos < 2) pos = 9
     }
     return sum % 11 < 2 ? 0 : 11 - (sum % 11)
   }
-  return calc(n, 12) === parseInt(n[12]) && calc(n, 13) === parseInt(n[13])
+  return calc(n, 12) === parseInt(n.charAt(12)) && calc(n, 13) === parseInt(n.charAt(13))
 }
 
 export function getInitials(nome: string): string {
   return nome
     .split(' ')
     .slice(0, 2)
-    .map((n) => n[0])
+    .map((n) => n.charAt(0))
     .join('')
     .toUpperCase()
 }

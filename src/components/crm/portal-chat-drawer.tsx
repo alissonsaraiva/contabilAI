@@ -59,7 +59,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
       .then(r => r.json())
       .then((data: { conversas: Conversa[] }) => {
         setConversas(data.conversas ?? [])
-        if (data.conversas?.length === 1) setConversaAberta(data.conversas[0].id)
+        if (data.conversas?.length === 1) setConversaAberta(data.conversas[0]!.id)
       })
       .catch(err => console.error('[crm/portal-chat-drawer] falha ao carregar:', err))
       .finally(() => setLoading(false))
@@ -252,7 +252,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
                     </p>
                     {c.mensagens.length > 0 && (
                       <p className="text-[11px] text-on-surface-variant/50 mt-1 truncate">
-                        {c.mensagens[c.mensagens.length - 1].conteudo}
+                        {c.mensagens[c.mensagens.length - 1]!.conteudo}
                       </p>
                     )}
                   </div>
@@ -369,7 +369,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
                   <textarea
                     value={texto}
                     onChange={e => setTexto(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() } }}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleEnviar() } }}
                     placeholder={arquivo ? 'Legenda (opcional)...' : 'Responder ao cliente...'}
                     rows={2}
                     className="flex-1 resize-none rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10"

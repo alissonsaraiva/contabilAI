@@ -60,7 +60,7 @@ const atualizarStatusLeadTool: Tool = {
       novoStatus:  z.string().min(1).max(100),
       observacao:  z.string().max(2000).optional(),
     }).safeParse(input)
-    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     const leadId     = parsed.data.leadId ?? ctx.leadId
     const novoStatus = parsed.data.novoStatus
     const observacao = parsed.data.observacao

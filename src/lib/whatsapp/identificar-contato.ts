@@ -27,7 +27,7 @@ export async function buscarPorTelefone(phone: string): Promise<{
        OR regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g') = ANY(${variants})
     LIMIT 1
   `
-  if (clienteRows.length > 0) return { clienteId: clienteRows[0].id }
+  if (clienteRows.length > 0) return { clienteId: clienteRows[0]!.id }
 
   // 2. Busca sócio — associado a uma empresa que tem cliente vinculado
   const socioRows = await prisma.$queryRaw<{ id: string; clienteId: string | null }[]>`
@@ -40,8 +40,8 @@ export async function buscarPorTelefone(phone: string): Promise<{
   `
   if (socioRows.length > 0) {
     return {
-      socioId:   socioRows[0].id,
-      clienteId: socioRows[0].clienteId ?? undefined,
+      socioId:   socioRows[0]!.id,
+      clienteId: socioRows[0]!.clienteId ?? undefined,
     }
   }
 
@@ -53,7 +53,7 @@ export async function buscarPorTelefone(phone: string): Promise<{
     ORDER BY "criadoEm" DESC
     LIMIT 1
   `
-  if (leadRows.length > 0) return { leadId: leadRows[0].id }
+  if (leadRows.length > 0) return { leadId: leadRows[0]!.id }
 
   return {}
 }

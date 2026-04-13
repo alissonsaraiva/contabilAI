@@ -39,7 +39,7 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
       .then((data: { nomeIa?: string }) => {
         if (data.nomeIa) {
           setMsgs(prev =>
-            prev.length === 1 && prev[0].role === 'assistant'
+            prev.length === 1 && prev[0]!.role === 'assistant'
               ? [buildGreeting(data.nomeIa!)]
               : prev,
           )
@@ -92,6 +92,7 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
       if (encerrado) return
       es = new EventSource(`/api/stream/escalacoes/${escalacaoId}?sessionId=${sessionId}`)
       es.onmessage = (e) => {
+        // eslint-disable-next-line no-empty -- JSON.parse defensivo: payload malformado não deve crashar o widget
         try { aplicarResolucao(JSON.parse(e.data)) } catch {}
         es.close()
       }
@@ -110,6 +111,7 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
       try {
         const res = await fetch(`/api/escalacoes/${escalacaoId}/poll?sessionId=${sessionId}`)
         if (res.ok) aplicarResolucao(await res.json())
+        // eslint-disable-next-line no-empty -- polling de fallback: falhas de rede são silenciosas, próximo tick reexecuta
       } catch {}
     }, 5_000)
 

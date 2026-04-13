@@ -75,7 +75,7 @@ export function AgendamentoDelete({ id, descricao }: { id: string; descricao: st
       <ConfirmDialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { setConfirmOpen(false); remove() }}
+        onConfirm={() => { setConfirmOpen(false); void remove() }}
         title="Remover agendamento?"
         description={`"${descricao}" será removido permanentemente.`}
         confirmLabel="Remover"

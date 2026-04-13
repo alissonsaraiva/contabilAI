@@ -52,7 +52,7 @@ export default function WhatsAppPage() {
 
   // Carrega config salva
   useEffect(() => {
-    fetch('/api/configuracoes/ia').then(r => r.json()).then(data => {
+    void fetch('/api/configuracoes/ia').then(r => r.json()).then(data => {
       reset({
         evolutionApiUrl: data.evolutionApiUrl ?? '',
         evolutionApiKey: '',
@@ -90,7 +90,7 @@ export default function WhatsAppPage() {
   }, [])
 
   useEffect(() => {
-    checkState()
+    void checkState()
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [checkState])
 
@@ -394,7 +394,7 @@ export default function WhatsAppPage() {
           <span className="flex-1 truncate font-mono text-[12px] text-on-surface-variant">{webhookUrl}</span>
           <button
             type="button"
-            onClick={() => { navigator.clipboard.writeText(webhookUrl); setWebhookCopied(true); setTimeout(() => setWebhookCopied(false), 1500) }}
+            onClick={() => { void navigator.clipboard.writeText(webhookUrl); setWebhookCopied(true); setTimeout(() => setWebhookCopied(false), 1500) }}
             className="shrink-0 text-on-surface-variant/60 hover:text-primary transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">{webhookCopied ? 'check' : 'content_copy'}</span>
@@ -478,7 +478,7 @@ export default function WhatsAppPage() {
       <ConfirmDialog
         open={confirmLogout}
         onClose={() => setConfirmLogout(false)}
-        onConfirm={() => { setConfirmLogout(false); handleLogout() }}
+        onConfirm={() => { setConfirmLogout(false); void handleLogout() }}
         title="Desconectar WhatsApp?"
         description="A instância será desconectada. Você precisará gerar um novo QR Code para reconectar."
         confirmLabel="Desconectar"

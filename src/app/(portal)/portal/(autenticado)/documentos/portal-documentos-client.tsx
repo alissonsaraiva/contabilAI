@@ -65,8 +65,8 @@ function grupoPorAnoMes(docs: Doc[]): Grupo[] {
   return [...mapa.entries()]
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([key, items]) => {
-      const [ano, mes] = key.split('-').map(Number)
-      return { key, label: `${MESES[mes - 1]} ${ano}`, docs: items }
+      const [ano, mes] = key.split('-').map(Number) as [number, number]
+      return { key, label: `${MESES[mes - 1]!} ${ano}`, docs: items }
     })
 }
 

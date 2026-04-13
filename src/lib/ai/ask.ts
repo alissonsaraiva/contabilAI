@@ -237,7 +237,7 @@ function truncarHistorico(historico: AIMessage[]): AIMessage[] {
   let total = 0
   const result: AIMessage[] = []
   for (let i = historico.length - 1; i >= 0; i--) {
-    const msg = historico[i]
+    const msg = historico[i]!
     const chars = typeof msg.content === 'string'
       ? msg.content.length
       : (msg.content as Array<{ type: string; text?: string }>)
@@ -409,7 +409,7 @@ export function detectarEscalacao(resposta: string): EscalacaoInfo {
   // Formato esperado: ##HUMANO##[motivo]\n\nmensagem (quebra de linha opcional)
   const match = resposta.match(/^##HUMANO##\[([^\]]*)\]\s*\n*([\s\S]*)$/m)
   if (match) {
-    return { escalado: true, motivo: match[1].trim(), textoLimpo: match[2].trim() }
+    return { escalado: true, motivo: match[1]!.trim(), textoLimpo: match[2]!.trim() }
   }
   // Fallback: marcador sem colchetes (##HUMANO## mensagem direta)
   const semMarcador = resposta.replace(/^##HUMANO##\s*/m, '').trim()

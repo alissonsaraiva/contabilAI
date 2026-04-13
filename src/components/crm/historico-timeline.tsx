@@ -92,7 +92,7 @@ export function HistoricoTimeline({
   }, [clienteId, leadId, usuarioId, origem, isGlobal])
 
   useEffect(() => {
-    carregarPrimeiro()
+    void carregarPrimeiro()
   }, [carregarPrimeiro])
 
   async function carregarMais() {

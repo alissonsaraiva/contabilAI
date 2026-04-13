@@ -42,7 +42,7 @@ const criarAgendamentoTool: Tool = {
       cron:      z.string().min(1).max(100),
       instrucao: z.string().min(1).max(5000),
     }).safeParse(input)
-    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     const { descricao, cron, instrucao } = parsed.data
 
     if (!validarCron(cron)) {

@@ -49,7 +49,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
     }
   }, [clienteId])
 
-  useEffect(() => { fetchNotas() }, [fetchNotas])
+  useEffect(() => { void fetchNotas() }, [fetchNotas])
 
   useEffect(() => {
     if (!spedyOk) return
@@ -103,7 +103,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       toast.error('Erro ao emitir nota fiscal')
     } finally {
       setSaving(false)
-      fetchNotas(true)  // FIX: sempre recarregar — nota pode já estar salva se houve timeout
+      void fetchNotas(true)  // FIX: sempre recarregar — nota pode já estar salva se houve timeout
     }
   }
 
@@ -124,7 +124,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       toast.error('Erro ao cancelar')
     } finally {
       setCancelando(null)
-      fetchNotas(true)  // FIX: sempre recarregar — status pode já ter mudado se houve timeout
+      void fetchNotas(true)  // FIX: sempre recarregar — status pode já ter mudado se houve timeout
     }
   }
 
@@ -191,7 +191,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       toast.error('Erro ao reemitir nota fiscal')
     } finally {
       setReemitirSaving(false)
-      fetchNotas(true)  // FIX: sempre recarregar — nota pode já estar salva se houve timeout
+      void fetchNotas(true)  // FIX: sempre recarregar — nota pode já estar salva se houve timeout
     }
   }
 

@@ -51,7 +51,7 @@ export function TabChamados({ chamados, cliente }: Props) {
               </thead>
               <tbody>
                 {chamados.map(c => {
-                  const s = STATUS_CHAMADO[c.status] ?? STATUS_CHAMADO.aberta
+                  const s = STATUS_CHAMADO[c.status] ?? STATUS_CHAMADO['aberta']!
                   const prioClass = PRIORIDADE_COLOR[c.prioridade] ?? 'text-on-surface-variant/50'
                   return (
                     <tr key={c.id} className="border-b border-outline-variant/10 last:border-0 hover:bg-surface-container/40 transition-colors">

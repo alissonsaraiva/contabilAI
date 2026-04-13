@@ -305,7 +305,7 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural, convers
     return NextResponse.json({ reply: 'Estou enfrentando uma instabilidade no momento. Tente novamente em alguns instantes.' })
   }
 
-  addMensagens(conversaId, message, resposta)
+  void addMensagens(conversaId, message, resposta)
 
   return NextResponse.json({ reply: resposta, provider, model })
 }

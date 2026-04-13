@@ -12,7 +12,7 @@ function cronLegivel(expr: string): string {
   // Fallback: interpretação simples dos campos
   const partes = expr.trim().split(/\s+/)
   if (partes.length !== 5) return expr
-  const [minuto, hora, , , diaSem] = partes
+  const [minuto, hora, , , diaSem] = partes as [string, string, string, string, string]
 
   const horaNum  = hora  === '*' ? null : parseInt(hora)
   const minNum   = minuto === '0' ? '' : `:${minuto.padStart(2, '0')}`

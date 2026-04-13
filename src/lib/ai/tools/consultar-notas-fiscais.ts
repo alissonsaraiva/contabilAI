@@ -70,7 +70,7 @@ const consultarNotasFiscaisTool: Tool = {
     if (parsed.data.status) where.status = parsed.data.status
 
     if (parsed.data.mesAno) {
-      const [ano, mes] = parsed.data.mesAno.split('-').map(Number)
+      const [ano, mes] = parsed.data.mesAno.split('-').map(Number) as [number, number]
       // Filtra por autorizadaEm — é a data relevante para o cliente ("nota de janeiro")
       where.autorizadaEm = {
         gte: new Date(ano, mes - 1, 1),

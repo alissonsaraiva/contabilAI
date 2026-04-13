@@ -111,7 +111,7 @@ export default async function PortalSuportePage() {
           <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
             <ul className="divide-y divide-outline-variant/10">
               {osAberta.map(o => {
-                const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
+                const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO['aberta']!
                 return (
                   <li key={o.id}>
                     <Link
@@ -119,7 +119,7 @@ export default async function PortalSuportePage() {
                       className="flex items-start gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container/50 transition-colors"
                     >
                       <span
-                        className={`material-symbols-outlined mt-0.5 text-[18px] shrink-0 ${s.color.split(' ')[0]}`}
+                        className={`material-symbols-outlined mt-0.5 text-[18px] shrink-0 ${s.color.split(' ')[0]!}`}
                         style={{ fontVariationSettings: "'FILL' 1" }}
                       >
                         {s.icon}
@@ -169,7 +169,7 @@ export default async function PortalSuportePage() {
           <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">
             <ul className="divide-y divide-outline-variant/10">
               {ordensRecentes.map(o => {
-                const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
+                const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO['aberta']!
                 return (
                   <li key={o.id}>
                     <Link
@@ -177,7 +177,7 @@ export default async function PortalSuportePage() {
                       className="flex items-start gap-3 p-4 sm:px-5 sm:py-3.5 hover:bg-surface-container/50 transition-colors"
                     >
                       <span
-                        className={`material-symbols-outlined mt-0.5 text-[18px] shrink-0 ${s.color.split(' ')[0]}`}
+                        className={`material-symbols-outlined mt-0.5 text-[18px] shrink-0 ${s.color.split(' ')[0]!}`}
                         style={{ fontVariationSettings: "'FILL' 1" }}
                       >
                         {s.icon}
@@ -206,12 +206,12 @@ export default async function PortalSuportePage() {
           <h2 className="mb-3 text-[14px] font-semibold text-on-surface">Comunicados do escritório</h2>
           <div className="space-y-3">
             {comunicados.map(c => {
-              const tc = TIPO_COMUNICADO[c.tipo] ?? TIPO_COMUNICADO.informativo
+              const tc = TIPO_COMUNICADO[c.tipo] ?? TIPO_COMUNICADO['informativo']!
               return (
                 <Card key={c.id} className="border-outline-variant/15 bg-card/60 p-4 rounded-[16px] shadow-sm">
                   <div className="flex items-start gap-3">
                     <span
-                      className={`material-symbols-outlined mt-0.5 text-[20px] shrink-0 ${tc.color.split(' ')[0]}`}
+                      className={`material-symbols-outlined mt-0.5 text-[20px] shrink-0 ${tc.color.split(' ')[0]!}`}
                       style={{ fontVariationSettings: "'FILL' 1" }}
                     >
                       {c.tipo === 'alerta' ? 'warning' : c.tipo === 'obrigacao' ? 'event_busy' : 'campaign'}

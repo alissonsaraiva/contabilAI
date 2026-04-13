@@ -283,7 +283,7 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
                     onChange={e => {
                       const v = formatCNPJ(e.target.value)
                       set('cnpj', v)
-                      if (v.replace(/\D/g, '').length === 14) preencherCNPJ(v)
+                      if (v.replace(/\D/g, '').length === 14) void preencherCNPJ(v)
                     }}
                     inputMode="numeric"
                     maxLength={18}
@@ -323,7 +323,7 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
                   onChange={e => {
                     const v = e.target.value
                     set('cep', v)
-                    if (v.replace(/\D/g, '').length === 8) preencherCEP(v)
+                    if (v.replace(/\D/g, '').length === 8) void preencherCEP(v)
                   }}
                   inputMode="numeric"
                   maxLength={9}

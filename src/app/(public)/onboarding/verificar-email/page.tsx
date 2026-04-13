@@ -20,7 +20,7 @@ export default function VerificarEmailPage({ searchParams }: Props) {
 
   // Envia o código automaticamente ao carregar a página
   useEffect(() => {
-    if (leadId && email) enviarCodigo()
+    if (leadId && email) void enviarCodigo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -69,7 +69,7 @@ export default function VerificarEmailPage({ searchParams }: Props) {
     }
     // Auto-verifica quando todos os 6 dígitos forem preenchidos
     if (digit && novo.every(d => d !== '')) {
-      verificar(novo.join(''))
+      void verificar(novo.join(''))
     }
   }
 
@@ -86,7 +86,7 @@ export default function VerificarEmailPage({ searchParams }: Props) {
       const novo = pasted.split('')
       setCodigo(novo)
       inputRefs.current[5]?.focus()
-      verificar(pasted)
+      void verificar(pasted)
     }
   }
 

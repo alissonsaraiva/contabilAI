@@ -29,8 +29,8 @@ export function useBadges(inicial?: Partial<Badges>): Badges {
       } catch (err) { console.error('[use-badges] falha ao carregar badges:', err) /* não interrompe a navegação */ }
     }
 
-    load()
-    const id = setInterval(load, 30_000)
+    void load()
+    const id = setInterval(() => void load(), 30_000)
     return () => clearInterval(id)
   }, [])
 

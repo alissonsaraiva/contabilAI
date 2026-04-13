@@ -22,7 +22,7 @@ function VerificarContentInner() {
   useEffect(() => {
     const token = searchParams.get('token')
     if (!token) {
-      setErroMsg(ERRO_MSG.token_invalido)
+      setErroMsg(ERRO_MSG['token_invalido']!)
       setEstado('erro')
       return
     }
@@ -62,7 +62,7 @@ function VerificarContentInner() {
       }
     }
 
-    verificar()
+    void verificar()
   }, [searchParams])
 
   return (

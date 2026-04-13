@@ -58,6 +58,7 @@ export async function POST(req: Request) {
 
   if (!resultado.ok) {
     const errMsg = resultado.erro ?? 'Erro ao enviar e-mail'
+    // eslint-disable-next-line no-empty -- import dinâmico do Sentry não deve crashar o handler de erro
     try { const Sentry = await import('@sentry/nextjs'); Sentry.captureMessage(errMsg, 'error') } catch {}
     return NextResponse.json({ error: errMsg }, { status: 500 })
   }

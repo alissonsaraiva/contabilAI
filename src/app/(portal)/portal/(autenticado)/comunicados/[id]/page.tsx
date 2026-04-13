@@ -47,7 +47,7 @@ export default async function ComunicadoDetailPage({ params }: Props) {
 
   if (!comunicado) notFound()
 
-  const tc = TIPO_COMUNICADO[comunicado.tipo] ?? TIPO_COMUNICADO.informativo
+  const tc = TIPO_COMUNICADO[comunicado.tipo] ?? TIPO_COMUNICADO['informativo']!
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
@@ -67,7 +67,7 @@ export default async function ComunicadoDetailPage({ params }: Props) {
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/8">
                 <span
-                  className={`material-symbols-outlined text-[22px] ${tc.color.split(' ')[0]}`}
+                  className={`material-symbols-outlined text-[22px] ${tc.color.split(' ')[0]!}`}
                   style={{ fontVariationSettings: "'FILL' 1" }}
                 >
                   {tc.icon}

@@ -46,7 +46,7 @@ export default async function CrmChamadoDetailPage({ params }: Props) {
     .filter(s => s.whatsapp || s.telefone)
     .map(s => ({ id: s.id, nome: s.nome, telefone: (s.whatsapp || s.telefone)! }))
 
-  const s = STATUS_CHAMADO[ordem.status] ?? STATUS_CHAMADO.aberta
+  const s = STATUS_CHAMADO[ordem.status] ?? STATUS_CHAMADO['aberta']!
   const nomeEmpresa = ordem.empresa?.razaoSocial ?? ordem.empresa?.nomeFantasia
 
   return (

@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   if (status)    where.status    = status
 
   if (mes && /^\d{4}-\d{2}$/.test(mes)) {
-    const [ano, mesNum] = mes.split('-').map(Number)
+    const [ano, mesNum] = mes.split('-').map(Number) as [number, number]
     where.criadoEm = {
       gte: new Date(ano, mesNum - 1, 1),
       lt:  new Date(ano, mesNum, 1),

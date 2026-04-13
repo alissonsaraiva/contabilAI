@@ -68,7 +68,7 @@ export async function tratarConversaPausada(input: Input): Promise<void> {
 
   // Classifica, arquiva e persiste buffer (fire-and-forget)
   if (mediaType && msg && cfg) {
-    ;(async () => {
+    void (async () => {
       try {
         const media = await downloadMedia(cfg, { key, message: msg })
         if (media) {

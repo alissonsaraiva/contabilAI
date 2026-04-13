@@ -150,14 +150,14 @@ async function checkAiHealth() {
 
 // Aguarda 30s após startup antes do primeiro ciclo de email
 setTimeout(() => {
-  syncEmail()
-  setInterval(syncEmail, EMAIL_INTERVAL_MS)
+  void syncEmail()
+  setInterval(() => void syncEmail(), EMAIL_INTERVAL_MS)
 }, 30_000)
 
 // Aguarda 60s antes do primeiro health check (deixa o servidor estabilizar)
 setTimeout(() => {
-  checkAiHealth()
-  setInterval(checkAiHealth, AI_HEALTH_INTERVAL_MS)
+  void checkAiHealth()
+  setInterval(() => void checkAiHealth(), AI_HEALTH_INTERVAL_MS)
 }, 60_000)
 
 export {}

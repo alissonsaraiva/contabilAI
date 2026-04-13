@@ -95,8 +95,8 @@ export function usePortalFinanceiro({ formaPagamento, vencimentoDia, regime }: H
     }
   }, [regime])
 
-  useEffect(() => { carregarDados() }, [carregarDados])
-  useEffect(() => { carregarDASMEI() }, [carregarDASMEI])
+  useEffect(() => { void carregarDados() }, [carregarDados])
+  useEffect(() => { void carregarDASMEI() }, [carregarDASMEI])
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 

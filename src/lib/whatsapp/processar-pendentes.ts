@@ -118,7 +118,7 @@ export async function processarMensagensPendentes(): Promise<{
       let pdfSemTexto = false  // true quando havia buffer de PDF mas extração falhou/timeout
 
       for (let i = msgs.length - 1; i >= 0; i--) {
-        const m = msgs[i]
+        const m = msgs[i]!
         const data = m.whatsappMsgData as Record<string, unknown> | null
 
         if (data?.mediaContentParts) {

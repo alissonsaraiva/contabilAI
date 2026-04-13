@@ -49,7 +49,7 @@ const buscarChamadoTool: Tool = {
     }).safeParse(input)
 
     if (!parsed.success) {
-      return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+      return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     }
 
     const { numero, id, titulo, clienteId } = parsed.data

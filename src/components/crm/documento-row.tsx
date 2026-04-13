@@ -208,7 +208,7 @@ export function DocumentoRow({ doc, selected, onToggleSelect, onUpdate, onDelete
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onBlur={handleRename}
-            onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') { setNewName(doc.nome); setRenaming(false) } }}
+            onKeyDown={e => { if (e.key === 'Enter') void handleRename(); if (e.key === 'Escape') { setNewName(doc.nome); setRenaming(false) } }}
           />
         ) : (
           <button

@@ -56,7 +56,7 @@ export default function EmailPage() {
   const [emailHealth, setEmailHealth] = useState<EmailHealth | null>(null)
 
   useEffect(() => {
-    fetch('/api/configuracoes/email')
+    void fetch('/api/configuracoes/email')
       .then(r => r.json())
       .then(data => {
         if (data) {

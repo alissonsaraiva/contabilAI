@@ -74,7 +74,7 @@ export default function ConhecimentoPage() {
     }
   }, [activeCanal])
 
-  useEffect(() => { loadEntries() }, [loadEntries])
+  useEffect(() => { void loadEntries() }, [loadEntries])
 
   // Fecha forms ao trocar de canal
   useEffect(() => { setFormOpen(false); setPdfOpen(false); resetForm() }, [activeCanal])
@@ -121,7 +121,7 @@ export default function ConhecimentoPage() {
       toast.success(isEdit ? `Artigo atualizado em ${data.chunks} chunk(s)` : `Artigo salvo em ${data.chunks} chunk(s)`)
       resetForm()
       setFormOpen(false)
-      loadEntries()
+      void loadEntries()
     } catch (err) {
       toast.error((err as Error).message || 'Erro ao salvar artigo')
     } finally {
@@ -136,7 +136,7 @@ export default function ConhecimentoPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       toast.success(`RAG re-indexado: escritório, planos, ${data.clientes} clientes, ${data.leads} leads`)
-      loadEntries()
+      void loadEntries()
     } catch (err) {
       toast.error((err as Error).message || 'Erro ao re-indexar')
     } finally {
@@ -160,7 +160,7 @@ export default function ConhecimentoPage() {
       toast.success(`PDF indexado: ${data.chunks} chunks · ${data.pages} página(s)`)
       setPdfFile(null); setPdfTitulo(''); setPdfTipo('base_conhecimento')
       setPdfOpen(false)
-      loadEntries()
+      void loadEntries()
     } catch (err) {
       toast.error((err as Error).message || 'Erro ao processar PDF')
     } finally {
@@ -514,7 +514,7 @@ export default function ConhecimentoPage() {
       <ConfirmDialog
         open={confirmSeed}
         onClose={() => setConfirmSeed(false)}
-        onConfirm={() => { setConfirmSeed(false); handleSeed() }}
+        onConfirm={() => { setConfirmSeed(false); void handleSeed() }}
         title="Re-indexar dados no RAG?"
         description="Isso re-sincroniza escritório, planos, clientes, leads, tarefas e escalações com o banco vetorial. Pode demorar alguns segundos."
         confirmLabel="Re-indexar"
@@ -525,7 +525,7 @@ export default function ConhecimentoPage() {
       <ConfirmDialog
         open={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
-        onConfirm={() => { if (confirmDelete) executeDelete(confirmDelete.sourceId) }}
+        onConfirm={() => { if (confirmDelete) void executeDelete(confirmDelete.sourceId) }}
         title="Remover artigo?"
         description={`"${confirmDelete?.titulo ?? confirmDelete?.sourceId}" e todos os seus chunks serão deletados permanentemente.`}
         confirmLabel="Remover"

@@ -146,7 +146,7 @@ const emitirNotaFiscalTool: Tool = {
     }).safeParse(input)
 
     if (!parsed.success) {
-      const issue = parsed.error.issues[0]
+      const issue = parsed.error.issues[0]!
       return {
         sucesso: false,
         erro:    `Parâmetro inválido: ${issue.path.join('.')} — ${issue.message}`,

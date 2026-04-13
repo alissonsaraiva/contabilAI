@@ -26,7 +26,7 @@ export function PortalProcuracaoClient({ nomeEscritorio, cnpjEscritorio, procura
   function copiarCNPJ() {
     if (!cnpjEscritorio) return
     const cnpjLimpo = cnpjEscritorio.replace(/\D/g, '')
-    navigator.clipboard.writeText(cnpjLimpo).then(() => {
+    void navigator.clipboard.writeText(cnpjLimpo).then(() => {
       setCopiado(true)
       setTimeout(() => setCopiado(false), 2000)
     })

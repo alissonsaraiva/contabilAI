@@ -111,7 +111,7 @@ REGRA CRÍTICA — DOCUMENTOS: Só confirme recebimento de documento/arquivo SE 
     if (empresasCliente.length > 1) {
       systemExtra += `\n\nEMPRESAS DO CLIENTE (${empresasCliente.length}):\n${formatarEmpresasParaTexto(empresasCliente)}\nQuando o cliente solicitar emissão de NFS-e, envio de documento ou qualquer operação vinculada a uma empresa específica, PERGUNTE para qual empresa antes de executar.`
     } else if (empresasCliente.length === 1) {
-      const emp = empresasCliente[0]
+      const emp = empresasCliente[0]!
       const badges = [emp.regime, emp.cnpj ? `CNPJ ${emp.cnpj}` : null].filter(Boolean).join(' · ')
       systemExtra += `\n\nEMPRESA: ${emp.nomeFantasia ?? emp.razaoSocial ?? 'N/A'} (${badges})`
     }

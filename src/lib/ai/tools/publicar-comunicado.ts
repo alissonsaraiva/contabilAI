@@ -51,7 +51,7 @@ const publicarComunicadoTool: Tool = {
       expirarEm: z.string().max(50).optional(),
       publicar:  z.boolean().optional(),
     }).safeParse(input)
-    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     const titulo    = parsed.data.titulo
     const conteudo  = parsed.data.conteudo
     const tipo      = parsed.data.tipo ?? 'informativo'

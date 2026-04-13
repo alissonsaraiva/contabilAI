@@ -32,7 +32,7 @@ export default function ContatoPage() {
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
-    fetch('/api/escritorio')
+    void fetch('/api/escritorio')
       .then(r => r.json())
       .then(data => { if (data) reset(data) })
   }, [reset])

@@ -73,9 +73,8 @@ export async function storeEmbeddings(
   const client = await db.connect()
   try {
     await client.query('BEGIN')
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i]
-      const vec = `[${embeddings[i].join(',')}]`
+    for (const [i, r] of rows.entries()) {
+      const vec = `[${embeddings[i]!.join(',')}]`
       await client.query(
         `INSERT INTO vectors.embeddings
            (escopo, canal, tipo, cliente_id, lead_id, documento_id, titulo, conteudo, embedding, metadata)

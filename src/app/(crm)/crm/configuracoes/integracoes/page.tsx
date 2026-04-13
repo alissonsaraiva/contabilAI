@@ -433,7 +433,7 @@ export default function IntegracoesPage() {
   const spedyTaxationType = watch('spedyTaxationType')
 
   useEffect(() => {
-    fetch('/api/escritorio')
+    void fetch('/api/escritorio')
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
         if (!data) return

@@ -35,7 +35,7 @@ export async function GET(req: Request) {
   }
 
   if (mes && /^\d{4}-\d{2}$/.test(mes)) {
-    const [ano, mesNum] = mes.split('-').map(Number)
+    const [ano, mesNum] = mes.split('-').map(Number) as [number, number]
     // Usa criadoEm (sempre preenchido) para o filtro de mês — funciona para todos os status,
     // inclusive notas rejeitadas que nunca chegaram a ter autorizadaEm
     where.criadoEm = {

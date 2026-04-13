@@ -199,7 +199,7 @@ export function ComunicadoDeleteButton({ id }: { id: string }) {
       <ConfirmDialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+        onConfirm={() => { setConfirmOpen(false); void handleDelete() }}
         title="Excluir comunicado?"
         description="Esta ação não pode ser desfeita."
         confirmLabel="Excluir"

@@ -68,7 +68,7 @@ export async function detectarEmpresaPorConteudo(
 
   // Match único = certeza; múltiplos = ambíguo (retorna null, usa principal)
   if (empresasEncontradas.size === 1) {
-    return [...empresasEncontradas][0]
+    return [...empresasEncontradas][0] ?? null
   }
 
   return null

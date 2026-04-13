@@ -70,7 +70,7 @@ function HeaderInner() {
         {/* Back ou Logo */}
         {isWizard && currentIdx > 0 ? (
           <button
-            onClick={() => router.push(buildUrl(WIZARD_STEPS[currentIdx - 1].path, leadId, plano))}
+            onClick={() => router.push(buildUrl(WIZARD_STEPS[currentIdx - 1]!.path, leadId, plano))}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
             aria-label="Voltar"
           >

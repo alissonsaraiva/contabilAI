@@ -158,8 +158,8 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
     }
   }, [clienteId, regime])
 
-  useEffect(() => { carregarDados() }, [carregarDados])
-  useEffect(() => { carregarDASMEI() }, [carregarDASMEI])
+  useEffect(() => { void carregarDados() }, [carregarDados])
+  useEffect(() => { void carregarDASMEI() }, [carregarDASMEI])
 
   async function sincronizar() {
     setSyncLoading(true)
@@ -644,7 +644,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
                             variant="outline"
                             size="sm"
                             disabled={c.pixExpirado}
-                            onClick={() => { navigator.clipboard.writeText(c.pixCopiaECola!); setFeedback({ tipo: 'ok', msg: 'PIX copiado!' }) }}
+                            onClick={() => { void navigator.clipboard.writeText(c.pixCopiaECola!); setFeedback({ tipo: 'ok', msg: 'PIX copiado!' }) }}
                             className="h-6 px-2 text-[10px] shrink-0"
                           >
                             Copiar PIX
@@ -669,7 +669,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => { navigator.clipboard.writeText(c.codigoBarras!); setFeedback({ tipo: 'ok', msg: 'Código de barras copiado!' }) }}
+                            onClick={() => { void navigator.clipboard.writeText(c.codigoBarras!); setFeedback({ tipo: 'ok', msg: 'Código de barras copiado!' }) }}
                             className="h-6 px-2 text-[10px]"
                           >
                             Copiar código de barras
@@ -759,7 +759,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
                     size="sm"
                     onClick={() => {
                       if (competenciaInput.length === 6) {
-                        gerarDASManual(competenciaInput)
+                        void gerarDASManual(competenciaInput)
                         setMostrarInputComp(false)
                         setCompetenciaInput('')
                       }
@@ -869,7 +869,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => { navigator.clipboard.writeText(das.codigoBarras!); setFeedback({ tipo: 'ok', msg: 'Código de barras copiado!' }) }}
+                        onClick={() => { void navigator.clipboard.writeText(das.codigoBarras!); setFeedback({ tipo: 'ok', msg: 'Código de barras copiado!' }) }}
                         className="h-7 px-2 text-[11px] text-on-surface-variant"
                         title="Copiar código de barras"
                       >

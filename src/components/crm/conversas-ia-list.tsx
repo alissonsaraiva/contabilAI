@@ -43,7 +43,7 @@ type Props = { conversas: Conversa[] }
 
 export function ConversasIAList({ conversas }: Props) {
   const [aberta, setAberta] = useState<string | null>(
-    conversas.length === 1 ? conversas[0].id : null,
+    conversas.length === 1 ? conversas[0]!.id : null,
   )
 
   if (conversas.length === 0) {

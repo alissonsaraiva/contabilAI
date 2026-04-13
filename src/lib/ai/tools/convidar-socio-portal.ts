@@ -62,7 +62,7 @@ const convidarSocioPortalTool: Tool = {
         }
       }
 
-      const empresaId = ctx.empresaId ?? empresas[0].empresaId
+      const empresaId = ctx.empresaId ?? empresas[0]!.empresaId
       const socios = await prisma.socio.findMany({
         where: empresas.length > 1
           ? { empresaId: { in: empresas.map(e => e.empresaId) } }

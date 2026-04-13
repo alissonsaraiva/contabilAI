@@ -289,7 +289,7 @@ export function UsuarioActionsMenu({ usuario }: Props) {
       <ConfirmDialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+        onConfirm={() => { setConfirmOpen(false); void handleDelete() }}
         title={`Excluir "${usuario.nome}"?`}
         description="Esta ação não pode ser desfeita."
         confirmLabel="Excluir"

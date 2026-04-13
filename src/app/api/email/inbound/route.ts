@@ -33,7 +33,7 @@ function verificarSecret(req: Request): boolean {
 function parseFrom(from: string): { email: string; nome: string } {
   // Suporta "Nome Sobrenome <email@exemplo.com>" ou só "email@exemplo.com"
   const match = from.match(/^(.+?)\s*<(.+?)>$/)
-  if (match) return { nome: match[1].trim(), email: match[2].trim() }
+  if (match) return { nome: match[1]!.trim(), email: match[2]!.trim() }
   return { nome: from.trim(), email: from.trim() }
 }
 

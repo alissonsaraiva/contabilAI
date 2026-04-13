@@ -41,7 +41,7 @@ const alterarVencimentoCobrancaTool: Tool = {
     }).safeParse(input)
 
     if (!parsed.success) {
-      return { sucesso: false, erro: parsed.error.issues[0].message, resumo: 'Parâmetros inválidos.' }
+      return { sucesso: false, erro: parsed.error.issues[0]!.message, resumo: 'Parâmetros inválidos.' }
     }
 
     const clienteId = parsed.data.clienteId ?? ctx.clienteId

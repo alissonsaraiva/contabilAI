@@ -124,7 +124,7 @@ const anexarDocumentoChatTool: Tool = {
       const empresas = await resolverEmpresasDoCliente(clienteId)
       if (empresas.length > 1) {
         // Vincula à principal mas informa na resposta qual empresa foi usada
-        const principal = empresas.find(e => e.principal) ?? empresas[0]
+        const principal = empresas.find(e => e.principal) ?? empresas[0]!
         empresaId = principal.empresaId
         // A IA vai incluir essa info na resposta ao usuário
         // (o doc é salvo, e se errou de empresa o operador pode reclassificar)

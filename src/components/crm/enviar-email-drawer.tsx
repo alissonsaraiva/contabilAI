@@ -74,7 +74,7 @@ export function EnviarEmailDrawer({ clienteId, leadId, clienteEmail, clienteNome
       }
     }
 
-    fetchDocs()
+    void fetchDocs()
   }, [open, clienteId, leadId, debouncedSearch])
 
   function reset() {

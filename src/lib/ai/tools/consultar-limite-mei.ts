@@ -81,7 +81,7 @@ const consultarLimiteMEITool: Tool = {
       }
 
       // Se múltiplos MEI, usa o primeiro (raro, mas possível)
-      const empresa = meis[0]
+      const empresa = meis[0]!
       const resultado = await calcularLimiteMEI(empresa.empresaId, ano)
 
       const zonaLabel: Record<string, string> = {

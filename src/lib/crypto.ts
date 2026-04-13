@@ -39,7 +39,7 @@ export function isEncrypted(val: string): boolean {
   if (parts.length !== 3) return false
   const base64Re = /^[A-Za-z0-9+/]+=*$/
   // iv: 12 bytes → 16 chars base64 | authTag: 16 bytes → 24 chars | ciphertext: >= 1 char
-  const [iv, tag, cipher] = parts
+  const [iv, tag, cipher] = parts as [string, string, string]
   return (
     base64Re.test(iv)     && iv.length === 16 &&
     base64Re.test(tag)    && tag.length === 24 &&

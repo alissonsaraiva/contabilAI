@@ -259,7 +259,7 @@ export default async function CrmChamadosPage({ searchParams }: Props) {
               </thead>
               <tbody className="divide-y divide-outline-variant/5">
                 {ordens.map(o => {
-                  const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO.aberta
+                  const s = STATUS_CHAMADO[o.status] ?? STATUS_CHAMADO['aberta']!
                   const nomeEmpresa = o.empresa?.razaoSocial ?? o.empresa?.nomeFantasia ?? ''
                   const prioClass = PRIORIDADE[o.prioridade] ?? 'text-on-surface-variant/50'
                   return (
@@ -281,7 +281,7 @@ export default async function CrmChamadosPage({ searchParams }: Props) {
                         <span className="text-[12px] font-medium text-on-surface-variant">{TIPO_CHAMADO[o.tipo] ?? o.tipo}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest border border-current/10 ${s.color.replace('bg-', 'bg-').split(' ')[0]} ${s.color.split(' ')[1]}`}>
+                        <span className={`rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest border border-current/10 ${s.color.replace('bg-', 'bg-').split(' ')[0]!} ${s.color.split(' ')[1]!}`}>
                           {s.label}
                         </span>
                         {o.status === 'resolvida' && o.avaliacaoNota != null && (

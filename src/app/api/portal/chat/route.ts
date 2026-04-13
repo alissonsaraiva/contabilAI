@@ -416,7 +416,7 @@ Formule sua resposta baseando-se NESSES DADOS REAIS acima. Seja natural e amigá
     }
   }
 
-  addMensagens(conversaId, message, resposta)
+  void addMensagens(conversaId, message, resposta)
 
   return NextResponse.json({ reply: resposta, provider, model, escalado: escalInfo.escalado, conversaId })
 }

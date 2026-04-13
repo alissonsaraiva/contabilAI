@@ -170,8 +170,8 @@ export default function SaudePage() {
   }, [])
 
   useEffect(() => {
-    fetchHealth()
-    const id = setInterval(fetchHealth, 30_000)
+    void fetchHealth()
+    const id = setInterval(() => void fetchHealth(), 30_000)
     return () => clearInterval(id)
   }, [fetchHealth])
 

@@ -65,7 +65,7 @@ const enviarEmailTool: Tool = {
       clienteId: z.string().min(1).max(200).optional(),
       leadId:    z.string().min(1).max(200).optional(),
     }).safeParse(input)
-    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0].message}`, resumo: 'Parâmetros inválidos.' }
+    if (!parsed.success) return { sucesso: false, erro: `Parâmetros inválidos: ${parsed.error.issues[0]!.message}`, resumo: 'Parâmetros inválidos.' }
     const para      = parsed.data.para
     const assunto   = parsed.data.assunto
     const corpo     = parsed.data.corpo

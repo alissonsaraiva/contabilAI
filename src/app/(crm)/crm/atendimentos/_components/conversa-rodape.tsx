@@ -170,7 +170,7 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      enviar()
+      void enviar()
     }
   }
 

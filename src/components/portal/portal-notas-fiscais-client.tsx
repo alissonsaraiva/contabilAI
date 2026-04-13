@@ -65,7 +65,7 @@ export function PortalNotasFiscaisClient({ spedyConfigurado, prestador }: Props)
     }
   }
 
-  useEffect(() => { fetchNotas() }, [fetchNotas])
+  useEffect(() => { void fetchNotas() }, [fetchNotas])
 
   // Polling automático enquanto houver notas em processamento
   useEffect(() => {
@@ -181,7 +181,7 @@ export function PortalNotasFiscaisClient({ spedyConfigurado, prestador }: Props)
         <ModalEmitir
           prestador={prestador}
           onClose={() => setShowEmitir(false)}
-          onSuccess={() => { setShowEmitir(false); fetchNotas() }}
+          onSuccess={() => { setShowEmitir(false); void fetchNotas() }}
         />
       )}
 
@@ -189,7 +189,7 @@ export function PortalNotasFiscaisClient({ spedyConfigurado, prestador }: Props)
         <ModalCancelar
           nota={showCancelar}
           onClose={() => setShowCancelar(null)}
-          onSuccess={() => { setShowCancelar(null); fetchNotas() }}
+          onSuccess={() => { setShowCancelar(null); void fetchNotas() }}
         />
       )}
 
@@ -197,7 +197,7 @@ export function PortalNotasFiscaisClient({ spedyConfigurado, prestador }: Props)
         <ModalReemitir
           nota={showReemitir}
           onClose={() => setShowReemitir(null)}
-          onSuccess={() => { setShowReemitir(null); fetchNotas() }}
+          onSuccess={() => { setShowReemitir(null); void fetchNotas() }}
         />
       )}
     </div>

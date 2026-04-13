@@ -49,7 +49,7 @@ const enviarNotaFiscalClienteTool: Tool = {
     }).safeParse(inputComDefault)
 
     if (!parsed.success) {
-      const issue = parsed.error.issues[0]
+      const issue = parsed.error.issues[0]!
       return {
         sucesso: false,
         erro:    issue.message,

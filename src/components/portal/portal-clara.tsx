@@ -110,6 +110,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
         if (!sid) return
         setSessionId(sid)
         // Atualiza cache local com o valor canônico (sincroniza PWA ↔ browser na próxima abertura)
+        // eslint-disable-next-line no-empty -- localStorage pode estar bloqueado (SSR, modo privado, quota)
         try { localStorage.setItem(STORAGE_KEY, sid) } catch {}
       })
       .catch(() => {
@@ -542,7 +543,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
                 ref={inputRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend() } }}
                 placeholder={`Pergunte para ${nomeIa}…`}
                 className="flex-1 rounded-xl border border-outline-variant/25 bg-surface-container-low px-3.5 py-2.5 text-[13px] text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:border-primary/50 focus:ring-[3px] focus:ring-primary/10 transition-all"
                 disabled={loading || !sessionId}

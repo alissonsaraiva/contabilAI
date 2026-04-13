@@ -12,13 +12,13 @@ export function ThreadRow({ thread, aba, selecionado, marcado, onToggle, onClick
   onClick:     () => void
 }) {
   const naoLido   = aba === 'entrada' && thread.temNaoRespondido
-  const ultimaMsg = thread.mensagens[thread.mensagens.length - 1]
+  const ultimaMsg = thread.mensagens[thread.mensagens.length - 1]!
   const contagem  = thread.mensagens.length
   const dataFormatada = new Date(thread.ultimaData)
     .toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   // Remetente mais recente
-  const ultimo = thread.mensagens[thread.mensagens.length - 1]
+  const ultimo = thread.mensagens[thread.mensagens.length - 1]!
   const remetenteUltimo = ultimo.tipo === 'email_enviado'
     ? 'Você'
     : (ultimo.nomeRemetente ?? ultimo.de)
