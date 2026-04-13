@@ -1,6 +1,6 @@
 # Fluxo Completo de WhatsApp
 
-> Última atualização: 2026-04-13 (v3.10.48)
+> Última atualização: 2026-04-13 (v3.10.50)
 
 ---
 
@@ -314,9 +314,21 @@ Fase 3 — Persistência + Observabilidade
 
 ### GET — Histórico
 
-Busca `ConversaIA WHERE (remoteJid = ? OR clienteId/leadId/socioId = ?)` — cobre casos em que o número mudou (histórico em remoteJid antigo fica acessível).
+Busca `ConversaIA WHERE canal='whatsapp' AND (remoteJid = ? OR clienteId/leadId/socioId = ?)` — cobre casos em que o número mudou (histórico em remoteJid antigo fica acessível).
+
+Após o flatmap de múltiplas conversas, as mensagens são **ordenadas globalmente por `criadaEm` ASC** antes do retorno:
+
+```ts
+conversas
+  .flatMap(c => c.mensagens)
+  .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime())
+```
+
+> ⚠️ **CRÍTICO — não remover o sort:** As conversas são ordenadas por `conversaIA.criadaEm` (data de criação da conversa). Uma conversa mais antiga pode ter mensagens muito mais recentes que outra conversa criada depois. Sem o sort global, o flatmap produz ordem incorreta (ex: mensagens de hoje aparecem no meio e mensagens de 8 dias atrás ficam no "fundo" do array). O painel auto-scrolla para o fundo = usuário vê mensagens antigas e conclui que as novas não apareceram — elas estavam lá, apenas fora do viewport.
 
 Campo `hasWhatsappMedia` indica que a mídia está disponível via proxy (`/api/whatsapp/media/[id]`) mas não em `mediaUrl` pública — usado para PDFs e documentos recebidos via WhatsApp.
+
+`conversaAtual` (usada para pausada/SSE) é determinada por `reduce(atualizadaEm)` — a mais recentemente atualizada, alinhado com o POST que faz `findFirst({ orderBy: atualizadaEm })`. As três rotas (clientes, socios, leads) seguem este padrão.
 
 ---
 
@@ -659,7 +671,7 @@ Webhook detecta pausadaEm IS NOT NULL
 | Sem health check Evolution API | ⚠️ Aberto | Instância desconectada não detectada proativamente |
 | Arquivos enviados não apareciam no histórico de /atendimentos | ✅ Resolvido v3.10.43 | `router.refresh()` estava no `try` de `conversa-rodape.tsx` — se `sendMedia` demorava e a conexão sofria timeout, o cliente recebia `TypeError: Failed to fetch`, caía no `catch`, e o `refresh` nunca era chamado. Movido para `finally`. |
 | Mensagens do operador não apareciam no WhatsApp chat panel de /atendimentos; badge "IA ativa" persistia após envio | ✅ Resolvido v3.10.45 | Mesmo padrão do v3.10.43: `carregar()` estava só no `try` de `enviar()` em `use-whatsapp-chat.ts`. Quando Evolution API demora e Nginx fecha conexão (timeout), `fetch` lança exceção, `catch` captura mas não chamava `carregar()`. Mensagem JÁ salva no banco mas painel não atualizava. Fix: `carregar()` movido para `finally`. Varredura completa: mesmo fix em `portal-conversa-panel.tsx` e `notas-fiscais-tab.tsx`. Também corrigido: mismatch entre GET (`conversas.at(-1)` por `criadaEm`) e POST (`findFirst` por `atualizadaEm`) — GET agora usa `reduce()` por `atualizadaEm` para `conversaAtual`. |
-| Mensagem enviada pelo CRM aparecia na barra lateral mas não no painel de chat (reiterativo) | ✅ Resolvido v3.10.48 | **Causa raiz real:** `sendText` tem até 4 tentativas com delays (5s+15s+45s) e timeout de 15s cada → worst case 125s. Se Nginx cortar o browser antes (~60s), `enviarPost()` lança exceção, `catch` → `finally { await carregar() }` roda, mas o servidor ainda está nos retries e a mensagem ainda não foi salva no DB. `carregar()` volta vazio. Servidor eventualmente salva; sidebar atualiza via `AutoRefresh` (30s) mas painel não tem trigger. **Fix:** `emitWhatsAppRefresh(conversa.id)` adicionado após `prisma.mensagemIA.create()` em ambas as rotas de envio do CRM (`/api/clientes/[id]/whatsapp` e `/api/socios/[id]/whatsapp`). SSE é conexão separada e persiste mesmo após timeout do POST. **Fixes adicionais:** `carregarVersionRef` em `use-whatsapp-chat.ts` e `portal-conversa-panel.tsx` (descarta respostas stale de chamadas concorrentes); `sseHealthyRef` no polling do Portal (prevenia SSE+polling simultâneos); `cache: 'no-store'` no fetch de `carregar()`; `Sentry.captureException` no `WhatsAppChatBoundary.componentDidCatch` e catchs críticos do Portal. |
+| Mensagem enviada pelo CRM aparecia na barra lateral mas não no painel de chat (reiterativo) | ✅ Resolvido v3.10.48/49 (auxiliares) + **v3.10.50 (causa raiz)** | **Causa raiz definitiva (v3.10.50):** O GET consolidava mensagens de múltiplas conversas via `flatMap` sem sort global. A ordem era pela data de criação da *conversa*, não das mensagens. Uma conversa criada antes (ex: 02/04) podia ter mensagens até hoje; outra criada depois (05/04) tinha mensagens só até 05/04. Resultado: `[...msgs-02/04...msgs-13/04...msgs-05/04]`. O painel auto-scrolla para o "fundo" = mensagens de 8 dias atrás; as recentes ficavam no meio, fora do viewport. O usuário via mensagens antigas e concluía que as novas não tinham aparecido — estavam lá, só fora de vista. Fix: `.sort((a,b) => criadaEm)` após o flatMap nos três routes (clientes, socios, leads). Leads também corrigido de `conversas.at(-1)` para `reduce(atualizadaEm)`. **Fixes auxiliares (v3.10.48/49):** `emitWhatsAppRefresh` após `mensagemIA.create()`; `carregarVersionRef`; `sseHealthyRef` no Portal; `cache: 'no-store'`; Sentry em boundary e catchs. |
 
 ---
 
