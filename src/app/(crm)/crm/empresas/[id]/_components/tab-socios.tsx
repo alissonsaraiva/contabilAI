@@ -55,8 +55,9 @@ export function TabSocios({ empresaId, socios }: Props) {
               <div className="space-y-2 border-t border-outline-variant/15 px-5 py-4 text-sm">
                 <InfoRow label="CPF" value={formatCPF(s.cpf)} />
                 {s.participacao != null && <InfoRow label="Participação" value={`${s.participacao}%`} />}
-                {s.email && <InfoRow label="E-mail" value={s.email} />}
-                {s.telefone && <InfoRow label="Telefone" value={formatTelefone(s.telefone)} />}
+                <InfoRow label="E-mail" value={s.email ?? '—'} />
+                <InfoRow label="Telefone" value={s.telefone ? formatTelefone(s.telefone) : '—'} />
+                <InfoRow label="WhatsApp" value={s.whatsapp ? formatTelefone(s.whatsapp) : '—'} />
               </div>
               <div className="flex items-center justify-between gap-2 border-t border-outline-variant/10 px-5 py-3">
                 <SocioPortalControls socioId={s.id} temEmail={!!s.email} portalAccess={s.portalAccess} />
