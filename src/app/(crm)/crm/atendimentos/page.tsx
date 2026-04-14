@@ -2,7 +2,10 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { AtendimentosWeb, type ConversaWebItem, type EscalacaoWebItem } from '@/components/crm/atendimentos-web'
 
-export default async function AtendimentosPage() {
+type Props = { searchParams: Promise<{ conversa?: string }> }
+
+export default async function AtendimentosPage({ searchParams }: Props) {
+  const { conversa: initialConversaId = null } = await searchParams
   const session = await auth()
   const limite24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
@@ -19,7 +22,7 @@ export default async function AtendimentosPage() {
       include: {
         cliente:      { select: { id: true, nome: true } },
         lead:         { select: { id: true, contatoEntrada: true, dadosJson: true } },
-        mensagens:    { orderBy: { criadaEm: 'desc' }, take: 1, select: { conteudo: true, role: true } },
+        mensagens:    { where: { excluido: false }, orderBy: { criadaEm: 'desc' }, take: 1, select: { conteudo: true, role: true } },
         atribuidaPara: { select: { id: true, nome: true } },
       },
     }),
@@ -111,6 +114,7 @@ export default async function AtendimentosPage() {
         truncado={truncado}
         totalConversas24h={totalConversas24h}
         currentUserId={session?.user?.id ?? null}
+        initialConversaId={initialConversaId}
       />
     </div>
   )

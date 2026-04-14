@@ -152,6 +152,27 @@ export async function DELETE(
     return NextResponse.json({ error: 'Erro ao excluir mensagem' }, { status: 500 })
   }
 
+  // ── Recalcula ultimaMensagemEm da conversa ───────────────────────────────────
+  // Necessário pois se esta era a única/última mensagem, o campo fica NULL
+  // e a conversa some de listas filtradas por ultimaMensagemEm.
+  try {
+    const ultimaMsg = await prisma.mensagemIA.findFirst({
+      where:   { conversaId, excluido: false },
+      orderBy: { criadaEm: 'desc' },
+      select:  { criadaEm: true },
+    })
+    await prisma.conversaIA.update({
+      where: { id: conversaId },
+      data:  { ultimaMensagemEm: ultimaMsg?.criadaEm ?? null },
+    })
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags:  { module: 'mensagem-delete', operation: 'recalcular-ultima-mensagem' },
+      extra: { mensagemId, conversaId },
+    })
+    // Não bloqueia — soft delete já foi feito com sucesso
+  }
+
   // ── Propaga em tempo real via SSE ────────────────────────────────────────────
   emitMensagemExcluida(conversaId, mensagemId)
 

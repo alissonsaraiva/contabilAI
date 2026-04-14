@@ -71,7 +71,7 @@ const CANAL_CONVERSA_ICON: Record<string, string> = {
 async function getDashboardData() {
   const hoje = startOfDayBrasilia()
   const trintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const quarentaEOitoHorasAtras = new Date(Date.now() - 48 * 60 * 60 * 1000)
+  const vintEQuatroHorasAtras = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
   const [
     clientesAtivos,
@@ -131,16 +131,20 @@ async function getDashboardData() {
     }),
     prisma.conversaIA.findMany({
       where: {
-        ultimaMensagemEm: { gte: quarentaEOitoHorasAtras },
-        OR: [{ clienteId: { not: null } }, { leadId: { not: null } }, { socioId: { not: null } }],
+        OR: [
+          { ultimaMensagemEm: { gte: vintEQuatroHorasAtras } },
+          { ultimaMensagemEm: null, atualizadaEm: { gte: vintEQuatroHorasAtras } },
+        ],
+        AND: [{ OR: [{ clienteId: { not: null } }, { leadId: { not: null } }, { socioId: { not: null } }] }],
       },
-      orderBy: { ultimaMensagemEm: 'desc' },
+      orderBy: { atualizadaEm: 'desc' },
       take: 8,
       select: {
         id: true,
         canal: true,
         pausadaEm: true,
         ultimaMensagemEm: true,
+        atualizadaEm: true,
         cliente: { select: { id: true, nome: true } },
         lead: { select: { id: true, contatoEntrada: true } },
         socio: { select: { id: true, nome: true } },
@@ -288,7 +292,7 @@ export default async function DashboardPage() {
                     : c.mensagens[0].conteudo)
                   : 'Sem mensagens'
                 const isHumano = Boolean(c.pausadaEm)
-                const href = `/crm/atendimentos/conversa/${c.id}`
+                const href = `/crm/atendimentos?conversa=${c.id}`
 
                 return (
                   <li key={c.id}>
@@ -318,9 +322,7 @@ export default async function DashboardPage() {
                             {nomeContato}
                           </span>
                           <span className="shrink-0 text-[10px] font-medium text-on-surface-variant/50">
-                            {c.ultimaMensagemEm
-                              ? formatDistanceToNow(new Date(c.ultimaMensagemEm), { locale: ptBR, addSuffix: true })
-                              : '—'}
+                            {formatDistanceToNow(new Date(c.ultimaMensagemEm ?? c.atualizadaEm), { locale: ptBR, addSuffix: true })}
                           </span>
                         </div>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { WhatsAppChatPanel } from '../whatsapp-chat-panel'
 import { PortalConversaPanel } from '../portal-conversa-panel'
@@ -26,6 +26,7 @@ export function AtendimentosWeb({
   truncado = false,
   totalConversas24h = 0,
   currentUserId = null,
+  initialConversaId = null,
 }: {
   aguardandoResposta:     ConversaWebItem[]
   emAtendimentoHumano:    ConversaWebItem[]
@@ -36,6 +37,7 @@ export function AtendimentosWeb({
   truncado?:              boolean
   totalConversas24h?:     number
   currentUserId?:         string | null
+  initialConversaId?:     string | null
 }) {
   const [selected, setSelected]       = useState<SelectedConversation | null>(null)
   const [novaConversa, setNovaConversa] = useState(false)
@@ -43,6 +45,14 @@ export function AtendimentosWeb({
   const [busca, setBusca]             = useState('')
   const [topTab, setTopTab]           = useState<TopTab>('conversas')
   const [selectedLista, setSelectedLista] = useState<ListaResumo | null>(null)
+
+  // Auto-seleciona conversa ao navegar do dashboard com ?conversa=<id>
+  useEffect(() => {
+    if (!initialConversaId) return
+    const allConversas = [...aguardandoResposta, ...emAtendimentoHumano, ...ativasIA]
+    const c = allConversas.find(conv => conv.id === initialConversaId)
+    if (c) handleSelect(c)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- executa só na montagem
 
   function handleSelect(c: ConversaWebItem) {
     if (c.canal === 'portal') {
