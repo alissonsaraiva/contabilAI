@@ -133,6 +133,7 @@ export async function sendText(
       const res = await evo(cfg, 'POST', `/message/sendText/${cfg.instance}`, { number, text })
       circuitSuccess()
       const key = (res as Record<string, unknown>)?.key as WhatsAppKey | undefined
+      console.log('[DEBUG sendText] response key:', JSON.stringify(key), 'raw keys:', Object.keys(res as Record<string, unknown>))
       return { ok: true, key }
     } catch (err) {
       lastError = err

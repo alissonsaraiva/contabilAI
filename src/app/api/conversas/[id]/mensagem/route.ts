@@ -137,6 +137,8 @@ export async function POST(
         else if (!r.ok) sendError = r.error
       }
 
+      console.log('[DEBUG mensagem] sendOk:', sendOk, 'waKeys:', JSON.stringify(waKeys), 'msgId:', novaMensagem.id)
+
       await prisma.mensagemIA.update({
         where: { id: novaMensagem.id },
         data: {

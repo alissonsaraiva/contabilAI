@@ -203,6 +203,8 @@ export async function POST(req: Request, { params }: Params) {
       : await sendText(cfg, remoteJid, conteudo)
 
     // Fase 3: persiste a mensagem com o status correto + operadorId para rastreabilidade
+    // Extrai WhatsApp key para suporte a "apagar para todos"
+    const waKey = sendResult.ok && 'key' in sendResult ? sendResult.key : undefined
     await prisma.mensagemIA.create({
       data: {
         conversaId: conversa.id,
@@ -216,6 +218,7 @@ export async function POST(req: Request, { params }: Params) {
         mediaType,
         mediaFileName,
         mediaMimeType,
+        ...(waKey && { whatsappMsgData: { keys: [waKey] } as object }),
       },
     })
 
