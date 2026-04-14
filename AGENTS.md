@@ -205,6 +205,21 @@ Esses vínculos são baseados em bugs reais que se repetiram por falta desta ver
 
 ---
 
+## Grupo 6 — WhatsApp remoteJid (formato brasileiro 8 vs 9 dígitos)
+
+**Arquivos principais:**
+- `src/app/api/conversas/[id]/mensagens/[mensagemId]/route.ts` (delete message)
+- `src/lib/evolution.ts` (deleteMessage, sendText, sendMedia)
+- Qualquer código que compare ou use `remoteJid` de fontes diferentes
+
+**Regras:**
+- **NUNCA assumir que `conversa.remoteJid` === `waKey.remoteJid`.** Números brasileiros podem ter formato diferente: conversa armazena `5585981186338` (com o 9) mas a Evolution API retorna key com `558581186338` (sem o 9).
+- Operações que referenciam uma **mensagem específica** (delete, reply, react) DEVEM usar o `remoteJid` da key original, não da conversa.
+- A Evolution API aceita o REVOKE com JID errado e retorna 201 sucesso — a falha é silenciosa no WhatsApp.
+- **Histórico:** v3.10.63 (deleteMessage usava conversa.remoteJid → REVOKE ignorado silenciosamente)
+
+---
+
 > **Manutenção:** Ao encontrar um bug cruzado que não está mapeado aqui, adicionar o grupo novo após resolver. O mapa é evidência — só entra o que já causou problema real.
 
 ---
