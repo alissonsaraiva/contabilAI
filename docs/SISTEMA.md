@@ -1,5 +1,5 @@
 # AVOS — Índice da Documentação do Sistema
-> **Versão**: v3.10.46 | **Atualizado**: 2026-04-12 | **Fonte da verdade**: código-fonte
+> **Versão**: v3.10.61 | **Atualizado**: 2026-04-14 | **Fonte da verdade**: código-fonte
 >
 > 📄 **Documentação específica:** [WhatsApp — Fluxo Completo](./WHATSAPP.md)
 >
@@ -160,6 +160,22 @@ Três camadas em sequência:
 | Build local antes de commit | Deploy CI falha por erros TS |
 | Deploy exige tag `v*` | `git push origin main` sozinho não dispara CI |
 | Cron VPS = config manual | Deploy não configura crontab automaticamente |
+
+---
+
+## 🔄 Sync Bidirecional Sócio↔Cliente por CPF (v3.10.60)
+
+Quando um sócio e um cliente compartilham o mesmo CPF (pessoa física que é sócia de uma empresa e também é cliente diretamente), os campos de contato são sincronizados automaticamente:
+
+- **Campos sincronizados:** `email`, `telefone`, `whatsapp`
+- **Direção:** bidirecional — atualizar o sócio propaga para o cliente e vice-versa
+- **Implementação:** `src/lib/clientes/sync-contato-cpf.ts`
+- **Trigger:** chamado nas rotas de edição de sócio (`PATCH /api/crm/socios/[id]`) e de cliente
+
+**Regra WhatsApp — campo `whatsapp` exclusivo:**
+O número usado para envio de WhatsApp é lido **exclusivamente** do campo `whatsapp` (nunca `telefone`). O campo `telefone` é o número de contato geral e pode ser um fixo. Usar `telefone` como fallback causava envios para o número errado.
+- Validado em 16 rotas e componentes (corrigido v3.10.59)
+- Sócio sem `whatsapp`: faz lookup do `cliente.whatsapp` via CPF como fallback final
 
 ---
 

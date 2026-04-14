@@ -1,6 +1,6 @@
 # Fluxo Completo de WhatsApp
 
-> Última atualização: 2026-04-13 (v3.10.50)
+> Última atualização: 2026-04-14 (v3.10.61)
 
 ---
 
@@ -330,6 +330,14 @@ Campo `hasWhatsappMedia` indica que a mídia está disponível via proxy (`/api/
 
 `conversaAtual` (usada para pausada/SSE) é determinada por `reduce(atualizadaEm)` — a mais recentemente atualizada, alinhado com o POST que faz `findFirst({ orderBy: atualizadaEm })`. As três rotas (clientes, socios, leads) seguem este padrão.
 
+### Regra: campo `whatsapp` é obrigatório — nunca usar `telefone` como fallback
+
+O número de WhatsApp é lido **exclusivamente** do campo `whatsapp` da entidade (Cliente, Sócio, Lead). O campo `telefone` é o número de contato geral e **não deve ser usado** como fallback para envio de WhatsApp.
+
+Isso foi corrigido em v3.10.59 (16 rotas/componentes). Usar `telefone` como fallback causava envios para o número errado quando o cliente tinha telefone fixo ou número diferente do WhatsApp.
+
+**Sócio WhatsApp — fallback por CPF:** Se `socio.whatsapp` estiver vazio, busca `cliente.whatsapp` via CPF (mesmo documento vinculado). Implementado em `src/app/api/socios/[id]/whatsapp/route.ts`.
+
 ---
 
 ## 4. Evolution API (Envio)
@@ -347,6 +355,14 @@ Campo `hasWhatsappMedia` indica que a mídia está disponível via proxy (`/api/
 | `downloadMedia(cfg, { key, message })` | Baixa mídia via endpoint Evolution |
 | `downloadMediaDirect(msg)` | Fallback CDN direto |
 | `getConnectionState(cfg)` | Status da instância + QR code |
+
+### Excluir Mensagem (`apagar para todos`)
+
+**Endpoint Evolution correto:** `DELETE /chat/deleteMessageForEveryone/{instance}`
+
+> ⚠️ **Bug conhecido (corrigido v3.10.57):** O endpoint era chamado como `DELETE /chat/message/{instance}` — URL errada retornava 404 silencioso (sem retry). O correto é `/chat/deleteMessageForEveryone/`. Se a exclusão parar de funcionar, verificar se este endpoint não mudou na versão da Evolution API em uso.
+
+Além do endpoint, a exclusão depende do campo `whatsappMsgData` salvo em `MensagemIA`. As rotas de envio pelo CRM (`POST /api/clientes/[id]/whatsapp` e `POST /api/socios/[id]/whatsapp`) devem persistir esse campo após o envio para que a exclusão funcione. Mensagens enviadas sem `whatsappMsgData` não podem ser apagadas para todos.
 
 ### Retry e Circuit Breaker
 
@@ -678,6 +694,8 @@ Webhook detecta pausadaEm IS NOT NULL
 | De-duplicação in-memory | ⚠️ Aberto | Set de 5000 IDs por worker; duplicatas entre workers possíveis |
 | PIX com > 20h pode estar expirado | ✅ Resolvido v3.10.26 | `refresharPixCobranca()` renova QR Code automaticamente no contexto WhatsApp antes da IA responder — sem cancelar cobrança |
 | Sem health check Evolution API | ⚠️ Aberto | Instância desconectada não detectada proativamente |
+| `whatsappMsgData` não salvo em envios CRM | ✅ Resolvido v3.10.57 | Rotas POST de clientes e sócios não persistiam `whatsappMsgData` após envio, impossibilitando exclusão para todos. Corrigido — campo é salvo na `MensagemIA` criada após o envio. |
+| Endpoint de exclusão de mensagem errado | ✅ Resolvido v3.10.57 | Endpoint era `/chat/message/` em vez de `/chat/deleteMessageForEveryone/`. Retornava 404 silencioso — exclusão nunca era executada. |
 | Arquivos enviados não apareciam no histórico de /atendimentos | ✅ Resolvido v3.10.43 | `router.refresh()` estava no `try` de `conversa-rodape.tsx` — se `sendMedia` demorava e a conexão sofria timeout, o cliente recebia `TypeError: Failed to fetch`, caía no `catch`, e o `refresh` nunca era chamado. Movido para `finally`. |
 | Mensagens do operador não apareciam no WhatsApp chat panel de /atendimentos; badge "IA ativa" persistia após envio | ✅ Resolvido v3.10.45 | Mesmo padrão do v3.10.43: `carregar()` estava só no `try` de `enviar()` em `use-whatsapp-chat.ts`. Quando Evolution API demora e Nginx fecha conexão (timeout), `fetch` lança exceção, `catch` captura mas não chamava `carregar()`. Mensagem JÁ salva no banco mas painel não atualizava. Fix: `carregar()` movido para `finally`. Varredura completa: mesmo fix em `portal-conversa-panel.tsx` e `notas-fiscais-tab.tsx`. Também corrigido: mismatch entre GET (`conversas.at(-1)` por `criadaEm`) e POST (`findFirst` por `atualizadaEm`) — GET agora usa `reduce()` por `atualizadaEm` para `conversaAtual`. |
 | Mensagem enviada pelo CRM aparecia na barra lateral mas não no painel de chat (reiterativo) | ✅ Resolvido v3.10.48/49 (auxiliares) + **v3.10.50 (causa raiz)** | **Causa raiz definitiva (v3.10.50):** O GET consolidava mensagens de múltiplas conversas via `flatMap` sem sort global. A ordem era pela data de criação da *conversa*, não das mensagens. Uma conversa criada antes (ex: 02/04) podia ter mensagens até hoje; outra criada depois (05/04) tinha mensagens só até 05/04. Resultado: `[...msgs-02/04...msgs-13/04...msgs-05/04]`. O painel auto-scrolla para o "fundo" = mensagens de 8 dias atrás; as recentes ficavam no meio, fora do viewport. O usuário via mensagens antigas e concluía que as novas não tinham aparecido — estavam lá, só fora de vista. Fix: `.sort((a,b) => criadaEm)` após o flatMap nos três routes (clientes, socios, leads). Leads também corrigido de `conversas.at(-1)` para `reduce(atualizadaEm)`. **Fixes auxiliares (v3.10.48/49):** `emitWhatsAppRefresh` após `mensagemIA.create()`; `carregarVersionRef`; `sseHealthyRef` no Portal; `cache: 'no-store'`; Sentry em boundary e catchs. |
