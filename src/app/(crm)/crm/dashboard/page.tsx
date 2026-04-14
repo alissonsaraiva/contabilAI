@@ -135,7 +135,7 @@ async function getDashboardData() {
           { ultimaMensagemEm: { gte: vintEQuatroHorasAtras } },
           { ultimaMensagemEm: null, atualizadaEm: { gte: vintEQuatroHorasAtras } },
         ],
-        AND: [{ OR: [{ clienteId: { not: null } }, { leadId: { not: null } }, { socioId: { not: null } }] }],
+        AND: { OR: [{ clienteId: { not: null } }, { leadId: { not: null } }, { socioId: { not: null } }] },
       },
       orderBy: { atualizadaEm: 'desc' },
       take: 8,

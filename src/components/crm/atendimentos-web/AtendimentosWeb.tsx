@@ -46,14 +46,6 @@ export function AtendimentosWeb({
   const [topTab, setTopTab]           = useState<TopTab>('conversas')
   const [selectedLista, setSelectedLista] = useState<ListaResumo | null>(null)
 
-  // Auto-seleciona conversa ao navegar do dashboard com ?conversa=<id>
-  useEffect(() => {
-    if (!initialConversaId) return
-    const allConversas = [...aguardandoResposta, ...emAtendimentoHumano, ...ativasIA]
-    const c = allConversas.find(conv => conv.id === initialConversaId)
-    if (c) handleSelect(c)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- executa só na montagem
-
   function handleSelect(c: ConversaWebItem) {
     if (c.canal === 'portal') {
       setSelected({ type: 'portal', conversaId: c.id, nome: getNome(c), clienteId: c.cliente?.id })
@@ -62,6 +54,14 @@ export function AtendimentosWeb({
     const apiPath = getApiPath(c) ?? `/api/conversas/${c.id}`
     setSelected({ type: 'whatsapp', apiPath, nome: getNome(c), clienteId: c.cliente?.id, leadId: c.lead?.id })
   }
+
+  // Auto-seleciona conversa ao navegar do dashboard com ?conversa=<id>
+  useEffect(() => {
+    if (!initialConversaId) return
+    const allConversas = [...aguardandoResposta, ...emAtendimentoHumano, ...ativasIA]
+    const c = allConversas.find(conv => conv.id === initialConversaId)
+    if (c) handleSelect(c)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- executa só na montagem
 
   function filterByBusca(list: ConversaWebItem[]) {
     if (!busca.trim()) return list
