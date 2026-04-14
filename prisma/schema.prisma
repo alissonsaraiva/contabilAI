@@ -1193,14 +1193,15 @@ model EnvioTransmissao {
 }
 
 model DestinatarioEnvio {
-  id        String              @id @default(uuid())
-  envioId   String
-  clienteId String?
-  socioId   String?
-  remoteJid String
-  status    StatusDestinatario  @default(pendente)
-  erroEnvio String?             @db.Text
-  enviadoEm DateTime?
+  id         String              @id @default(uuid())
+  envioId    String
+  clienteId  String?
+  socioId    String?
+  remoteJid  String
+  status     StatusDestinatario  @default(pendente)
+  tentativas Int                 @default(0)
+  erroEnvio  String?             @db.Text
+  enviadoEm  DateTime?
 
   envio EnvioTransmissao @relation(fields: [envioId], references: [id], onDelete: Cascade)
 

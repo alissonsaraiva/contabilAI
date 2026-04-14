@@ -1,10 +1,10 @@
 /**
  * Processador assíncrono de envios de broadcast (listas de transmissão).
  *
- * Chamado pelo cron da VPS a cada ~15s.
+ * Chamado pelo cron da VPS a cada ~1min.
  *
  * Para cada envio em status "processando":
- *   1. Busca destinatários pendentes
+ *   1. Busca destinatários pendentes OU falhos com tentativas < MAX_TENTATIVAS
  *   2. Resolve config Evolution API
  *   3. Para cada destinatário:
  *     a. Busca/cria ConversaIA (WhatsApp) individual
@@ -14,6 +14,9 @@
  *     e. Atualiza status do destinatário
  *     f. Delay entre mensagens (anti-ban)
  *   4. Atualiza contadores do envio
+ *
+ * Retry: destinatários que falham são retentados até 3x pelo cron.
+ * Na 3ª falha, ficam como "falhou" definitivamente.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -29,6 +32,9 @@ const DELAY_ENTRE_ENVIOS_MS = 3_000
 /** Máximo de envios processados por execução do cron */
 const MAX_ENVIOS_POR_EXECUCAO = 3
 
+/** Máximo de tentativas por destinatário antes de desistir */
+const MAX_TENTATIVAS = 3
+
 function delay(ms: number) {
   return new Promise(r => setTimeout(r, ms))
 }
@@ -37,9 +43,11 @@ export async function processarEnviosPendentes(): Promise<{
   enviosProcessados: number
   totalEnviados: number
   totalFalhas: number
+  totalRetries: number
 }> {
   let totalEnviados = 0
   let totalFalhas = 0
+  let totalRetries = 0
 
   // Busca envios em processamento (FIFO)
   const envios = await prisma.envioTransmissao.findMany({
@@ -48,23 +56,28 @@ export async function processarEnviosPendentes(): Promise<{
     take: MAX_ENVIOS_POR_EXECUCAO,
     include: {
       destinatarios: {
-        where: { status: 'pendente' },
-        take: 20, // Processa até 20 destinatários por execução
+        where: {
+          OR: [
+            { status: 'pendente' },
+            // Retry: falhos com menos de MAX_TENTATIVAS
+            { status: 'falhou', tentativas: { lt: MAX_TENTATIVAS } },
+          ],
+        },
+        take: 20,
       },
     },
   })
 
-  if (envios.length === 0) return { enviosProcessados: 0, totalEnviados: 0, totalFalhas: 0 }
+  if (envios.length === 0) return { enviosProcessados: 0, totalEnviados: 0, totalFalhas: 0, totalRetries: 0 }
 
   const cfg = await getEvolutionConfig()
   if (!cfg) {
     console.warn('[broadcast] Evolution API não configurada — abortando processamento')
-    return { enviosProcessados: 0, totalEnviados: 0, totalFalhas: 0 }
+    return { enviosProcessados: 0, totalEnviados: 0, totalFalhas: 0, totalRetries: 0 }
   }
 
   for (const envio of envios) {
     if (envio.destinatarios.length === 0) {
-      // Todos os destinatários já foram processados — marcar envio como concluído
       await finalizarEnvio(envio.id)
       continue
     }
@@ -76,7 +89,12 @@ export async function processarEnviosPendentes(): Promise<{
     }
 
     for (const dest of envio.destinatarios) {
+      const isRetry = dest.status === 'falhou'
+      if (isRetry) totalRetries++
+
       try {
+        const tentativaAtual = dest.tentativas + 1
+
         // 1. Busca/cria conversa individual
         let conversa = await prisma.conversaIA.findFirst({
           where: { canal: 'whatsapp', remoteJid: dest.remoteJid },
@@ -113,8 +131,47 @@ export async function processarEnviosPendentes(): Promise<{
           result = await sendText(cfg, dest.remoteJid, envio.conteudo)
         }
 
-        // 3. Persiste MensagemIA na conversa individual (para contexto da IA)
+        // 3. CRÍTICO: marca destinatário ANTES das operações de DB secundárias.
+        //    Evita que falha de DB cause retry com mensagem duplicada no WhatsApp.
         if (result.ok) {
+          await prisma.destinatarioEnvio.update({
+            where: { id: dest.id },
+            data: { status: 'enviado', erroEnvio: null, enviadoEm: new Date(), tentativas: tentativaAtual },
+          })
+          if (isRetry) {
+            await prisma.envioTransmissao.update({
+              where: { id: envio.id },
+              data: { totalEnviados: { increment: 1 }, totalFalhas: { decrement: 1 } },
+            })
+          } else {
+            await prisma.envioTransmissao.update({
+              where: { id: envio.id },
+              data: { totalEnviados: { increment: 1 } },
+            })
+          }
+          totalEnviados++
+        } else {
+          await prisma.destinatarioEnvio.update({
+            where: { id: dest.id },
+            data: { status: 'falhou', erroEnvio: result.error, tentativas: tentativaAtual },
+          })
+          if (!isRetry) {
+            await prisma.envioTransmissao.update({
+              where: { id: envio.id },
+              data: { totalFalhas: { increment: 1 } },
+            })
+          }
+          if (tentativaAtual < MAX_TENTATIVAS) {
+            console.warn(`[broadcast] destinatário ${dest.remoteJid} falhou (tentativa ${tentativaAtual}/${MAX_TENTATIVAS}), será retentado`)
+          } else {
+            console.error(`[broadcast] destinatário ${dest.remoteJid} falhou definitivamente após ${MAX_TENTATIVAS} tentativas: ${result.error}`)
+          }
+          totalFalhas++
+        }
+
+        // 4. Operações secundárias (falha aqui NÃO causa retry — destinatário já marcado)
+        if (result.ok) {
+          // MensagemIA na conversa individual (para IA ter contexto)
           await prisma.mensagemIA.create({
             data: {
               conversaId: conversa.id,
@@ -122,7 +179,7 @@ export async function processarEnviosPendentes(): Promise<{
               operadorId: envio.operadorId,
               conteudo: envio.conteudo || (envio.mediaFileName ? `[Arquivo: ${envio.mediaFileName}]` : '[Broadcast]'),
               status: 'sent',
-              tentativas: 1,
+              tentativas: tentativaAtual,
               mediaUrl: envio.mediaUrl,
               mediaType: envio.mediaType,
               mediaFileName: envio.mediaFileName,
@@ -130,7 +187,40 @@ export async function processarEnviosPendentes(): Promise<{
               whatsappMsgData: result.key ? { key: result.key } : undefined,
             },
           })
-        } else {
+
+          // Atualiza conversa — atualizadaEm + auto-atribuição
+          await prisma.conversaIA.update({
+            where: { id: conversa.id },
+            data: {
+              atualizadaEm: new Date(),
+              ...(!conversa.atribuidaParaId ? {
+                atribuidaParaId: envio.operadorId,
+                atribuidaEm: new Date(),
+              } : {}),
+            },
+          })
+
+          // Interação no feed do cliente
+          if (dest.clienteId) {
+            try {
+              await prisma.interacao.create({
+                data: {
+                  clienteId: dest.clienteId,
+                  usuarioId: envio.operadorId,
+                  tipo: 'whatsapp_enviado',
+                  titulo: 'Broadcast WhatsApp enviado',
+                  conteudo: envio.conteudo || (envio.mediaFileName ? `[Arquivo: ${envio.mediaFileName}]` : '[Broadcast]'),
+                },
+              })
+            } catch (interacaoErr) {
+              console.error('[broadcast] erro ao registrar interação:', interacaoErr)
+            }
+          }
+
+          // SSE refresh
+          emitWhatsAppRefresh(conversa.id)
+        } else if (tentativaAtual >= MAX_TENTATIVAS) {
+          // Última tentativa falhou — persiste como failed no chat para histórico
           await prisma.mensagemIA.create({
             data: {
               conversaId: conversa.id,
@@ -138,7 +228,7 @@ export async function processarEnviosPendentes(): Promise<{
               operadorId: envio.operadorId,
               conteudo: envio.conteudo || (envio.mediaFileName ? `[Arquivo: ${envio.mediaFileName}]` : '[Broadcast]'),
               status: 'failed',
-              tentativas: result.attempts,
+              tentativas: tentativaAtual,
               erroEnvio: result.error,
               mediaUrl: envio.mediaUrl,
               mediaType: envio.mediaType,
@@ -147,86 +237,36 @@ export async function processarEnviosPendentes(): Promise<{
             },
           })
         }
-
-        // 4. Atualiza conversa — atualizadaEm + auto-atribuição ao operador que disparou o broadcast
-        await prisma.conversaIA.update({
-          where: { id: conversa.id },
-          data: {
-            atualizadaEm: new Date(),
-            ...(!conversa.atribuidaParaId ? {
-              atribuidaParaId: envio.operadorId,
-              atribuidaEm: new Date(),
-            } : {}),
-          },
-        })
-
-        // 5. Registra interação no feed do cliente (se enviado com sucesso)
-        if (result.ok && dest.clienteId) {
-          try {
-            await prisma.interacao.create({
-              data: {
-                clienteId: dest.clienteId,
-                usuarioId: envio.operadorId,
-                tipo: 'whatsapp_enviado',
-                titulo: 'Broadcast WhatsApp enviado',
-                conteudo: envio.conteudo || (envio.mediaFileName ? `[Arquivo: ${envio.mediaFileName}]` : '[Broadcast]'),
-              },
-            })
-          } catch (interacaoErr) {
-            // Não bloqueia o envio se falhar — interação é secundária
-            console.error('[broadcast] erro ao registrar interação:', interacaoErr)
-          }
-        }
-
-        // 6. SSE refresh
-        emitWhatsAppRefresh(conversa.id)
-
-        // 6. Atualiza destinatário
-        await prisma.destinatarioEnvio.update({
-          where: { id: dest.id },
-          data: {
-            status: result.ok ? 'enviado' : 'falhou',
-            erroEnvio: result.ok ? null : result.error,
-            enviadoEm: result.ok ? new Date() : null,
-          },
-        })
-
-        // 7. Atualiza contadores do envio
-        if (result.ok) {
-          await prisma.envioTransmissao.update({
-            where: { id: envio.id },
-            data: { totalEnviados: { increment: 1 } },
-          })
-          totalEnviados++
-        } else {
-          await prisma.envioTransmissao.update({
-            where: { id: envio.id },
-            data: { totalFalhas: { increment: 1 } },
-          })
-          totalFalhas++
-        }
+        // Se falhou mas ainda tem retries, NÃO cria MensagemIA (evita duplicatas no chat)
       } catch (err) {
         console.error(`[broadcast] erro ao enviar para ${dest.remoteJid}:`, err)
         Sentry.captureException(err, {
           tags: { module: 'broadcast', operation: 'enviar-destinatario' },
-          extra: { envioId: envio.id, destinatarioId: dest.id, remoteJid: dest.remoteJid },
+          extra: { envioId: envio.id, destinatarioId: dest.id, remoteJid: dest.remoteJid, tentativa: dest.tentativas + 1 },
         })
 
-        // Marca destinatário como falhou
+        const tentativaAtual = dest.tentativas + 1
         try {
           await prisma.destinatarioEnvio.update({
             where: { id: dest.id },
             data: {
               status: 'falhou',
               erroEnvio: err instanceof Error ? err.message : String(err),
+              tentativas: tentativaAtual,
             },
           })
-          await prisma.envioTransmissao.update({
-            where: { id: envio.id },
-            data: { totalFalhas: { increment: 1 } },
-          })
+          if (!isRetry) {
+            await prisma.envioTransmissao.update({
+              where: { id: envio.id },
+              data: { totalFalhas: { increment: 1 } },
+            })
+          }
         } catch (updateErr) {
           console.error('[broadcast] erro ao atualizar status do destinatário:', updateErr)
+          Sentry.captureException(updateErr, {
+            tags: { module: 'broadcast', operation: 'update-status-falha' },
+            extra: { envioId: envio.id, destinatarioId: dest.id },
+          })
         }
         totalFalhas++
       }
@@ -235,28 +275,35 @@ export async function processarEnviosPendentes(): Promise<{
       await delay(DELAY_ENTRE_ENVIOS_MS)
     }
 
-    // Verificar se todos os destinatários foram processados
+    // Verificar se todos os destinatários foram processados (sem pendentes nem retentáveis)
     await finalizarEnvio(envio.id)
   }
 
-  return { enviosProcessados: envios.length, totalEnviados, totalFalhas }
+  return { enviosProcessados: envios.length, totalEnviados, totalFalhas, totalRetries }
 }
 
 /** Verifica se todos os destinatários foram processados e finaliza o envio */
 async function finalizarEnvio(envioId: string) {
-  const pendentes = await prisma.destinatarioEnvio.count({
-    where: { envioId, status: 'pendente' },
+  // Pendentes ou falhos que ainda podem ser retentados
+  const retentaveis = await prisma.destinatarioEnvio.count({
+    where: {
+      envioId,
+      OR: [
+        { status: 'pendente' },
+        { status: 'falhou', tentativas: { lt: MAX_TENTATIVAS } },
+      ],
+    },
   })
 
-  if (pendentes === 0) {
-    const falhas = await prisma.destinatarioEnvio.count({
+  if (retentaveis === 0) {
+    const falhasDefinitivas = await prisma.destinatarioEnvio.count({
       where: { envioId, status: 'falhou' },
     })
 
     await prisma.envioTransmissao.update({
       where: { id: envioId },
       data: {
-        status: falhas > 0 ? 'falhou' : 'concluido',
+        status: falhasDefinitivas > 0 ? 'falhou' : 'concluido',
       },
     })
   }

@@ -28,6 +28,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    console.log('[portal/empresa/trocar] Início:', {
+      userId: user.id,
+      tipo: user.tipo,
+      empresaAtual: user.empresaId,
+      novaEmpresaId,
+    })
+
     // id e nome podem mudar quando sócio troca de empresa (cada empresa tem seu registro Socio)
     let novoUserId   = user.id   as string
     let novoUserName = user.name as string | null | undefined
@@ -36,7 +43,9 @@ export async function POST(req: NextRequest) {
     if (user.tipo === 'cliente') {
       // Cliente: valida via ClienteEmpresa
       const ids = await getEmpresasCliente(user.id)
+      console.log('[portal/empresa/trocar] Empresas do cliente:', { userId: user.id, ids })
       if (!ids.includes(novaEmpresaId)) {
+        console.warn('[portal/empresa/trocar] 403 — sem acesso:', { userId: user.id, novaEmpresaId, ids })
         return NextResponse.json({ error: 'Sem acesso a esta empresa' }, { status: 403 })
       }
       empresaIds = ids
@@ -88,6 +97,21 @@ export async function POST(req: NextRequest) {
     })
 
     const res = NextResponse.json({ ok: true })
+
+    // Limpar possível cookie host-only stale (sem domain) que ficou de versão anterior.
+    // Cookies host-only têm precedência sobre cookies domain — se existir um stale,
+    // o browser envia ambos e o servidor lê o antigo (primeiro da lista).
+    if (IS_PROD) {
+      res.cookies.set(PORTAL_COOKIE_NAME, '', {
+        httpOnly: true,
+        sameSite: 'lax',
+        path:     '/',
+        secure:   true,
+        maxAge:   0, // expira imediatamente — deleta o host-only
+        // SEM domain → apaga especificamente o cookie host-only de portal.avos.digital
+      })
+    }
+
     res.cookies.set(PORTAL_COOKIE_NAME, jwt, {
       httpOnly: true,
       sameSite: 'lax',
@@ -98,6 +122,14 @@ export async function POST(req: NextRequest) {
       // Sem isso, em produção cria cookie duplicado e o NextAuth lê o antigo
       domain:   IS_PROD ? '.avos.digital' : undefined,
     })
+
+    console.log('[portal/empresa/trocar] Cookie setado com sucesso:', {
+      novoUserId,
+      novaEmpresaId,
+      empresaIds,
+      cookieName: PORTAL_COOKIE_NAME,
+    })
+
     return res
   } catch (err) {
     console.error('[portal/empresa/trocar] Erro:', { userId: user.id, novaEmpresaId, err })

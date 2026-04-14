@@ -1,6 +1,5 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
 
 type Empresa = { id: string; label: string }
@@ -11,7 +10,6 @@ type Props = {
 }
 
 export function EmpresaSelector({ empresas, empresaAtiva }: Props) {
-  const pathname = usePathname()
   const [isPending, setIsPending] = useState(false)
   const [value, setValue] = useState(empresaAtiva)
   const [open, setOpen] = useState(false)
@@ -42,11 +40,14 @@ export function EmpresaSelector({ empresas, empresaAtiva }: Props) {
         body: JSON.stringify({ empresaId: novaId }),
       })
       if (res.ok) {
-        // Navegação completa: garante que o layout e todas as páginas re-executem
-        // no servidor com o novo cookie (router.refresh() não invalida o RSC cache
-        // de forma confiável após a segunda chamada em App Router)
-        window.location.assign(pathname)
+        // reload() é mais confiável que location.assign(pathname) para forçar
+        // re-execução completa do layout no servidor com o novo cookie.
+        // assign(samePath) pode usar cache/bfcache em alguns browsers.
+        console.log('[empresa-selector] Troca OK, recarregando...', { de: anterior, para: novaId })
+        window.location.reload()
       } else {
+        const body = await res.json().catch(() => null)
+        console.error('[empresa-selector] Troca falhou:', { status: res.status, body, de: anterior, para: novaId })
         setValue(anterior)
         setIsPending(false)
       }

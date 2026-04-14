@@ -766,23 +766,41 @@ Operadores podem criar listas de transmissão para enviar mensagens WhatsApp em 
 ```
 1. Operador compõe mensagem (texto + arquivo opcional) e clica "Enviar"
 2. POST /enviar → cria EnvioTransmissao + DestinatarioEnvio[] → retorna 202
-3. Cron processar-envios (VPS, a cada ~15s):
-   Para cada destinatário pendente:
-     a. Resolve remoteJid via telefone
-     b. Busca/cria ConversaIA individual (canal: whatsapp)
-     c. Envia via Evolution (sendText ou sendMedia) — retry com backoff
+3. Cron processar-envios (VPS, 1x/min):
+   Para cada destinatário pendente OU falho com tentativas < 3:
+     a. Busca/cria ConversaIA individual (canal: whatsapp)
+     b. Envia via Evolution (sendText ou sendMedia) — retry com backoff
+     c. Marca destinatário como enviado/falhou ANTES das operações secundárias
+        (evita duplicata no WhatsApp se DB falhar depois)
      d. Cria MensagemIA na conversa individual (para IA ter contexto)
-     e. Emite SSE refresh (atualiza chat se aberto)
-     f. Atualiza status destinatário + contadores
-     g. Delay 3s entre envios (anti-ban)
+     e. Auto-atribui conversa ao operador que disparou o broadcast
+     f. Registra Interação no feed do cliente
+     g. Emite SSE refresh (atualiza chat se aberto)
+     h. Delay 3s entre envios (anti-ban)
 4. IA continua ativa — quando cliente responder, IA atende normalmente
 ```
+
+### Retry automático
+
+Destinatários que falham são retentados automaticamente pelo cron (até 3 tentativas):
+
+| Tentativa | Comportamento |
+|-----------|---------------|
+| 1ª falha | Status `falhou`, `tentativas=1`. Será retentado na próxima execução do cron. |
+| 2ª falha | Status `falhou`, `tentativas=2`. Será retentado mais uma vez. |
+| 3ª falha | Status `falhou`, `tentativas=3`. **Definitivo.** MensagemIA `failed` criada no chat. |
+| Retry com sucesso | Status `enviado`. Contador `totalFalhas` decrementado, `totalEnviados` incrementado. |
+
+**Ordem crítica no processador:** O status do destinatário é marcado imediatamente após `sendText`/`sendMedia`, *antes* de criar MensagemIA ou Interacao. Isso evita que uma falha de DB cause retry com mensagem duplicada no WhatsApp.
+
+O envio só é finalizado (status `concluido` ou `falhou`) quando **não há mais** destinatários pendentes nem retentáveis.
 
 ### Proteções
 
 - Máximo 50 membros por lista
 - Delay de 3s entre envios (anti-ban WhatsApp)
 - Rate limit: apenas 1 broadcast em processamento por lista
+- Retry automático: até 3 tentativas por destinatário
 - Validação de mídia: mesma whitelist MIME do chat individual
 - Sentry tags: `{ module: 'broadcast', operation: '...' }`
 
@@ -795,10 +813,9 @@ A tela de atendimentos ganhou tabs "Conversas" e "Listas" no painel esquerdo:
 ### Cron VPS
 
 ```bash
-# processar-envios-broadcast (4x/min)
-* * * * * for i in 0 15 30 45; do sleep $i; \
-  curl -s -X POST https://dominio/api/crm/listas-transmissao/processar-envios \
-  -H "Authorization: Bearer $CRON_SECRET" > /dev/null 2>&1; done
+# processar-envios-broadcast (1x/min)
+* * * * * curl -s -X POST https://crm.avos.digital/api/crm/listas-transmissao/processar-envios \
+  -H "Authorization: Bearer $CRON_SECRET" > /dev/null 2>&1
 ```
 
 Healthcheck: `HC_PROCESSAR_ENVIOS_BROADCAST`

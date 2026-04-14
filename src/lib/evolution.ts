@@ -246,6 +246,7 @@ export async function deleteInstance(cfg: EvolutionConfig) {
 }
 
 // Apaga mensagem para todos no WhatsApp (equivalente ao "apagar para todos")
+// Endpoint Evolution API v2: DELETE /chat/deleteMessageForEveryone/{instance}
 // Só funciona para mensagens enviadas por nós (fromMe: true) e dentro de ~60h do envio.
 // Falha silenciosa se a mensagem já expirou — o soft delete local deve ocorrer de qualquer forma.
 export async function deleteMessage(
@@ -254,10 +255,11 @@ export async function deleteMessage(
   messageId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await evo(cfg, 'DELETE', `/chat/message/${cfg.instance}`, {
+    await evo(cfg, 'DELETE', `/chat/deleteMessageForEveryone/${cfg.instance}`, {
       id:        messageId,
       remoteJid,
       fromMe:    true,
+      participant: '',
     })
     return { ok: true }
   } catch (err) {
