@@ -76,6 +76,7 @@ export async function DELETE(
   // ── Tenta deletar no WhatsApp (somente canal whatsapp, fromMe) ───────────────
   if (conversa.canal === 'whatsapp' && mensagem.whatsappMsgData && conversa.remoteJid) {
     const msgData = mensagem.whatsappMsgData as Record<string, unknown>
+    console.log('[mensagem-delete] canal=whatsapp, msgData:', JSON.stringify(msgData))
 
     // Suporte a dois formatos:
     // - { keys: WhatsAppKey[] }  → mensagens enviadas por nós (IA ou operador) — multi-chunk
@@ -88,6 +89,8 @@ export async function DELETE(
       if (single?.fromMe && single?.id) return [single]
       return []
     })()
+
+    console.log('[mensagem-delete] keysToDelete:', JSON.stringify(keysToDelete))
 
     if (keysToDelete.length > 0) {
       try {
@@ -104,7 +107,9 @@ export async function DELETE(
 
           // Deleta cada chunk individualmente (respostas longas são enviadas em múltiplas mensagens)
           for (const waKey of keysToDelete) {
+            console.log('[mensagem-delete] chamando deleteMessage:', { remoteJid: conversa.remoteJid, messageId: waKey.id })
             const result = await deleteMessage(cfg, conversa.remoteJid, waKey.id)
+            console.log('[mensagem-delete] resultado deleteMessage:', JSON.stringify(result))
             if (!result.ok) {
               // Falha silenciosa (ex: mensagem com >60h) — loga mas continua o soft delete local
               Sentry.captureMessage('deleteMessage Evolution API falhou (provavelmente >60h)', {
@@ -114,14 +119,19 @@ export async function DELETE(
               })
             }
           }
+        } else {
+          console.warn('[mensagem-delete] Evolution API não configurada — skip delete remoto')
         }
       } catch (err) {
+        console.error('[mensagem-delete] erro ao chamar Evolution API:', err)
         Sentry.captureException(err, {
           tags:  { module: 'mensagem-delete', operation: 'whatsapp-delete' },
           extra: { mensagemId, conversaId },
         })
         // Não bloqueia — continua o soft delete
       }
+    } else {
+      console.warn('[mensagem-delete] nenhuma key encontrada no whatsappMsgData — skip delete remoto')
     }
   }
 
