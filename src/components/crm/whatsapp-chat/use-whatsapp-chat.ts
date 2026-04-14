@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import * as Sentry from '@sentry/nextjs'
 import type { DocSistema } from '@/components/crm/documento-picker'
+import { humanizarErroWhatsApp } from '@/lib/whatsapp/humanizar-erro'
 
 export type Mensagem = {
   id: string
@@ -252,7 +253,7 @@ export function useWhatsAppChat(apiPath: string) {
     }
 
     if (!entity) {
-      toast.error('Não foi possível identificar o destinatário')
+      toast.error('Destinatário não identificado. Recarregue a conversa.')
       resetInput()
       return
     }
@@ -262,7 +263,7 @@ export function useWhatsAppChat(apiPath: string) {
       const novos: ArquivoAnexo[] = []
       for (const file of files) {
         if (file.size > 25 * 1024 * 1024) {
-          toast.error(`"${file.name}" excede 25 MB.`)
+          toast.error(`"${file.name}" excede o limite de 25 MB.`)
           continue
         }
         const formData = new FormData()
@@ -271,7 +272,7 @@ export function useWhatsAppChat(apiPath: string) {
         formData.append('entidadeId', entity.entidadeId)
         formData.append('entidadeTipo', entity.entidadeTipo)
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
-        if (!res.ok) { toast.error(`Tipo não permitido: ${file.name}`); continue }
+        if (!res.ok) { toast.error(`"${file.name}": tipo de arquivo não permitido.`); continue }
         const { publicUrl } = await res.json() as { publicUrl: string }
         const isImage = file.type.startsWith('image/')
         novos.push({
@@ -284,7 +285,7 @@ export function useWhatsAppChat(apiPath: string) {
       }
       if (novos.length > 0) setArquivos(prev => [...prev, ...novos])
     } catch (err) {
-      toast.error('Erro ao fazer upload do arquivo')
+      toast.error('Falha ao anexar arquivo. Verifique sua conexão e tente novamente.')
       Sentry.captureException(err, {
         tags: { module: 'whatsapp-chat', operation: 'upload' },
         extra: { apiPath },
@@ -330,9 +331,9 @@ export function useWhatsAppChat(apiPath: string) {
   async function tratarErroEnvio(res: Response, tipo: 'arquivo' | 'mensagem') {
     const err = await res.json().catch(() => ({} as Record<string, unknown>))
     if (res.status === 502) {
-      const detalhe = err.detail ? ` (${String(err.detail).slice(0, 120)})` : ''
       const acao = tipo === 'arquivo' ? 'Arquivo salvo' : 'Mensagem salva'
-      toast.error(`${acao}, mas não entregue ao WhatsApp.${detalhe}`, { duration: 8000 })
+      const motivo = humanizarErroWhatsApp(String(err.detail ?? ''))
+      toast.error(`${acao}, mas não entregue. ${motivo}`, { duration: 8000 })
     } else {
       toast.error((err.error as string | undefined) ?? `Erro ao enviar ${tipo}`)
     }
@@ -381,7 +382,7 @@ export function useWhatsAppChat(apiPath: string) {
         }
       }
     } catch (err) {
-      toast.error('Erro ao enviar mensagem')
+      toast.error('Falha de conexão ao enviar. Verifique sua internet e tente novamente.')
       Sentry.captureException(err, {
         tags: { module: 'whatsapp-chat', operation: 'enviar' },
         extra: { apiPath, conversaId },
@@ -405,9 +406,9 @@ export function useWhatsAppChat(apiPath: string) {
         body: JSON.stringify({ conversaId }),
       })
       setPausada(true)
-      toast.success('Você assumiu o controle desta conversa')
+      toast.success('Você está no controle desta conversa.')
     } catch (err) {
-      toast.error('Erro ao assumir controle')
+      toast.error('Não foi possível assumir o controle. Tente novamente.')
       Sentry.captureException(err, {
         tags: { module: 'whatsapp-chat', operation: 'assumir' },
         extra: { conversaId },
@@ -424,9 +425,9 @@ export function useWhatsAppChat(apiPath: string) {
       await fetch(`/api/conversas/${conversaId}/retomar`, { method: 'POST' })
       setPausada(false)
       setNaoModoIA(false)  // FIX #5: reset naoModoIA ao devolver para IA
-      toast.success('IA reativada para esta conversa')
+      toast.success('IA reativada.')
     } catch (err) {
-      toast.error('Erro ao reativar IA')
+      toast.error('Não foi possível reativar a IA. Tente novamente.')
       Sentry.captureException(err, {
         tags: { module: 'whatsapp-chat', operation: 'reativar' },
         extra: { conversaId },
@@ -442,14 +443,14 @@ export function useWhatsAppChat(apiPath: string) {
     setExcluindo(prev => new Set(prev).add(mensagemId))
     try {
       const res = await fetch(`/api/conversas/${conversaId}/mensagens/${mensagemId}`, { method: 'DELETE' })
-      if (!res.ok) { toast.error('Erro ao excluir mensagem'); return }
+      if (!res.ok) { toast.error('Não foi possível excluir a mensagem. Tente novamente.'); return }
       setMensagens(prev => prev.map(m =>
         m.id === mensagemId
           ? { ...m, excluido: true, conteudo: null, mediaUrl: null, mediaType: null, mediaFileName: null }
           : m
       ))
     } catch (err) {
-      toast.error('Erro ao excluir mensagem')
+      toast.error('Não foi possível excluir a mensagem. Tente novamente.')
       Sentry.captureException(err, {
         tags: { module: 'whatsapp-chat', operation: 'excluir' },
         extra: { conversaId, mensagemId },
@@ -474,13 +475,13 @@ export function useWhatsAppChat(apiPath: string) {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as Record<string, unknown>
-        toast.error((err.error as string | undefined) ?? 'Erro ao atribuir conversa')
+        toast.error((err.error as string | undefined) ?? 'Não foi possível atribuir a conversa. Tente novamente.')
         return
       }
       setAtribuidaPara(operadorId && operadorNome ? { id: operadorId, nome: operadorNome } : null)
-      toast.success(operadorId ? `Conversa atribuída para ${operadorNome ?? 'operador'}` : 'Atribuição removida')
+      toast.success(operadorId ? `Conversa atribuída para ${operadorNome ?? 'operador'}.` : 'Atribuição removida.')
     } catch (err) {
-      toast.error('Erro ao atribuir conversa')
+      toast.error('Não foi possível atribuir a conversa. Tente novamente.')
       Sentry.captureException(err, {
         tags:  { module: 'whatsapp-chat', operation: 'atribuir' },
         extra: { conversaId, operadorId },

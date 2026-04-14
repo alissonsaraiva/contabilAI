@@ -54,12 +54,12 @@ export async function CardChamados({ clienteId }: { clienteId: string }) {
           >
             check_circle
           </span>
-          <p className="text-[13px] text-on-surface-variant/60">Nenhum chamado ainda</p>
+          <p className="text-[13px] text-on-surface-variant/60">Você ainda não abriu nenhum chamado.</p>
           <Link
             href="/portal/suporte/chamados/nova"
             className="mt-1 rounded-xl border border-outline-variant/20 bg-surface-container px-4 py-2 text-[12px] font-semibold text-on-surface hover:bg-surface-container-high transition-colors"
           >
-            Abrir primeiro chamado
+            Abrir meu primeiro chamado
           </Link>
         </div>
       ) : (

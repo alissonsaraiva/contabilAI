@@ -50,7 +50,7 @@ export default function ContatoPage() {
       if (data.cidade) setValue('cidade', data.cidade)
       if (data.uf) setValue('uf', data.uf)
     } catch {
-      toast.error('CEP não encontrado')
+      toast.error('CEP não encontrado. Verifique o número e tente novamente.')
     } finally {
       setLoadingCep(false)
     }
@@ -65,9 +65,9 @@ export default function ContatoPage() {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error()
-      toast.success('Dados de contato salvos!')
+      toast.success('Dados de contato salvos.')
     } catch {
-      toast.error('Erro ao salvar')
+      toast.error('Não foi possível salvar os dados de contato. Tente novamente.')
     } finally {
       setLoading(false)
     }

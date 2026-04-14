@@ -145,13 +145,13 @@ export function PortalConversaPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversaId }),
       })
-      if (!res.ok) { toast.error('Erro ao assumir controle'); return }
+      if (!res.ok) { toast.error('Não foi possível assumir o controle. Tente novamente.'); return }
       setPausada(true)
-      toast.success('Você assumiu o controle da conversa')
+      toast.success('Você está no controle desta conversa.')
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao assumir controle:', { conversaId, err })
       Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'assumir' }, extra: { conversaId } })
-      toast.error('Erro ao assumir controle')
+      toast.error('Não foi possível assumir o controle. Tente novamente.')
     } finally {
       setAssumindo(false)
     }
@@ -161,13 +161,13 @@ export function PortalConversaPanel({
     setReativando(true)
     try {
       const res = await fetch(`/api/conversas/${conversaId}/retomar`, { method: 'POST' })
-      if (!res.ok) { toast.error('Erro ao devolver à IA'); return }
+      if (!res.ok) { toast.error('Não foi possível devolver para a IA. Tente novamente.'); return }
       setPausada(false)
-      toast.success('IA reativada')
+      toast.success('IA reativada.')
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao reativar IA:', { conversaId, err })
       Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'reativar-ia' }, extra: { conversaId } })
-      toast.error('Erro ao devolver à IA')
+      toast.error('Não foi possível devolver para a IA. Tente novamente.')
     } finally {
       setReativando(false)
     }
@@ -175,18 +175,18 @@ export function PortalConversaPanel({
 
   async function excluirMensagem(conversaId: string, mensagemId: string) {
     if (excluindo) return
-    if (!confirm('Apagar esta mensagem para todos?')) return
+    if (!confirm('Apagar esta mensagem para todos? Essa ação não pode ser desfeita.')) return
     setExcluindo(mensagemId)
     try {
       const res = await fetch(`/api/conversas/${conversaId}/mensagens/${mensagemId}`, { method: 'DELETE' })
-      if (!res.ok) { toast.error('Erro ao excluir mensagem'); return }
+      if (!res.ok) { toast.error('Não foi possível excluir a mensagem. Tente novamente.'); return }
       setMensagens(prev => prev.map(m =>
         m.id === mensagemId ? { ...m, excluido: true, conteudo: null } : m
       ))
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao excluir mensagem:', { mensagemId, err })
       Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'excluir-mensagem' }, extra: { conversaId, mensagemId } })
-      toast.error('Erro ao excluir mensagem')
+      toast.error('Não foi possível excluir a mensagem. Tente novamente.')
     } finally {
       setExcluindo(null)
     }
@@ -195,7 +195,7 @@ export function PortalConversaPanel({
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!clienteId) { toast.error('Cliente não identificado para fazer upload.'); return }
+    if (!clienteId) { toast.error('Cliente não identificado. Não é possível fazer upload nesta conversa.'); return }
     if (file.size > 25 * 1024 * 1024) { toast.error('Arquivo muito grande. O limite é 25 MB.'); return }
     setUploading(true)
     try {
@@ -205,7 +205,7 @@ export function PortalConversaPanel({
       formData.append('entidadeId', clienteId)
       formData.append('entidadeTipo', 'cliente')
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
+      if (!res.ok) { toast.error('Tipo de arquivo não suportado. Use PDF, imagem ou documento Office.'); return }
       const { publicUrl } = await res.json() as { publicUrl: string }
       const isImage = file.type.startsWith('image/')
       setArquivo({
@@ -218,7 +218,7 @@ export function PortalConversaPanel({
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao fazer upload:', { clienteId, err })
       Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'upload' }, extra: { clienteId } })
-      toast.error('Erro ao fazer upload do arquivo')
+      toast.error('Não foi possível fazer o upload. Verifique sua conexão e tente novamente.')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -260,7 +260,7 @@ export function PortalConversaPanel({
       })
       if (!res.ok) {
         const err = await res.json()
-        toast.error(err.error ?? 'Erro ao enviar mensagem')
+        toast.error(err.error ?? 'Não foi possível enviar a mensagem. Tente novamente.')
         setTexto(textoEnviar)
         return
       }
@@ -268,7 +268,7 @@ export function PortalConversaPanel({
     } catch (err: unknown) {
       console.error('[PortalConversaPanel] erro ao enviar mensagem:', { conversaId, err })
       Sentry.captureException(err, { tags: { module: 'portal-conversa', operation: 'enviar' }, extra: { conversaId } })
-      toast.error('Erro ao enviar mensagem')
+      toast.error('Não foi possível enviar a mensagem. Verifique sua conexão e tente novamente.')
       setTexto(textoEnviar)
     } finally {
       setSending(false)
@@ -321,7 +321,7 @@ export function PortalConversaPanel({
       {/* Mensagens */}
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {mensagens.length === 0 ? (
-          <p className="py-8 text-center text-[13px] text-on-surface-variant/50">Sem mensagens</p>
+          <p className="py-8 text-center text-[13px] text-on-surface-variant/50">Nenhuma mensagem ainda.</p>
         ) : (
           mensagens.map(m => (
             <div key={m.id} className={`group flex gap-3 ${m.role === 'assistant' ? 'flex-row-reverse' : ''}`}>

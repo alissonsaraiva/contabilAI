@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import * as Sentry from '@sentry/nextjs'
 import { DocumentoPicker, type DocSistema } from '@/components/crm/documento-picker'
 import { inferMimeFromDoc, type ArquivoAnexo } from '@/components/crm/whatsapp-chat/use-whatsapp-chat'
+import { humanizarErroWhatsApp } from '@/lib/whatsapp/humanizar-erro'
 
 type Props = {
   conversaId: string
@@ -47,7 +48,7 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
     const files = Array.from(e.target.files ?? [])
     if (files.length === 0) return
     if (!entidadeTipo || !entidadeId) {
-      toast.error('Contato não identificado. Vincule a um cliente antes de fazer upload.')
+      toast.error('Contato não identificado. Vincule a conversa a um cliente antes de enviar arquivos.')
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
@@ -56,14 +57,14 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
     try {
       const novos: ArquivoAnexo[] = []
       for (const file of files) {
-        if (file.size > 25 * 1024 * 1024) { toast.error(`"${file.name}" excede 25 MB.`); continue }
+        if (file.size > 25 * 1024 * 1024) { toast.error(`"${file.name}" excede o limite de 25 MB.`); continue }
         const formData = new FormData()
         formData.append('file', file)
         formData.append('tipo', 'outro')
         formData.append('entidadeId', entidadeId)
         formData.append('entidadeTipo', entidadeTipo)
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
-        if (!res.ok) { toast.error(`Tipo não permitido: ${file.name}`); continue }
+        if (!res.ok) { toast.error(`"${file.name}": tipo de arquivo não permitido.`); continue }
         const { publicUrl } = await res.json() as { publicUrl: string }
         const isImage = file.type.startsWith('image/')
         novos.push({
@@ -76,7 +77,7 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
       }
       if (novos.length > 0) setArquivos(prev => [...prev, ...novos])
     } catch (err) {
-      toast.error('Erro ao fazer upload do arquivo')
+      toast.error('Falha ao anexar arquivo. Verifique sua conexão e tente novamente.')
       Sentry.captureException(err, {
         tags: { module: 'conversa-rodape', operation: 'upload' },
         extra: { conversaId },
@@ -129,7 +130,11 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
             }),
           })
           if (!res.ok) {
-            toast.error(`Falha ao enviar "${arq.name}"`)
+            const err = await res.json().catch(() => ({} as Record<string, unknown>))
+            const motivo = res.status === 502
+              ? humanizarErroWhatsApp(String(err.detail ?? ''))
+              : (err.error as string | undefined) ?? 'Tente novamente.'
+            toast.error(`Arquivo "${arq.name}" não entregue. ${motivo}`, { duration: 8000 })
           }
         }
         if (texto.trim()) {
@@ -139,7 +144,11 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
             body: JSON.stringify({ texto }),
           })
           if (!res.ok) {
-            toast.error('Erro ao enviar mensagem de texto')
+            const err = await res.json().catch(() => ({} as Record<string, unknown>))
+            const motivo = res.status === 502
+              ? humanizarErroWhatsApp(String(err.detail ?? ''))
+              : (err.error as string | undefined) ?? 'Tente novamente.'
+            toast.error(`Mensagem não entregue. ${motivo}`, { duration: 8000 })
           }
         }
       } else {
@@ -149,14 +158,18 @@ export function ConversaRodape({ conversaId, canal, pausada, entidadeTipo, entid
           body: JSON.stringify({ texto }),
         })
         if (!res.ok) {
-          toast.error('Erro ao enviar mensagem')
+          const err = await res.json().catch(() => ({} as Record<string, unknown>))
+          const motivo = res.status === 502
+            ? humanizarErroWhatsApp(String(err.detail ?? ''))
+            : (err.error as string | undefined) ?? 'Tente novamente.'
+          toast.error(`Mensagem não entregue. ${motivo}`, { duration: 8000 })
           return
         }
       }
       setTexto('')
       removerTodos()
     } catch (err) {
-      toast.error('Erro ao enviar mensagem')
+      toast.error('Falha de conexão ao enviar. Verifique sua internet e tente novamente.')
       Sentry.captureException(err, {
         tags: { module: 'conversa-rodape', operation: 'enviar' },
         extra: { conversaId },

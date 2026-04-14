@@ -158,22 +158,22 @@ function RelatorioCard({ rel, expanded, onExpand }: { rel: Relatorio; expanded: 
     setLoading(true)
     try {
       const res = await fetch(`/api/relatorios/${rel.id}/exportar?formato=${formato}`)
-      if (!res.ok) { toast.error('Erro ao gerar exportação'); return }
+      if (!res.ok) { toast.error('Não foi possível gerar a exportação. Tente novamente.'); return }
       const blob = await res.blob()
       const ext  = formato === 'pdf' ? 'pdf' : 'xlsx'
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href = url; a.download = `${rel.titulo}.${ext}`; a.click()
       URL.revokeObjectURL(url)
-    } catch { toast.error('Erro ao exportar') }
+    } catch { toast.error('Não foi possível exportar o relatório. Tente novamente.') }
     finally { setLoading(false) }
   }
 
   function handleDelete() {
     startDelete(async () => {
       const res = await fetch(`/api/relatorios/${rel.id}`, { method: 'DELETE' })
-      if (res.ok) { toast.success('Relatório excluído'); router.refresh() }
-      else toast.error('Erro ao excluir')
+      if (res.ok) { toast.success('Relatório excluído.'); router.refresh() }
+      else toast.error('Não foi possível excluir o relatório. Tente novamente.')
     })
   }
 

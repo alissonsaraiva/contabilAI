@@ -36,7 +36,7 @@ export function NovaInteracaoDrawer({ clienteId }: Props) {
     e.preventDefault()
     setErro('')
     if (!form.conteudo.trim()) {
-      setErro('O conteúdo é obrigatório')
+      setErro('Preencha o conteúdo para registrar a interação.')
       return
     }
     setLoading(true)
@@ -52,12 +52,12 @@ export function NovaInteracaoDrawer({ clienteId }: Props) {
         }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Interação registrada!')
+      toast.success('Interação registrada.')
       setOpen(false)
       reset()
       router.refresh()
     } catch {
-      toast.error('Erro ao registrar interação')
+      toast.error('Não foi possível registrar a interação. Tente novamente.')
     } finally {
       setLoading(false)
     }

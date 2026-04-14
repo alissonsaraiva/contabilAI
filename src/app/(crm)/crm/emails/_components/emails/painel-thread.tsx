@@ -173,7 +173,7 @@ export function PainelThread({ thread, aba, clientes, operadores, operadorNome, 
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ ids: pendentesIds, action: 'dispensar' }),
       })
-      if (!res.ok) { toast.error('Erro ao marcar como tratado'); return }
+      if (!res.ok) { toast.error('Não foi possível marcar como tratado. Tente novamente.'); return }
       onDispensed(thread.threadId)
     } finally {
       setDispensando(false)
@@ -193,7 +193,7 @@ export function PainelThread({ thread, aba, clientes, operadores, operadorNome, 
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ clienteId: vincularClienteId }),
       })
-      if (!res.ok) { toast.error('Erro ao vincular'); return }
+      if (!res.ok) { toast.error('Não foi possível vincular o e-mail ao cliente. Tente novamente.'); return }
       const d = await res.json()
       // Demais emails da thread (ignora 409 — já vinculados)
       if (emailsParaVincular.length > 1) {
@@ -208,7 +208,7 @@ export function PainelThread({ thread, aba, clientes, operadores, operadorNome, 
         )
       }
       onVinculado(thread.threadId, vincularClienteId, d.clienteNome ?? '')
-      toast.success('Conversa vinculada ao cliente!')
+      toast.success('Conversa vinculada ao cliente.')
     } finally {
       setVincularEstado('idle')
     }
@@ -225,14 +225,14 @@ export function PainelThread({ thread, aba, clientes, operadores, operadorNome, 
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        toast.error(d.error ?? 'Erro ao arquivar anexo')
+        toast.error(d.error ?? 'Não foi possível arquivar o anexo. Tente novamente.')
         return
       }
       setAnexosArquivados(prev => new Set([...prev, key]))
       onAnexoArquivado(thread.threadId, msgId, nome)
       toast.success(`"${nome}" arquivado na ficha do cliente`)
     } catch {
-      toast.error('Erro ao arquivar anexo')
+      toast.error('Não foi possível arquivar o anexo. Tente novamente.')
     } finally {
       setArquivandoAnexos(prev => { const s = new Set(prev); s.delete(key); return s })
     }

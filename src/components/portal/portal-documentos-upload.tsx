@@ -45,8 +45,8 @@ export function PortalDocumentosUpload() {
       if (f.size > MAX_SIZE) { rejectedSize++; continue }
       valid.push(f)
     }
-    if (rejectedType > 0) toast.error(`${rejectedType} arquivo(s) com tipo não permitido`)
-    if (rejectedSize > 0) toast.error(`${rejectedSize} arquivo(s) excederam o limite de 10 MB`)
+    if (rejectedType > 0) toast.error(`${rejectedType} arquivo(s) não aceito(s). Use PDF, XML, imagens, planilhas ou documentos de texto.`)
+    if (rejectedSize > 0) toast.error(`${rejectedSize} arquivo(s) supera(m) o limite de 10 MB. Reduza o tamanho e tente novamente.`)
     if (valid.length === 0) return
     setFiles(prev => [...prev, ...valid.map(file => ({ file, status: 'pending' as const }))])
   }, [])
@@ -75,13 +75,12 @@ export function PortalDocumentosUpload() {
       const res = await fetch('/api/portal/documentos/upload', { method: 'POST', body: fd })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error ?? 'Erro ao enviar')
+        throw new Error(err.error ?? 'Não foi possível enviar o arquivo.')
       }
       setFiles(prev => prev.map((f, i) => i === index ? { ...f, status: 'done' } : f))
       return true
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro ao enviar'
-      setFiles(prev => prev.map((f, i) => i === index ? { ...f, status: 'error', errorMsg: msg } : f))
+      setFiles(prev => prev.map((f, i) => i === index ? { ...f, status: 'error', errorMsg: 'Não foi possível enviar o arquivo. Tente novamente.' } : f))
       return false
     }
   }
@@ -104,9 +103,9 @@ export function PortalDocumentosUpload() {
 
     setUploading(false)
     if (fail === 0) {
-      toast.success(`${ok} documento${ok !== 1 ? 's' : ''} enviado${ok !== 1 ? 's' : ''}!`)
+      toast.success(`${ok} documento${ok !== 1 ? 's' : ''} enviado${ok !== 1 ? 's' : ''} com sucesso!`)
     } else {
-      toast.error(`${fail} arquivo${fail !== 1 ? 's' : ''} falharam`)
+      toast.error(`${fail} arquivo${fail !== 1 ? 's' : ''} não ${fail !== 1 ? 'foram enviados' : 'foi enviado'}. Tente novamente.`)
     }
     router.refresh()
   }

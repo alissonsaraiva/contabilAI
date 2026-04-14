@@ -97,7 +97,7 @@ export default function PlanoPage({ searchParams }: Props) {
       })
       router.push(`/onboarding/dados?leadId=${leadId}&plano=${selecionado}`)
     } catch {
-      toast.error('Erro ao salvar. Tente novamente.')
+      toast.error('Não foi possível salvar sua escolha. Tente novamente.')
     } finally {
       setLoading(false)
     }

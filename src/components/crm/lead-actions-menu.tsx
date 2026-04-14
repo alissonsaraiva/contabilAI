@@ -73,7 +73,7 @@ export function LeadActionsMenu({ leadId, backHref }: Props) {
             </button>
           ) : (
             <div className="px-4 py-3 space-y-2">
-              <p className="text-[12px] text-on-surface-variant">Confirmar exclusão?</p>
+              <p className="text-[12px] text-on-surface-variant">Excluir este lead? Essa ação não pode ser desfeita.</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setConfirming(false)}

@@ -79,11 +79,11 @@ export function PlanoDrawer({ plano, tiposDisponiveis }: Props) {
         }
       )
       if (!res.ok) throw new Error()
-      toast.success(isEdit ? 'Plano atualizado!' : 'Plano criado!')
+      toast.success(isEdit ? 'Plano atualizado.' : 'Plano criado.')
       setOpen(false)
       router.refresh()
     } catch {
-      toast.error('Erro ao salvar plano')
+      toast.error('Não foi possível salvar o plano. Tente novamente.')
     } finally {
       setLoading(false)
     }

@@ -20,7 +20,7 @@ export function ModalCancelar({ nota, onClose, onSuccess }: Props) {
   async function handleCancelar() {
     const trimmed = justificativa.trim()
     if (trimmed.length < 15) {
-      toast.error('Justificativa deve ter pelo menos 15 caracteres')
+      toast.error('Descreva o motivo com pelo menos 15 caracteres para continuar.')
       return
     }
     setCancelando(true)
@@ -32,10 +32,10 @@ export function ModalCancelar({ nota, onClose, onSuccess }: Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.error ?? 'Erro ao cancelar nota fiscal')
+        toast.error(data.error ?? 'Não foi possível cancelar a nota agora. Tente novamente ou fale com o escritório.')
         return
       }
-      toast.success('Nota fiscal cancelada.')
+      toast.success('Nota fiscal cancelada com sucesso.')
       onSuccess()
     } catch {
       toast.error('Erro de conexão. Tente novamente.')

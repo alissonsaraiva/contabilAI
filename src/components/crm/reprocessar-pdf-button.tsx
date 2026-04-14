@@ -13,7 +13,7 @@ export function ReprocessarPdfButton({ contratoId }: { contratoId: string }) {
       const res = await fetch(`/api/contratos/${contratoId}/reprocessar-pdf`, { method: 'POST' })
       const data = (await res.json()) as { ok?: boolean; error?: string }
       if (!res.ok || !data.ok) {
-        setErro(data.error ?? 'Erro desconhecido')
+        setErro(data.error ?? 'Não foi possível recuperar o PDF. Tente novamente.')
         setStatus('erro')
       } else {
         setStatus('ok')
@@ -21,7 +21,7 @@ export function ReprocessarPdfButton({ contratoId }: { contratoId: string }) {
         setTimeout(() => window.location.reload(), 800)
       }
     } catch {
-      setErro('Falha de conexão')
+      setErro('Falha de conexão. Verifique sua internet e tente novamente.')
       setStatus('erro')
     }
   }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { Mensagem } from './use-whatsapp-chat'
+import { humanizarErroWhatsApp } from '@/lib/whatsapp/humanizar-erro'
 
 type Props = {
   m: Mensagem
@@ -134,7 +135,7 @@ export function MessageItem({ m, excluindo, onExcluir }: Props) {
         {m.role === 'assistant' && m.status === 'failed' && !m.excluido && (
           <p
             className="mt-0.5 flex items-center gap-1 text-[10px] text-error/70"
-            title={m.erroEnvio ?? 'Falha no envio'}
+            title={humanizarErroWhatsApp(m.erroEnvio)}
           >
             <span className="material-symbols-outlined text-[10px]">error</span>
             Não entregue

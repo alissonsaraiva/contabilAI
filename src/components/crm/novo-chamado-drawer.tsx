@@ -61,9 +61,9 @@ export function NovoChamadoDrawer({ clientes }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const newErros: Record<string, string> = {}
-    if (!form.clienteId) newErros.clienteId = 'Selecione o cliente'
-    if (!form.titulo.trim() || form.titulo.length < 3) newErros.titulo = 'Título muito curto (mín. 3 caracteres)'
-    if (!form.descricao.trim()) newErros.descricao = 'Descrição obrigatória'
+    if (!form.clienteId) newErros.clienteId = 'Selecione o cliente para continuar.'
+    if (!form.titulo.trim() || form.titulo.length < 3) newErros.titulo = 'Título muito curto — use pelo menos 3 caracteres.'
+    if (!form.descricao.trim()) newErros.descricao = 'Preencha a descrição para continuar.'
     if (Object.keys(newErros).length) { setErros(newErros); return }
 
     setLoading(true)
@@ -74,12 +74,12 @@ export function NovoChamadoDrawer({ clientes }: Props) {
         body: JSON.stringify(form),
       })
       if (!res.ok) throw new Error()
-      toast.success('Chamado criado!')
+      toast.success('Chamado criado.')
       setOpen(false)
       reset()
       router.refresh()
     } catch {
-      toast.error('Erro ao criar chamado')
+      toast.error('Não foi possível criar o chamado. Tente novamente.')
     } finally {
       setLoading(false)
     }

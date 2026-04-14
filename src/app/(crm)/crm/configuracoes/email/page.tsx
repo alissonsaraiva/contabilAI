@@ -84,10 +84,10 @@ export default function EmailPage() {
         body: JSON.stringify(config),
       })
       if (!res.ok) throw new Error()
-      toast.success('Configurações de e-mail salvas!')
+      toast.success('Configurações de e-mail salvas.')
       if (config.emailSenha) setSenhaSalva(true)
     } catch {
-      toast.error('Erro ao salvar')
+      toast.error('Não foi possível salvar as configurações. Tente novamente.')
     } finally {
       setSaving(false)
     }
@@ -98,10 +98,10 @@ export default function EmailPage() {
     try {
       const res = await fetch('/api/configuracoes/email', { method: 'PATCH' })
       const data = await res.json()
-      if (data.ok) toast.success('Conexão IMAP OK!')
-      else toast.error(`Erro IMAP: ${data.erro ?? 'Falha na conexão'}`)
+      if (data.ok) toast.success('Conexão IMAP verificada com sucesso.')
+      else toast.error(`Erro na conexão IMAP: ${data.erro ?? 'Falha ao conectar. Verifique as configurações.'}`)
     } catch {
-      toast.error('Erro ao testar IMAP')
+      toast.error('Não foi possível testar a conexão IMAP. Tente novamente.')
     } finally {
       setTestingImap(false)
     }
@@ -112,10 +112,10 @@ export default function EmailPage() {
     try {
       const res = await fetch('/api/configuracoes/email', { method: 'POST' })
       const data = await res.json()
-      if (data.ok) toast.success('Conexão SMTP OK!')
-      else toast.error(`Erro: ${data.erro ?? 'Falha na conexão'}`)
+      if (data.ok) toast.success('Conexão SMTP verificada com sucesso.')
+      else toast.error(`Erro na conexão SMTP: ${data.erro ?? 'Falha ao conectar. Verifique as configurações.'}`)
     } catch {
-      toast.error('Erro ao testar conexão')
+      toast.error('Não foi possível testar a conexão SMTP. Tente novamente.')
     } finally {
       setTesting(false)
     }

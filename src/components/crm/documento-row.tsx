@@ -122,9 +122,9 @@ export function DocumentoRow({ doc, selected, onToggleSelect, onUpdate, onDelete
       if (!res.ok) throw new Error()
       const updated = await res.json()
       onUpdate(updated)
-      toast.success('Nome atualizado')
+      toast.success('Nome atualizado.')
     } catch {
-      toast.error('Erro ao renomear')
+      toast.error('Não foi possível renomear o documento. Tente novamente.')
       setNewName(doc.nome)
     }
     setRenaming(false)
@@ -142,9 +142,9 @@ export function DocumentoRow({ doc, selected, onToggleSelect, onUpdate, onDelete
       if (!res.ok) throw new Error()
       const updated = await res.json()
       onUpdate(updated)
-      toast.success(updated.visivelPortal ? 'Disponibilizado no portal' : 'Removido do portal')
+      toast.success(updated.visivelPortal ? 'Documento disponibilizado no portal.' : 'Documento removido do portal.')
     } catch {
-      toast.error('Erro ao alterar visibilidade')
+      toast.error('Não foi possível alterar a visibilidade. Tente novamente.')
     } finally {
       setTogglingVisibility(false)
     }
@@ -156,9 +156,9 @@ export function DocumentoRow({ doc, selected, onToggleSelect, onUpdate, onDelete
       const res = await fetch(`/api/crm/documentos/${doc.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
       onDelete(doc.id)
-      toast.success('Documento removido')
+      toast.success('Documento removido.')
     } catch {
-      toast.error('Erro ao remover documento')
+      toast.error('Não foi possível remover o documento. Tente novamente.')
     } finally {
       setDeletando(false)
       setConfirmandoDelete(false)

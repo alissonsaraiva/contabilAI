@@ -274,7 +274,7 @@ export default function DadosPage({ searchParams }: Props) {
       const emailParam = encodeURIComponent(form.email)
       router.push(`/onboarding/verificar-email?leadId=${leadId}&plano=${plano}&email=${emailParam}`)
     } catch {
-      toast.error('Erro ao salvar. Tente novamente.')
+      toast.error('Não foi possível salvar seus dados. Tente novamente.')
     } finally {
       setLoading(false)
     }

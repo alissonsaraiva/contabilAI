@@ -119,7 +119,7 @@ export default function ConfiguracoesIAPage() {
       })
       .catch((err: unknown) => {
         console.error('[configuracoes/ia] erro ao carregar configurações:', err)
-        toast.error('Erro ao carregar configurações de IA')
+        toast.error('Não foi possível carregar as configurações de IA. Recarregue a página.')
       })
   }, [reset])
 
@@ -155,7 +155,7 @@ export default function ConfiguracoesIAPage() {
         }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Chaves de API salvas!')
+      toast.success('Chaves de API salvas.')
       const updated = await fetch('/api/configuracoes/ia').then(r => r.json())
       setStatus(Object.fromEntries(
         API_KEY_FIELDS.map(k => [k, { configured: !!updated[`${k}Configured`], masked: updated[k] }])
@@ -163,7 +163,7 @@ export default function ConfiguracoesIAPage() {
       API_KEY_FIELDS.forEach(k => setValue(k, ''))
       loadModels()
     } catch {
-      toast.error('Erro ao salvar chaves')
+      toast.error('Não foi possível salvar as chaves de API. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -185,9 +185,9 @@ export default function ConfiguracoesIAPage() {
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error()
-      toast.success('Configurações por funcionalidade salvas!')
+      toast.success('Configurações por funcionalidade salvas.')
     } catch {
-      toast.error('Erro ao salvar configurações')
+      toast.error('Não foi possível salvar as configurações. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -201,7 +201,7 @@ export default function ConfiguracoesIAPage() {
       const data = await res.json() as TestResults
       setTestResults(data)
     } catch {
-      toast.error('Erro ao testar conexões')
+      toast.error('Não foi possível testar as conexões. Verifique sua internet e tente novamente.')
     } finally {
       setTesting(false)
     }

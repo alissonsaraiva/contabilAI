@@ -93,7 +93,7 @@ export default async function PortalEmpresaPage() {
             <InfoRow label="Status" value={cliente.status} />
             {!empresa?.cnpj && !empresa?.razaoSocial && (
               <p className="text-[13px] text-on-surface-variant/50 py-3">
-                Dados da empresa não preenchidos. Entre em contato com o escritório para atualizar.
+                Os dados da empresa ainda não foram preenchidos. Entre em contato com o escritório para atualizar.
               </p>
             )}
           </div>

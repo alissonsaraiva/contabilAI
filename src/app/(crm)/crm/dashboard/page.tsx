@@ -169,6 +169,16 @@ async function getDashboardData() {
     ? Math.round((escalacaoHojeResolvidas / escalacaoHojeTotal) * 100)
     : 100
 
+  // Deduplicar por contato: manter apenas a conversa mais recente por clienteId/socioId/leadId
+  // (resultado já vem ordenado por atualizadaEm desc, então o primeiro de cada chave é o mais recente)
+  const seen = new Set<string>()
+  const conversasDeduped = conversasRecentes.filter(c => {
+    const key = c.cliente?.id ?? c.socio?.id ?? c.lead?.id ?? c.id
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
   return {
     clientesAtivos, clientesNovos,
     conversasHoje, chamadosAbertos, leadsHoje,
@@ -177,7 +187,7 @@ async function getDashboardData() {
     clientesInadimplentes,
     valorTotalAtraso: Number(valorTotalAtraso._sum.valor ?? 0),
     inadimplentesRecentes,
-    conversasRecentes,
+    conversasRecentes: conversasDeduped,
   }
 }
 

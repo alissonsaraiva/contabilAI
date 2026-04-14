@@ -123,7 +123,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
       formData.append('entidadeId', clienteId)
       formData.append('entidadeTipo', 'cliente')
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
+      if (!res.ok) { toast.error('Tipo de arquivo não suportado. Use PDF, imagem ou documento Office.'); return }
       const { publicUrl } = await res.json() as { publicUrl: string }
       const isImage = file.type.startsWith('image/')
       setArquivo({
@@ -134,7 +134,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
         previewUrl: isImage ? URL.createObjectURL(file) : undefined,
       })
     } catch {
-      toast.error('Erro ao fazer upload do arquivo')
+      toast.error('Não foi possível fazer o upload. Verifique sua conexão e tente novamente.')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -178,7 +178,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
       removerArquivo()
       load()
     } catch {
-      toast.error('Erro ao enviar mensagem')
+      toast.error('Não foi possível enviar a mensagem. Verifique sua conexão e tente novamente.')
     } finally {
       setEnviando(false)
     }
@@ -227,8 +227,8 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
           {!loading && conversas.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <span className="material-symbols-outlined mb-3 text-[40px] text-on-surface-variant/25">forum</span>
-              <p className="text-[13px] font-semibold text-on-surface-variant">Nenhuma conversa no portal</p>
-              <p className="mt-1 text-[12px] text-on-surface-variant/60">O cliente ainda não conversou com {nomeIa}.</p>
+              <p className="text-[13px] font-semibold text-on-surface-variant">Nenhuma conversa no portal ainda</p>
+              <p className="mt-1 text-[12px] text-on-surface-variant/60">O cliente ainda não iniciou uma conversa com {nomeIa}.</p>
             </div>
           )}
 
@@ -283,7 +283,7 @@ export function PortalChatDrawer({ clienteId, clienteNome, nomeIa = 'Assistente'
               <div className="flex-1 overflow-y-auto space-y-2.5 p-4 bg-surface-container-low/20">
                 {conversaAtual.mensagens.length === 0 && (
                   <p className="text-center text-[12px] text-on-surface-variant/50 py-8">
-                    Conversa sem mensagens registradas.
+                    Nenhuma mensagem registrada nesta conversa.
                   </p>
                 )}
                 {conversaAtual.mensagens.map(m => (

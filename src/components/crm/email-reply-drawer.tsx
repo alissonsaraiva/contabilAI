@@ -54,10 +54,10 @@ export function EmailReplyDrawer({ email, open, onClose, onReplied, onDispensed 
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data.error ?? 'Erro ao enviar e-mail')
+        toast.error(data.error ?? 'Não foi possível enviar o e-mail. Tente novamente.')
         return
       }
-      toast.success('E-mail enviado com sucesso')
+      toast.success('E-mail enviado.')
       onReplied(email.id)
       onClose()
     } finally {
@@ -70,8 +70,8 @@ export function EmailReplyDrawer({ email, open, onClose, onReplied, onDispensed 
     setDispensando(true)
     try {
       const res = await fetch(`/api/email/inbox/${email.id}/dispensar`, { method: 'PATCH' })
-      if (!res.ok) { toast.error('Erro ao dispensar'); return }
-      toast.success('E-mail marcado como tratado')
+      if (!res.ok) { toast.error('Não foi possível dispensar o e-mail. Tente novamente.'); return }
+      toast.success('E-mail marcado como tratado.')
       onDispensed(email.id)
       onClose()
     } finally {

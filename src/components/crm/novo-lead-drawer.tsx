@@ -33,7 +33,7 @@ export function NovoLeadDrawer() {
     e.preventDefault()
     setErro('')
     if (form.contatoEntrada.trim().length < 5) {
-      setErro('Informe um nome, e-mail ou telefone (mín. 5 caracteres)')
+      setErro('Informe um nome, e-mail ou telefone (mínimo 5 caracteres).')
       return
     }
     setLoading(true)
@@ -44,12 +44,12 @@ export function NovoLeadDrawer() {
         body: JSON.stringify(form),
       })
       if (!res.ok) throw new Error()
-      toast.success('Lead criado!')
+      toast.success('Lead criado.')
       setOpen(false)
       reset()
       router.refresh()
     } catch {
-      toast.error('Erro ao criar lead')
+      toast.error('Não foi possível criar o lead. Tente novamente.')
     } finally {
       setLoading(false)
     }

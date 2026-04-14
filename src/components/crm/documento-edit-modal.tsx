@@ -47,7 +47,7 @@ export function DocumentoEditModal({ documento, onClose, onSaved }: Props) {
   const [salvando, setSalvando] = useState(false)
 
   async function handleSave() {
-    if (!nome.trim()) { toast.error('Nome não pode ficar vazio'); return }
+    if (!nome.trim()) { toast.error('Preencha o nome do documento para continuar.'); return }
     setSalvando(true)
     try {
       const res = await fetch(`/api/crm/documentos/${documento.id}`, {
@@ -61,10 +61,10 @@ export function DocumentoEditModal({ documento, onClose, onSaved }: Props) {
       })
       if (!res.ok) throw new Error()
       const updated = await res.json()
-      toast.success('Documento atualizado')
+      toast.success('Documento atualizado.')
       onSaved(updated)
     } catch {
-      toast.error('Erro ao salvar alterações')
+      toast.error('Não foi possível salvar as alterações. Tente novamente.')
     } finally {
       setSalvando(false)
     }

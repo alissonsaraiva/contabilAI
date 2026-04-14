@@ -33,7 +33,7 @@ export default function NovoChamadoPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.titulo.trim() || !form.descricao.trim()) {
-      toast.error('Preencha o título e a descrição')
+      toast.error('Adicione um título e descreva sua solicitação para abrir o chamado.')
       return
     }
     setLoading(true)
@@ -45,13 +45,13 @@ export default function NovoChamadoPage() {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error ?? 'Erro ao abrir chamado')
+        throw new Error(err.error ?? 'Não foi possível abrir o chamado. Tente novamente.')
       }
       const ordem = await res.json()
-      toast.success('Chamado aberto com sucesso!')
+      toast.success('Chamado aberto! Nossa equipe responderá em breve.')
       router.push(`/portal/suporte/chamados/${ordem.id}`)
     } catch (e: any) {
-      toast.error(e.message ?? 'Erro ao abrir chamado')
+      toast.error(e.message ?? 'Não foi possível abrir o chamado. Tente novamente.')
     } finally {
       setLoading(false)
     }

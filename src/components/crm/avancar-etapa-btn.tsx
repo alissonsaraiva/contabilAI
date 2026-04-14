@@ -19,10 +19,10 @@ export function AvancarEtapaBtn({ leadId }: Props) {
         body: JSON.stringify({}),
       })
       if (!res.ok) throw new Error()
-      toast.success('Etapa avançada!')
+      toast.success('Etapa avançada.')
       router.refresh()
     } catch {
-      toast.error('Erro ao avançar etapa')
+      toast.error('Não foi possível avançar a etapa. Tente novamente.')
     } finally {
       setLoading(false)
     }

@@ -57,7 +57,7 @@ export default function OnboardingEntrada() {
     const isEmail = /\S+@\S+\.\S+/.test(contato)
     const isPhoneVal = /^\d{10,11}$/.test(contato.replace(/\D/g, ''))
     if (!isEmail && !isPhoneVal) {
-      setErro('Informe um e-mail ou WhatsApp válido')
+      setErro('Digite um e-mail ou número de WhatsApp válido para continuar.')
       return false
     }
     return true
@@ -88,7 +88,7 @@ export default function OnboardingEntrada() {
 
       router.push(getResumeUrl(lead))
     } catch {
-      toast.error('Erro ao iniciar. Tente novamente.')
+      toast.error('Não foi possível continuar. Verifique sua conexão e tente novamente.')
     } finally {
       setLoading(false)
     }

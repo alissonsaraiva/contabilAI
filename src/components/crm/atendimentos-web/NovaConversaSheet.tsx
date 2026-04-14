@@ -109,7 +109,7 @@ export function NovaConversaSheet({
           {query.length < 2 ? (
             <EmptyState icon="contacts" text="Digite pelo menos 2 caracteres para buscar" />
           ) : resultados.length === 0 && !buscando ? (
-            <EmptyState icon="person_search" text="Nenhum contato encontrado" />
+            <EmptyState icon="person_search" text="Nenhum contato encontrado para essa busca." />
           ) : (
             <div className="space-y-2 pt-2">
               {resultados.map(c => (

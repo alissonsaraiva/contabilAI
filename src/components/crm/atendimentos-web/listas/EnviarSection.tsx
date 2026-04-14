@@ -21,7 +21,7 @@ export function EnviarSection({
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 25 * 1024 * 1024) { setErro('Arquivo excede 25 MB'); return }
+    if (file.size > 25 * 1024 * 1024) { setErro('Arquivo muito grande. O limite é 25 MB.'); return }
 
     setUploading(true)
     setErro(null)
@@ -32,12 +32,12 @@ export function EnviarSection({
       formData.append('entidadeId', listaId)
       formData.append('entidadeTipo', 'broadcast')
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      if (!res.ok) { setErro('Tipo de arquivo não permitido'); return }
+      if (!res.ok) { setErro('Tipo de arquivo não suportado. Use PDF, imagem ou documento Office.'); return }
       const { publicUrl } = await res.json() as { publicUrl: string }
       const isImage = file.type.startsWith('image/')
       setArquivo({ url: publicUrl, name: file.name, type: isImage ? 'image' : 'document', mimeType: file.type })
     } catch (err) {
-      setErro('Erro ao fazer upload')
+      setErro('Não foi possível fazer o upload. Verifique sua conexão e tente novamente.')
       Sentry.captureException(err, { tags: { module: 'broadcast', operation: 'upload' } })
     } finally {
       setUploading(false)
@@ -46,7 +46,7 @@ export function EnviarSection({
 
   async function enviar() {
     if (!conteudo.trim() && !arquivo) return
-    if (totalMembros === 0) { setErro('Lista sem membros'); return }
+    if (totalMembros === 0) { setErro('A lista não tem membros. Adicione contatos antes de enviar.'); return }
 
     setEnviando(true)
     setErro(null)
@@ -63,12 +63,12 @@ export function EnviarSection({
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setErro(data.error ?? 'Erro ao enviar'); return }
+      if (!res.ok) { setErro(data.error ?? 'Não foi possível enviar a mensagem. Tente novamente.'); return }
       setConteudo('')
       setArquivo(null)
       onEnviou()
     } catch (err) {
-      setErro('Erro ao enviar broadcast')
+      setErro('Não foi possível enviar o broadcast. Verifique sua conexão e tente novamente.')
       Sentry.captureException(err, { tags: { module: 'broadcast', operation: 'enviar-broadcast' } })
     } finally {
       setEnviando(false)

@@ -20,10 +20,10 @@ export function AgendamentoToggle({ id, ativo }: { id: string; ativo: boolean })
       })
       if (!res.ok) throw new Error()
       setChecked(v => !v)
-      toast.success(checked ? 'Agendamento pausado' : 'Agendamento ativado')
+      toast.success(checked ? 'Agendamento pausado.' : 'Agendamento ativado.')
       router.refresh()
     } catch {
-      toast.error('Erro ao alterar agendamento')
+      toast.error('Não foi possível alterar o agendamento. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -61,10 +61,10 @@ export function AgendamentoDelete({ id, descricao }: { id: string; descricao: st
         body:    JSON.stringify({ id }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Agendamento removido')
+      toast.success('Agendamento removido.')
       router.refresh()
     } catch {
-      toast.error('Erro ao remover agendamento')
+      toast.error('Não foi possível remover o agendamento. Tente novamente.')
     } finally {
       setLoading(false)
     }

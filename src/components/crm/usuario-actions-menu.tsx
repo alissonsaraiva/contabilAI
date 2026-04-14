@@ -140,12 +140,12 @@ export function UsuarioActionsMenu({ usuario }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ativo: !usuario.ativo }),
       })
-      if (res.status === 403) { toast.error('Sem permissão'); return }
+      if (res.status === 403) { toast.error('Sem permissão para realizar esta ação.'); return }
       if (!res.ok) throw new Error()
-      toast.success(usuario.ativo ? 'Usuário desativado' : 'Usuário ativado')
+      toast.success(usuario.ativo ? 'Acesso do usuário desativado.' : 'Acesso do usuário reativado.')
       router.refresh()
     } catch {
-      toast.error('Erro ao atualizar')
+      toast.error('Não foi possível atualizar o usuário. Tente novamente.')
     } finally {
       setLoadingToggle(false)
     }
@@ -159,12 +159,12 @@ export function UsuarioActionsMenu({ usuario }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tipo }),
       })
-      if (res.status === 403) { toast.error('Sem permissão'); return }
+      if (res.status === 403) { toast.error('Sem permissão para realizar esta ação.'); return }
       if (!res.ok) throw new Error()
-      toast.success(`Tipo alterado para ${label}`)
+      toast.success(`Tipo alterado para ${label}.`)
       router.refresh()
     } catch {
-      toast.error('Erro ao atualizar')
+      toast.error('Não foi possível alterar o tipo do usuário. Tente novamente.')
     } finally {
       setLoadingTipo(null)
     }
@@ -174,12 +174,12 @@ export function UsuarioActionsMenu({ usuario }: Props) {
     setLoadingReset(true)
     try {
       const res = await fetch(`/api/usuarios/${usuario.id}/reset-senha`, { method: 'POST' })
-      if (res.status === 403) { toast.error('Sem permissão'); return }
+      if (res.status === 403) { toast.error('Sem permissão para realizar esta ação.'); return }
       if (!res.ok) throw new Error()
       const data = await res.json()
       setSenhaResetada({ nome: data.nome, email: data.email, senha: data.senhaGerada })
     } catch {
-      toast.error('Erro ao resetar senha')
+      toast.error('Não foi possível redefinir a senha. Tente novamente.')
     } finally {
       setLoadingReset(false)
     }
@@ -190,12 +190,12 @@ export function UsuarioActionsMenu({ usuario }: Props) {
     try {
       const res = await fetch(`/api/usuarios/${usuario.id}`, { method: 'DELETE' })
       if (res.status === 400) { const d = await res.json(); toast.error(d.error); return }
-      if (res.status === 403) { toast.error('Sem permissão'); return }
+      if (res.status === 403) { toast.error('Sem permissão para realizar esta ação.'); return }
       if (!res.ok) throw new Error()
-      toast.success('Usuário excluído')
+      toast.success('Usuário excluído.')
       router.refresh()
     } catch {
-      toast.error('Erro ao excluir')
+      toast.error('Não foi possível excluir o usuário. Tente novamente.')
     } finally {
       setLoadingDelete(false)
     }

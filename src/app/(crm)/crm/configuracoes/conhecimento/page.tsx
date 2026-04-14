@@ -68,7 +68,7 @@ export default function ConhecimentoPage() {
       if (!res.ok) throw new Error()
       setEntries(await res.json())
     } catch {
-      toast.error('Erro ao carregar base de conhecimento')
+      toast.error('Não foi possível carregar a base de conhecimento. Recarregue a página.')
     } finally {
       setLoadingList(false)
     }
@@ -103,7 +103,7 @@ export default function ConhecimentoPage() {
 
   async function handleSave() {
     if (!titulo.trim() || !conteudo.trim()) {
-      toast.error('Preencha título e conteúdo')
+      toast.error('Preencha o título e o conteúdo para continuar.')
       return
     }
     setSaving(true)
@@ -123,7 +123,7 @@ export default function ConhecimentoPage() {
       setFormOpen(false)
       void loadEntries()
     } catch (err) {
-      toast.error((err as Error).message || 'Erro ao salvar artigo')
+      toast.error((err as Error).message || 'Não foi possível salvar o artigo. Tente novamente.')
     } finally {
       setSaving(false)
     }
@@ -138,15 +138,15 @@ export default function ConhecimentoPage() {
       toast.success(`RAG re-indexado: escritório, planos, ${data.clientes} clientes, ${data.leads} leads`)
       void loadEntries()
     } catch (err) {
-      toast.error((err as Error).message || 'Erro ao re-indexar')
+      toast.error((err as Error).message || 'Não foi possível re-indexar. Tente novamente.')
     } finally {
       setSeeding(false)
     }
   }
 
   async function handlePdfUpload() {
-    if (!pdfFile) { toast.error('Selecione um arquivo PDF'); return }
-    if (!pdfTitulo.trim()) { toast.error('Informe um título'); return }
+    if (!pdfFile) { toast.error('Selecione um arquivo PDF para continuar.'); return }
+    if (!pdfTitulo.trim()) { toast.error('Informe um título para o documento.'); return }
     setUploadingPdf(true)
     try {
       const form = new FormData()
@@ -162,7 +162,7 @@ export default function ConhecimentoPage() {
       setPdfOpen(false)
       void loadEntries()
     } catch (err) {
-      toast.error((err as Error).message || 'Erro ao processar PDF')
+      toast.error((err as Error).message || 'Não foi possível processar o PDF. Verifique o arquivo e tente novamente.')
     } finally {
       setUploadingPdf(false)
     }
@@ -177,10 +177,10 @@ export default function ConhecimentoPage() {
     try {
       const res = await fetch(`/api/conhecimento/${sourceId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
-      toast.success('Artigo removido')
+      toast.success('Artigo removido.')
       setEntries(prev => prev.filter(e => e.sourceId !== sourceId))
     } catch {
-      toast.error('Erro ao remover artigo')
+      toast.error('Não foi possível remover o artigo. Tente novamente.')
     } finally {
       setDeletingId(null)
       setConfirmDelete(null)

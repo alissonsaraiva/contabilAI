@@ -43,7 +43,7 @@ function InfoAcesso({ acesso, onClose }: { acesso: AcessoCriado; onClose: () => 
         {/* Sucesso */}
         <div className="flex items-center gap-3 rounded-xl border border-green-status/20 bg-green-status/5 px-4 py-3">
           <span className="material-symbols-outlined text-[20px] text-green-status" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-          <p className="text-[13px] font-medium text-green-status">Usuário criado com sucesso!</p>
+          <p className="text-[13px] font-medium text-green-status">Usuário criado.</p>
         </div>
 
         {/* Dados de acesso */}
@@ -126,8 +126,8 @@ export function NovoUsuarioDrawer() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const newErros: Record<string, string> = {}
-    if (!form.nome.trim() || form.nome.length < 2) newErros.nome = 'Nome obrigatório'
-    if (!form.email.includes('@')) newErros.email = 'E-mail inválido'
+    if (!form.nome.trim() || form.nome.length < 2) newErros.nome = 'Preencha o nome do usuário para continuar.'
+    if (!form.email.includes('@')) newErros.email = 'Informe um e-mail válido.'
     if (Object.keys(newErros).length) { setErros(newErros); return }
 
     setLoading(true)
@@ -137,14 +137,14 @@ export function NovoUsuarioDrawer() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-      if (res.status === 409) { toast.error('E-mail já cadastrado'); return }
-      if (res.status === 403) { toast.error('Apenas administradores podem criar usuários'); return }
+      if (res.status === 409) { toast.error('Este e-mail já está cadastrado no sistema.'); return }
+      if (res.status === 403) { toast.error('Apenas administradores podem criar usuários.'); return }
       if (!res.ok) throw new Error()
       const data = await res.json()
       setAcesso({ nome: data.nome, email: data.email, senha: data.senhaGerada })
       router.refresh()
     } catch {
-      toast.error('Erro ao criar usuário')
+      toast.error('Não foi possível criar o usuário. Tente novamente.')
     } finally {
       setLoading(false)
     }

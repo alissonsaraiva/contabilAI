@@ -109,7 +109,7 @@ function RegistrarEmpresaDrawer({
       onClose()
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao registrar empresa.')
+      toast.error('Não foi possível registrar a empresa. Tente novamente.')
     } finally {
       setLoading(false)
     }

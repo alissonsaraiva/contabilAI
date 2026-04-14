@@ -101,13 +101,13 @@ export function ClienteStatusSelect({
           throw new Error(body.detalhe ?? 'Erro ao atualizar status')
         }
       }
-      toast.success('Status atualizado com sucesso.')
+      toast.success('Status atualizado.')
       setDialog(null)
       setMotivo('')
       setOpen(false)
       router.refresh()
     } catch (err: any) {
-      toast.error(err?.message ?? 'Erro ao atualizar status')
+      toast.error(err?.message ?? 'Não foi possível atualizar o status. Tente novamente.')
     } finally {
       setLoading(false)
     }

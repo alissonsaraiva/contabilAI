@@ -182,7 +182,7 @@ export function ChamadoResponderForm({ ordemId, clienteId, statusAtual, temRespo
       setWppAtivo(false)
       if (fileRef.current) fileRef.current.value = ''
     } catch {
-      toast.error('Erro ao atualizar chamado')
+      toast.error('Não foi possível atualizar o chamado. Tente novamente.')
     } finally {
       setLoading(false)
     }

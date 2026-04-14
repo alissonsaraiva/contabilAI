@@ -11,17 +11,17 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const ERRO_LABELS: Record<string, string> = {
-  email_nao_cadastrado:     'Nenhuma conta encontrada com esse e-mail.',
+  email_nao_cadastrado:     'Não encontramos uma conta com esse e-mail. Verifique se digitou corretamente.',
   conta_inativa:            'Sua conta está inativa. Entre em contato com o escritório.',
-  conta_suspensa:           'Seu acesso ao portal está temporariamente suspenso.',
+  conta_suspensa:           'Seu acesso ao portal está temporariamente suspenso. Entre em contato com o escritório.',
   conta_cancelada:          'Sua conta foi cancelada. Entre em contato com o escritório.',
   empresa_nao_vinculada:    'Sua conta não está vinculada a uma empresa. Entre em contato com o escritório.',
-  whatsapp_nao_cadastrado:  'Nenhum número de WhatsApp cadastrado nessa conta. Use outro método.',
-  whatsapp_indisponivel:    'WhatsApp indisponível no momento. Tente por e-mail.',
+  whatsapp_nao_cadastrado:  'Não há número de WhatsApp cadastrado nessa conta. Tente entrar pelo e-mail.',
+  whatsapp_indisponivel:    'O envio pelo WhatsApp está indisponível no momento. Tente pelo e-mail.',
   whatsapp_falhou:          'Não foi possível enviar o código. Tente novamente.',
-  codigo_invalido:          'Código incorreto ou expirado. Verifique e tente novamente.',
-  codigo_expirado:          'Código expirado. Solicite um novo.',
-  token_invalido:           'Link de acesso inválido ou expirado. Solicite um novo abaixo.',
+  codigo_invalido:          'Código incorreto ou expirado. Solicite um novo ou verifique sua caixa de entrada.',
+  codigo_expirado:          'Seu código expirou. Solicite um novo para continuar.',
+  token_invalido:           'Este link de acesso é inválido ou já foi utilizado. Solicite um novo abaixo.',
   token_expirado:           'Este link de acesso expirou. Solicite um novo abaixo.',
 }
 

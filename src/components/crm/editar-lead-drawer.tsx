@@ -83,11 +83,11 @@ export function EditarLeadDrawer({ lead }: Props) {
         }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Lead atualizado!')
+      toast.success('Lead atualizado.')
       setOpen(false)
       router.refresh()
     } catch {
-      toast.error('Erro ao atualizar lead')
+      toast.error('Não foi possível atualizar o lead. Tente novamente.')
     } finally {
       setLoading(false)
     }

@@ -23,14 +23,14 @@ export function ModalEmitir({ prestador, onClose, onSuccess }: Props) {
   async function handleEmitir() {
     const { descricao, valor, tomadorNome, tomadorCpfCnpj } = form
 
-    if (!descricao.trim())      { toast.error('Informe a descrição do serviço'); return }
-    if (!tomadorNome.trim())    { toast.error('Informe o nome do tomador'); return }
-    if (!tomadorCpfCnpj.trim()) { toast.error('Informe o CPF ou CNPJ do tomador'); return }
+    if (!descricao.trim())      { toast.error('Descreva o serviço prestado para continuar.'); return }
+    if (!tomadorNome.trim())    { toast.error('Informe o nome de quem está contratando o serviço.'); return }
+    if (!tomadorCpfCnpj.trim()) { toast.error('Informe o CPF ou CNPJ de quem vai receber a nota.'); return }
     if (!validarCpfCnpj(tomadorCpfCnpj)) {
-      toast.error('CPF deve ter 11 dígitos ou CNPJ 14 dígitos')
+      toast.error('O CPF deve ter 11 dígitos ou o CNPJ 14 dígitos.')
       return
     }
-    if (!valor.trim()) { toast.error('Informe o valor da nota'); return }
+    if (!valor.trim()) { toast.error('Informe o valor da nota para continuar.'); return }
     const valorNum = parseBRL(valor)
     if (isNaN(valorNum) || valorNum <= 0) {
       toast.error('Valor inválido. Use o formato: 3000,00')
@@ -54,7 +54,7 @@ export function ModalEmitir({ prestador, onClose, onSuccess }: Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.error ?? 'Erro ao emitir nota fiscal')
+        toast.error(data.error ?? 'Não foi possível emitir a nota agora. Tente novamente ou fale com o escritório.')
         return
       }
       if (data.status === 'autorizada') {

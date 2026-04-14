@@ -58,11 +58,11 @@ export function EditarEmpresaDrawer({ empresa, open, onClose }: Props) {
         }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Empresa atualizada!')
+      toast.success('Dados da empresa salvos.')
       onClose()
       router.refresh()
     } catch {
-      toast.error('Erro ao atualizar empresa')
+      toast.error('Não foi possível salvar a empresa. Tente novamente.')
     } finally {
       setLoading(false)
     }

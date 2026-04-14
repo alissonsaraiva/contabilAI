@@ -45,7 +45,7 @@ export function EditarSocioDrawer({ socio }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nome.trim()) { toast.error('Nome não pode ser vazio.'); return }
+    if (!form.nome.trim()) { toast.error('Preencha o nome do sócio para continuar.'); return }
 
     setLoading(true)
     try {
@@ -67,11 +67,11 @@ export function EditarSocioDrawer({ socio }: Props) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Erro ao salvar')
       }
-      toast.success('Sócio atualizado!')
+      toast.success('Dados do sócio salvos.')
       setOpen(false)
       router.refresh()
     } catch (err: any) {
-      toast.error(err?.message ?? 'Erro ao atualizar sócio')
+      toast.error(err?.message ?? 'Não foi possível salvar o sócio. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -87,7 +87,7 @@ export function EditarSocioDrawer({ socio }: Props) {
       setOpen(false)
       router.refresh()
     } catch {
-      toast.error('Erro ao remover sócio')
+      toast.error('Não foi possível remover o sócio. Tente novamente.')
     } finally {
       setLoading(false)
     }

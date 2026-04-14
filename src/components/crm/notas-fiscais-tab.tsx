@@ -43,7 +43,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
       setNotas(data.items ?? [])
       setTotal(data.total ?? 0)
     } catch {
-      if (!silencioso) toast.error('Erro ao carregar notas fiscais')
+      if (!silencioso) toast.error('Não foi possível carregar as notas fiscais. Recarregue a página.')
     } finally {
       if (!silencioso) setLoading(false)
     }
@@ -73,11 +73,11 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
 
   async function emitir() {
     if (!form.descricao || !form.valor || !form.tomadorNome || !form.tomadorCpfCnpj) {
-      toast.error('Preencha todos os campos obrigatórios')
+      toast.error('Preencha todos os campos obrigatórios para continuar.')
       return
     }
     const valor = parseFloat(form.valor.replace(',', '.'))
-    if (isNaN(valor) || valor <= 0) { toast.error('Valor inválido'); return }
+    if (isNaN(valor) || valor <= 0) { toast.error('Informe um valor válido para a nota fiscal.'); return }
     setSaving(true)
     try {
       const res = await fetch('/api/crm/notas-fiscais', {
@@ -95,12 +95,12 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
         }),
       })
       const data = await res.json()
-      if (!res.ok) { toast.error(data.erro ?? data.error ?? 'Erro ao emitir nota'); return }
-      toast.success('NFS-e enviada para processamento!')
+      if (!res.ok) { toast.error(data.erro ?? data.error ?? 'Não foi possível emitir a nota. Tente novamente.'); return }
+      toast.success('NFS-e enviada para processamento.')
       setShowModal(false)
       setForm(INITIAL_FORM)
     } catch {
-      toast.error('Erro ao emitir nota fiscal')
+      toast.error('Não foi possível emitir a nota fiscal. Verifique sua conexão e tente novamente.')
     } finally {
       setSaving(false)
       void fetchNotas(true)  // FIX: sempre recarregar — nota pode já estar salva se houve timeout
@@ -108,7 +108,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
   }
 
   async function cancelar(notaId: string) {
-    if (justificativa.length < 15) { toast.error('Justificativa deve ter pelo menos 15 caracteres'); return }
+    if (justificativa.length < 15) { toast.error('A justificativa deve ter pelo menos 15 caracteres.'); return }
     setCancelando(notaId)
     try {
       const res = await fetch(`/api/crm/notas-fiscais/${notaId}/cancelar`, {
@@ -116,12 +116,12 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ justificativa }),
       })
-      if (!res.ok) { const data = await res.json(); toast.error(data.error ?? data.erro ?? 'Erro ao cancelar nota'); return }
-      toast.success('Nota cancelada com sucesso')
+      if (!res.ok) { const data = await res.json(); toast.error(data.error ?? data.erro ?? 'Não foi possível cancelar a nota. Tente novamente.'); return }
+      toast.success('Nota cancelada.')
       setShowCancelarModal(null)
       setJustificativa('')
     } catch {
-      toast.error('Erro ao cancelar')
+      toast.error('Não foi possível cancelar a nota. Verifique sua conexão e tente novamente.')
     } finally {
       setCancelando(null)
       void fetchNotas(true)  // FIX: sempre recarregar — status pode já ter mudado se houve timeout
@@ -138,10 +138,10 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
         body: JSON.stringify({ canal }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { toast.error(data.error ?? 'Erro ao entregar nota'); return }
-      toast.success(`Nota enviada via ${canal === 'whatsapp' ? 'WhatsApp' : 'e-mail'}`)
+      if (!res.ok) { toast.error(data.error ?? 'Não foi possível entregar a nota. Tente novamente.'); return }
+      toast.success(`Nota enviada via ${canal === 'whatsapp' ? 'WhatsApp' : 'e-mail'}.`)
     } catch {
-      toast.error('Erro ao entregar nota')
+      toast.error('Não foi possível entregar a nota. Verifique sua conexão e tente novamente.')
     } finally {
       setEntregando(null)
     }
@@ -163,10 +163,10 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
   async function reemitir() {
     if (!showReemitirModal) return
     if (!reemitirForm.descricao || !reemitirForm.valor || !reemitirForm.tomadorNome || !reemitirForm.tomadorCpfCnpj) {
-      toast.error('Preencha todos os campos obrigatórios'); return
+      toast.error('Preencha todos os campos obrigatórios para continuar.'); return
     }
     const valor = parseFloat(reemitirForm.valor.replace(',', '.'))
-    if (isNaN(valor) || valor <= 0) { toast.error('Valor inválido'); return }
+    if (isNaN(valor) || valor <= 0) { toast.error('Informe um valor válido para a nota fiscal.'); return }
     setReemitirSaving(true)
     try {
       const res = await fetch(`/api/crm/notas-fiscais/${showReemitirModal}/reemitir`, {
@@ -183,12 +183,12 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
         }),
       })
       const data = await res.json()
-      if (!res.ok) { toast.error(data.error ?? 'Erro ao reemitir nota'); return }
-      toast.success('NFS-e reenviada para processamento!')
+      if (!res.ok) { toast.error(data.error ?? 'Não foi possível reemitir a nota. Tente novamente.'); return }
+      toast.success('NFS-e reenviada para processamento.')
       setShowReemitirModal(null)
       setReemitirForm(INITIAL_FORM)
     } catch {
-      toast.error('Erro ao reemitir nota fiscal')
+      toast.error('Não foi possível reemitir a nota fiscal. Verifique sua conexão e tente novamente.')
     } finally {
       setReemitirSaving(false)
       void fetchNotas(true)  // FIX: sempre recarregar — nota pode já estar salva se houve timeout
@@ -211,7 +211,7 @@ export function NotasFiscaisTabContent({ clienteId, spedyConfigurado, escritorio
         setSpedyOk(true)
       }
     } catch {
-      toast.error('Erro de conexão ao tentar sincronizar com a Spedy')
+      toast.error('Não foi possível sincronizar com a Spedy. Verifique sua conexão e tente novamente.')
     } finally {
       setSincronizando(false)
     }

@@ -13,7 +13,7 @@ export function ChamadoAvaliacaoForm({ ordemId }: { ordemId: string }) {
   const [loading, setLoading] = useState(false)
 
   async function enviar() {
-    if (!nota) { toast.error('Selecione uma nota'); return }
+    if (!nota) { toast.error('Selecione uma nota para enviar sua avaliação.'); return }
     setLoading(true)
     try {
       const res = await fetch(`/api/portal/chamados/${ordemId}`, {
@@ -22,10 +22,10 @@ export function ChamadoAvaliacaoForm({ ordemId }: { ordemId: string }) {
         body:    JSON.stringify({ avaliacaoNota: nota, avaliacaoComent: coment }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Avaliação enviada! Obrigado.')
+      toast.success('Avaliação enviada! Obrigado pelo seu feedback.')
       router.refresh()
     } catch {
-      toast.error('Erro ao enviar avaliação')
+      toast.error('Não foi possível enviar sua avaliação. Tente novamente.')
     } finally {
       setLoading(false)
     }

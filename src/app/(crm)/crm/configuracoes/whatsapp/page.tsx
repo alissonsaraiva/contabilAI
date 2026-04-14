@@ -122,7 +122,7 @@ export default function WhatsAppPage() {
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error()
-      toast.success('Configurações salvas')
+      toast.success('Configurações salvas.')
       reset({
         evolutionApiUrl: data.evolutionApiUrl,
         evolutionApiKey: '',
@@ -131,7 +131,7 @@ export default function WhatsAppPage() {
         systemPromptWhatsapp: data.systemPromptWhatsapp,
       })
     } catch {
-      toast.error('Erro ao salvar configurações')
+      toast.error('Não foi possível salvar as configurações. Tente novamente.')
     } finally {
       setSavingCfg(false)
     }
@@ -147,10 +147,10 @@ export default function WhatsAppPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast.success('Instância criada')
+      toast.success('Instância criada.')
       await checkState()
     } catch (err) {
-      toast.error((err as Error).message || 'Erro ao criar instância')
+      toast.error((err as Error).message || 'Não foi possível criar a instância. Tente novamente.')
     } finally {
       setActionLoading('')
     }
@@ -166,10 +166,10 @@ export default function WhatsAppPage() {
       if (base64) {
         setQrCode(base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`)
       } else {
-        toast.error('QR code não retornado pela API')
+        toast.error('QR code não disponível. Verifique as configurações da instância e tente novamente.')
       }
     } catch (err) {
-      toast.error((err as Error).message || 'Erro ao gerar QR code')
+      toast.error((err as Error).message || 'Não foi possível gerar o QR code. Verifique as configurações e tente novamente.')
     } finally {
       setLoadingQr(false)
     }
@@ -183,11 +183,11 @@ export default function WhatsAppPage() {
         body: JSON.stringify({ action: 'logout' }),
       })
       if (!res.ok) throw new Error()
-      toast.success('WhatsApp desconectado')
+      toast.success('WhatsApp desconectado.')
       setQrCode(null)
       setConnState('close')
     } catch {
-      toast.error('Erro ao desconectar')
+      toast.error('Não foi possível desconectar o WhatsApp. Tente novamente.')
     } finally {
       setActionLoading('')
     }
@@ -202,9 +202,9 @@ export default function WhatsAppPage() {
         body: JSON.stringify({ action: 'webhook', webhookUrl }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Webhook configurado')
+      toast.success('Webhook configurado.')
     } catch {
-      toast.error('Erro ao configurar webhook')
+      toast.error('Não foi possível configurar o webhook. Tente novamente.')
     } finally {
       setActionLoading('')
     }
@@ -444,10 +444,10 @@ export default function WhatsAppPage() {
                   body: JSON.stringify({ action: 'sendTest', testNumber }),
                 })
                 const data = await res.json()
-                if (data.ok) toast.success('Mensagem enviada com sucesso!')
-                else toast.error(data.error ?? 'Erro ao enviar')
+                if (data.ok) toast.success('Mensagem de teste enviada.')
+                else toast.error(data.error ?? 'Não foi possível enviar a mensagem de teste. Verifique a conexão.')
               } catch {
-                toast.error('Erro ao enviar mensagem de teste')
+                toast.error('Não foi possível enviar a mensagem de teste. Verifique a conexão e tente novamente.')
               } finally {
                 setTestLoading(false)
               }

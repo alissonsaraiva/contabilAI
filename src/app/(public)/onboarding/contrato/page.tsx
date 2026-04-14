@@ -66,7 +66,7 @@ export default function ContratoPage({ searchParams }: Props) {
   }, [leadId])
 
   async function handleEnviar() {
-    if (!aceito) { toast.error('Confirme que leu e concorda com os termos.'); return }
+    if (!aceito) { toast.error('Para enviar o contrato, confirme que leu e concorda com os termos.'); return }
     if (!leadId) return
 
     setLoading(true)
@@ -74,12 +74,12 @@ export default function ContratoPage({ searchParams }: Props) {
       const res = await fetch(`/api/leads/${leadId}/contrato/enviar`, { method: 'POST' })
       const data = await res.json() as { ok?: boolean; error?: string }
       if (!res.ok || !data.ok) {
-        toast.error(data.error ?? 'Erro ao enviar contrato. Tente novamente.')
+        toast.error(data.error ?? 'Não foi possível enviar o contrato. Tente novamente.')
         return
       }
       router.push(`/onboarding/confirmacao?leadId=${leadId}&aguardando=true`)
     } catch {
-      toast.error('Erro de conexão. Tente novamente.')
+      toast.error('Sem conexão no momento. Verifique sua internet e tente novamente.')
     } finally {
       setLoading(false)
     }

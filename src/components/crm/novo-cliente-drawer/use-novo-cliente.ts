@@ -93,16 +93,16 @@ export function useNovoCliente() {
         }),
       })
       if (res.status === 409) {
-        toast.error('CPF ou e-mail já cadastrado')
+        toast.error('CPF ou e-mail já cadastrado no sistema.')
         return
       }
       if (!res.ok) throw new Error()
-      toast.success('Cliente cadastrado!')
+      toast.success('Cliente cadastrado.')
       setOpen(false)
       reset()
       router.refresh()
     } catch {
-      toast.error('Erro ao cadastrar cliente')
+      toast.error('Não foi possível cadastrar o cliente. Tente novamente.')
     } finally {
       setLoading(false)
     }

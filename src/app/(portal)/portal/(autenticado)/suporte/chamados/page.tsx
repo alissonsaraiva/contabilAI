@@ -84,7 +84,7 @@ export default async function ChamadosPage({ searchParams }: Props) {
       {ordens.length === 0 ? (
         <Card className="border-outline-variant/15 bg-card/60 p-10 rounded-[16px] shadow-sm flex flex-col items-center gap-3 text-center">
           <span className="material-symbols-outlined text-[40px] text-on-surface-variant/25">inbox</span>
-          <p className="text-[14px] text-on-surface-variant/60">Nenhum chamado encontrado.</p>
+          <p className="text-[14px] text-on-surface-variant/60">Nenhum chamado encontrado com esses filtros.</p>
         </Card>
       ) : (
         <Card className="border-outline-variant/15 bg-card/60 rounded-[16px] shadow-sm overflow-hidden">

@@ -199,7 +199,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
       })
       await carregarDados()
     } catch (err) {
-      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro ao alterar vencimento.' })
+      setFeedback({ tipo: 'erro', msg: 'Não foi possível alterar o vencimento. Tente novamente.' })
     } finally {
       setAlterandoVencimento(false)
     }
@@ -219,7 +219,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
       setFeedback({ tipo: 'ok', msg: 'Forma de pagamento atualizada.' })
       await carregarDados()
     } catch (err) {
-      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro.' })
+      setFeedback({ tipo: 'erro', msg: 'Não foi possível alterar a forma de pagamento. Tente novamente.' })
     }
   }
 
@@ -255,7 +255,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
       })
       await carregarDados()
     } catch (err) {
-      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro ao alterar mensalidade.' })
+      setFeedback({ tipo: 'erro', msg: 'Não foi possível alterar a mensalidade. Tente novamente.' })
     } finally {
       setAlterandoMensalidade(false)
     }
@@ -272,7 +272,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
       setFeedback({ tipo: 'ok', msg: body.mensagem ?? 'Cliente provisionado no Asaas com sucesso.' })
       await carregarDados()
     } catch (err) {
-      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro ao provisionar.' })
+      setFeedback({ tipo: 'erro', msg: 'Não foi possível provisionar o cliente no Asaas. Tente novamente.' })
     } finally {
       setProvisionandoLoading(false)
     }
@@ -292,7 +292,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
       setFeedback({ tipo: 'ok', msg: body.status === 'erro' ? `DAS gerada com erro: ${body.erroMsg}` : 'DAS gerada com sucesso.' })
       await carregarDASMEI()
     } catch (err) {
-      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro ao gerar DAS.' })
+      setFeedback({ tipo: 'erro', msg: 'Não foi possível gerar a DAS. Tente novamente.' })
     } finally {
       setGerandoDAS(false)
     }
@@ -312,7 +312,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
       setFeedback({ tipo: 'ok', msg: ativo ? 'Procuração marcada como ativa. DAS será gerada automaticamente.' : 'Procuração marcada como inativa.' })
       await carregarDASMEI()
     } catch (err) {
-      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro ao atualizar procuração.' })
+      setFeedback({ tipo: 'erro', msg: 'Não foi possível atualizar a procuração. Tente novamente.' })
     } finally {
       setAtualizandoProcuracao(false)
     }
@@ -328,7 +328,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
       setFeedback({ tipo: 'ok', msg: body.status === 'paga' ? 'DAS confirmada como paga!' : 'Sincronizado. DAS ainda não paga.' })
       await carregarDASMEI()
     } catch (err) {
-      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro ao sincronizar.' })
+      setFeedback({ tipo: 'erro', msg: 'Não foi possível sincronizar o pagamento. Tente novamente.' })
     } finally {
       setSincDASId(null)
     }
@@ -346,7 +346,7 @@ export function ClienteFinanceiroTab({ clienteId, vencimentoDia, formaPagamento,
       setFeedback({ tipo: 'ok', msg: 'Segunda via gerada. Aparecerá na lista abaixo.' })
       await carregarDados()
     } catch (err) {
-      setFeedback({ tipo: 'erro', msg: err instanceof Error ? err.message : 'Erro.' })
+      setFeedback({ tipo: 'erro', msg: 'Não foi possível gerar a segunda via. Tente novamente.' })
     } finally {
       setSegundaViaLoading(null)
     }

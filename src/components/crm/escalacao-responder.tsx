@@ -47,7 +47,7 @@ export function EscalacaoResponder({ escalacaoId, canal, nomeIa = 'Clara', entid
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!entidadeTipo || !entidadeId) { toast.error('Entidade não identificada para upload'); return }
+    if (!entidadeTipo || !entidadeId) { toast.error('Contato não identificado. Vincule a conversa a um cliente antes de fazer upload.'); return }
     if (file.size > 25 * 1024 * 1024) { toast.error('Arquivo muito grande. O limite é 25 MB.'); return }
 
     setUploading(true)
@@ -58,7 +58,7 @@ export function EscalacaoResponder({ escalacaoId, canal, nomeIa = 'Clara', entid
       formData.append('entidadeId', entidadeId)
       formData.append('entidadeTipo', entidadeTipo)
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      if (!res.ok) { toast.error('Tipo de arquivo não permitido'); return }
+      if (!res.ok) { toast.error('Tipo de arquivo não suportado. Use PDF, imagem ou documento Office.'); return }
       const { publicUrl } = await res.json() as { publicUrl: string }
       const isImage = file.type.startsWith('image/')
       setArquivo({
@@ -69,7 +69,7 @@ export function EscalacaoResponder({ escalacaoId, canal, nomeIa = 'Clara', entid
         previewUrl: isImage ? URL.createObjectURL(file) : undefined,
       })
     } catch {
-      toast.error('Erro ao fazer upload do arquivo')
+      toast.error('Não foi possível fazer o upload. Verifique sua conexão e tente novamente.')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -110,7 +110,7 @@ export function EscalacaoResponder({ escalacaoId, canal, nomeIa = 'Clara', entid
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Erro ao enviar')
+      if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar a resposta. Tente novamente.')
       setMensagemEnviada(data.mensagemEnviada)
       setEnviado(true)
       removerArquivo()

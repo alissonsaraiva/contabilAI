@@ -30,10 +30,10 @@ export default function TrocarSenhaPage() {
         body: JSON.stringify({ novaSenha }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Senha definida! Faça login novamente.')
+      toast.success('Senha definida. Faça login com a nova senha.')
       await signOut({ callbackUrl: '/login' })
     } catch {
-      toast.error('Erro ao salvar senha')
+      toast.error('Não foi possível salvar a senha. Tente novamente.')
     } finally {
       setLoading(false)
     }

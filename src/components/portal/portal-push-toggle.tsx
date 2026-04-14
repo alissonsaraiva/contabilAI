@@ -74,7 +74,7 @@ export function PortalPushToggle() {
     return (
       <div className="flex items-center gap-3 rounded-xl bg-surface-container-low/60 px-4 py-3">
         <span className="material-symbols-outlined text-[18px] text-on-surface-variant/40">notifications_off</span>
-        <p className="text-[13px] text-on-surface-variant/60">Seu navegador não suporta notificações push.</p>
+        <p className="text-[13px] text-on-surface-variant/60">Seu navegador não suporta notificações. Tente em outro dispositivo ou navegador.</p>
       </div>
     )
   }
@@ -112,8 +112,8 @@ export function PortalPushToggle() {
         <div>
           <p className="text-[13px] font-medium text-on-surface">Notificações bloqueadas</p>
           <p className="mt-0.5 text-[12px] leading-relaxed text-on-surface-variant/70">
-            Você bloqueou as notificações para este site. Para reativar, permita notificações
-            nas configurações de privacidade do seu navegador e recarregue a página.
+            Você bloqueou as notificações para este site. Para receber alertas, permita notificações
+            nas configurações do seu navegador e recarregue a página.
           </p>
         </div>
       </div>

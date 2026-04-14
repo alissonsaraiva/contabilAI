@@ -72,11 +72,11 @@ export function PortalContatoEdit({ initial }: Props) {
 
   async function handleSave() {
     if (!form.email.includes('@')) {
-      toast.error('E-mail inválido')
+      toast.error('Digite um e-mail válido para continuar.')
       return
     }
     if (!form.telefone || form.telefone.replace(/\D/g, '').length < 8) {
-      toast.error('Telefone inválido')
+      toast.error('Digite um número de telefone válido para continuar.')
       return
     }
     setLoading(true)
@@ -100,14 +100,14 @@ export function PortalContatoEdit({ initial }: Props) {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        toast.error((err as any)?.error ?? 'Erro ao salvar.')
+        toast.error((err as any)?.error ?? 'Não foi possível salvar os dados. Tente novamente.')
         return
       }
-      toast.success('Dados atualizados com sucesso!')
+      toast.success('Dados salvos!')
       setOpen(false)
       router.refresh()
     } catch {
-      toast.error('Erro ao salvar. Tente novamente.')
+      toast.error('Não foi possível salvar. Verifique sua conexão e tente novamente.')
     } finally {
       setLoading(false)
     }

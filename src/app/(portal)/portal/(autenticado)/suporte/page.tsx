@@ -146,16 +146,16 @@ export default async function PortalSuportePage() {
       {ordensRecentes.length === 0 ? (
         <Card className="border-outline-variant/15 bg-card/60 p-8 rounded-[16px] shadow-sm flex flex-col items-center gap-3 text-center">
           <span className="material-symbols-outlined text-[36px] text-on-surface-variant/25">inbox</span>
-          <p className="text-[14px] font-semibold text-on-surface/70">Nenhum chamado ainda</p>
+          <p className="text-[14px] font-semibold text-on-surface/70">Você ainda não abriu nenhum chamado</p>
           <p className="text-[12px] text-on-surface-variant/60">
-            Abra um chamado para solicitar suporte, tirar dúvidas ou enviar documentos.
+            Use os chamados para tirar dúvidas, solicitar documentos ou falar com o escritório.
           </p>
           <Link
             href="/portal/suporte/chamados/nova"
             className="mt-2 flex w-full sm:w-auto justify-center items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">add</span>
-            Abrir primeiro chamado
+            Abrir meu primeiro chamado
           </Link>
         </Card>
       ) : (

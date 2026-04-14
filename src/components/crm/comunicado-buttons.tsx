@@ -46,16 +46,16 @@ export function ComunicadoPublishButton({ id }: { id: string }) {
         statusEmail: email ? status : undefined,
       })
       if (data.emailDisparado) {
-        toast.success('Comunicado publicado e e-mails sendo enviados!')
+        toast.success('Comunicado publicado. E-mails sendo enviados.')
       } else {
-        toast.success('Comunicado publicado!')
+        toast.success('Comunicado publicado.')
       }
       setOpen(false)
       router.refresh()
     } catch (err) {
       console.error('[crm/comunicados] erro ao publicar:', { id, err })
       Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'publicar' }, extra: { comunicadoId: id } })
-      toast.error('Erro ao publicar')
+      toast.error('Não foi possível publicar o comunicado. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -174,12 +174,12 @@ export function ComunicadoUnpublishButton({ id }: { id: string }) {
     setLoading(true)
     try {
       await patchComunicado(id, { publicar: false })
-      toast.success('Comunicado despublicado')
+      toast.success('Comunicado despublicado.')
       router.refresh()
     } catch (err) {
       console.error('[crm/comunicados] erro ao despublicar:', { id, err })
       Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'despublicar' }, extra: { comunicadoId: id } })
-      toast.error('Erro ao despublicar')
+      toast.error('Não foi possível despublicar o comunicado. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -206,12 +206,12 @@ export function ComunicadoDeleteButton({ id }: { id: string }) {
     try {
       const res = await fetch(`/api/crm/comunicados/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
-      toast.success('Comunicado excluído')
+      toast.success('Comunicado excluído.')
       router.refresh()
     } catch (err) {
       console.error('[crm/comunicados] erro ao excluir:', { id, err })
       Sentry.captureException(err, { tags: { module: 'crm-comunicados', operation: 'excluir' }, extra: { comunicadoId: id } })
-      toast.error('Erro ao excluir')
+      toast.error('Não foi possível excluir o comunicado. Tente novamente.')
     } finally {
       setLoading(false)
     }

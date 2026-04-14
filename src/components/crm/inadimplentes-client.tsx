@@ -86,7 +86,7 @@ export function InadimplentesClient({ rows }: { rows: Row[] }) {
         setModalId(null)
         setSelected(new Set())
       } catch (err: any) {
-        toast.error(err.message ?? 'Erro ao enviar mensagens')
+        toast.error('Não foi possível enviar as mensagens. Tente novamente.')
       }
     })
   }

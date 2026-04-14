@@ -84,7 +84,7 @@ export function ReajusteMensalidadesClient({ rows, totalAtual, totalComAsaas, to
     } catch (err) {
       const msg = err instanceof Error && err.name === 'TimeoutError'
         ? 'Tempo limite excedido ao reprocessar.'
-        : (err instanceof Error ? err.message : 'Erro inesperado.')
+        : 'Não foi possível reprocessar. Tente novamente.'
       setErroExecucao(msg)
     } finally {
       setRetryLoading(false)
@@ -130,7 +130,7 @@ export function ReajusteMensalidadesClient({ rows, totalAtual, totalComAsaas, to
     } catch (err) {
       const msg = err instanceof Error && err.name === 'TimeoutError'
         ? 'Tempo limite excedido. O reajuste pode ter sido parcialmente aplicado — verifique os clientes individualmente.'
-        : (err instanceof Error ? err.message : 'Erro inesperado.')
+        : 'Não foi possível aplicar o reajuste. Tente novamente.'
       setErroExecucao(msg)
       setEtapa(ETAPA.PREVIEW)
     }

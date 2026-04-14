@@ -34,8 +34,8 @@ export function AdicionarSocioDrawer({ empresaId }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nome.trim()) { toast.error('Informe o nome do sócio.'); return }
-    if (!form.cpf.trim())  { toast.error('Informe o CPF do sócio.');  return }
+    if (!form.nome.trim()) { toast.error('Preencha o nome do sócio para continuar.'); return }
+    if (!form.cpf.trim())  { toast.error('Preencha o CPF do sócio para continuar.');  return }
 
     setLoading(true)
     try {
@@ -57,12 +57,12 @@ export function AdicionarSocioDrawer({ empresaId }: Props) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Erro ao adicionar sócio')
       }
-      toast.success('Sócio adicionado!')
+      toast.success('Sócio adicionado.')
       setOpen(false)
       setForm(EMPTY)
       router.refresh()
     } catch (err: any) {
-      toast.error(err?.message ?? 'Erro ao adicionar sócio')
+      toast.error(err?.message ?? 'Não foi possível adicionar o sócio. Tente novamente.')
     } finally {
       setLoading(false)
     }

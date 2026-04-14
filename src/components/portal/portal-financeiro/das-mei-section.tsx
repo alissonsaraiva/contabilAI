@@ -47,7 +47,7 @@ export function DasMeiSection({ dasMeis, loading, erro, copiandoDAS, onRecarrega
       {!loading && !erro && !dasMeis.length && (
         <div className="flex flex-col items-center gap-2 py-10 text-center text-on-surface-variant/60">
           <span className="material-symbols-outlined text-[36px] opacity-30">receipt_long</span>
-          <p className="text-sm">Nenhuma DAS disponível no momento.</p>
+          <p className="text-sm">Nenhuma DAS disponível agora. Caso precise de uma, fale com seu contador.</p>
         </div>
       )}
 

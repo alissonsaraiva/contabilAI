@@ -95,9 +95,9 @@ export function EnviarEmailDrawer({ clienteId, leadId, clienteEmail, clienteNome
     e.preventDefault()
     setErro('')
 
-    if (!form.para.trim())    { setErro('Destinatário obrigatório'); return }
-    if (!form.assunto.trim()) { setErro('Assunto obrigatório'); return }
-    if (!form.corpo.trim())   { setErro('Corpo do e-mail obrigatório'); return }
+    if (!form.para.trim())    { setErro('Informe o destinatário para continuar.'); return }
+    if (!form.assunto.trim()) { setErro('Informe o assunto do e-mail para continuar.'); return }
+    if (!form.corpo.trim())   { setErro('Escreva o corpo do e-mail para continuar.'); return }
 
     setLoading(true)
     try {
@@ -121,14 +121,13 @@ export function EnviarEmailDrawer({ clienteId, leadId, clienteEmail, clienteNome
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erro ao enviar')
 
-      toast.success('E-mail enviado com sucesso!')
+      toast.success('E-mail enviado.')
       setOpen(false)
       reset()
       router.refresh()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro ao enviar e-mail'
-      setErro(msg)
-      toast.error(msg)
+      setErro('Não foi possível enviar o e-mail. Tente novamente.')
+      toast.error('Não foi possível enviar o e-mail. Tente novamente.')
     } finally {
       setLoading(false)
     }

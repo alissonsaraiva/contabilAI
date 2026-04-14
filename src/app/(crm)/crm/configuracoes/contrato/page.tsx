@@ -66,9 +66,9 @@ export default function ContratoPage() {
         body: JSON.stringify({ ...rest, vencimentosDias }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Configurações de contrato salvas!')
+      toast.success('Configurações de contrato salvas.')
     } catch {
-      toast.error('Erro ao salvar')
+      toast.error('Não foi possível salvar as configurações de contrato. Tente novamente.')
     } finally {
       setLoading(false)
     }

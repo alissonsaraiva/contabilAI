@@ -134,7 +134,7 @@ export function EmailsGmail({
       setAba('tratados')
       setPainel({ tipo: 'thread', thread: updated })
     }
-    toast.success('E-mail respondido!')
+    toast.success('E-mail respondido.')
   }
 
   // Chamado ao dispensar (marcar como tratado sem responder)
@@ -187,7 +187,7 @@ export function EmailsGmail({
     setEnviados(prev => [thread, ...prev])
     setAba('enviados')
     setPainel({ tipo: 'thread', thread })
-    toast.success('E-mail enviado!')
+    toast.success('E-mail enviado.')
   }
 
   // Remove o anexo dos rejeitados na thread (persiste estado após trocar de thread)
@@ -248,7 +248,7 @@ export function EmailsGmail({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: interacaoIds, action }),
       })
-      if (!res.ok) { toast.error('Erro ao executar ação'); return }
+      if (!res.ok) { toast.error('Não foi possível executar a ação. Tente novamente.'); return }
 
       if (action === 'dispensar') {
         const agora = new Date().toISOString()

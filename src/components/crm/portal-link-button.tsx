@@ -22,7 +22,7 @@ export function PortalLinkButton({ clienteId, status }: Props) {
       if (!data.link) { toast.error('Link inválido.'); return }
       window.open(data.link, '_blank', 'noopener,noreferrer')
     } catch {
-      toast.error('Erro ao abrir o portal.')
+      toast.error('Não foi possível abrir o portal. Verifique sua conexão e tente novamente.')
     } finally {
       setLoading(false)
     }

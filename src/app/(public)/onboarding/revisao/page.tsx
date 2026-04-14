@@ -78,7 +78,7 @@ export default function RevisaoPage({ searchParams }: Props) {
       })
       router.push(`/onboarding/contrato?leadId=${leadId}&plano=${plano}`)
     } catch {
-      toast.error('Erro ao salvar. Tente novamente.')
+      toast.error('Não foi possível salvar suas preferências. Tente novamente.')
     } finally {
       setLoading(false)
     }

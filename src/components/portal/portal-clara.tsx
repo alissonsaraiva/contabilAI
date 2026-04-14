@@ -336,7 +336,7 @@ export function PortalClara({ nomeIa = 'Clara' }: { nomeIa?: string }) {
       })
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: 'Erro desconhecido' }))
-        setMsgs(m => [...m, { role: 'assistant', text: `⚠️ ${error}` }])
+        setMsgs(m => [...m, { role: 'assistant', text: 'Não consegui processar sua mensagem agora. Tente novamente ou entre em contato com o escritório.' }])
       } else {
         const data = await res.json()
         if (data.conversaId) setConversaId(data.conversaId)

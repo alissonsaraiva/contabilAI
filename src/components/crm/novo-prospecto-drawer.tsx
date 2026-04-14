@@ -32,7 +32,7 @@ export function NovoProspectoDrawer() {
     e.preventDefault()
     setErro('')
     if (form.contatoEntrada.trim().length < 3) {
-      setErro('Informe um nome, e-mail ou telefone')
+      setErro('Informe um nome, e-mail ou telefone para registrar o prospecto.')
       return
     }
     setLoading(true)
@@ -43,12 +43,12 @@ export function NovoProspectoDrawer() {
         body: JSON.stringify({ ...form, funil: 'prospeccao' }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Prospecto registrado!')
+      toast.success('Prospecto registrado.')
       setOpen(false)
       reset()
       router.refresh()
     } catch {
-      toast.error('Erro ao registrar prospecto')
+      toast.error('Não foi possível registrar o prospecto. Tente novamente.')
     } finally {
       setLoading(false)
     }

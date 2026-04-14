@@ -76,7 +76,7 @@ export default async function PortalConfiguracoesPage() {
             <div className="flex items-center gap-3 rounded-xl bg-surface-container-low/60 px-4 py-3">
               <span className="material-symbols-outlined text-[20px] text-on-surface-variant/30">person_off</span>
               <p className="text-[13px] text-on-surface-variant/60">
-                Nenhum sócio tem acesso ao portal no momento.
+                Nenhum sócio tem acesso ao portal ainda.
               </p>
             </div>
           ) : (

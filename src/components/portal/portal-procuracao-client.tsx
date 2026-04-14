@@ -46,7 +46,7 @@ export function PortalProcuracaoClient({ nomeEscritorio, cnpjEscritorio, procura
         setMensagemTipo(json.procuracaoRFAtiva ? 'ok' : json.erro ? 'erro' : 'info')
       }
     } catch {
-      setMensagem('Não foi possível verificar agora. Tente novamente em alguns minutos.')
+      setMensagem('Não foi possível verificar no momento. Aguarde alguns minutos e tente de novo.')
       setMensagemTipo('erro')
     } finally {
       setVerificando(false)

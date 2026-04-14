@@ -46,12 +46,12 @@ export default function VerificarEmailPage({ searchParams }: Props) {
       })
       const data = await res.json() as { ok?: boolean; expiraEm?: string; error?: string }
       if (!res.ok || !data.ok) {
-        toast.error(data.error ?? 'Erro ao enviar código. Verifique seu e-mail e tente novamente.')
+        toast.error(data.error ?? 'Não foi possível enviar o código. Verifique seu e-mail e tente novamente.')
         return
       }
       if (data.expiraEm) setExpiraEm(new Date(data.expiraEm))
       setSegundosRestantes(600)
-      toast.success('Código enviado! Verifique sua caixa de entrada.')
+      toast.success('Código enviado! Verifique sua caixa de entrada e também a pasta de spam.')
     } catch {
       toast.error('Erro de conexão. Tente novamente.')
     } finally {
@@ -101,7 +101,7 @@ export default function VerificarEmailPage({ searchParams }: Props) {
       })
       const data = await res.json() as { ok?: boolean; error?: string }
       if (!res.ok || !data.ok) {
-        toast.error(data.error ?? 'Código incorreto. Tente novamente.')
+        toast.error(data.error ?? 'Código incorreto ou expirado. Solicite um novo ou verifique sua caixa de entrada.')
         setCodigo(['', '', '', '', '', ''])
         inputRefs.current[0]?.focus()
         return

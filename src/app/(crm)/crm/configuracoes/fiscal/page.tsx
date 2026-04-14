@@ -73,9 +73,9 @@ export default function FiscalPage() {
         body: JSON.stringify({ ...rest, vencimentosDias }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Dados fiscais salvos!')
+      toast.success('Dados fiscais salvos.')
     } catch {
-      toast.error('Erro ao salvar')
+      toast.error('Não foi possível salvar os dados fiscais. Tente novamente.')
     } finally {
       setLoading(false)
     }

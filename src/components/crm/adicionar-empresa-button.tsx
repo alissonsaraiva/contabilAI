@@ -104,12 +104,12 @@ function AdicionarEmpresaDrawer({
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Erro ao adicionar empresa.')
       }
-      toast.success('Empresa adicionada com sucesso!')
+      toast.success('Empresa adicionada.')
       setForm({ cnpj: '', razaoSocial: '', nomeFantasia: '', regime: '' })
       onClose()
       router.refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao adicionar empresa.')
+      toast.error('Não foi possível adicionar a empresa. Tente novamente.')
     } finally {
       setLoading(false)
     }

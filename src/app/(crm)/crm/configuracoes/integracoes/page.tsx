@@ -192,9 +192,9 @@ function IntegraContadorSection() {
       setCertSenha('')
       setCertBase64('')
       setCertFileName('')
-      toast.success('Integra Contador salvo!')
+      toast.success('Integra Contador salvo.')
     } catch {
-      toast.error('Erro ao salvar Integra Contador')
+      toast.error('Não foi possível salvar o Integra Contador. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -510,9 +510,9 @@ export default function IntegracoesPage() {
         }
         return next
       })
-      toast.success('Integrações salvas!')
+      toast.success('Integrações salvas.')
     } catch {
-      toast.error('Erro ao salvar')
+      toast.error('Não foi possível salvar as integrações. Tente novamente.')
     } finally {
       setLoading(false)
     }

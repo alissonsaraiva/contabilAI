@@ -155,7 +155,7 @@ function ChatWidgetInner({ leadId, plano }: { leadId: string; plano?: string }) 
         setLoading(false)
       }
     } catch {
-      setMsgs(m => [...m, { role: 'assistant', text: 'Desculpe, ocorreu um erro. Tente novamente.' }])
+      setMsgs(m => [...m, { role: 'assistant', text: 'Não foi possível processar sua mensagem. Tente novamente.' }])
       setLoading(false)
     }
   }

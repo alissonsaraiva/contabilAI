@@ -31,11 +31,11 @@ export function ModalReemitir({ nota, onClose, onSuccess }: Props) {
   async function handleReemitir() {
     const { descricao, valor, tomadorNome, tomadorCpfCnpj } = form
 
-    if (!descricao.trim())      { toast.error('Informe a descrição do serviço'); return }
-    if (!tomadorNome.trim())    { toast.error('Informe o nome do tomador'); return }
-    if (!tomadorCpfCnpj.trim()) { toast.error('Informe o CPF ou CNPJ do tomador'); return }
+    if (!descricao.trim())      { toast.error('Descreva o serviço prestado para continuar.'); return }
+    if (!tomadorNome.trim())    { toast.error('Informe o nome de quem está contratando o serviço.'); return }
+    if (!tomadorCpfCnpj.trim()) { toast.error('Informe o CPF ou CNPJ de quem vai receber a nota.'); return }
     if (!validarCpfCnpj(tomadorCpfCnpj)) {
-      toast.error('CPF deve ter 11 dígitos ou CNPJ 14 dígitos')
+      toast.error('O CPF deve ter 11 dígitos ou o CNPJ 14 dígitos.')
       return
     }
     const valorNum = parseBRL(valor)
@@ -61,10 +61,10 @@ export function ModalReemitir({ nota, onClose, onSuccess }: Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.error ?? 'Erro ao reemitir nota fiscal')
+        toast.error(data.error ?? 'Não foi possível reemitir a nota agora. Tente novamente ou fale com o escritório.')
         return
       }
-      toast.success('NFS-e reenviada para processamento!')
+      toast.success('NFS-e reenviada para processamento! Acompanhe o status na lista.')
       onSuccess()
     } catch {
       toast.error('Erro de conexão. Tente novamente.')

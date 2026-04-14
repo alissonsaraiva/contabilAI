@@ -208,7 +208,7 @@ export function PortalDocumentosClient({ documentos, contagemMap, totalGeral }: 
         <div className="flex flex-col items-center gap-3 rounded-[16px] border border-outline-variant/15 bg-card/60 py-16 text-center shadow-sm">
           <span className="material-symbols-outlined text-[40px] text-on-surface-variant/25">folder_open</span>
           <p className="text-[14px] font-medium text-on-surface-variant/60">
-            {q || origem || categoria !== 'todos' ? 'Nenhum documento com esses filtros.' : 'Nenhum documento encontrado.'}
+            {q || origem || categoria !== 'todos' ? 'Nenhum documento corresponde a esses filtros.' : 'Você ainda não tem documentos aqui. Os arquivos enviados pelo escritório aparecerão nesta tela.'}
           </p>
         </div>
       ) : (

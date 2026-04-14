@@ -14,12 +14,12 @@ export function PlanoDeleteButton({ id }: { id: string }) {
     setLoading(true)
     try {
       const res = await fetch(`/api/planos/${id}`, { method: 'DELETE' })
-      if (res.status === 403) { toast.error('Sem permissão para excluir'); return }
+      if (res.status === 403) { toast.error('Sem permissão para excluir planos.'); return }
       if (!res.ok) throw new Error()
-      toast.success('Plano excluído')
+      toast.success('Plano excluído.')
       router.refresh()
     } catch {
-      toast.error('Erro ao excluir plano')
+      toast.error('Não foi possível excluir o plano. Tente novamente.')
     } finally {
       setLoading(false)
     }

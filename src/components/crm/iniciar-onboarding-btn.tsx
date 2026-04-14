@@ -19,10 +19,10 @@ export function IniciarOnboardingBtn({ leadId }: Props) {
         body: JSON.stringify({ funil: 'onboarding', status: 'iniciado', stepAtual: 1 }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Lead movido para o Onboarding!')
+      toast.success('Lead movido para o Onboarding.')
       router.refresh()
     } catch {
-      toast.error('Erro ao iniciar onboarding')
+      toast.error('Não foi possível iniciar o onboarding. Tente novamente.')
     } finally {
       setLoading(false)
     }

@@ -58,7 +58,7 @@ export async function CardDocumentos({ clienteId }: { clienteId: string }) {
           >
             inbox
           </span>
-          <p className="text-[13px] text-on-surface-variant/60">Nenhum documento disponível ainda</p>
+          <p className="text-[13px] text-on-surface-variant/60">Você ainda não tem documentos aqui. Os arquivos enviados pelo escritório aparecerão nesta tela.</p>
         </div>
       ) : (
         <ul className="divide-y divide-outline-variant/8">

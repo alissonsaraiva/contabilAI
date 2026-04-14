@@ -166,11 +166,11 @@ export function EditarClienteDrawer({ cliente, open, onClose }: Props) {
         }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Cliente atualizado!')
+      toast.success('Dados do cliente salvos.')
       onClose()
       router.refresh()
     } catch {
-      toast.error('Erro ao atualizar cliente')
+      toast.error('Não foi possível salvar o cliente. Tente novamente.')
     } finally {
       setLoading(false)
     }

@@ -60,14 +60,14 @@ export function EditarUsuarioDrawer({ usuario, open, onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nome: form.nome, email: form.email, tipo: form.tipo, whatsapp: form.whatsapp || null }),
       })
-      if (res.status === 403) { toast.error('Sem permissão'); return }
-      if (res.status === 409) { toast.error('E-mail já cadastrado'); return }
+      if (res.status === 403) { toast.error('Sem permissão para realizar esta ação.'); return }
+      if (res.status === 409) { toast.error('Este e-mail já está cadastrado no sistema.'); return }
       if (!res.ok) throw new Error()
-      toast.success('Usuário atualizado!')
+      toast.success('Usuário atualizado.')
       onClose()
       router.refresh()
     } catch {
-      toast.error('Erro ao atualizar usuário')
+      toast.error('Não foi possível atualizar o usuário. Tente novamente.')
     } finally {
       setLoading(false)
     }

@@ -11,7 +11,7 @@ import { formatCNPJ } from '@/lib/utils'
 const INPUT = 'w-full rounded-xl border border-transparent bg-surface-container-lowest/80 px-4 py-3 text-[14px] font-medium text-on-surface shadow-sm placeholder:text-on-surface-variant/40 transition-all hover:bg-surface-container-lowest focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/5'
 
 const schema = z.object({
-  nome: z.string().min(1, 'Nome obrigatório'),
+  nome: z.string().min(1, 'Preencha o nome do escritório para continuar.'),
   nomeFantasia: z.string().optional(),
   cnpj: z.string().optional(),
   crc: z.string().optional(),
@@ -49,9 +49,9 @@ export default function IdentidadePage() {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error()
-      toast.success('Configurações salvas!')
+      toast.success('Configurações salvas.')
     } catch {
-      toast.error('Erro ao salvar')
+      toast.error('Não foi possível salvar as configurações. Tente novamente.')
     } finally {
       setLoading(false)
     }

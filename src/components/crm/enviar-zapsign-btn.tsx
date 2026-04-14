@@ -25,14 +25,14 @@ export function EnviarZapSignBtn({ leadId, contratoStatus, signUrl, compact }: P
       const data = await res.json() as { ok?: boolean; error?: string; signUrl?: string }
 
       if (!res.ok || !data.ok) {
-        toast.error(data.error ?? 'Erro ao enviar contrato')
+        toast.error(data.error ?? 'Não foi possível enviar o contrato. Tente novamente.')
         return
       }
 
-      toast.success('Contrato enviado! O cliente receberá um e-mail com o link de assinatura.')
+      toast.success('Contrato enviado. O cliente receberá um e-mail com o link de assinatura.')
       router.refresh()
     } catch {
-      toast.error('Erro de conexão ao enviar contrato')
+      toast.error('Não foi possível enviar o contrato. Verifique sua conexão e tente novamente.')
     } finally {
       setLoading(false)
     }

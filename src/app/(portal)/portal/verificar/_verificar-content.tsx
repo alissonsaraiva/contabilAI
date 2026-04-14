@@ -9,7 +9,7 @@ import Link from 'next/link'
 type Estado = 'verificando' | 'ok' | 'erro'
 
 const ERRO_MSG: Record<string, string> = {
-  token_invalido: 'Este link de acesso é inválido ou já foi utilizado.',
+  token_invalido: 'Este link de acesso é inválido ou já foi utilizado. Solicite um novo abaixo.',
   token_expirado: 'Este link de acesso expirou. Solicite um novo abaixo.',
   conta_inativa:  'Sua conta está inativa. Entre em contato com o escritório.',
 }
@@ -49,7 +49,7 @@ function VerificarContentInner() {
         })
 
         if (result?.error) {
-          setErroMsg('Não foi possível criar sua sessão. Tente novamente.')
+          setErroMsg('Não foi possível iniciar sua sessão. Tente novamente.')
           setEstado('erro')
           return
         }

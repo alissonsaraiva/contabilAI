@@ -58,7 +58,7 @@ export function DocumentoBulkActions({
     if (failed.length === 0) {
       toast.success(`${succeeded.length} documento${succeeded.length !== 1 ? 's' : ''} removido${succeeded.length !== 1 ? 's' : ''}`)
     } else {
-      toast.error(`${failed.length} falharam ao remover`)
+      toast.error(`${failed.length} documento${failed.length !== 1 ? 's' : ''} não ${failed.length !== 1 ? 'puderam' : 'pôde'} ser removido${failed.length !== 1 ? 's' : ''}. Tente novamente.`)
     }
   }
 
@@ -83,7 +83,7 @@ export function DocumentoBulkActions({
     if (failed.length === 0) {
       toast.success(`${succeeded.length} documento${succeeded.length !== 1 ? 's' : ''} ${label}${succeeded.length !== 1 ? 's' : ''}`)
     } else {
-      toast.error(`${failed.length} falharam ao atualizar`)
+      toast.error(`${failed.length} documento${failed.length !== 1 ? 's' : ''} não ${failed.length !== 1 ? 'puderam' : 'pôde'} ser atualizado${failed.length !== 1 ? 's' : ''}. Tente novamente.`)
     }
   }
 
@@ -135,7 +135,7 @@ export function DocumentoBulkActions({
       {/* Delete */}
       {confirmandoDelete ? (
         <div className="flex items-center gap-2">
-          <span className="text-[12px] text-error font-medium">Confirmar?</span>
+          <span className="text-[12px] text-error font-medium">Excluir {count} documento{count !== 1 ? 's' : ''}? Essa ação não pode ser desfeita.</span>
           <button
             onClick={handleBulkDelete}
             disabled={loading}

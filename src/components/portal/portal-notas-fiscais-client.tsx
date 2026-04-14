@@ -41,7 +41,7 @@ export function PortalNotasFiscaisClient({ spedyConfigurado, prestador }: Props)
       setTotal(data.total ?? 0)
       setPage(1)
     } catch {
-      if (!silencioso) toast.error('Erro ao carregar notas fiscais')
+      if (!silencioso) toast.error('Não foi possível carregar suas notas. Tente recarregar a página.')
     } finally {
       if (!silencioso) setLoading(false)
     }
@@ -59,7 +59,7 @@ export function PortalNotasFiscaisClient({ spedyConfigurado, prestador }: Props)
       setNotas(prev => [...prev, ...(data.items ?? [])])
       setPage(nextPage)
     } catch {
-      toast.error('Erro ao carregar mais notas')
+      toast.error('Não foi possível carregar mais notas. Tente novamente.')
     } finally {
       setLoadingMore(false)
     }
@@ -122,7 +122,7 @@ export function PortalNotasFiscaisClient({ spedyConfigurado, prestador }: Props)
         <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-outline-variant/30 py-16 text-center">
           <span className="material-symbols-outlined text-[40px] text-on-surface-variant/30">receipt_long</span>
           <p className="text-[14px] text-on-surface-variant/60">
-            {mesFiltro ? 'Nenhuma nota encontrada para o período selecionado' : 'Nenhuma nota fiscal emitida ainda'}
+            {mesFiltro ? 'Nenhuma nota encontrada nesse período.' : 'Você ainda não emitiu nenhuma nota fiscal.'}
           </p>
           {spedyConfigurado && !mesFiltro && (
             <button

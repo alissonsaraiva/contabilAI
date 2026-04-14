@@ -106,7 +106,7 @@ export function CapacidadesManager({ capacidades, desabilitadasIniciais, canaisO
       setEditingTool(null)
       toast.success('Configurações salvas!')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao salvar')
+      toast.error('Não foi possível salvar as configurações. Tente novamente.')
     } finally {
       setSaving(false)
     }

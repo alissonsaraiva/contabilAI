@@ -67,7 +67,7 @@ export function ComunicadoForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.titulo.trim() || !form.conteudo.trim()) {
-      toast.error('Título e conteúdo são obrigatórios')
+      toast.error('Preencha o título e o conteúdo para continuar.')
       return
     }
     setLoading(true)
@@ -92,7 +92,7 @@ export function ComunicadoForm() {
       const res = await fetch('/api/crm/comunicados', { method: 'POST', body: fd })
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: 'Erro desconhecido' }))
-        toast.error(error ?? 'Erro ao salvar comunicado')
+        toast.error(error ?? 'Não foi possível salvar o comunicado. Tente novamente.')
         return
       }
 
@@ -110,7 +110,7 @@ export function ComunicadoForm() {
     } catch (err) {
       console.error('[crm/comunicados] erro ao salvar comunicado:', err)
       Sentry.captureException(err, { tags: { module: 'crm-comunicados-form', operation: 'salvar' } })
-      toast.error('Erro ao salvar comunicado')
+      toast.error('Não foi possível salvar o comunicado. Verifique sua conexão e tente novamente.')
     } finally {
       setLoading(false)
     }
