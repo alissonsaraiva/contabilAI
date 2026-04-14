@@ -106,9 +106,12 @@ export async function DELETE(
           }
 
           // Deleta cada chunk individualmente (respostas longas são enviadas em múltiplas mensagens)
+          // IMPORTANTE: usar waKey.remoteJid (JID original da key), NÃO conversa.remoteJid.
+          // Números brasileiros podem ter formato diferente (8 vs 9 dígitos) entre conversa e key.
           for (const waKey of keysToDelete) {
-            console.log('[mensagem-delete] chamando deleteMessage:', { remoteJid: conversa.remoteJid, messageId: waKey.id })
-            const result = await deleteMessage(cfg, conversa.remoteJid, waKey.id)
+            const jidParaDelete = waKey.remoteJid || conversa.remoteJid!
+            console.log('[mensagem-delete] chamando deleteMessage:', { remoteJid: jidParaDelete, messageId: waKey.id })
+            const result = await deleteMessage(cfg, jidParaDelete, waKey.id)
             console.log('[mensagem-delete] resultado deleteMessage:', JSON.stringify(result))
             if (!result.ok) {
               // Falha silenciosa (ex: mensagem com >60h) — loga mas continua o soft delete local
