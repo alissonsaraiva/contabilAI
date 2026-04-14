@@ -41,10 +41,10 @@ export default async function CrmChamadoDetailPage({ params }: Props) {
 
   if (!ordem) notFound()
 
-  // Sócios com algum contato WhatsApp
+  // Sócios com WhatsApp cadastrado
   const sociosContato = (ordem.empresa?.socios ?? [])
-    .filter(s => s.whatsapp || s.telefone)
-    .map(s => ({ id: s.id, nome: s.nome, telefone: (s.whatsapp || s.telefone)! }))
+    .filter(s => s.whatsapp)
+    .map(s => ({ id: s.id, nome: s.nome, telefone: s.whatsapp! }))
 
   const s = STATUS_CHAMADO[ordem.status] ?? STATUS_CHAMADO['aberta']!
   const nomeEmpresa = ordem.empresa?.razaoSocial ?? ordem.empresa?.nomeFantasia

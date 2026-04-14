@@ -98,7 +98,7 @@ export function MembrosSection({
         {resultados.length > 0 && (
           <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-outline-variant/10 bg-card">
             {resultados.map(c => {
-              const temWhatsApp = !!(c.whatsapp || c.telefone)
+              const temWhatsApp = !!c.whatsapp
               const cKey = `${c.tipo}-${c.id}`
               return (
                 <button
@@ -115,7 +115,7 @@ export function MembrosSection({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[12px] font-medium text-on-surface">{c.nome}</p>
                     <p className="text-[10px] text-on-surface-variant/50">
-                      {c.subtitulo}{temWhatsApp ? ` · ${c.whatsapp || c.telefone}` : ' · sem WhatsApp'}
+                      {c.subtitulo}{temWhatsApp ? ` · ${c.whatsapp}` : ' · sem WhatsApp'}
                     </p>
                   </div>
                   <span className="material-symbols-outlined text-[16px] text-[#25D366]">add_circle</span>

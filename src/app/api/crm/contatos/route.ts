@@ -60,8 +60,8 @@ export async function GET(req: Request) {
     }),
   ])
 
-  // Sócios sem nenhum número de contato não aparecem
-  const sociosFiltrados = socios.filter(s => s.whatsapp || s.telefone)
+  // Sócios sem WhatsApp não aparecem (canal exclusivo para contato)
+  const sociosFiltrados = socios.filter(s => s.whatsapp)
 
   return NextResponse.json({ clientes, socios: sociosFiltrados })
 }

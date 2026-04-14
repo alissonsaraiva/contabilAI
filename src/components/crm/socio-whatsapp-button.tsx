@@ -13,7 +13,7 @@ type Props = {
 export function SocioWhatsAppButton({ socioId, socioNome, telefone, whatsapp }: Props) {
   const [open, setOpen] = useState(false)
 
-  const temContato = !!(whatsapp || telefone)
+  const temContato = !!whatsapp
   if (!temContato) return null
 
   return (

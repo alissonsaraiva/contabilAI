@@ -67,8 +67,8 @@ export function TabVisaoGeral({
             <InfoRow label="Vencimento" value={`Dia ${cliente.vencimentoDia}`} />
             <InfoRow label="Pagamento" value={FORMA_PAGAMENTO_LABELS[cliente.formaPagamento as keyof typeof FORMA_PAGAMENTO_LABELS]} />
             {cliente.email && <InfoRow label="E-mail" value={cliente.email} />}
-            {(cliente.whatsapp || cliente.telefone) && (
-              <InfoRow label="Telefone" value={formatTelefone((cliente.whatsapp ?? cliente.telefone)!)} />
+            {cliente.whatsapp && (
+              <InfoRow label="Telefone" value={formatTelefone(cliente.whatsapp)} />
             )}
             {cliente.responsavel?.nome && <InfoRow label="Responsável" value={cliente.responsavel.nome} />}
             <div className="pt-3 flex justify-end">

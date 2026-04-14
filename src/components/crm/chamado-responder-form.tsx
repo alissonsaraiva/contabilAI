@@ -25,7 +25,7 @@ const CATEGORIAS = [
 type SocioContato = {
   id:       string
   nome:     string
-  telefone: string  // número a usar (whatsapp || telefone)
+  telefone: string  // número WhatsApp cadastrado
 }
 
 type Props = {

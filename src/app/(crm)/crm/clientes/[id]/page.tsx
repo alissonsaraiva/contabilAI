@@ -127,7 +127,7 @@ export default async function ClienteDetailPage({ params }: Props) {
   ]
 
   return (
-    <div className="space-y-8 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div key={id} className="space-y-8 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex items-start gap-4">
         <BackButton className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container">

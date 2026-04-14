@@ -74,7 +74,7 @@ const enviarWhatsAppClienteTool: Tool = {
       return { sucesso: false, erro: 'Cliente não encontrado.', resumo: 'Cliente não encontrado.' }
     }
 
-    const phone = cliente.whatsapp || cliente.telefone
+    const phone = cliente.whatsapp
     if (!phone) {
       return {
         sucesso: false,

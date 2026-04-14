@@ -22,8 +22,8 @@ export async function POST(_req: Request, { params }: Params) {
   })
   if (!cliente) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const phone = cliente.whatsapp || cliente.telefone
-  if (!phone) return NextResponse.json({ error: 'Cliente sem número' }, { status: 400 })
+  const phone = cliente.whatsapp
+  if (!phone) return NextResponse.json({ error: 'Cliente sem WhatsApp cadastrado' }, { status: 400 })
 
   const remoteJid = buildRemoteJid(phone)
 

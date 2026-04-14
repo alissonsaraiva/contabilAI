@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const empresaId = await getEmpresaPrincipal(cliente.id)
     if (!empresaId)                     return NextResponse.json({ error: 'empresa_nao_vinculada' }, { status: 400 })
 
-    const phone = cliente.whatsapp || cliente.telefone
+    const phone = cliente.whatsapp
     if (!phone) return NextResponse.json({ error: 'whatsapp_nao_cadastrado' }, { status: 400 })
 
     const cfg = await getEvolutionConfig()
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
   async function enviarOtpSocio(socio: {
     id: string; nome: string; empresaId: string; whatsapp: string | null; telefone: string | null
   }): Promise<NextResponse> {
-    const phone = socio.whatsapp || socio.telefone
+    const phone = socio.whatsapp
     if (!phone) return NextResponse.json({ error: 'whatsapp_nao_cadastrado' }, { status: 400 })
 
     const cfg = await getEvolutionConfig()

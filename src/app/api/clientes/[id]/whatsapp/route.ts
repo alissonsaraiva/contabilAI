@@ -27,7 +27,7 @@ export async function GET(_req: Request, { params }: Params) {
   })
   if (!cliente) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const phone = cliente.whatsapp || cliente.telefone
+  const phone = cliente.whatsapp
   if (!phone) return NextResponse.json({ conversa: null, mensagens: [], pausada: false })
 
   const remoteJid = buildRemoteJid(phone)
@@ -142,8 +142,8 @@ export async function POST(req: Request, { params }: Params) {
     })
     if (!cliente) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const phone = cliente.whatsapp || cliente.telefone
-    if (!phone) return NextResponse.json({ error: 'Cliente sem número de telefone/WhatsApp' }, { status: 400 })
+    const phone = cliente.whatsapp
+    if (!phone) return NextResponse.json({ error: 'Cliente sem WhatsApp cadastrado' }, { status: 400 })
 
     const remoteJid = buildRemoteJid(phone)
     if (!remoteJid) return NextResponse.json({ error: 'Número de telefone inválido' }, { status: 400 })

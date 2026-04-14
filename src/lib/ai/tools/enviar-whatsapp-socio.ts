@@ -60,12 +60,12 @@ const enviarWhatsAppSocioTool: Tool = {
       return { sucesso: false, erro: 'Sócio não encontrado.', resumo: 'Sócio não encontrado.' }
     }
 
-    const phone = socio.whatsapp || socio.telefone
+    const phone = socio.whatsapp
     if (!phone) {
       return {
         sucesso: false,
-        erro:   'Sócio sem número de WhatsApp/telefone cadastrado.',
-        resumo: `Sócio "${socio.nome}" não tem número cadastrado.`,
+        erro:   'Sócio sem WhatsApp cadastrado.',
+        resumo: `Sócio "${socio.nome}" não tem WhatsApp cadastrado.`,
       }
     }
 

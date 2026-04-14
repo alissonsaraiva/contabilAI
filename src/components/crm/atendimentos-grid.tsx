@@ -419,7 +419,7 @@ function NovaConversaSheet({
           ) : (
             <div className="space-y-2 pt-2">
               {resultados.map(c => {
-                const temWhatsApp = !!(c.whatsapp || c.telefone)
+                const temWhatsApp = !!c.whatsapp
                 const temPortal   = c.tipo === 'cliente'
                 return (
                   <div
@@ -437,7 +437,7 @@ function NovaConversaSheet({
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-[13px] font-semibold text-on-surface">{c.nome}</p>
                         <p className="text-[11px] text-on-surface-variant/60">
-                          {c.subtitulo}{temWhatsApp ? ` · ${c.whatsapp || c.telefone}` : ''}
+                          {c.subtitulo}{temWhatsApp ? ` · ${c.whatsapp}` : ''}
                         </p>
                       </div>
                     </div>

@@ -139,7 +139,7 @@ function ContatoCard({
   onWhatsApp: () => void
   onPortal: () => void
 }) {
-  const temWhatsApp = !!(c.whatsapp || c.telefone)
+  const temWhatsApp = !!c.whatsapp
   const temPortal   = c.tipo === 'cliente'
 
   return (
@@ -153,7 +153,7 @@ function ContatoCard({
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold text-on-surface">{c.nome}</p>
           <p className="text-[11px] text-on-surface-variant/60">
-            {c.subtitulo}{temWhatsApp ? ` · ${c.whatsapp || c.telefone}` : ''}
+            {c.subtitulo}{temWhatsApp ? ` · ${c.whatsapp}` : ''}
           </p>
         </div>
       </div>
