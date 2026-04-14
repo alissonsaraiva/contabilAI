@@ -283,10 +283,6 @@ export function CrmHeader({ user, pendingEscalacoes = 0, pendingEmails = 0, pend
 
             </DropdownMenuContent>
           </DropdownMenu>
-          <button className="hidden md:flex h-[36px] w-[36px] items-center justify-center rounded-full text-on-surface-variant/50 transition-colors hover:bg-surface-container-lowest hover:text-on-surface">
-            <span className="material-symbols-outlined text-[20px]">help_outline</span>
-          </button>
-
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             className="hidden md:flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[13px] font-medium text-on-surface-variant/70 transition-colors hover:bg-error/10 hover:text-error"
