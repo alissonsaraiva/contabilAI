@@ -8,8 +8,10 @@ export type EvolutionConfig = {
   instance: string
 }
 
+export type WhatsAppKey = { remoteJid: string; fromMe: boolean; id: string }
+
 export type SendResult =
-  | { ok: true }
+  | { ok: true; key?: WhatsAppKey }
   | { ok: false; error: string; attempts: number }
 
 // ─── Erro tipado ──────────────────────────────────────────────────────────────
@@ -128,9 +130,10 @@ export async function sendText(
     }
 
     try {
-      await evo(cfg, 'POST', `/message/sendText/${cfg.instance}`, { number, text })
+      const res = await evo(cfg, 'POST', `/message/sendText/${cfg.instance}`, { number, text })
       circuitSuccess()
-      return { ok: true }
+      const key = (res as Record<string, unknown>)?.key as WhatsAppKey | undefined
+      return { ok: true, key }
     } catch (err) {
       lastError = err
       circuitFailure()
@@ -184,7 +187,7 @@ export async function sendMedia(
     }
 
     try {
-      await evo(cfg, 'POST', `/message/sendMedia/${cfg.instance}`, {
+      const res = await evo(cfg, 'POST', `/message/sendMedia/${cfg.instance}`, {
         number,
         mediatype: opts.mediatype,
         mimetype:  opts.mimetype,
@@ -194,7 +197,8 @@ export async function sendMedia(
         media: opts.mediaUrl ?? opts.mediaBase64,
       })
       circuitSuccess()
-      return { ok: true }
+      const key = (res as Record<string, unknown>)?.key as WhatsAppKey | undefined
+      return { ok: true, key }
     } catch (err) {
       lastError = err
       circuitFailure()

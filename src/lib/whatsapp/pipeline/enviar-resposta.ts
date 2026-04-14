@@ -110,10 +110,22 @@ export async function processarRespostaIA(input: ProcessarRespostaInput): Promis
   }
 
   // ── Persiste resposta e envia ─────────────────────────────────────────────
+  // Ordem intencional: persiste antes de enviar — se o envio falhar o registro existe (status=failed).
+  // Se fosse o contrário e addMensagens falhasse, a mensagem chegaria ao cliente sem registro no DB.
   const mensagemId = await addMensagens(conversa.id, textoParaIA || textoAgregado, resposta)
   const sendResult = await sendHumanLike(cfg, remoteJid, resposta)
 
   if (sendResult.ok) {
+    // Salva os keys do WhatsApp para permitir "apagar para todos" — fire-and-forget (não crítico)
+    if (sendResult.keys.length > 0) {
+      prisma.mensagemIA.update({
+        where: { id: mensagemId },
+        data:  { whatsappMsgData: { keys: sendResult.keys } as object },
+      }).catch((err: unknown) => {
+        console.error('[processar-pendentes] erro ao salvar whatsapp keys:', { mensagemId, err })
+        Sentry.captureException(err, { tags: { module: 'processar-pendentes', operation: 'salvar-whatsapp-keys' }, extra: { mensagemId } })
+      })
+    }
     // Remove as mensagens pending originais — addMensagens já criou a cópia canônica com status=sent.
     // Isso evita duplicatas visíveis na conversa.
     await prisma.mensagemIA.deleteMany({

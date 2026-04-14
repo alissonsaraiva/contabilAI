@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
-import { sendText, sendMedia, type EvolutionConfig } from '@/lib/evolution'
+import { sendText, sendMedia, type EvolutionConfig, type WhatsAppKey } from '@/lib/evolution'
 import { decrypt, isEncrypted } from '@/lib/crypto'
 import { resolveMediaUrl } from '@/lib/whatsapp-utils'
 
@@ -125,28 +125,44 @@ export async function POST(
 
   // URLs R2 diretas retornam 403 — gera URL assinada (5 min) antes de passar à Evolution
   const mediaUrlParaEnvio = mediaUrl ? await resolveMediaUrl(mediaUrl, `conversaId:${id}`) : null
-  const sendResult = mediaUrlParaEnvio
-    ? await sendMedia(cfg, conversa.remoteJid, {
-        mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
-        mimetype:  mediaMimeType ?? 'application/octet-stream',
-        fileName:  mediaFileName ?? 'arquivo',
-        caption:   conteudo || undefined,
-        mediaUrl:  mediaUrlParaEnvio,
-      })
-    : await sendText(cfg, conversa.remoteJid, conteudo)
+
+  let sendOk     = false
+  let sendError: string | undefined
+  let sendAttempts = 1
+  let waKeys: WhatsAppKey[] = []
+
+  if (mediaUrlParaEnvio) {
+    const r = await sendMedia(cfg, conversa.remoteJid, {
+      mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
+      mimetype:  mediaMimeType ?? 'application/octet-stream',
+      fileName:  mediaFileName ?? 'arquivo',
+      caption:   conteudo || undefined,
+      mediaUrl:  mediaUrlParaEnvio,
+    })
+    sendOk = r.ok
+    if (r.ok && r.key) waKeys = [r.key]
+    else if (!r.ok) { sendError = r.error; sendAttempts = r.attempts }
+  } else {
+    const r = await sendText(cfg, conversa.remoteJid, conteudo)
+    sendOk = r.ok
+    if (r.ok && r.key) waKeys = [r.key]
+    else if (!r.ok) { sendError = r.error; sendAttempts = r.attempts }
+  }
 
   await prisma.mensagemIA.create({
     data: {
       conversaId: id,
       role:        'assistant',
       conteudo,
-      status:      sendResult.ok ? 'sent' : 'failed',
-      tentativas:  sendResult.ok ? 1 : ('attempts' in sendResult ? sendResult.attempts : 1),
-      erroEnvio:   sendResult.ok ? null : sendResult.error,
+      status:      sendOk ? 'sent' : 'failed',
+      tentativas:  sendOk ? 1 : sendAttempts,
+      erroEnvio:   sendOk ? null : sendError,
       mediaUrl,
       mediaType,
       mediaFileName,
       mediaMimeType,
+      // Salva os keys para permitir "apagar para todos" via Evolution API
+      ...(waKeys.length > 0 && { whatsappMsgData: { keys: waKeys } as object }),
     },
   })
 
@@ -155,9 +171,9 @@ export async function POST(
     data:  { atualizadaEm: new Date() },
   })
 
-  if (!sendResult.ok) {
+  if (!sendOk) {
     return NextResponse.json(
-      { error: 'Mensagem salva, mas falha ao entregar via WhatsApp', detail: sendResult.error },
+      { error: 'Mensagem salva, mas falha ao entregar via WhatsApp', detail: sendError },
       { status: 502 },
     )
   }

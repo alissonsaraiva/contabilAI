@@ -17,7 +17,7 @@ import { prisma }                                            from '@/lib/prisma'
 import { auth }                                              from '@/lib/auth'
 import { NextResponse }                                      from 'next/server'
 import * as Sentry                                           from '@sentry/nextjs'
-import { deleteMessage, type EvolutionConfig }               from '@/lib/evolution'
+import { deleteMessage, type EvolutionConfig, type WhatsAppKey } from '@/lib/evolution'
 import { decrypt, isEncrypted }                              from '@/lib/crypto'
 import { emitMensagemExcluida, emitWhatsAppRefresh, emitPortalUserMessage } from '@/lib/event-bus'
 
@@ -74,11 +74,22 @@ export async function DELETE(
   }
 
   // ── Tenta deletar no WhatsApp (somente canal whatsapp, fromMe) ───────────────
-  if (conversa.canal === 'whatsapp' && mensagem.whatsappMsgData) {
+  if (conversa.canal === 'whatsapp' && mensagem.whatsappMsgData && conversa.remoteJid) {
     const msgData = mensagem.whatsappMsgData as Record<string, unknown>
-    const key     = msgData.key as Record<string, unknown> | undefined
 
-    if (key?.fromMe === true && key?.id && conversa.remoteJid) {
+    // Suporte a dois formatos:
+    // - { keys: WhatsAppKey[] }  → mensagens enviadas por nós (IA ou operador) — multi-chunk
+    // - { key: { fromMe, id } }  → formato legado de mensagens recebidas (não deve ocorrer no delete)
+    const keysToDelete: WhatsAppKey[] = (() => {
+      if (Array.isArray(msgData.keys)) {
+        return (msgData.keys as WhatsAppKey[]).filter(k => k.fromMe && k.id)
+      }
+      const single = msgData.key as WhatsAppKey | undefined
+      if (single?.fromMe && single?.id) return [single]
+      return []
+    })()
+
+    if (keysToDelete.length > 0) {
       try {
         const row = await prisma.escritorio.findFirst({
           select: { evolutionApiUrl: true, evolutionApiKey: true, evolutionInstance: true },
@@ -91,15 +102,17 @@ export async function DELETE(
             instance: row.evolutionInstance,
           }
 
-          const result = await deleteMessage(cfg, conversa.remoteJid, key.id as string)
-
-          if (!result.ok) {
-            // Falha silenciosa (ex: mensagem com >60h) — loga mas continua o soft delete local
-            Sentry.captureMessage('deleteMessage Evolution API falhou (provavelmente >60h)', {
-              level: 'warning',
-              tags:  { module: 'mensagem-delete', operation: 'whatsapp-delete' },
-              extra: { mensagemId, conversaId, error: result.error },
-            })
+          // Deleta cada chunk individualmente (respostas longas são enviadas em múltiplas mensagens)
+          for (const waKey of keysToDelete) {
+            const result = await deleteMessage(cfg, conversa.remoteJid, waKey.id)
+            if (!result.ok) {
+              // Falha silenciosa (ex: mensagem com >60h) — loga mas continua o soft delete local
+              Sentry.captureMessage('deleteMessage Evolution API falhou (provavelmente >60h)', {
+                level: 'warning',
+                tags:  { module: 'mensagem-delete', operation: 'whatsapp-delete' },
+                extra: { mensagemId, conversaId, waKeyId: waKey.id, error: result.error },
+              })
+            }
           }
         }
       } catch (err) {
