@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { indexarAsync } from '@/lib/rag/indexar-async'
 import { deleteEmbeddings } from '@/lib/rag/store'
 import { vincularEmpresa } from '@/lib/clientes/vincular-empresa'
+import { syncClienteParaSocios } from '@/lib/clientes/sync-contato-cpf'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -98,6 +99,17 @@ export async function PUT(req: Request, { params }: Params) {
       },
     })
   })
+
+  // Sync contato bidirecional: cliente → sócios com mesmo CPF
+  if (cliente?.cpf) {
+    const syncDados: Record<string, string | null> = {}
+    if ('email' in clienteData) syncDados.email = (clienteData as { email?: string | null }).email?.trim() || null
+    if ('telefone' in clienteData) syncDados.telefone = (clienteData as { telefone?: string | null }).telefone?.trim() || null
+    if ('whatsapp' in clienteData) syncDados.whatsapp = (clienteData as { whatsapp?: string | null }).whatsapp?.trim() || null
+    if (Object.keys(syncDados).length > 0) {
+      void syncClienteParaSocios(cliente.cpf, syncDados)
+    }
+  }
 
   if (cliente) {
     const empPrincipal = cliente.clienteEmpresas?.[0]?.empresa ?? cliente.empresa

@@ -23,7 +23,6 @@ import { HistoricoTimeline } from '@/components/crm/historico-timeline'
 import { ClienteStatusSelect } from '@/components/crm/cliente-status-select'
 import { ReprocessarPdfButton } from '@/components/crm/reprocessar-pdf-button'
 import { EditarClienteButton } from '@/components/crm/editar-cliente-button'
-import { SocioPortalControls } from '@/components/crm/socio-portal-controls'
 import { DocumentosTabContent } from '@/components/crm/documentos-tab-content'
 import { DocumentoUpload } from '@/components/crm/documento-upload'
 import { EnviarEmailDrawer } from '@/components/crm/enviar-email-drawer'
@@ -96,8 +95,6 @@ export default async function ClienteDetailPage({ params }: Props) {
 
 
   const empresaVinculos = cliente.clienteEmpresas ?? []
-  // Sócios: agrega de todas as empresas vinculadas
-  const socios = empresaVinculos.flatMap(v => v.empresa.socios)
   const contratos = cliente.contratos
   const isPJ = cliente.tipoContribuinte === 'pj' || !!cliente.empresa?.cnpj || empresaVinculos.length > 0
   const semEmpresa = empresaVinculos.length === 0 && !cliente.empresa
@@ -119,7 +116,6 @@ export default async function ClienteDetailPage({ params }: Props) {
   const tabs = [
     { value: 'dados', label: 'Dados', count: null },
     { value: 'financeiro', label: 'Financeiro', count: null },
-    { value: 'socios', label: 'Sócios', count: socios.length },
     { value: 'documentos', label: 'Documentos', count: documentos.length },
     { value: 'contratos', label: 'Contratos', count: contratos.length },
     { value: 'nfse', label: 'Notas Fiscais', count: null },
@@ -353,56 +349,6 @@ export default async function ClienteDetailPage({ params }: Props) {
             valorMensal={Number(cliente.valorMensal)}
             regime={empresaVinculos[0]?.empresa.regime ?? cliente.empresa?.regime ?? null}
           />
-        </TabsContent>
-
-        {/* ── Sócios ─────────────────────────────────────── */}
-        <TabsContent value="socios" className="m-0 focus-visible:outline-none">
-          {socios.length === 0 ? (
-            <EmptyState icon="group" msg="Nenhum sócio cadastrado" />
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {socios.map((s) => (
-                <div key={s.id} className="overflow-hidden rounded-2xl border border-outline-variant/15 bg-card shadow-sm transition-shadow hover:shadow-md">
-                  <div className="flex items-center gap-3 px-5 py-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <span
-                        className="material-symbols-outlined text-[18px] text-primary"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        person
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-on-surface">{s.nome}</p>
-                        {s.principal && (
-                          <span className="rounded-full bg-green-status/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-status">
-                            Principal
-                          </span>
-                        )}
-                      </div>
-                      {s.qualificacao && (
-                        <p className="text-sm text-on-surface-variant">{s.qualificacao}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2 border-t border-outline-variant/15 px-5 py-4 text-sm">
-                    <InfoRow label="CPF" value={formatCPF(s.cpf)} />
-                    {s.participacao && <InfoRow label="Participação" value={`${Number(s.participacao)}%`} />}
-                    {s.email && <InfoRow label="E-mail" value={s.email} />}
-                    {s.telefone && <InfoRow label="Telefone" value={formatTelefone(s.telefone)} />}
-                  </div>
-                  <div className="border-t border-outline-variant/10 px-5 py-3">
-                    <SocioPortalControls
-                      socioId={s.id}
-                      temEmail={!!s.email}
-                      portalAccess={s.portalAccess}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </TabsContent>
 
         {/* ── Documentos ─────────────────────────────────── */}

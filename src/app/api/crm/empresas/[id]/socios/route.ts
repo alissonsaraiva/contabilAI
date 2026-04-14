@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { syncSocioParaCliente } from '@/lib/clientes/sync-contato-cpf'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -46,6 +47,17 @@ export async function POST(req: Request, { params }: Params) {
         principal:    !!principal,
       },
     })
+
+    // Sync contato: novo sócio → cliente com mesmo CPF (se existir)
+    if (socio.cpf) {
+      const syncDados: Record<string, string | null> = {}
+      if (email?.trim()) syncDados.email = email.trim()
+      if (telefone?.trim()) syncDados.telefone = telefone.trim()
+      if (whatsapp?.trim()) syncDados.whatsapp = whatsapp.trim()
+      if (Object.keys(syncDados).length > 0) {
+        void syncSocioParaCliente(socio.cpf, syncDados, socio.id)
+      }
+    }
 
     // Reindexar empresa no RAG
     const empresaCompleta = await prisma.empresa.findUnique({

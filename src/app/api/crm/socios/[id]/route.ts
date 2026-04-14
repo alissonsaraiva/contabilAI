@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { indexarAsync } from '@/lib/rag/indexar-async'
+import { syncSocioParaCliente } from '@/lib/clientes/sync-contato-cpf'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -15,7 +16,7 @@ export async function PATCH(req: Request, { params }: Params) {
   try {
     const socio = await prisma.socio.findUnique({
       where:  { id },
-      select: { id: true, empresaId: true },
+      select: { id: true, empresaId: true, cpf: true },
     })
     if (!socio) return NextResponse.json({ error: 'Sócio não encontrado' }, { status: 404 })
 
@@ -45,6 +46,18 @@ export async function PATCH(req: Request, { params }: Params) {
     if (principal    !== undefined) data.principal    = !!principal
 
     const atualizado = await prisma.socio.update({ where: { id }, data })
+
+    // Sync contato bidirecional: sócio → cliente + outros sócios com mesmo CPF
+    const cpfSync = (data.cpf as string | undefined) ?? socio.cpf
+    if (cpfSync) {
+      const syncDados: Record<string, string | null> = {}
+      if (email !== undefined) syncDados.email = email?.trim() || null
+      if (telefone !== undefined) syncDados.telefone = telefone?.trim() || null
+      if (whatsapp !== undefined) syncDados.whatsapp = whatsapp?.trim() || null
+      if (Object.keys(syncDados).length > 0) {
+        void syncSocioParaCliente(cpfSync, syncDados, id)
+      }
+    }
 
     // Reindexar empresa no RAG — passa clienteId para isolar por escopo cliente
     const empresa = await prisma.empresa.findUnique({

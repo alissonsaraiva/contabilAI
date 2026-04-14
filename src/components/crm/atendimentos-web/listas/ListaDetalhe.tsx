@@ -7,6 +7,7 @@ import { EmptyState } from '../EmptyState'
 import { MembrosSection } from './MembrosSection'
 import { EnviarSection } from './EnviarSection'
 import { HistoricoSection } from './HistoricoSection'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export function ListaDetalhe({
   listaId,
@@ -23,6 +24,8 @@ export function ListaDetalhe({
   const [editandoNome, setEditandoNome] = useState(false)
   const [nomeEdit, setNomeEdit]       = useState('')
   const [abaAtiva, setAbaAtiva]       = useState<'membros' | 'enviar' | 'historico'>('membros')
+  const [confirmExcluir, setConfirmExcluir] = useState(false)
+  const [excluindoLista, setExcluindoLista] = useState(false)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const carregar = useCallback(async () => {
@@ -71,14 +74,21 @@ export function ListaDetalhe({
     }
   }
 
-  async function excluirLista() {
-    if (!confirm('Excluir esta lista de transmissão? Esta ação não pode ser desfeita.')) return
+  function excluirLista() {
+    setConfirmExcluir(true)
+  }
+
+  async function handleConfirmExcluir() {
+    setExcluindoLista(true)
     try {
       await fetch(`/api/crm/listas-transmissao/${listaId}`, { method: 'DELETE' })
       onDeleted()
     } catch (err) {
       console.error('[lista-detalhe] erro ao excluir:', err)
       Sentry.captureException(err, { tags: { module: 'broadcast', operation: 'excluir' } })
+    } finally {
+      setExcluindoLista(false)
+      setConfirmExcluir(false)
     }
   }
 
@@ -96,6 +106,16 @@ export function ListaDetalhe({
   if (!lista) return <EmptyState icon="error" text="Lista não encontrada" />
 
   return (
+    <>
+    <ConfirmDialog
+      open={confirmExcluir}
+      onClose={() => setConfirmExcluir(false)}
+      onConfirm={handleConfirmExcluir}
+      title="Excluir lista de transmissão"
+      description="Esta ação não pode ser desfeita. Todos os envios e histórico serão removidos."
+      confirmLabel="Excluir"
+      loading={excluindoLista}
+    />
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-outline-variant/15 px-4 py-3">
@@ -132,7 +152,7 @@ export function ListaDetalhe({
         )}
 
         <button
-          onClick={() => void excluirLista()}
+          onClick={excluirLista}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-error/60 hover:bg-error/10 transition-colors"
           title="Excluir lista"
         >
@@ -178,5 +198,6 @@ export function ListaDetalhe({
         {abaAtiva === 'historico' && <HistoricoSection envios={envios} />}
       </div>
     </div>
+    </>
   )
 }

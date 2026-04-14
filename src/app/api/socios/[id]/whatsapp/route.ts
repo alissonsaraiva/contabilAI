@@ -31,11 +31,18 @@ export async function GET(_req: Request, { params }: Params) {
 
   const socio = await prisma.socio.findUnique({
     where:  { id: socioId },
-    select: { whatsapp: true, telefone: true, nome: true },
+    select: { whatsapp: true, telefone: true, nome: true, cpf: true },
   })
   if (!socio) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const phone = socio.whatsapp
+  let phone = socio.whatsapp
+  if (!phone && socio.cpf) {
+    const cliente = await prisma.cliente.findFirst({
+      where: { cpf: socio.cpf },
+      select: { whatsapp: true },
+    })
+    phone = cliente?.whatsapp ?? null
+  }
   if (!phone) return NextResponse.json({ conversa: null, mensagens: [], pausada: false })
 
   const remoteJid = buildRemoteJid(phone)
@@ -134,13 +141,20 @@ export async function POST(req: Request, { params }: Params) {
     const socio = await prisma.socio.findUnique({
       where:   { id: socioId },
       select: {
-        whatsapp: true, telefone: true, nome: true,
+        whatsapp: true, telefone: true, nome: true, cpf: true,
         empresa: { select: { clientes: { select: { id: true }, take: 1 } } },
       },
     })
     if (!socio) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const phone = socio.whatsapp
+    let phone = socio.whatsapp
+    if (!phone && socio.cpf) {
+      const cliente = await prisma.cliente.findFirst({
+        where: { cpf: socio.cpf },
+        select: { whatsapp: true },
+      })
+      phone = cliente?.whatsapp ?? null
+    }
     if (!phone) return NextResponse.json({ error: 'Sócio sem WhatsApp cadastrado' }, { status: 400 })
 
     const remoteJid = buildRemoteJid(phone)
