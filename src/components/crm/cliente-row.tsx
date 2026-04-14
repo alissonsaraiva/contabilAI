@@ -1,13 +1,20 @@
-import Link from 'next/link'
+'use client'
+
+import { useRouter } from 'next/navigation'
 
 export function ClienteRow({ href, children }: { href: string; children: React.ReactNode }) {
+  const router = useRouter()
   return (
-    <tr className="group cursor-pointer transition-colors hover:bg-surface-container-low/50">
+    <tr
+      onClick={() => {
+        // refresh() invalida o Router Cache para que push() busque RSC payload fresco do servidor.
+        // Sem isso, navegar A→B pode mostrar A's data se o cache tiver uma entrada stale.
+        router.refresh()
+        router.push(href)
+      }}
+      className="group cursor-pointer transition-colors hover:bg-surface-container-low/50"
+    >
       {children}
-      {/* Link invisível cobre a row — permite prefetch e navegação nativa do App Router */}
-      <td className="absolute inset-0 p-0">
-        <Link href={href} prefetch={false} className="absolute inset-0" aria-hidden />
-      </td>
     </tr>
   )
 }

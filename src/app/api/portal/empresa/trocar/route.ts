@@ -15,9 +15,23 @@ import { getEmpresasCliente } from '@/lib/portal-session'
 import { encode } from '@auth/core/jwt'
 
 export async function POST(req: NextRequest) {
+  // Log ANTES do auth — se sumir dos logs, a request nem chegou aqui
+  const cookieNames = [...req.cookies.getAll()].map(c => c.name)
+  const hasCookie   = cookieNames.includes(PORTAL_COOKIE_NAME)
+  console.log('[portal/empresa/trocar] Request recebida:', {
+    hasCookie,
+    cookieNames: cookieNames.filter(n => n.includes('portal')),
+  })
+
   const session = await auth()
   const user    = session?.user as any
   if (!user || (user.tipo !== 'cliente' && user.tipo !== 'socio')) {
+    console.warn('[portal/empresa/trocar] 401 — auth() falhou:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      tipo: user?.tipo,
+      hasCookie,
+    })
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -98,36 +112,39 @@ export async function POST(req: NextRequest) {
 
     const res = NextResponse.json({ ok: true })
 
-    // Limpar possível cookie host-only stale (sem domain) que ficou de versão anterior.
-    // Cookies host-only têm precedência sobre cookies domain — se existir um stale,
-    // o browser envia ambos e o servidor lê o antigo (primeiro da lista).
+    // ── Set-Cookie via headers.append — garante DOIS headers distintos ──
+    // NextResponse.cookies.set() com o mesmo nome pode sobrescrever.
+    // headers.append('Set-Cookie', ...) adiciona headers independentes.
+
     if (IS_PROD) {
-      res.cookies.set(PORTAL_COOKIE_NAME, '', {
-        httpOnly: true,
-        sameSite: 'lax',
-        path:     '/',
-        secure:   true,
-        maxAge:   0, // expira imediatamente — deleta o host-only
-        // SEM domain → apaga especificamente o cookie host-only de portal.avos.digital
-      })
+      // 1) Deletar possível cookie host-only stale (sem domain)
+      //    Cookies host-only têm precedência sobre domain cookies —
+      //    se existir um stale, o browser envia ambos e o servidor lê o antigo.
+      res.headers.append(
+        'Set-Cookie',
+        `${PORTAL_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`,
+      )
     }
 
-    res.cookies.set(PORTAL_COOKIE_NAME, jwt, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path:     '/',
-      secure:   IS_PROD,
-      maxAge,
-      // Mesmo domain do cookie original (auth-portal.ts sessionToken.options.domain)
-      // Sem isso, em produção cria cookie duplicado e o NextAuth lê o antigo
-      domain:   IS_PROD ? '.avos.digital' : undefined,
-    })
+    // 2) Setar o novo cookie com domain=.avos.digital
+    const cookieParts = [
+      `${PORTAL_COOKIE_NAME}=${jwt}`,
+      'Path=/',
+      `Max-Age=${maxAge}`,
+      'HttpOnly',
+      'SameSite=Lax',
+    ]
+    if (IS_PROD) {
+      cookieParts.push('Secure', 'Domain=.avos.digital')
+    }
+    res.headers.append('Set-Cookie', cookieParts.join('; '))
 
     console.log('[portal/empresa/trocar] Cookie setado com sucesso:', {
       novoUserId,
       novaEmpresaId,
       empresaIds,
       cookieName: PORTAL_COOKIE_NAME,
+      setCookieHeaders: res.headers.getSetCookie?.() ?? 'N/A',
     })
 
     return res
