@@ -110,6 +110,18 @@ enum StatusMensagem {
   failed
 }
 
+enum StatusEnvioTransmissao {
+  processando
+  concluido
+  falhou
+}
+
+enum StatusDestinatario {
+  pendente
+  enviado
+  falhou
+}
+
 enum AsaasStatusCobranca {
   PENDING
   RECEIVED
@@ -150,6 +162,10 @@ model Usuario {
   conversasAtribuidas       ConversaIA[]   @relation("ConversaAtribuida")
   mensagensComoOperador     MensagemIA[]   @relation("MensagemOperador")
   interacoesAtribuidas      Interacao[]    @relation("InteracaoAtribuida")
+
+  // Listas de transmissão
+  listasCriadas             ListaTransmissao[]  @relation("ListaCriador")
+  enviosTransmissao         EnvioTransmissao[]  @relation("EnvioCriador")
 
   @@map("usuarios")
 }
@@ -302,6 +318,7 @@ model Cliente {
   comunicadoEnvios  ComunicadoEnvio[]
   dasMeis           DasMEI[]
   clienteEmpresas   ClienteEmpresa[]
+  membrosLista      MembroListaTransmissao[] @relation("MembroLista")
 
   @@index([leadId], name: "cliente_leadId_partial")
   @@index([empresaId], name: "cliente_empresaId_partial")
@@ -357,6 +374,7 @@ model Socio {
 
   portalTokens PortalToken[]
   conversas    ConversaIA[]
+  membrosLista MembroListaTransmissao[] @relation("MembroLista")
 
   @@map("socios")
 }
@@ -1114,4 +1132,78 @@ model DasMEI {
   @@index([clienteId])
   @@index([dataVencimento, status])
   @@map("das_mei")
+}
+
+// ─── Listas de Transmissão (Broadcast WhatsApp) ─────────────────────────────
+
+model ListaTransmissao {
+  id           String   @id @default(uuid())
+  nome         String
+  criadaPorId  String
+  criadaEm     DateTime @default(now())
+  atualizadaEm DateTime @updatedAt
+
+  criador  Usuario                  @relation("ListaCriador", fields: [criadaPorId], references: [id], onDelete: Cascade)
+  membros  MembroListaTransmissao[]
+  envios   EnvioTransmissao[]
+
+  @@index([criadaPorId])
+  @@map("listas_transmissao")
+}
+
+model MembroListaTransmissao {
+  id        String  @id @default(uuid())
+  listaId   String
+  clienteId String?
+  socioId   String?
+
+  lista   ListaTransmissao @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  cliente Cliente?         @relation("MembroLista", fields: [clienteId], references: [id], onDelete: Cascade)
+  socio   Socio?           @relation("MembroLista", fields: [socioId], references: [id], onDelete: Cascade)
+
+  @@unique([listaId, clienteId])
+  @@unique([listaId, socioId])
+  @@index([listaId])
+  @@map("membros_lista_transmissao")
+}
+
+model EnvioTransmissao {
+  id            String                 @id @default(uuid())
+  listaId       String
+  operadorId    String
+  conteudo      String                 @db.Text
+  mediaUrl      String?
+  mediaType     String?
+  mediaFileName String?
+  mediaMimeType String?
+  status        StatusEnvioTransmissao @default(processando)
+  totalMembros  Int
+  totalEnviados Int                    @default(0)
+  totalFalhas   Int                    @default(0)
+  criadoEm      DateTime               @default(now())
+  atualizadoEm  DateTime               @updatedAt
+
+  lista         ListaTransmissao    @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  operador      Usuario             @relation("EnvioCriador", fields: [operadorId], references: [id], onDelete: Cascade)
+  destinatarios DestinatarioEnvio[]
+
+  @@index([listaId])
+  @@index([status])
+  @@map("envios_transmissao")
+}
+
+model DestinatarioEnvio {
+  id        String              @id @default(uuid())
+  envioId   String
+  clienteId String?
+  socioId   String?
+  remoteJid String
+  status    StatusDestinatario  @default(pendente)
+  erroEnvio String?             @db.Text
+  enviadoEm DateTime?
+
+  envio EnvioTransmissao @relation(fields: [envioId], references: [id], onDelete: Cascade)
+
+  @@index([envioId, status])
+  @@map("destinatarios_envio")
 }

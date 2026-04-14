@@ -714,7 +714,9 @@ src/
 │   │       └─ retomar-pausadas.ts   # auto-resume após 1h
 │   ├─ whatsapp-utils.ts             # buildRemoteJid, isMediaUrlTrusted, checkRateLimit, MIME whitelist
 │   ├─ evolution.ts                  # Client Evolution API (sendText, sendMedia, retry, circuit breaker)
-│   └─ event-bus.ts                  # EventEmitter (SSE events)
+│   ├─ event-bus.ts                  # EventEmitter (SSE events)
+│   └─ broadcast/
+│       └─ processar-envios.ts       # Processador async de broadcast (cron)
 ├─ app/(crm)/crm/atendimentos/
 │   └─ _components/
 │       └─ conversa-rodape.tsx        # Rodapé da conversa em /atendimentos (assumir, enviar, upload, docs sistema)
@@ -728,3 +730,75 @@ src/
         ├─ chat-input.tsx             # Entrada de texto + anexo
         └─ chat-boundary.tsx          # React Error Boundary
 ```
+
+---
+
+## Listas de Transmissão (Broadcast)
+
+### Visão geral
+
+Operadores podem criar listas de transmissão para enviar mensagens WhatsApp em lote para grupos de clientes/sócios. As respostas chegam no chat individual normalmente.
+
+### Schema
+
+- **ListaTransmissao** — lista nomeada, criada por um operador (máx 50 membros)
+- **MembroListaTransmissao** — vínculo lista↔cliente ou lista↔sócio (unique por lista)
+- **EnvioTransmissao** — registro de cada broadcast disparado (status: processando/concluido/falhou)
+- **DestinatarioEnvio** — status individual por membro (pendente/enviado/falhou)
+
+### Rotas API
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/crm/listas-transmissao` | Listar listas (com contagem e último envio) |
+| POST | `/api/crm/listas-transmissao` | Criar lista |
+| GET | `/api/crm/listas-transmissao/[id]` | Detalhe + membros |
+| PATCH | `/api/crm/listas-transmissao/[id]` | Renomear |
+| DELETE | `/api/crm/listas-transmissao/[id]` | Excluir (cascade) |
+| POST | `/api/crm/listas-transmissao/[id]/membros` | Adicionar membros |
+| DELETE | `/api/crm/listas-transmissao/[id]/membros/[membroId]` | Remover membro |
+| POST | `/api/crm/listas-transmissao/[id]/enviar` | Disparar broadcast (retorna 202) |
+| GET | `/api/crm/listas-transmissao/[id]/envios` | Histórico de envios |
+| POST | `/api/crm/listas-transmissao/processar-envios` | Cron: processa fila |
+
+### Fluxo de envio
+
+```
+1. Operador compõe mensagem (texto + arquivo opcional) e clica "Enviar"
+2. POST /enviar → cria EnvioTransmissao + DestinatarioEnvio[] → retorna 202
+3. Cron processar-envios (VPS, a cada ~15s):
+   Para cada destinatário pendente:
+     a. Resolve remoteJid via telefone
+     b. Busca/cria ConversaIA individual (canal: whatsapp)
+     c. Envia via Evolution (sendText ou sendMedia) — retry com backoff
+     d. Cria MensagemIA na conversa individual (para IA ter contexto)
+     e. Emite SSE refresh (atualiza chat se aberto)
+     f. Atualiza status destinatário + contadores
+     g. Delay 3s entre envios (anti-ban)
+4. IA continua ativa — quando cliente responder, IA atende normalmente
+```
+
+### Proteções
+
+- Máximo 50 membros por lista
+- Delay de 3s entre envios (anti-ban WhatsApp)
+- Rate limit: apenas 1 broadcast em processamento por lista
+- Validação de mídia: mesma whitelist MIME do chat individual
+- Sentry tags: `{ module: 'broadcast', operation: '...' }`
+
+### UI
+
+A tela de atendimentos ganhou tabs "Conversas" e "Listas" no painel esquerdo:
+- **Conversas**: exatamente como antes (aguardando/humano/IA)
+- **Listas**: CRUD de listas, gerenciamento de membros, composição de broadcast, histórico de envios
+
+### Cron VPS
+
+```bash
+# processar-envios-broadcast (4x/min)
+* * * * * for i in 0 15 30 45; do sleep $i; \
+  curl -s -X POST https://dominio/api/crm/listas-transmissao/processar-envios \
+  -H "Authorization: Bearer $CRON_SECRET" > /dev/null 2>&1; done
+```
+
+Healthcheck: `HC_PROCESSAR_ENVIOS_BROADCAST`
