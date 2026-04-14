@@ -93,6 +93,13 @@ export function ThreadRow({ thread, aba, selecionado, marcado, onToggle, onClick
             ? <span className="flex items-center gap-0.5 rounded-full bg-green-500/10 px-2 py-0.5 text-[9px] font-medium text-green-600/80"><span className="material-symbols-outlined text-[10px]">reply</span>Respondido</span>
             : <span className="flex items-center gap-0.5 rounded-full bg-surface-container px-2 py-0.5 text-[9px] text-on-surface-variant/40"><span className="material-symbols-outlined text-[10px]">check_circle</span>Dispensado</span>
         )}
+        {/* Operador atribuído */}
+        {aba === 'entrada' && thread.atribuidaPara && (
+          <span className="flex items-center gap-0.5 rounded-full bg-violet-500/10 px-2 py-0.5 text-[9px] font-semibold text-violet-600">
+            <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_pin</span>
+            {thread.atribuidaPara.nome.split(' ')[0]}
+          </span>
+        )}
       </div>
     </button>
   )

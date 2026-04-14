@@ -6,16 +6,20 @@ import { toast }                        from 'sonner'
 import type { ThreadItem, MensagemThread, Aba, ClienteOpt, VincularEstado } from './_shared'
 import { MensagemBubble }               from './mensagem-bubble'
 
-export function PainelThread({ thread, aba, clientes, operadorNome, escritorioNome, onReplied, onDispensed, onVinculado, onAnexoArquivado, onBack }: {
+export type OperadorEmailOpcao = { id: string; nome: string; tipo: string }
+
+export function PainelThread({ thread, aba, clientes, operadores, operadorNome, escritorioNome, onReplied, onDispensed, onVinculado, onAnexoArquivado, onAtribuido, onBack }: {
   thread:            ThreadItem
   aba:               Aba
   clientes:          ClienteOpt[]
+  operadores:        OperadorEmailOpcao[]
   operadorNome:      string
   escritorioNome:    string
   onReplied:         (threadId: string, msg: MensagemThread) => void
   onDispensed:       (threadId: string) => void
   onVinculado:       (threadId: string, clienteId: string, clienteNome: string) => void
   onAnexoArquivado:  (threadId: string, msgId: string, nome: string) => void
+  onAtribuido:       (threadId: string, atribuidaPara: { id: string; nome: string } | null) => void
   onBack:            () => void
 }) {
   const [resposta,       setResposta]       = useState('')
@@ -30,6 +34,9 @@ export function PainelThread({ thread, aba, clientes, operadorNome, escritorioNo
   const [vincularClienteId, setVincularClienteId] = useState('')
   const [arquivandoAnexos,  setArquivandoAnexos]  = useState<Set<string>>(new Set())
   const [anexosArquivados,  setAnexosArquivados]  = useState<Set<string>>(new Set())
+  const [atribDropdown,  setAtribDropdown]  = useState(false)
+  const [atribuindo,     setAtribuindo]     = useState(false)
+  const atribDropdownRef = useRef<HTMLDivElement>(null)
   const threadEndRef = useRef<HTMLDivElement>(null)
 
   // Último email recebido sem resposta (para reply-to e sugestão)
@@ -53,10 +60,47 @@ export function PainelThread({ thread, aba, clientes, operadorNome, escritorioNo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread.threadId])
 
+  // Fecha dropdown ao clicar fora
+  useEffect(() => {
+    if (!atribDropdown) return
+    function handler(e: MouseEvent) {
+      if (atribDropdownRef.current && !atribDropdownRef.current.contains(e.target as Node)) {
+        setAtribDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [atribDropdown])
+
   // Scroll para o final da thread
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [thread.mensagens.length])
+
+  async function atribuirThread(operadorId: string | null, operadorNome: string | null) {
+    if (atribuindo) return  // guard: ignora clique duplo enquanto requisição anterior está em andamento
+    setAtribDropdown(false)
+    setAtribuindo(true)
+    try {
+      const res = await fetch(`/api/email/inbox/${thread.interacaoRaizId}/atribuir`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ operadorId }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as Record<string, unknown>
+        toast.error((d.error as string | undefined) ?? 'Erro ao atribuir')
+        return
+      }
+      onAtribuido(
+        thread.threadId,
+        operadorId && operadorNome ? { id: operadorId, nome: operadorNome } : null,
+      )
+      toast.success(operadorId ? `Atribuído para ${operadorNome}` : 'Atribuição removida')
+    } finally {
+      setAtribuindo(false)
+    }
+  }
 
   const isPendente = aba === 'entrada' && thread.temNaoRespondido
 
@@ -220,6 +264,67 @@ export function PainelThread({ thread, aba, clientes, operadorNome, escritorioNo
                 {thread.clienteNome ?? 'Ver cliente'}
               </Link>
             )}
+
+            {/* Dropdown de atribuição */}
+            <div ref={atribDropdownRef} className="relative">
+              <button
+                onClick={() => setAtribDropdown(v => !v)}
+                disabled={atribuindo}
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50 ${
+                  thread.atribuidaPara
+                    ? 'border-violet-500/30 bg-violet-500/10 text-violet-600 hover:bg-violet-500/20'
+                    : 'border-outline-variant/25 bg-surface-container-low text-on-surface-variant/70 hover:bg-surface-container hover:text-on-surface'
+                }`}
+                title={thread.atribuidaPara ? `Atribuído: ${thread.atribuidaPara.nome}` : 'Atribuir'}
+              >
+                <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_pin</span>
+                <span className="max-w-[7rem] truncate">
+                  {atribuindo ? 'Salvando...' : (thread.atribuidaPara?.nome ?? 'Atribuir')}
+                </span>
+                <span className="material-symbols-outlined text-[11px]">expand_more</span>
+              </button>
+              {atribDropdown && (
+                <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-[12px] border border-outline-variant/15 bg-card shadow-lg">
+                  <div className="px-3 pt-2.5 pb-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50">Atribuir para</p>
+                  </div>
+                  <div className="max-h-52 overflow-y-auto py-1">
+                    {operadores.map(op => (
+                      <button
+                        key={op.id}
+                        onClick={() => void atribuirThread(op.id, op.nome)}
+                        className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] transition-colors hover:bg-surface-container-low ${
+                          thread.atribuidaPara?.id === op.id ? 'font-semibold text-violet-600' : 'text-on-surface'
+                        }`}
+                      >
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-[9px] font-bold text-violet-600">
+                          {op.nome.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="flex-1 truncate">{op.nome}</span>
+                        {thread.atribuidaPara?.id === op.id && (
+                          <span className="material-symbols-outlined text-[14px] text-violet-600">check</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {thread.atribuidaPara && (
+                    <>
+                      <div className="mx-3 border-t border-outline-variant/10" />
+                      <div className="py-1">
+                        <button
+                          onClick={() => void atribuirThread(null, null)}
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] text-on-surface-variant/60 transition-colors hover:bg-surface-container-low hover:text-error"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">person_remove</span>
+                          Remover atribuição
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             {isPendente && (
               <button onClick={dispensar} disabled={dispensando} title="Marcar como tratado sem responder" className="flex items-center gap-1.5 rounded-xl border border-outline-variant/25 bg-surface-container-low px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant/70 transition-colors hover:bg-surface-container hover:text-on-surface disabled:opacity-50">
                 {dispensando

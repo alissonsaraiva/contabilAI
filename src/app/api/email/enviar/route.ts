@@ -84,5 +84,25 @@ export async function POST(req: Request) {
     }
   }
 
+  // Auto-atribuição: ao responder uma thread sem responsável, atribui ao operador remetente.
+  // O WHERE inclui `atribuidaParaId: null` — a condição é avaliada atomicamente pelo banco,
+  // eliminando a race condition de dois respondentes simultâneos (findFirst+updateMany seria não-atômico).
+  if (usuarioId && (emailThreadId || interacaoOrigemId)) {
+    try {
+      await prisma.interacao.updateMany({
+        where: emailThreadId
+          ? { emailThreadId, atribuidaParaId: null }
+          : { id: interacaoOrigemId!, atribuidaParaId: null },
+        data: { atribuidaParaId: usuarioId, atribuidaEm: new Date() },
+      })
+    } catch (err: unknown) {
+      console.error('[email/enviar] erro ao auto-atribuir thread:', { emailThreadId, interacaoOrigemId, err })
+      Sentry.captureException(err, {
+        tags:  { module: 'email-enviar', operation: 'auto-atribuir' },
+        extra: { emailThreadId, interacaoOrigemId, usuarioId },
+      })
+    }
+  }
+
   return NextResponse.json({ ok: true, messageId: resultado.messageId })
 }

@@ -146,6 +146,11 @@ model Usuario {
   interacoes          Interacao[]
   notificacoes        Notificacao[]
 
+  // Atribuição de conversas e mensagens humanas
+  conversasAtribuidas       ConversaIA[]   @relation("ConversaAtribuida")
+  mensagensComoOperador     MensagemIA[]   @relation("MensagemOperador")
+  interacoesAtribuidas      Interacao[]    @relation("InteracaoAtribuida")
+
   @@map("usuarios")
 }
 
@@ -573,6 +578,10 @@ model Interacao {
   // E-mail: rastreia se o email_recebido foi respondido ou dispensado
   respondidoEm     DateTime?
   respondidoPorId  String?
+  // Atribuição: operador responsável por responder este email/thread
+  atribuidaParaId  String?
+  atribuidaPara    Usuario?  @relation("InteracaoAtribuida", fields: [atribuidaParaId], references: [id], onDelete: SetNull)
+  atribuidaEm      DateTime?
   deletadoEm       DateTime?
   criadoEm         DateTime @default(now())
   // Threading de e-mail — agrupa mensagens da mesma conversa
@@ -589,6 +598,7 @@ model Interacao {
   @@index([clienteId, deletadoEm])
   @@index([emailThreadId, criadoEm])
   @@index([emailMessageId])
+  @@index([atribuidaParaId])
   @@map("interacoes")
 }
 
@@ -774,6 +784,9 @@ model ConversaIA {
   sessionId    String?      // identificador de sessão web
   pausadaEm        DateTime?    // quando preenchido, IA não responde automaticamente
   pausadoPorId     String?      // id do usuário que pausou a IA
+  atribuidaParaId  String?      // operador responsável pela conversa (null = não atribuída)
+  atribuidaPara    Usuario?     @relation("ConversaAtribuida", fields: [atribuidaParaId], references: [id], onDelete: SetNull)
+  atribuidaEm      DateTime?    // quando foi atribuída
   ultimaMensagemEm DateTime?    // atualizado a cada msg recebida (debounce WhatsApp)
   processandoEm   DateTime?    // lock distribuído: cron seta ao iniciar, limpa no finally; evita duplo processamento entre instâncias
   criadaEm         DateTime     @default(now())
@@ -789,6 +802,7 @@ model ConversaIA {
   @@index([atualizadaEm])
   @@index([canal, atualizadaEm])
   @@index([pausadaEm])
+  @@index([atribuidaParaId])
   @@map("conversas_ia")
 }
 
@@ -797,6 +811,8 @@ model MensagemIA {
   conversaId        String
   conversa          ConversaIA     @relation(fields: [conversaId], references: [id], onDelete: Cascade)
   role              String         // 'user' | 'assistant'
+  operadorId        String?        // null = mensagem da IA; preenchido = operador humano que enviou
+  operador          Usuario?       @relation("MensagemOperador", fields: [operadorId], references: [id], onDelete: SetNull)
   conteudo          String         @db.Text
   status            StatusMensagem @default(pending)
   tentativas        Int            @default(0)

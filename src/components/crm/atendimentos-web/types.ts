@@ -9,6 +9,8 @@ export type ConversaWebItem = {
   cliente: { id: string; nome: string } | null
   lead: { id: string; contatoEntrada: string; dadosJson: unknown } | null
   mensagens: { conteudo: string; role: string }[]
+  /** Operador responsável pela conversa (null = não atribuída) */
+  atribuidaPara: { id: string; nome: string } | null
 }
 
 export type EscalacaoWebItem = {

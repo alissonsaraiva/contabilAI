@@ -48,7 +48,13 @@ export async function GET(_req: Request, { params }: Params) {
       OR: [{ remoteJid }, { socioId }],
     },
     orderBy: { criadaEm: 'asc' },
-    include: { mensagens: { orderBy: { criadaEm: 'asc' } } },
+    include: {
+      mensagens: {
+        orderBy: { criadaEm: 'asc' },
+        include: { operador: { select: { nome: true } } },
+      },
+      atribuidaPara: { select: { id: true, nome: true } },
+    },
   })
 
   // Conversa mais recentemente ATUALIZADA (alinhado com POST — evita mismatch de pausada)
@@ -58,21 +64,29 @@ export async function GET(_req: Request, { params }: Params) {
   const mensagens = conversas
     .flatMap(c => c.mensagens)
     .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime())
-    .map(({ whatsappMsgData, ...m }) => ({
-    ...m,
-    // Mensagem excluída: apaga conteúdo e mídia — front renderiza placeholder
-    conteudo:      m.excluido ? null : m.conteudo,
-    mediaUrl:      m.excluido ? null : m.mediaUrl,
-    mediaType:     m.excluido ? null : m.mediaType,
-    mediaFileName: m.excluido ? null : m.mediaFileName,
-    hasWhatsappMedia: !m.excluido && !m.mediaUrl && (
-      m.mediaType === 'document' ||
-      (!!whatsappMsgData && m.conteudo.startsWith('[') && m.conteudo.endsWith(']'))
-    ),
-  }))
+    .map(({ whatsappMsgData, operador, ...m }) => ({
+      ...m,
+      // Nome do operador humano que enviou (null = mensagem da IA)
+      operadorNome: operador?.nome ?? null,
+      // Mensagem excluída: apaga conteúdo e mídia — front renderiza placeholder
+      conteudo:      m.excluido ? null : m.conteudo,
+      mediaUrl:      m.excluido ? null : m.mediaUrl,
+      mediaType:     m.excluido ? null : m.mediaType,
+      mediaFileName: m.excluido ? null : m.mediaFileName,
+      hasWhatsappMedia: !m.excluido && !m.mediaUrl && (
+        m.mediaType === 'document' ||
+        (!!whatsappMsgData && m.conteudo.startsWith('[') && m.conteudo.endsWith(']'))
+      ),
+    }))
 
   return NextResponse.json({
-    conversa:  conversaAtual ? { id: conversaAtual.id, pausadaEm: conversaAtual.pausadaEm } : null,
+    conversa: conversaAtual
+      ? {
+          id:             conversaAtual.id,
+          pausadaEm:      conversaAtual.pausadaEm,
+          atribuidaPara:  conversaAtual.atribuidaPara ?? null,
+        }
+      : null,
     mensagens,
     pausada:   !!conversaAtual?.pausadaEm,
     remoteJid,
@@ -141,22 +155,27 @@ export async function POST(req: Request, { params }: Params) {
     let conversa = await prisma.conversaIA.findFirst({
       where:   { canal: 'whatsapp', remoteJid },
       orderBy: { atualizadaEm: 'desc' },
-      select:  { id: true },
+      select:  { id: true, atribuidaParaId: true },
     })
 
     if (!conversa) {
       conversa = await prisma.conversaIA.create({
         data:   { canal: 'whatsapp', remoteJid, socioId, clienteId },
-        select: { id: true },
+        select: { id: true, atribuidaParaId: true },
       })
     }
+
+    // Auto-atribuição: ao enviar a primeira mensagem, atribui ao operador se ainda não houver responsável
+    const autoAtribuir = !conversa.atribuidaParaId
 
     // Registra interação e pausa IA se necessário
     await prisma.conversaIA.update({
       where: { id: conversa.id },
-      data: pausarIA
-        ? { pausadaEm: new Date(), pausadoPorId: session.user.id, atualizadaEm: new Date() }
-        : { atualizadaEm: new Date() },
+      data: {
+        ...(pausarIA ? { pausadaEm: new Date(), pausadoPorId: session.user.id } : {}),
+        ...(autoAtribuir ? { atribuidaParaId: session.user.id, atribuidaEm: new Date() } : {}),
+        atualizadaEm: new Date(),
+      },
     })
     if (clienteId) {
       await prisma.interacao.create({
@@ -183,11 +202,12 @@ export async function POST(req: Request, { params }: Params) {
         })
       : await sendText(cfg, remoteJid, conteudo)
 
-    // Persiste mensagem
+    // Persiste mensagem com operadorId para rastreabilidade
     await prisma.mensagemIA.create({
       data: {
         conversaId:  conversa.id,
         role:        'assistant',
+        operadorId:  session.user.id,  // distingue mensagem humana de mensagem da IA
         conteudo,
         status:      sendResult.ok ? 'sent' : 'failed',
         tentativas:  sendResult.ok ? 1 : ('attempts' in sendResult ? sendResult.attempts : 1),

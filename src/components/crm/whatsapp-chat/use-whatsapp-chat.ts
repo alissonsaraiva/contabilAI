@@ -8,6 +8,8 @@ import type { DocSistema } from '@/components/crm/documento-picker'
 export type Mensagem = {
   id: string
   role: string
+  /** Nome do operador humano que enviou — null quando é mensagem da IA */
+  operadorNome?: string | null
   conteudo: string | null
   criadaEm: string | Date
   status?: 'pending' | 'sent' | 'failed'
@@ -19,6 +21,8 @@ export type Mensagem = {
   hasWhatsappMedia?: boolean
   excluido?: boolean
 }
+
+export type AtribuidoPara = { id: string; nome: string } | null
 
 export type ArquivoAnexo = {
   url: string
@@ -85,6 +89,8 @@ export function useWhatsAppChat(apiPath: string) {
   const [uploading, setUploading] = useState(false)
   const [naoModoIA, setNaoModoIA] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [atribuidaPara, setAtribuidaPara] = useState<AtribuidoPara>(null)
+  const [atribuindo, setAtribuindo] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -128,13 +134,18 @@ export function useWhatsAppChat(apiPath: string) {
       setPausada(data.pausada ?? false)
       setConversaId(data.conversa?.id ?? null)
       setTelefone(data.telefone ?? null)
+      setAtribuidaPara((data.conversa?.atribuidaPara as AtribuidoPara) ?? null)
     } catch (err) {
       // FIX #4: catch nunca mais silencioso
       console.error('[whatsapp-chat] carregar error:', err)
-      Sentry.captureException(err, {
-        tags: { module: 'whatsapp-chat', operation: 'carregar' },
-        extra: { apiPath },
-      })
+      // Erro de rede (usuário offline / VPS reiniciando) não é bug — não polui Sentry
+      const isNetworkError = err instanceof TypeError && err.message === 'Failed to fetch'
+      if (!isNetworkError) {
+        Sentry.captureException(err, {
+          tags: { module: 'whatsapp-chat', operation: 'carregar' },
+          extra: { apiPath },
+        })
+      }
     }
   }, [apiPath])
 
@@ -428,7 +439,6 @@ export function useWhatsAppChat(apiPath: string) {
   async function excluirMensagem(mensagemId: string) {
     // FIX #9: Set imutável para prevenir race condition de clique duplo
     if (!conversaId || excluindo.has(mensagemId)) return
-    if (!confirm('Apagar esta mensagem para todos?')) return
     setExcluindo(prev => new Set(prev).add(mensagemId))
     try {
       const res = await fetch(`/api/conversas/${conversaId}/mensagens/${mensagemId}`, { method: 'DELETE' })
@@ -453,6 +463,33 @@ export function useWhatsAppChat(apiPath: string) {
     }
   }
 
+  async function atribuir(operadorId: string | null, operadorNome: string | null) {
+    if (!conversaId) return
+    setAtribuindo(true)
+    try {
+      const res = await fetch(`/api/conversas/${conversaId}/atribuir`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ operadorId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as Record<string, unknown>
+        toast.error((err.error as string | undefined) ?? 'Erro ao atribuir conversa')
+        return
+      }
+      setAtribuidaPara(operadorId && operadorNome ? { id: operadorId, nome: operadorNome } : null)
+      toast.success(operadorId ? `Conversa atribuída para ${operadorNome ?? 'operador'}` : 'Atribuição removida')
+    } catch (err) {
+      toast.error('Erro ao atribuir conversa')
+      Sentry.captureException(err, {
+        tags:  { module: 'whatsapp-chat', operation: 'atribuir' },
+        extra: { conversaId, operadorId },
+      })
+    } finally {
+      setAtribuindo(false)
+    }
+  }
+
   return {
     // state
     mensagens, pausada, conversaId, telefone, semNumero,
@@ -461,11 +498,12 @@ export function useWhatsAppChat(apiPath: string) {
     arquivos, uploading,
     naoModoIA, setNaoModoIA,
     pickerOpen, setPickerOpen,
+    atribuidaPara, atribuindo,
     entity,
     // refs
     fileInputRef, bottomRef, scrollContainerRef,
     // handlers
     onScroll, handleFileChange, removerArquivo, handleDocsSistema,
-    enviar, assumirControle, reativarIA, excluirMensagem,
+    enviar, assumirControle, reativarIA, excluirMensagem, atribuir,
   }
 }

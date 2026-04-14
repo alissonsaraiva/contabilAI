@@ -32,6 +32,10 @@ export type ThreadItem = {
   temNaoRespondido: boolean        // tem email_recebido sem respondidoEm
   ultimaData:      string
   mensagens:       MensagemThread[]
+  /** Operador responsável por responder esta thread (null = não atribuído) */
+  atribuidaPara:   { id: string; nome: string } | null
+  /** ID da primeira interação da thread — usado como referência para atribuir */
+  interacaoRaizId: string
 }
 
 type Props = { searchParams: Promise<{ dias?: string }> }
@@ -48,8 +52,9 @@ export default async function EmailsPage({ searchParams }: Props) {
   const escritorio = await getEscritorioConfig()
 
   const include = {
-    cliente: { select: { id: true, nome: true } },
-    lead:    { select: { id: true, contatoEntrada: true, dadosJson: true } },
+    cliente:      { select: { id: true, nome: true } },
+    lead:         { select: { id: true, contatoEntrada: true, dadosJson: true } },
+    atribuidaPara: { select: { id: true, nome: true } },
   }
 
   const whereRecebidos = { tipo: 'email_recebido' as const, deletadoEm: null, criadoEm: { gte: dataLimite } }
@@ -141,6 +146,10 @@ export default async function EmailsPage({ searchParams }: Props) {
       ? `/crm/clientes/${data.clienteId}`
       : data.leadId ? `/crm/leads/${data.leadId}` : null
 
+    // Atribuição: pega do primeiro email da thread que tiver (todos devem ser iguais)
+    const comAtribuicao = sorted.find((i: any) => i.atribuidaPara)
+    const atribuidaPara = (comAtribuicao?.atribuidaPara as { id: string; nome: string } | null) ?? null
+
     return {
       threadId,
       assunto:          assunto as string,
@@ -151,6 +160,8 @@ export default async function EmailsPage({ searchParams }: Props) {
       temNaoRespondido,
       ultimaData:       ultimo.criadoEm.toISOString(),
       mensagens:        sorted.map(serializarMensagem),
+      atribuidaPara,
+      interacaoRaizId:  (sorted[0] as any).id as string,
     }
   }
 
@@ -181,6 +192,7 @@ export default async function EmailsPage({ searchParams }: Props) {
       escritorioNome={escritorio.nomeFantasia ?? escritorio.nome}
       diasFiltro={diasFiltro}
       totalRecebidos={totalRecebidos}
+      currentUserId={session?.user?.id ?? null}
     />
   )
 }

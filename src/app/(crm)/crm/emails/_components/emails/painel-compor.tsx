@@ -70,6 +70,8 @@ export function PainelCompor({ clientes, onSent, onClose }: {
         temNaoRespondido: false,
         ultimaData:       agora,
         mensagens:        [novaMensagem],
+        atribuidaPara:    null,
+        interacaoRaizId:  msgId,
       })
     } finally {
       setEnviando(false)

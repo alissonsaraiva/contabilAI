@@ -92,7 +92,7 @@ function ConversaItem({
             {ultimaMensagem.conteudo}
           </p>
         )}
-        <div className="mt-1 flex items-center gap-1.5">
+        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
           <span className={`text-[10px] font-medium ${
             c.canal === 'whatsapp' ? 'text-[#25D366]' :
             c.canal === 'portal'   ? 'text-violet-500' : 'text-blue-500'
@@ -105,6 +105,13 @@ function ConversaItem({
             <span className="rounded-full bg-orange-status/10 px-1.5 text-[10px] font-semibold text-orange-status">humano</span>
           ) : (
             <span className="rounded-full bg-green-status/10 px-1.5 text-[10px] font-semibold text-green-status">IA</span>
+          )}
+          {/* Operador atribuído */}
+          {c.atribuidaPara && (
+            <span className="flex items-center gap-0.5 rounded-full bg-violet-500/10 px-1.5 text-[10px] font-semibold text-violet-600">
+              <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_pin</span>
+              {c.atribuidaPara.nome.split(' ')[0]}
+            </span>
           )}
         </div>
       </div>

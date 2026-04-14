@@ -1,9 +1,10 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { DocumentoPicker } from '@/components/crm/documento-picker'
 import { useWhatsAppChat, WHATSAPP_API_PATH_PATTERN } from './whatsapp-chat/use-whatsapp-chat'
 import { WhatsAppChatBoundary } from './whatsapp-chat/chat-boundary'
-import { ChatHeader } from './whatsapp-chat/chat-header'
+import { ChatHeader, type OperadorOpcao } from './whatsapp-chat/chat-header'
 import { MessageItem } from './whatsapp-chat/message-item'
 import { ChatInput } from './whatsapp-chat/chat-input'
 
@@ -34,10 +35,20 @@ function WhatsAppChatPanelInner({ apiPath, nomeExibido, onClose, clienteId: clie
     texto, setTexto, sending, reativando, assumindo, excluindo,
     arquivos, uploading, naoModoIA, setNaoModoIA,
     pickerOpen, setPickerOpen, entity,
+    atribuidaPara, atribuindo,
     fileInputRef, bottomRef, scrollContainerRef,
     onScroll, handleFileChange, removerArquivo, handleDocsSistema,
-    enviar, assumirControle, reativarIA, excluirMensagem,
+    enviar, assumirControle, reativarIA, excluirMensagem, atribuir,
   } = useWhatsAppChat(apiPath)
+
+  // Lista de operadores para o dropdown de atribuição — carregada uma vez
+  const [operadores, setOperadores] = useState<OperadorOpcao[]>([])
+  useEffect(() => {
+    fetch('/api/usuarios/operadores')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: OperadorOpcao[]) => setOperadores(data))
+      .catch((err: unknown) => console.error('[whatsapp-chat-panel] erro ao carregar operadores:', err))
+  }, [])
 
   // Usa o contexto do entity (apiPath) como prioritário; cai no prop como fallback
   // (ex: sócio, ou conversa não vinculada a cliente/lead)
@@ -63,9 +74,13 @@ function WhatsAppChatPanelInner({ apiPath, nomeExibido, onClose, clienteId: clie
         assumindo={assumindo}
         conversaId={conversaId}
         mensagensCount={mensagens.length}
+        atribuidaPara={atribuidaPara}
+        atribuindo={atribuindo}
+        operadores={operadores}
         onClose={onClose}
         onReativarIA={reativarIA}
         onAssumir={assumirControle}
+        onAtribuir={atribuir}
       />
 
       {/* Banner de pausa */}

@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { Mensagem } from './use-whatsapp-chat'
 
 type Props = {
@@ -8,8 +10,17 @@ type Props = {
   onExcluir: (id: string) => void
 }
 
+/** Iniciais de até 2 palavras do nome */
+function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/)
+  const a = partes[0]?.charAt(0).toUpperCase() ?? ''
+  const b = partes[1]?.charAt(0).toUpperCase() ?? ''
+  return a + b
+}
+
 export function MessageItem({ m, excluindo, onExcluir }: Props) {
   const isExcluindo = excluindo.has(m.id)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   // FIX #12: status 'pending' agora tem estilo visual distinto
   const bubbleClass = m.excluido
@@ -23,6 +34,15 @@ export function MessageItem({ m, excluindo, onExcluir }: Props) {
           : 'rounded-br-md bg-primary text-white'
 
   return (
+    <>
+    <ConfirmDialog
+      open={confirmOpen}
+      onClose={() => setConfirmOpen(false)}
+      onConfirm={() => { setConfirmOpen(false); onExcluir(m.id) }}
+      title="Apagar mensagem para todos?"
+      description="A mensagem será removida para você e para o contato no WhatsApp. Esta ação não pode ser desfeita."
+      confirmLabel="Apagar"
+    />
     <div className={`group flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
       {m.role === 'user' && (
         <div className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#25D366]/15">
@@ -86,7 +106,7 @@ export function MessageItem({ m, excluindo, onExcluir }: Props) {
         )}
 
         {!m.excluido && (
-          <p className={`mt-1 text-[10px] ${
+          <div className={`mt-1 flex items-baseline gap-1.5 text-[10px] ${
             m.role === 'user'
               ? 'text-on-surface-variant/50'
               : m.status === 'failed'
@@ -95,8 +115,12 @@ export function MessageItem({ m, excluindo, onExcluir }: Props) {
                   ? 'text-on-surface/50'
                   : 'text-white/50'
           }`}>
-            {new Date(m.criadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-          </p>
+            <span>{new Date(m.criadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+            {/* Nome do operador humano — distingue de mensagens da IA */}
+            {m.role === 'assistant' && m.operadorNome && (
+              <span className="font-semibold opacity-80">{m.operadorNome}</span>
+            )}
+          </div>
         )}
 
         {/* FIX #12: indicador visual de mensagem em trânsito */}
@@ -120,7 +144,7 @@ export function MessageItem({ m, excluindo, onExcluir }: Props) {
 
       {m.role === 'assistant' && !m.excluido && (
         <button
-          onClick={() => onExcluir(m.id)}
+          onClick={() => setConfirmOpen(true)}
           disabled={isExcluindo}
           aria-label="Apagar mensagem para todos"
           className="ml-1 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-on-surface-variant/0 transition-all hover:bg-error/10 hover:text-error group-hover:text-on-surface-variant/40 disabled:opacity-40"
@@ -134,15 +158,29 @@ export function MessageItem({ m, excluindo, onExcluir }: Props) {
       )}
 
       {m.role === 'assistant' && (
-        <div className="ml-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <span
-            className="material-symbols-outlined text-[12px] text-primary"
-            style={{ fontVariationSettings: "'FILL' 1" }}
+        m.operadorNome ? (
+          // Mensagem enviada por operador humano — avatar com iniciais
+          <div
+            className="ml-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-status/15"
+            title={m.operadorNome}
           >
-            smart_toy
-          </span>
-        </div>
+            <span className="text-[9px] font-bold text-orange-status leading-none">
+              {iniciais(m.operadorNome)}
+            </span>
+          </div>
+        ) : (
+          // Mensagem gerada pela IA
+          <div className="ml-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+            <span
+              className="material-symbols-outlined text-[12px] text-primary"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              smart_toy
+            </span>
+          </div>
+        )
       )}
     </div>
+    </>
   )
 }

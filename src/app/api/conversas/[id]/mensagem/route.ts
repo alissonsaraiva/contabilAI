@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { isEncrypted, decrypt } from '@/lib/crypto'
-import { sendHumanLike, } from '@/lib/whatsapp/human-like'
-import { sendMedia, type EvolutionConfig } from '@/lib/evolution'
+import { sendHumanLike } from '@/lib/whatsapp/human-like'
+import { sendMedia, type EvolutionConfig, type WhatsAppKey } from '@/lib/evolution'
 import { emitConversaMensagem } from '@/lib/event-bus'
 import { getDownloadUrl } from '@/lib/storage'
 
@@ -29,15 +29,17 @@ export async function POST(
 
   const conversa = await prisma.conversaIA.findUnique({
     where: { id },
-    select: { id: true, canal: true, remoteJid: true, pausadaEm: true },
+    select: { id: true, canal: true, remoteJid: true, pausadaEm: true, atribuidaParaId: true },
   })
   if (!conversa) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
 
   // Persiste a mensagem do humano como role 'assistant' (é uma resposta ao cliente)
+  // operadorId identifica o humano que enviou — distingue de mensagens geradas pela IA
   const novaMensagem = await prisma.mensagemIA.create({
     data: {
       conversaId: id,
       role: 'assistant',
+      operadorId: user?.id ?? null,
       conteudo: texto,
       status: 'pending',
       mediaUrl,
@@ -113,25 +115,36 @@ export async function POST(
         }
       }
 
-      const result = mediaUrlParaEnvio
-        ? await sendMedia(cfg, conversa.remoteJid, {
-            mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
-            mimetype:  mediaMimeType ?? 'application/octet-stream',
-            fileName:  mediaFileName ?? 'arquivo',
-            caption:   texto || undefined,
-            mediaUrl:  mediaUrlParaEnvio,
-          })
-        : await sendHumanLike(cfg, conversa.remoteJid, texto)
-      const ultima = await prisma.mensagemIA.findFirst({
-        where: { conversaId: id, role: 'assistant' },
-        orderBy: { criadaEm: 'desc' },
-      })
-      if (ultima) {
-        await prisma.mensagemIA.update({
-          where: { id: ultima.id },
-          data: { status: result.ok ? 'sent' : 'failed' },
+      let sendOk     = false
+      let sendError: string | undefined
+      let waKeys: WhatsAppKey[] = []
+
+      if (mediaUrlParaEnvio) {
+        const r = await sendMedia(cfg, conversa.remoteJid, {
+          mediatype: (mediaType === 'image' ? 'image' : 'document') as 'image' | 'document',
+          mimetype:  mediaMimeType ?? 'application/octet-stream',
+          fileName:  mediaFileName ?? 'arquivo',
+          caption:   texto || undefined,
+          mediaUrl:  mediaUrlParaEnvio,
         })
+        sendOk = r.ok
+        if (r.ok && r.key) waKeys = [r.key]
+        else if (!r.ok) sendError = r.error
+      } else {
+        const r = await sendHumanLike(cfg, conversa.remoteJid, texto)
+        sendOk = r.ok
+        if (r.ok) waKeys = r.keys
+        else if (!r.ok) sendError = r.error
       }
+
+      await prisma.mensagemIA.update({
+        where: { id: novaMensagem.id },
+        data: {
+          status: sendOk ? 'sent' : 'failed',
+          // Salva os keys para permitir "apagar para todos" via Evolution API
+          ...(waKeys.length > 0 && { whatsappMsgData: { keys: waKeys } as object }),
+        },
+      })
     }
   }
 
@@ -139,13 +152,16 @@ export async function POST(
   // - Se for canal WhatsApp e a IA ainda estava ativa (pausadaEm null), pausa agora.
   //   O operador assumiu o controle ao responder manualmente — evita que a IA também responda.
   //   O operador pode devolver o controle à IA pelo drawer do CRM.
-  const deveePausar = conversa.canal === 'whatsapp' && !conversa.pausadaEm
+  const deveePausar  = conversa.canal === 'whatsapp' && !conversa.pausadaEm
+  const userId       = user?.id as string | undefined
+  const autoAtribuir = !conversa.atribuidaParaId && !!userId
   await Promise.all([
     prisma.conversaIA.update({
       where: { id },
       data: {
         atualizadaEm: new Date(),
-        ...(deveePausar && { pausadaEm: new Date(), pausadoPorId: user?.id ?? null }),
+        ...(deveePausar  && { pausadaEm: new Date(), pausadoPorId: userId ?? null }),
+        ...(autoAtribuir && { atribuidaParaId: userId,             atribuidaEm: new Date() }),
       },
     }),
     prisma.mensagemIA.updateMany({

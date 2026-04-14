@@ -7,7 +7,7 @@ import { useRouter }                            from 'next/navigation'
 import type { ThreadItem, MensagemThread, ClienteOpt, Aba, PainelDireito } from './emails/_shared'
 import { ThreadRow }    from './emails/thread-row'
 import { PainelVazio }  from './emails/painel-vazio'
-import { PainelThread } from './emails/painel-thread'
+import { PainelThread, type OperadorEmailOpcao } from './emails/painel-thread'
 import { PainelCompor } from './emails/painel-compor'
 
 const POLL_INTERVAL_MS = 60_000
@@ -21,6 +21,7 @@ export function EmailsGmail({
   escritorioNome,
   diasFiltro = 90,
   totalRecebidos = 0,
+  currentUserId = null,
 }: {
   threadsEntrada:  ThreadItem[]
   threadsTratados: ThreadItem[]
@@ -30,6 +31,7 @@ export function EmailsGmail({
   escritorioNome:  string
   diasFiltro?:     number
   totalRecebidos?: number
+  currentUserId?:  string | null
 }) {
   const [entrada,  setEntrada]  = useState(initialEntrada)
   const [tratados, setTratados] = useState(initialTratados)
@@ -40,6 +42,7 @@ export function EmailsGmail({
   const [selecionados,  setSelecionados]  = useState<Set<string>>(new Set())
   const [bulkLoading,   setBulkLoading]   = useState(false)
   const [novosEmails,   setNovosEmails]   = useState(0)
+  const [operadores,    setOperadores]    = useState<OperadorEmailOpcao[]>([])
   // Pula o reset de painel quando a mudança de aba é intencional (ex: onSent)
   const skipAbaResetRef = useRef(false)
   const router          = useRouter()
@@ -52,6 +55,14 @@ export function EmailsGmail({
     setSelecionados(new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba])
+
+  // Carrega lista de operadores para o dropdown de atribuição
+  useEffect(() => {
+    fetch('/api/usuarios/operadores')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: OperadorEmailOpcao[]) => setOperadores(data))
+      .catch((err: unknown) => console.error('[emails-gmail] erro ao carregar operadores:', err))
+  }, [])
 
   // Polling: verifica novos emails a cada 60s sem forçar reload automático
   useEffect(() => {
@@ -157,6 +168,17 @@ export function EmailsGmail({
     setTratados(prev => atualizar(prev))
     if (painel.tipo === 'thread' && painel.thread.threadId === threadId) {
       setPainel({ tipo: 'thread', thread: { ...painel.thread, clienteId, clienteNome, clienteLink: `/crm/clientes/${clienteId}` } })
+    }
+  }
+
+  function onAtribuido(threadId: string, atribuidaPara: { id: string; nome: string } | null) {
+    function atualizar(lista: ThreadItem[]): ThreadItem[] {
+      return lista.map(t => t.threadId !== threadId ? t : { ...t, atribuidaPara })
+    }
+    setEntrada(prev => atualizar(prev))
+    setTratados(prev => atualizar(prev))
+    if (painel.tipo === 'thread' && painel.thread.threadId === threadId) {
+      setPainel({ tipo: 'thread', thread: { ...painel.thread, atribuidaPara } })
     }
   }
 
@@ -411,12 +433,14 @@ export function EmailsGmail({
             thread={painel.thread}
             aba={aba}
             clientes={clientes}
+            operadores={operadores}
             operadorNome={operadorNome}
             escritorioNome={escritorioNome}
             onReplied={onReplied}
             onDispensed={onDispensed}
             onVinculado={onVinculado}
             onAnexoArquivado={onAnexoArquivado}
+            onAtribuido={onAtribuido}
             onBack={() => setPainel({ tipo: 'vazio' })}
           />
         )}

@@ -21,6 +21,7 @@ export function AtendimentosWeb({
   emailsPendentes,
   truncado = false,
   totalConversas24h = 0,
+  currentUserId = null,
 }: {
   aguardandoResposta:     ConversaWebItem[]
   emAtendimentoHumano:    ConversaWebItem[]
@@ -30,6 +31,7 @@ export function AtendimentosWeb({
   emailsPendentes:        number
   truncado?:              boolean
   totalConversas24h?:     number
+  currentUserId?:         string | null
 }) {
   const [selected, setSelected]       = useState<SelectedConversation | null>(null)
   const [novaConversa, setNovaConversa] = useState(false)
@@ -51,9 +53,27 @@ export function AtendimentosWeb({
     return list.filter(c => getNome(c).toLowerCase().includes(q))
   }
 
-  const aguardando = (filtro === 'todas' || filtro === 'urgentes') ? filterByBusca(aguardandoResposta) : []
-  const humano     = (filtro === 'todas' || filtro === 'voce')     ? filterByBusca(emAtendimentoHumano) : []
-  const ia         = (filtro === 'todas' || filtro === 'ia')       ? filterByBusca(ativasIA) : []
+  // Filtro 'voce': conversas atribuídas ao operador logado (em qualquer estado)
+  function filterByVoce(list: ConversaWebItem[]) {
+    if (!currentUserId) return list
+    return list.filter(c => c.atribuidaPara?.id === currentUserId)
+  }
+
+  const aguardando = (filtro === 'todas' || filtro === 'urgentes')
+    ? filterByBusca(aguardandoResposta)
+    : filtro === 'voce'
+      ? filterByBusca(filterByVoce(aguardandoResposta))
+      : []
+  const humano = (filtro === 'todas' || filtro === 'voce')
+    ? filtro === 'voce'
+      ? filterByBusca(filterByVoce(emAtendimentoHumano))
+      : filterByBusca(emAtendimentoHumano)
+    : []
+  const ia = (filtro === 'todas' || filtro === 'ia')
+    ? filterByBusca(ativasIA)
+    : filtro === 'voce'
+      ? filterByBusca(filterByVoce(ativasIA))
+      : []
 
   const totalConversas  = aguardandoResposta.length + emAtendimentoHumano.length + ativasIA.length
   const totalEscalacoes = escalacoesPendentes.length + escalacaoEmAtendimento.length
@@ -150,24 +170,34 @@ export function AtendimentosWeb({
         </div>
 
         {/* Abas de filtro */}
-        <div className="flex gap-0.5 border-b border-outline-variant/10 px-3 py-1.5">
-          {(['todas', 'urgentes', 'voce', 'ia'] as FilterTab[]).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setFiltro(tab)}
-              className={`relative flex flex-1 items-center justify-center gap-1 rounded-md py-2 text-[11px] font-semibold transition-colors ${
-                filtro === tab
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container'
-              }`}
-            >
-              {tab === 'todas' ? 'Todas' : tab === 'urgentes' ? 'Urgentes' : tab === 'voce' ? 'Você' : 'IA'}
-              {tab === 'urgentes' && aguardandoResposta.length > 0 && (
-                <span className="rounded-full bg-error/20 px-1 text-[9px] text-error">{aguardandoResposta.length}</span>
-              )}
-            </button>
-          ))}
-        </div>
+        {(() => {
+          const minhasTotal = currentUserId
+            ? [...aguardandoResposta, ...emAtendimentoHumano, ...ativasIA].filter(c => c.atribuidaPara?.id === currentUserId).length
+            : 0
+          return (
+            <div className="flex gap-0.5 border-b border-outline-variant/10 px-3 py-1.5">
+              {(['todas', 'urgentes', 'voce', 'ia'] as FilterTab[]).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setFiltro(tab)}
+                  className={`relative flex flex-1 items-center justify-center gap-1 rounded-md py-2 text-[11px] font-semibold transition-colors ${
+                    filtro === tab
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container'
+                  }`}
+                >
+                  {tab === 'todas' ? 'Todas' : tab === 'urgentes' ? 'Urgentes' : tab === 'voce' ? 'Você' : 'IA'}
+                  {tab === 'urgentes' && aguardandoResposta.length > 0 && (
+                    <span className="rounded-full bg-error/20 px-1 text-[9px] text-error">{aguardandoResposta.length}</span>
+                  )}
+                  {tab === 'voce' && minhasTotal > 0 && (
+                    <span className="rounded-full bg-violet-500/20 px-1 text-[9px] text-violet-600">{minhasTotal}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Lista de conversas */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
