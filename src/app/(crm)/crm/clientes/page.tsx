@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { StatusCliente, PlanoTipo } from '@prisma/client'
 import { unaccentSearch } from '@/lib/search'
 import { formatBRL, formatCPF, formatDate } from '@/lib/utils'
 import { STATUS_CLIENTE_LABELS, PLANO_LABELS, STATUS_CLIENTE_COLORS, PLANO_COLORS } from '@/types'
@@ -29,21 +30,19 @@ export default async function ClientesPage({ searchParams }: Props) {
       WHERE (
         f_unaccent(c.nome) ILIKE f_unaccent($1)
         OR f_unaccent(c.email) ILIKE f_unaccent($1)
-        OR c.cpf LIKE $2
-        OR c.telefone LIKE $2
-        OR e.cnpj LIKE $2
         OR f_unaccent(e."razaoSocial") ILIKE f_unaccent($1)
+        ${qClean.length >= 4 ? 'OR c.cpf LIKE $2 OR c.telefone LIKE $2 OR e.cnpj LIKE $2' : ''}
       )
     `,
     term: q,
-    extraParams: [`%${qClean}%`],
+    extraParams: qClean.length >= 4 ? [`%${qClean}%`] : [],
   }) : null
 
   const filterWhere = {
     AND: [
       searchIds ? { id: { in: searchIds } } : {},
-      status ? { status: status as any } : {},
-      plano ? { planoTipo: plano as any } : {},
+      status ? { status: status as StatusCliente } : {},
+      plano ? { planoTipo: plano as PlanoTipo } : {},
     ],
   }
 
