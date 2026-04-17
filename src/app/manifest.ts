@@ -13,7 +13,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     start_url:        '/portal/dashboard',
     display:          'standalone',
     orientation:      'portrait',
-    background_color: '#ffffff',
+    background_color: '#0C2240',
     theme_color:      cor,
     categories:       ['finance', 'business'],
     lang:             'pt-BR',

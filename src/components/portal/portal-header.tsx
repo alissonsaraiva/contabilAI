@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { logoutPortal } from '@/app/(portal)/portal/actions'
 import { AvosIcon } from '@/components/avos-logo'
@@ -16,29 +15,16 @@ type Props = {
   procuracaoRFPendente?: boolean
 }
 
-const PWA_HIDDEN = new Set(['/portal/empresa', '/portal/suporte'])
-
 export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', docsNovos = 0, notasNovas = 0, procuracaoRFPendente = false }: Props) {
   const isPF = tipoContribuinte === 'pf'
-  const [isPwa, setIsPwa] = useState(false)
 
-  useEffect(() => {
-    const standalone = window.matchMedia('(display-mode: standalone)').matches
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const iosStandalone = (navigator as any).standalone === true
-    setIsPwa(standalone || iosStandalone)
-  }, [])
-
-  const ALL_NAV_ITEMS = [
+  const NAV_ITEMS = [
     { href: '/portal/dashboard',     icon: 'home',                        label: 'Início',        mobileLabel: 'Início',  badge: 0 },
-    { href: '/portal/empresa',       icon: isPF ? 'badge' : 'domain',     label: isPF ? 'Dados' : 'Empresa', mobileLabel: isPF ? 'Dados' : 'Empresa', badge: 0 },
     { href: '/portal/documentos',    icon: 'folder_open',                 label: 'Documentos',    mobileLabel: 'Docs',    badge: docsNovos },
     { href: '/portal/financeiro',    icon: 'payments',                    label: 'Financeiro',    mobileLabel: 'Financ.', badge: procuracaoRFPendente ? 1 : 0 },
     ...(!isPF ? [{ href: '/portal/notas-fiscais', icon: 'receipt_long',   label: 'Notas Fiscais', mobileLabel: 'NFS-e',  badge: notasNovas }] : []),
-    { href: '/portal/suporte',       icon: 'support_agent',               label: 'Suporte',       mobileLabel: 'Suporte', badge: 0 },
     // TODO: /portal/configuracoes — oculto temporariamente (conteúdo a definir)
   ]
-  const NAV_ITEMS = isPwa ? ALL_NAV_ITEMS.filter(item => !PWA_HIDDEN.has(item.href)) : ALL_NAV_ITEMS
   const pathname = usePathname()
 
   return (
