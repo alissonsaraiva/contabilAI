@@ -263,7 +263,10 @@
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-outline-variant); border-radius: 10px; }
 
-/* Safe area para bottom nav no iPhone */
+/* Safe area para bottom nav e header no iPhone */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
 }

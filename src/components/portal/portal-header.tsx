@@ -29,7 +29,8 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', do
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-16 items-center border-b border-outline-variant/15 bg-card/80 px-4 backdrop-blur-md md:px-8">
+      <header className="sticky top-0 z-40 border-b border-outline-variant/15 bg-card/80 backdrop-blur-md pt-safe px-4 md:px-8">
+        <div className="flex h-16 items-center">
         {/* Brand */}
         <Link href="/portal/dashboard" className="flex items-center gap-2 mr-8 shrink-0">
           <AvosIcon size={32} className="shrink-0 rounded-lg shadow-sm" />
@@ -88,6 +89,7 @@ export function PortalHeader({ user, nomeEscritorio, tipoContribuinte = 'pj', do
               <span className="hidden sm:inline">Sair</span>
             </button>
           </form>
+        </div>
         </div>
       </header>
 
