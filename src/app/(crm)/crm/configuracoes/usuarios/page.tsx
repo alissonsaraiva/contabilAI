@@ -5,7 +5,7 @@ export default async function UsuariosPage() {
   const [usuarios, escritorio] = await Promise.all([
     prisma.usuario.findMany({
       orderBy: { criadoEm: 'asc' },
-      select: { id: true, nome: true, email: true, tipo: true, ativo: true, avatar: true, criadoEm: true },
+      select: { id: true, nome: true, email: true, tipo: true, ativo: true, avatar: true, whatsapp: true, criadoEm: true },
     }),
     prisma.escritorio.findFirst({ select: { menuPermissoes: true } }),
   ])

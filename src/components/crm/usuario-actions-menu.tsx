@@ -24,6 +24,7 @@ type Usuario = {
   email: string
   tipo: TipoUsuario
   ativo: boolean
+  whatsapp?: string | null
 }
 
 type Props = { usuario: Usuario }

@@ -1,6 +1,6 @@
 # USUÁRIOS & PERMISSÕES DE MENU
 
-> **Sistema:** AVOS v3.10.29 | **Implementado:** 2026-04-06
+> **Sistema:** AVOS v3.10.29 | **Implementado:** 2026-04-06 | **Atualizado:** 2026-04-17
 >
 > Controle de acesso ao CRM por perfil de usuário, incluindo configuração dinâmica de menus via painel admin.
 
@@ -29,7 +29,7 @@ O assistente foi habilitado para entrar no CRM nesta versão. Antes era bloquead
 | `src/lib/auth.ts` | JWT callbacks: injeta `menuPermissoes` no token no login; recarrega a cada 5 min |
 | `src/components/layout/crm-sidebar.tsx` | Sidebar: filtra itens visíveis via `podeAcessarRota()` dinamicamente |
 | `src/components/crm/menu-permissoes-config.tsx` | UI de checkboxes para configurar menus por perfil (admin-only) |
-| `src/app/(crm)/crm/configuracoes/usuarios/page.tsx` | Página de usuários: carrega `menuPermissoes` do escritório para a UI |
+| `src/app/(crm)/crm/configuracoes/usuarios/page.tsx` | Página de usuários: carrega `menuPermissoes` do escritório para a UI — seleciona `whatsapp` no query |
 | `src/app/(crm)/crm/acesso-negado/page.tsx` | Página de acesso negado com botão de volta ao dashboard |
 | `src/app/api/configuracoes/menu-permissoes/route.ts` | GET/PATCH das permissões — requer `tipo === 'admin'` |
 | `prisma/schema.prisma` | Campo `menuPermissoes Json?` no model `Escritorio` |
@@ -237,6 +237,20 @@ O campo é `null` por padrão. `null` = sistema usa `DEFAULT_PERMISSOES` hardcod
 2. Remover de `MENUS_DISPONIVEIS`
 3. Remover de `DEFAULT_PERMISSOES`
 4. Os registros antigos no banco com o href removido são ignorados silenciosamente pelo `podeAcessarRota` (a rota simplesmente para de existir)
+
+---
+
+## Campos do Modelo `Usuario`
+
+O `select` da query de listagem (`/crm/configuracoes/usuarios/page.tsx`) deve incluir **todos os campos usados no `EditarUsuarioDrawer`**:
+
+```ts
+select: { id, nome, email, tipo, ativo, avatar, whatsapp, criadoEm }
+```
+
+> ⚠️ **Atenção:** Este é o único módulo que usa `select` explícito na query de listagem (os demais usam `include`). Ao adicionar campo no form de edição, incluir também no `select` da page e nos tipos `UsuarioRow` e `Usuario` (em `usuario-actions-menu.tsx`).
+
+**Bug histórico (v3.10.x → corrigido 2026-04-17):** `whatsapp` não estava no `select` → campo aparecia vazio ao reabrir o drawer de edição, embora o PATCH salvasse corretamente no banco.
 
 ---
 

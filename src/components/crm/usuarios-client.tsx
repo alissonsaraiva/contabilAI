@@ -30,6 +30,7 @@ export type UsuarioRow = {
   tipo: TipoUsuario
   ativo: boolean
   avatar: string | null
+  whatsapp: string | null
   criadoEm: Date
 }
 
