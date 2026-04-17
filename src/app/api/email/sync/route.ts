@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { buscarEmailsNovos } from '@/lib/email/imap'
 import { processarEmailRecebido } from '@/lib/email/processar'
-import { setImapSyncOk, setImapSyncErro, getImapSyncStatus } from '@/lib/email/imap-status'
+import { setImapSyncOk, setImapSyncErro, setImapCircuitBreakerPausa, getImapSyncStatus } from '@/lib/email/imap-status'
 import { hc } from '@/lib/healthchecks'
 
 // Proteção por secret para chamadas do cron interno
@@ -20,10 +20,19 @@ function autorizarCron(req: Request): boolean {
 }
 
 const MAX_FALHAS_CONSECUTIVAS = 3
+const CIRCUIT_BREAKER_PAUSA_MS = 15 * 60 * 1000  // 15 minutos
 
 export async function POST(req: Request) {
   if (!autorizarCron(req)) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
+  // Circuit breaker: após MAX_FALHAS_CONSECUTIVAS, pausa 15min para não agravar rate limit do servidor IMAP
+  const { pausadoAte } = getImapSyncStatus()
+  if (pausadoAte && Date.now() < pausadoAte) {
+    const restanteMin = Math.ceil((pausadoAte - Date.now()) / 60_000)
+    console.log(`[email/sync] Circuit breaker ativo — aguardando ${restanteMin}min antes de tentar novamente`)
+    return NextResponse.json({ ok: true, skipped: true, motivo: 'circuit_breaker', restanteMin })
   }
 
   void hc.start(process.env.HC_EMAIL_SYNC)
@@ -67,11 +76,13 @@ export async function POST(req: Request) {
 
     const { falhasConsecutivas } = getImapSyncStatus()
     if (falhasConsecutivas >= MAX_FALHAS_CONSECUTIVAS) {
+      setImapCircuitBreakerPausa(CIRCUIT_BREAKER_PAUSA_MS)
+      console.log(`[email/sync] Circuit breaker ativado — próxima tentativa em ${CIRCUIT_BREAKER_PAUSA_MS / 60_000}min`)
       try {
         const { notificarIaOffline } = await import('@/lib/notificacoes')
         await notificarIaOffline(
           'imap',
-          `[email/sync] IMAP indisponível há ${falhasConsecutivas} tentativas consecutivas. Último erro: ${mensagem}`,
+          `[email/sync] IMAP indisponível há ${falhasConsecutivas} tentativas consecutivas. Pausando por 15min. Último erro: ${mensagem}`,
         )
       } catch {
         console.error(`[email/sync] ALERTA: IMAP falhou ${falhasConsecutivas}x consecutivas — ${mensagem}`)

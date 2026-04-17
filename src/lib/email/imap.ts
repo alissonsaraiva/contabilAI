@@ -1,8 +1,27 @@
 import * as Sentry from '@sentry/nextjs'
+import { resolve4 } from 'dns/promises'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { prisma } from '@/lib/prisma'
 import { decrypt, isEncrypted } from '@/lib/crypto'
+
+/**
+ * Resolve o hostname IMAP para IPv4 explicitamente.
+ * Evita ENETUNREACH em containers Docker sem IPv6 onde o Node.js tenta ambos
+ * os stacks via Happy Eyeballs e falha no AAAA antes do A.
+ * Quando a resolução funciona, retorna o IP + servername original para que o
+ * TLS valide o certificado pelo hostname correto (não pelo IP).
+ */
+async function resolveImapIPv4(host: string): Promise<{ host: string; servername?: string }> {
+  try {
+    const addresses = await resolve4(host)
+    const ip = addresses[0]
+    if (ip && ip !== host) return { host: ip, servername: host }
+  } catch {
+    // fallback: usa hostname diretamente — sem alteração
+  }
+  return { host }
+}
 
 export type EmailRecebido = {
   uid: number
@@ -42,13 +61,15 @@ export async function testarConexaoImap(): Promise<{ ok: boolean; erro?: string 
   if (!config) return { ok: false, erro: 'IMAP não configurado. Preencha o servidor IMAP e salve.' }
 
   const { usuario, senha, imapHost, imapPort } = config
+  const resolved = await resolveImapIPv4(imapHost)
   const client = new ImapFlow({
-    host:          imapHost,
+    host:          resolved.host,
     port:          imapPort,
     secure:        imapPort === 993,
     auth:          { user: usuario, pass: senha },
     logger:        false,
     socketTimeout: 10_000,
+    ...(resolved.servername ? { tls: { servername: resolved.servername } } : {}),
   })
   // Evita uncaughtException: ImapFlow emite 'error' via EventEmitter antes de rejeitar a Promise
   client.on('error', () => {})
@@ -67,14 +88,16 @@ export async function buscarEmailsNovos(): Promise<EmailRecebido[]> {
   if (!config) return []  // IMAP não configurado — pula silenciosamente
 
   const { usuario, senha, imapHost, imapPort } = config
+  const resolved = await resolveImapIPv4(imapHost)
 
   const client = new ImapFlow({
-    host:          imapHost,
+    host:          resolved.host,
     port:          imapPort,
     secure:        imapPort === 993,
     auth:          { user: usuario, pass: senha },
     logger:        false,
     socketTimeout: 30_000,  // 30s — evita hang em servidor IMAP travado
+    ...(resolved.servername ? { tls: { servername: resolved.servername } } : {}),
   })
   // Evita uncaughtException: ImapFlow emite 'error' via EventEmitter antes de rejeitar a Promise
   client.on('error', () => {})
@@ -176,13 +199,15 @@ async function marcarComoLidosReconectando(
   uids: number[],
 ): Promise<void> {
   const uidSeq = uids.join(',')
+  const resolved = await resolveImapIPv4(config.imapHost)
   const client = new ImapFlow({
-    host:          config.imapHost,
+    host:          resolved.host,
     port:          config.imapPort,
     secure:        config.imapPort === 993,
     auth:          { user: config.usuario, pass: config.senha },
     logger:        false,
     socketTimeout: 10_000,
+    ...(resolved.servername ? { tls: { servername: resolved.servername } } : {}),
   })
   client.on('error', () => {})
   try {

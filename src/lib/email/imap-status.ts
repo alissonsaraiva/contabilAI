@@ -10,6 +10,7 @@ export type ImapSyncStatus = {
   falhasConsecutivas:  number
   processados:         number          // emails processados na última sync ok
   associados:          number          // emails associados a cliente/lead na última sync ok
+  pausadoAte:          number | null   // circuit breaker: timestamp até quando não tentar (null = ativo)
 }
 
 declare global {
@@ -26,6 +27,7 @@ function getStatus(): ImapSyncStatus {
       falhasConsecutivas: 0,
       processados:        0,
       associados:         0,
+      pausadoAte:         null,
     }
   }
   return global.__imapSyncStatus
@@ -43,6 +45,15 @@ export function setImapSyncOk(processados: number, associados: number): void {
     falhasConsecutivas: 0,
     processados,
     associados,
+    pausadoAte:         null,  // limpa circuit breaker ao recuperar
+  }
+}
+
+export function setImapCircuitBreakerPausa(duracaoMs: number): void {
+  const current = getStatus()
+  global.__imapSyncStatus = {
+    ...current,
+    pausadoAte: Date.now() + duracaoMs,
   }
 }
 

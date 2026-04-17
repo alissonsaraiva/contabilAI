@@ -34,7 +34,7 @@ if (process.env.NODE_ENV === 'production') {
 
 const base = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
 
-const EMAIL_INTERVAL_MS = 2 * 60 * 1000
+const EMAIL_INTERVAL_MS = 5 * 60 * 1000
 
 async function syncEmail() {
   try {
