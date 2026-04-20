@@ -30,6 +30,7 @@
 | Áudio | Groq Whisper (transcrição de PTT WhatsApp) | — |
 | Storage | Cloudflare R2 (S3-compatible) | — |
 | Deploy | Docker + VPS (6 containers) via ghcr.io | — |
+| Testes | Vitest + Testing Library | 4.x |
 | Monitoramento | Sentry (client + server + edge) + healthchecks.io (crons) | — |
 | MCP Sentry | `@sentry/mcp-server` via stdio no `.mcp.json` — acesso direto a issues/eventos do Claude Code | — |
 | Auth CRM | NextAuth.js (credentials) | — |
@@ -100,6 +101,10 @@ contabilAI/
 │   ├── SISTEMA.md             # Este arquivo — índice navegável
 │   ├── WHATSAPP.md            # Pipeline WhatsApp completo
 │   └── features/              # Documentação por feature (14 arquivos)
+├── tests/
+│   ├── unit/                  # Testes unitários (Vitest)
+│   ├── integration/           # Testes de integração (DB real)
+│   └── helpers/               # Factories, mocks, setup
 ├── src/
 │   ├── app/
 │   │   ├── (crm)/crm/         # Interface do CRM (autenticada)

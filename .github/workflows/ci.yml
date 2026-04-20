@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  workflow_call:
+
+jobs:
+  # ─── Testes unitários + type check ────────────────────────────────────────
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci --legacy-peer-deps
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      - name: Type check (app)
+        run: npx tsc --noEmit
+
+      - name: Type check (tests)
+        run: npx tsc -p tests/tsconfig.json --noEmit
+
+      - name: Testes unitários
+        run: npx vitest run --config vitest.config.ts
+
+  # ─── Testes de integração (DB real) ───────────────────────────────────────
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: contabai_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci --legacy-peer-deps
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      - name: Aplicar migrations
+        run: DATABASE_URL="postgresql://test:test@localhost:5433/contabai_test" npx prisma migrate deploy
+
+      - name: Inicializar pgvector
+        run: |
+          PGPASSWORD=test psql -h localhost -p 5433 -U test contabai_test << 'EOSQL'
+          CREATE EXTENSION IF NOT EXISTS vector;
+          CREATE SCHEMA IF NOT EXISTS vectors;
+          CREATE TABLE IF NOT EXISTS vectors.embeddings (
+            id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+            escopo        TEXT        NOT NULL CHECK (escopo IN ('global', 'cliente', 'lead')),
+            canal         TEXT        DEFAULT 'geral',
+            tipo          TEXT        NOT NULL,
+            cliente_id    TEXT,
+            lead_id       TEXT,
+            documento_id  TEXT,
+            titulo        TEXT,
+            conteudo      TEXT        NOT NULL,
+            embedding     vector(512),
+            metadata      JSONB,
+            criado_em     TIMESTAMPTZ NOT NULL DEFAULT now()
+          );
+          CREATE INDEX IF NOT EXISTS embeddings_hnsw_idx ON vectors.embeddings USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 128);
+          EOSQL
+
+      - name: Testes de integração
+        run: npx vitest run --config vitest.integration.config.ts

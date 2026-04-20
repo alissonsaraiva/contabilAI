@@ -34,17 +34,70 @@
 
 ## Testes Automatizados
 
-- ❌ Nenhum teste automatizado identificado no codebase (sem `*.test.ts`, `*.spec.ts`, `jest.config`, `vitest.config`)
-- ⚠️ Sistema está em produção sem cobertura de testes automatizados
+> Infraestrutura implementada em 2026-04-18 com Vitest 4.x.
 
-### Lacunas críticas de teste:
-- Webhooks externos (Asaas, Spedy, Zapsign, Clicksign)
-- Pipeline de WhatsApp (recebimento → processamento → resposta)
-- Sistema de email (IMAP sync, threading, envio)
-- Agente operacional (tool calling, idempotência)
-- Fluxo de onboarding (etapas, validações)
-- Sistema de pagamento (provisioning Asaas)
-- Emissão de NFS-e (Spedy)
+### Stack de testes
+
+| Ferramenta | Função |
+|---|---|
+| Vitest 4.x | Runner + assertions |
+| @testing-library/react | Testes de componentes (futuro) |
+| docker-compose.test.yml | PostgreSQL 16 + pgvector em tmpfs (integração) |
+
+### Comandos
+
+```bash
+npm test              # roda todos os testes unitários
+npm run test:watch    # modo watch
+npm run test:unit     # apenas unitários (explícito)
+npm run test:integration  # apenas integração (requer docker-compose.test.yml up)
+npm run test:coverage     # com cobertura V8
+```
+
+### Cobertura atual (Fase 1+2 — unitários P0/P1)
+
+| Arquivo de teste | Módulo coberto | Testes |
+|---|---|---|
+| `tests/unit/lib/utils.test.ts` | `src/lib/utils.ts` — formatBRL, CPF, CNPJ, telefone, data, validação, initials, slugify | 19 |
+| `tests/unit/lib/phone.test.ts` | `src/lib/utils/phone.ts` — normalização 8↔9 dígitos, variantes de busca | 5 |
+| `tests/unit/lib/whatsapp-utils.test.ts` | `src/lib/whatsapp-utils.ts` — buildRemoteJid, isMediaUrlTrusted, checkRateLimit | 10 |
+| `tests/unit/lib/split-chunks.test.ts` | `src/lib/utils/split-chunks.ts` — stripMarkdown, splitIntoChunks, calcTypingDelay | 12 |
+| `tests/unit/lib/media.test.ts` | `src/lib/whatsapp/media.ts` — detectMediaType, extractMediaCaption, extractMimeType | 10 |
+| `tests/unit/lib/validar-webhook.test.ts` | `src/lib/whatsapp/pipeline/validar-webhook.ts` — auth, filtros, jailbreak, sanitização | 19 |
+| `tests/unit/lib/crypto.test.ts` | `src/lib/crypto.ts` — encrypt/decrypt round-trip, isEncrypted, maskKey | 10 |
+| `tests/unit/lib/rate-limit.test.ts` | `src/lib/rate-limit.ts` — rateLimit, getClientIp, tooManyRequests | 12 |
+| `tests/unit/lib/lead-dados-json.test.ts` | `src/lib/schemas/lead-dados-json.ts` — parseDadosJson, getDadosString, getNomeFromDadosJson | 17 |
+| `tests/unit/lib/menu-permissoes.test.ts` | `src/lib/menu-permissoes.ts` — resolverPermissoes, podeAcessarRota | 14 |
+| `tests/unit/lib/chunker.test.ts` | `src/lib/rag/chunker.ts` — chunkText, sobreposição, tipos de chunk | 10 |
+| `tests/unit/lib/search.test.ts` | `src/lib/search.ts` — removeAccents | 9 |
+
+**Total: 12 arquivos, 171 testes**
+
+### Testes de integração (Fase 3 — DB real)
+
+Rodam contra PostgreSQL 16 + pgvector via `docker-compose.test.yml` (porta 5433, tmpfs).
+
+**Setup**: `docker compose -f docker-compose.test.yml up -d && npm run test:integration:setup`
+
+| Arquivo de teste | O que testa | Testes |
+|---|---|---|
+| `tests/integration/rag-store.test.ts` | RAG store: storeEmbeddings, searchSimilar, searchHybrid (RRF), deleteBySourceId, deleteEmbeddings, getContentHash, listKnowledge | 16 |
+| `tests/integration/prisma-crud.test.ts` | CRUD real: Empresa (unicidade CNPJ), Cliente (unicidade CPF/email, include empresa), Lead (dadosJson, step), Conversa+Mensagem (cascade delete, orderBy), Escritorio, Usuario | 19 |
+
+**Total integração: 2 arquivos, 35 testes**
+
+### CI/CD (Fase 4)
+
+Testes rodam automaticamente **antes de cada deploy** (tag `v*`).
+
+**Fluxo:** `git tag v3.x.y` → `deploy.yml` chama `ci.yml` → unit tests + integration tests → se ok → build Docker → deploy VPS
+
+**Arquivos:** `.github/workflows/ci.yml` (testes), `.github/workflows/deploy.yml` (build + deploy, depende do CI)
+
+Se os testes falharem, o deploy **não acontece**.
+
+### Lacunas pendentes:
+- Futuro: webhooks externos (Asaas, Spedy, Zapsign), agente operacional, onboarding, testes de componentes React
 
 ## Áreas com Pouco Log/Rastreamento
 
@@ -148,7 +201,7 @@
 3. **Health check Evolution API** — detectar instância desconectada proativamente
 
 ### Observabilidade
-1. **Adicionar testes automatizados** — ao menos para os webhooks críticos
+1. ✅ Testes automatizados — Vitest implementado (92 testes unitários cobrindo utils, WhatsApp, webhook pipeline)
 2. ✅ Monitorar cron jobs — Sentry Cron Monitoring implementado em todos os crons
 3. **Métricas de RAG** — taxa de hit, latência de busca
 

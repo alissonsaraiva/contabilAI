@@ -87,22 +87,28 @@ npx prisma db seed
 # 6. Inicializar pgvector
 psql $DATABASE_URL -f prisma/init-vectors.sql
 
-# 7. Rodar em desenvolvimento
+# 7. Rodar testes
+npm test
+
+# 8. Rodar em desenvolvimento
 npm run dev
 ```
 
 ## Pre-deploy Checklist (OBRIGATÓRIO)
 
 ```bash
-# 1. TypeScript sem erros
+# 1. Testes passando
+npm test
+
+# 2. TypeScript sem erros
 npx tsc --noEmit
 
-# 2. Build de produção sem erros
+# 3. Build de produção sem erros
 npm run build
 
-# 3. Criar tag de versão
+# 4. Criar tag de versão (dispara CI + deploy automaticamente)
 git tag v3.x.y
-git push origin v3.x.y  # CI só dispara com tag v*
+git push origin v3.x.y  # CI roda testes → se ok → build → deploy VPS
 ```
 
 ## Cron Jobs

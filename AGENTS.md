@@ -82,6 +82,8 @@ Fluxo correto:
 
 **Executar TODOS os itens antes de considerar qualquer tarefa concluída:**
 
+- [ ] **Testes**: adicionar/atualizar testes unitários (`tests/unit/`) e de integração (`tests/integration/`) cobrindo o código novo ou alterado
+- [ ] `npm test` — testes unitários passando
 - [ ] `npx tsc --noEmit` — passa sem erros
 - [ ] `npm run build` — build completo sem falhas
 - [ ] Sentry.captureException em catch blocks de operações críticas (tags: `{ module, operation }`)
