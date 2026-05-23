@@ -553,6 +553,88 @@ Push em `main` sozinho **não dispara nada**. Só tag `v*`.
 
 ---
 
+## 12.5 Backups — onde estão
+
+### Backups locais (na VPS) — automáticos a cada deploy
+
+Local: `/home/deploy/contabai/backups/`
+Formato: `db-v<tag>-<YYYYMMDD>-<HHMMSS>.sql` (pg_dump plain)
+Conteúdo: apenas o banco `contabil_ia` (Postgres principal)
+Retenção: 10 mais recentes (mantida pelo `deploy.yml`)
+Quando: gerado automaticamente antes de cada `prisma migrate deploy`
+
+### Backups off-site no R2 — sob demanda (manual)
+
+Local: `s3://contabia/backups/<YYYYMMDD-HHMMSS>/`
+Endpoint: `STORAGE_ENDPOINT` do `.env` (mesmo bucket público do app — pasta `backups/` separada)
+Conteúdo de cada snapshot:
+- `pg-main-contabil_ia-<ts>.sql.gz` — dump do banco principal (~200 KB compactado)
+- `pg-evolution-<ts>.sql.gz` — dump do banco da Evolution (~300 KB)
+- `evolution-instances-<ts>.tar.gz` — volume `evolution_instances` (atualmente vazio; sessões ficam em Postgres+Redis)
+
+**Snapshots existentes:**
+- `20260523-151400/` — primeiro backup off-site (3 arquivos, ~500 KB total)
+
+### Como gerar um novo snapshot R2 manualmente
+
+Rodar via SSH na VPS (lê creds do `.env`, dispensa instalar `aws-cli`):
+
+```bash
+ssh deploy@<IP> 'set -e
+TS=$(date +%Y%m%d-%H%M%S)
+DIR=/tmp/backup-$TS && mkdir -p $DIR
+source /home/deploy/contabai/.env
+DB_USER=$(grep "^DATABASE_URL=" /home/deploy/contabai/.env | grep -oP "(?<=://)[^:@]+" | head -1)
+
+# 1) Postgres principal
+docker exec postgresql-4cnu-postgresql-1 pg_dump -U "$DB_USER" -d contabil_ia | gzip > $DIR/pg-main-contabil_ia-$TS.sql.gz
+
+# 2) Postgres Evolution
+docker exec evolution-api-swhw-postgres-1 pg_dump -U evolution -d evolution | gzip > $DIR/pg-evolution-$TS.sql.gz
+
+# 3) Volume evolution_instances
+docker run --rm -v evolution-api-swhw_evolution_instances:/data:ro -v $DIR:/backup \
+  alpine tar czf /backup/evolution-instances-$TS.tar.gz -C /data .
+
+# Upload R2
+docker run --rm -v $DIR:/backup \
+  -e AWS_ACCESS_KEY_ID="$STORAGE_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$STORAGE_SECRET_ACCESS_KEY" \
+  -e AWS_DEFAULT_REGION="${STORAGE_REGION:-auto}" \
+  amazon/aws-cli s3 cp /backup/ s3://$STORAGE_BUCKET_NAME/backups/$TS/ \
+  --recursive --endpoint-url "$STORAGE_ENDPOINT"
+
+rm -rf $DIR
+echo "DONE: s3://$STORAGE_BUCKET_NAME/backups/$TS/"
+'
+```
+
+### Listar backups no R2
+
+```bash
+ssh deploy@<IP> 'source /home/deploy/contabai/.env && docker run --rm \
+  -e AWS_ACCESS_KEY_ID="$STORAGE_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$STORAGE_SECRET_ACCESS_KEY" \
+  -e AWS_DEFAULT_REGION=auto \
+  amazon/aws-cli s3 ls s3://$STORAGE_BUCKET_NAME/backups/ \
+  --endpoint-url "$STORAGE_ENDPOINT" --recursive'
+```
+
+### Baixar snapshot do R2
+
+```bash
+ssh deploy@<IP> 'source /home/deploy/contabai/.env && docker run --rm -v $(pwd):/out \
+  -e AWS_ACCESS_KEY_ID="$STORAGE_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$STORAGE_SECRET_ACCESS_KEY" \
+  -e AWS_DEFAULT_REGION=auto \
+  amazon/aws-cli s3 cp s3://$STORAGE_BUCKET_NAME/backups/<TS>/ /out/ \
+  --recursive --endpoint-url "$STORAGE_ENDPOINT"'
+```
+
+> O bucket `contabia` é público (precisa ser, para servir arquivos do app via `STORAGE_PUBLIC_URL`). Os backups ficam acessíveis publicamente sob `<STORAGE_PUBLIC_URL>/backups/<ts>/<arquivo>` se alguém conhecer o caminho. **Para produção séria, mover para bucket privado dedicado.**
+
+---
+
 ## 13. Restore de backup
 
 Listar backups disponíveis:
