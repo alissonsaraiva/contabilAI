@@ -608,3 +608,127 @@ Checklist mínimo antes de considerar a VPS pronta:
 - **Cron extra/novo:** sempre criar healthcheck no hc-ping.com e var `HC_*` no `.env`
 
 Estado atual da VPS de produção: ver `memory/project_vps_infra.md`.
+
+---
+
+## 16. Configuração de serviços externos
+
+A VPS pode estar 100% de pé e o app ainda não funcionar se as integrações externas não estiverem configuradas do lado de lá. Lista do que precisa ser feito **fora** da VPS:
+
+### 16.1 Cloudflare R2 (storage de arquivos)
+
+1. Criar bucket (ex: `contabia`) em **Cloudflare → R2**.
+2. **Tornar público:** R2 → bucket → Settings → Public access → habilitar custom domain ou usar o subdomínio `r2.dev` (não recomendado pra produção — usar `STORAGE_PUBLIC_URL` apontando pro custom domain).
+3. **CORS** — sem isso, upload direto do browser falha. R2 → bucket → Settings → CORS policy:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://crm.<dominio>", "https://portal.<dominio>"],
+    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+4. **Criar API Token** com permissão `Object Read & Write` no bucket — pegar `Access Key ID` e `Secret Access Key` → `STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY`.
+5. `STORAGE_ENDPOINT` é `https://<account_id>.r2.cloudflarestorage.com` (sem o nome do bucket no fim).
+6. `STORAGE_PUBLIC_URL` é a URL pública (custom domain ou `https://<bucket>.<account>.r2.dev`).
+
+### 16.2 Google OAuth (login no CRM e Portal)
+
+No **Google Cloud Console → APIs & Services**:
+
+1. **OAuth consent screen** → External → preencher:
+   - Nome do app, e-mail de suporte, logo
+   - Domínio autorizado: `<dominio>` (ex: `avos.digital`)
+   - Scopes: `openid`, `email`, `profile` (não precisa de scopes restritos)
+   - Política de privacidade + termos de uso (URLs públicas do app)
+2. **Credentials → Create OAuth Client ID** → tipo **Web application**:
+   - **Authorized JavaScript origins:**
+     - `https://crm.<dominio>`
+     - `https://portal.<dominio>`
+   - **Authorized redirect URIs:**
+     - `https://crm.<dominio>/api/auth/callback/google` (CRM — equipe interna)
+     - `https://portal.<dominio>/api/portal/auth/callback/google` (Portal — clientes)
+3. Copiar **Client ID** e **Client Secret** → `.env`: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+4. Publicar o app (sair de "Testing") se for permitir qualquer usuário Google entrar. Senão fica restrito a 100 usuários teste.
+
+### 16.3 Resend (e-mails transacionais)
+
+1. **Resend → Domains → Add Domain:** `<dominio>`.
+2. Adicionar os registros DNS no provedor de DNS:
+   - 3x `MX` ou TXT SPF
+   - DKIM (`resend._domainkey`)
+   - `_dmarc` (recomendado)
+3. Aguardar verificação (status "Verified").
+4. **API Keys → Create:** com permissão **Sending access** → `RESEND_API_KEY`.
+5. `RESEND_FROM` = endereço no domínio verificado, ex: `contato@<dominio>` ou `nao-responda@<dominio>`.
+
+### 16.4 Sentry (observabilidade)
+
+1. **Sentry → Create Project** → plataforma **Next.js**.
+2. Pegar o **DSN** → `NEXT_PUBLIC_SENTRY_DSN` (vai pro `.env` da VPS **e** pro secret `NEXT_PUBLIC_SENTRY_DSN` do GitHub).
+3. **Para upload de source maps no CI:** Sentry → Settings → Auth Tokens → criar token com escopo `project:releases` e `project:write` → secret `SENTRY_AUTH_TOKEN` no GitHub.
+4. Confirmar `org` e `project` slug em `sentry.client.config.ts` / `next.config.ts` (devem bater com os do Sentry).
+
+### 16.5 Evolution API — instância WhatsApp
+
+Após o app subir, há duas formas de criar a instância:
+
+**Via CRM** (preferido): Configurações → WhatsApp → preencher URL/API key/nome → "Conectar" gera QR.
+
+**Via API direta** (se precisar antes do CRM estar pronto):
+
+```bash
+curl -X POST 'https://evolution-api.<dominio>/instance/create' \
+  -H "apikey: $EVOLUTION_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "instanceName": "avos",
+    "qrcode": true,
+    "integration": "WHATSAPP-BAILEYS"
+  }'
+
+# Pegar QR code:
+curl 'https://evolution-api.<dominio>/instance/connect/avos' \
+  -H "apikey: $EVOLUTION_API_KEY"
+```
+
+**Webhook do Evolution → CRM** (configurar APÓS o app estar de pé):
+
+```bash
+curl -X POST 'https://evolution-api.<dominio>/webhook/set/avos' \
+  -H "apikey: $EVOLUTION_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://crm.<dominio>/api/whatsapp/webhook",
+    "webhook_by_events": false,
+    "events": ["MESSAGES_UPSERT","MESSAGES_UPDATE","SEND_MESSAGE","CONNECTION_UPDATE"]
+  }'
+```
+
+### 16.6 Webhooks externos — apontar para o CRM
+
+Cada serviço integrado precisa ser configurado no painel **deles** com a URL pública do CRM:
+
+| Serviço | URL no painel externo | Notas |
+|---|---|---|
+| Evolution API | `https://crm.<dominio>/api/whatsapp/webhook` | Via API (16.5) — não tem painel |
+| Spedy (NFS-e) | `https://crm.<dominio>/api/webhooks/spedy` | Painel Spedy → Webhooks |
+| Asaas (cobranças) | `https://crm.<dominio>/api/webhooks/asaas` | Painel Asaas → Integrações → Webhooks → eventos: `PAYMENT_RECEIVED`, `PAYMENT_OVERDUE`, `PAYMENT_REFUNDED` |
+| ZapSign | `https://crm.<dominio>/api/webhooks/zapsign?secret=<zapsignWebhookSecret>` | Painel ZapSign → Conta → Webhooks. O secret vai como query param e é validado pelo app |
+| Clicksign | `https://crm.<dominio>/api/webhooks/clicksign` | Painel Clicksign → API → Webhooks. HMAC secret também precisa estar em Configurações → Assinatura no CRM |
+| DocuSeal | `https://crm.<dominio>/api/webhooks/docuseal` | Painel DocuSeal → Webhooks |
+
+> Configurar webhook **antes** de testar a integração — se chegar evento sem webhook configurado, o serviço externo pode mandar e-mail de erro / desabilitar o envio.
+
+### 16.7 healthchecks.io
+
+1. **healthchecks.io → Create Check** para cada cron (5 total: `processar-pendentes`, `agente`, `retry-documentos`, `reconciliar-notas`, `email-sync`).
+2. Configurar **Period** + **Grace** condizente com o cron (ex: agente roda a cada 1 min → period 1 min, grace 5 min).
+3. Copiar a URL de ping (formato `https://hc-ping.com/<uuid>`) → `.env` da VPS nas vars `HC_*`.
+4. Code em `src/lib/healthchecks.ts` faz `GET` na URL ao final de cada job → check fica "up".
+
