@@ -95,6 +95,24 @@ Acesso: [http://localhost:3000](http://localhost:3000)
 
 > **Antes de commitar:** sempre rodar `npx tsc --noEmit` e `npm run build` localmente.
 
+### 5. (Opcional) Ativar memória do Claude Code em máquina nova
+
+A pasta `memory/` na raiz do repo contém o histórico de decisões, padrões de bug, estado do projeto e regras de trabalho usados pelo Claude Code. Ela é versionada junto com o código para que qualquer máquina nova herde o contexto.
+
+Para o Claude Code carregar essa memória, ele lê de um caminho fixo em `~/.claude/projects/<hash>/memory/`. Criar um symlink uma única vez:
+
+```bash
+# A partir da raiz do repo
+PROJECT_PATH="$(pwd)"
+HASH_PATH="$(echo "$PROJECT_PATH" | sed 's|/|-|g')"
+mkdir -p "$HOME/.claude/projects/$HASH_PATH"
+ln -sfn "$PROJECT_PATH/memory" "$HOME/.claude/projects/$HASH_PATH/memory"
+```
+
+Pronto — o Claude Code passa a ler/atualizar `memory/` no próprio repo. Edições viram commits e propagam pra todas as máquinas.
+
+> Conteúdo é histórico, não verdade absoluta — cada arquivo tem cabeçalho `name`/`description`/`type` e pode estar defasado em relação ao código. O índice `memory/MEMORY.md` é a porta de entrada.
+
 ---
 
 ## Estrutura de Pastas

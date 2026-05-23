@@ -30,8 +30,8 @@ next-env.d.ts
 # Prisma
 # migrations são versionadas no git
 
-# Agent skills
-.agent/
+# Agent skills versionadas — ver .agent/ARCHITECTURE.md
+# (antes estava ignorado; ativado p/ portabilidade entre máquinas)
 
 # VSCode
 .vscode/
