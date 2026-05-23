@@ -631,7 +631,7 @@ ssh deploy@<IP> 'source /home/deploy/contabai/.env && docker run --rm -v $(pwd):
   --recursive --endpoint-url "$STORAGE_ENDPOINT"'
 ```
 
-> O bucket `contabia` é público (precisa ser, para servir arquivos do app via `STORAGE_PUBLIC_URL`). Os backups ficam acessíveis publicamente sob `<STORAGE_PUBLIC_URL>/backups/<ts>/<arquivo>` se alguém conhecer o caminho. **Para produção séria, mover para bucket privado dedicado.**
+> **Segurança:** o bucket `contabia` está em conta privada do Cloudflare e exige assinatura S3 para qualquer acesso (testado: GET anônimo no endpoint retorna HTTP 400). O app entrega arquivos via signed URLs com expiração curta (`getSignedUrl` em `src/lib/storage.ts`, 5 min default). Backups em `backups/` herdam essa proteção — só acessíveis com as credenciais `STORAGE_ACCESS_KEY_ID/SECRET` do `.env`.
 
 ---
 
