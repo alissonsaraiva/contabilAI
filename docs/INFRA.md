@@ -151,12 +151,14 @@ Subir: `cd /docker/traefik && docker compose up -d`
 
 ## 6. Stack: PostgreSQL principal
 
+> **IMPORTANTE — pgvector é obrigatório.** O workflow de deploy executa `CREATE EXTENSION IF NOT EXISTS vector` e cria o schema `vectors` automaticamente. A imagem oficial `postgres:17` **não** tem pgvector — usar `pgvector/pgvector:pg17`.
+
 `/docker/postgres/docker-compose.yml`:
 
 ```yaml
 services:
   postgresql:
-    image: postgres:17
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     ports:
       - "5432"   # só expõe na rede docker; UFW bloqueia externamente
@@ -190,13 +192,7 @@ Geração de senha: `openssl rand -base64 32 | tr -d '/+=' | cut -c1-32`
 
 Subir: `docker compose up -d`
 
-**Habilitar pgvector** (necessário para RAG):
-
-```bash
-docker exec -it <container> psql -U <user> -d contabil_ia -c "CREATE EXTENSION IF NOT EXISTS vector;"
-```
-
-> Se a imagem `postgres:17` não tiver pgvector compilado, trocar para `pgvector/pgvector:pg17`.
+> A extensão `vector` e o schema `vectors` (tabela `embeddings` + índices HNSW) são criados automaticamente pelo workflow de deploy a cada release. Não precisa fazer manual.
 
 ---
 
@@ -319,6 +315,9 @@ O `docker-compose.yml` do app já está versionado no repo. Criar `.env` ao lado
 # Banco
 DATABASE_URL=postgresql://<POSTGRES_USER>:<POSTGRES_PASSWORD>@<container_name_postgres>:5432/contabil_ia
 VECTORS_DATABASE_URL=${DATABASE_URL}
+# Usadas pelo deploy.yml no pg_dump (fallback: extrai da DATABASE_URL)
+DB_USER=<POSTGRES_USER>
+DB_NAME=contabil_ia
 
 # Auth
 AUTH_SECRET=<openssl rand -base64 32>
@@ -404,16 +403,59 @@ docker compose up -d
 
 ## 10. Bootstrap inicial do banco
 
-Após migrations, a tabela `escritorio` está **vazia**. O app falha em vários pontos sem o registro. Inserir manualmente:
+Após `prisma migrate deploy` rodar (acontece automaticamente no primeiro deploy via CI ou manualmente via `contabai:migrator`), o schema existe mas o banco está vazio. Duas opções:
 
-```sql
-INSERT INTO escritorio (id, nome, "createdAt", "updatedAt")
-VALUES (gen_random_uuid(), 'Nome do Escritório', NOW(), NOW());
+### Opção A — Seed completo (desenvolvimento / staging)
+
+Cria admin + contador + planos + leads/clientes mock. Útil pra testar tudo. **Não usar em produção limpa** — vai inserir dados fictícios.
+
+```bash
+docker run --rm --network contabil_net \
+  -e DATABASE_URL="$DATABASE_URL" \
+  contabai:migrator npx prisma db seed
 ```
 
-Depois logar no CRM em `https://crm.<dominio>` e preencher Configurações → Escritório, WhatsApp (URL + API key + instância), IA (API keys das LLMs), Storage. Essas configs ficam no banco encriptadas via `ENCRYPTION_KEY`.
+Credenciais criadas: `admin@contabai.com.br` / `admin123` (TROCAR após primeiro login).
 
-Criar primeiro usuário admin pelo CRUD do banco ou pela rota de signup com role manual no banco.
+### Opção B — Produção limpa (manual)
+
+Conectar no Postgres e inserir só o mínimo:
+
+```bash
+docker exec -it <postgres_container> psql -U <user> -d contabil_ia
+```
+
+```sql
+-- 1) Registro do escritório (todos os campos exceto id/nome têm defaults ou são nullable)
+INSERT INTO escritorio (id, nome, "criadoEm", "atualizadoEm")
+VALUES (gen_random_uuid(), 'Nome do Escritório', NOW(), NOW());
+
+-- 2) Usuário admin — gerar bcrypt hash da senha primeiro:
+--    docker run --rm node:20 node -e "require('bcryptjs').hash('SUASENHA',12).then(console.log)"
+INSERT INTO usuarios (id, nome, email, "senhaHash", tipo, ativo, "criadoEm", "atualizadoEm")
+VALUES (
+  gen_random_uuid(),
+  'Seu Nome',
+  'voce@dominio.com',
+  '$2a$12$...hash...',   -- output do bcrypt acima
+  'admin',
+  true,
+  NOW(),
+  NOW()
+);
+```
+
+Os tipos válidos para `usuarios.tipo` são: `admin`, `contador`, `assistente` (enum `TipoUsuario` em `prisma/schema.prisma`).
+
+### Pós-bootstrap (no CRM)
+
+Logar em `https://crm.<dominio>` e preencher:
+
+- **Configurações → Escritório:** nome fantasia, logo, cores, CNPJ, endereço (alimenta o branding dinâmico)
+- **Configurações → WhatsApp:** URL da Evolution (`https://evolution-api.<dominio>`), API key (a `AUTHENTICATION_API_KEY` que você gerou na seção 7), nome da instância (`avos` ou outro) → clicar em "Conectar" e escanear QR
+- **Configurações → IA:** chaves Anthropic / OpenAI / Voyage (ficam encriptadas via `ENCRYPTION_KEY`, NÃO precisa estar no `.env`)
+- **Configurações → Spedy** (se for emitir NFS-e): token + API key
+- **Configurações → Assinatura** (se usar): ZapSign ou Clicksign
 
 ---
 
@@ -458,23 +500,56 @@ Instrumentação healthchecks.io: o código em `src/lib/healthchecks.ts` faz pin
 
 ## 12. CI/CD (GitHub Actions)
 
-O workflow em `.github/workflows/` (verificar arquivo atual) faz:
+Arquivos em `.github/workflows/`:
+- `ci.yml` — testes unitários + lint + tsc (roda em PRs e antes do deploy)
+- `deploy.yml` — dispara em tags `v*`, depende do `ci.yml` passar
 
-1. Build multi-stage da imagem
-2. Push para `ghcr.io/<org>/contabilai-migrate:<tag>`
-3. SSH na VPS:
-   - `pg_dump` em `/home/deploy/contabai/backups/db-<tag>-<timestamp>.sql` (mantém últimos 10)
-   - Pull da imagem → retag como `contabai:latest`
-   - `prisma migrate deploy` via container migrator
+Pipeline do `deploy.yml`:
+
+1. Roda `ci.yml` como dependência (testes precisam passar)
+2. Build multi-stage no runner do GitHub (não na VPS):
+   - `ghcr.io/<owner>/<repo>:<tag>` — imagem do app (target `runner`)
+   - `ghcr.io/<owner>/<repo>-migrate:<tag>` — imagem das migrations (target `migrator`)
+   - Build args expostos: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+3. `scp` do `docker-compose.yml` versionado pra `/home/deploy/contabai/`
+4. SSH na VPS executa:
+   - Lê `DB_USER` e `DB_NAME` do `.env` (fallback: extrai da `DATABASE_URL`)
+   - `pg_dump` → `backups/db-<tag>-<timestamp>.sql` (mantém os 10 mais recentes)
+   - `docker login ghcr.io` + pull das duas imagens
+   - Re-tag da imagem do app como `contabai:latest`
+   - Roda migrations via container migrator
+   - Cria/garante extensão `vector` + schema `vectors` + tabela `embeddings` + índices HNSW
    - `docker compose up -d --no-deps app`
-   - `docker image prune -f`
+   - Limpa imagens antigas do ghcr na VPS e dangling
 
-Secrets necessários no repo GitHub:
-- `SSH_PRIVATE_KEY` — chave do user `deploy`
-- `SSH_HOST` — IP da VPS
-- `GHCR_TOKEN` — PAT com `write:packages`
+### Secrets necessários no GitHub repo (Settings → Secrets → Actions)
 
-> **Deploy só dispara em tags `v*`.** Push para `main` não faz nada. Tagear: `git tag v3.x.y && git push origin v3.x.y`.
+| Secret | Valor |
+|---|---|
+| `VPS_HOST` | IP ou hostname da VPS |
+| `VPS_USER` | `deploy` |
+| `VPS_PORT` | `22` (ou porta SSH custom) |
+| `VPS_SSH_KEY` | Chave privada SSH do user `deploy` (formato OpenSSH) |
+| `NEXT_PUBLIC_SENTRY_DSN` | DSN do Sentry (também vai pro `.env` da VPS) |
+| `SENTRY_AUTH_TOKEN` | Token p/ upload de source maps no build |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Chave VAPID pública |
+
+> `GITHUB_TOKEN` é fornecido automaticamente pelo Actions — não precisa criar.
+
+### Hardcode crítico no `deploy.yml`
+
+O script usa o nome do container Postgres **hardcoded**: `postgresql-4cnu-postgresql-1`. Se você nomear o stack do Postgres diferente, **editar o `deploy.yml`** trocando essa string nas duas ocorrências (`pg_dump` e `psql`).
+
+Mesma observação para a rede `contabil_net` — está no `docker run` da migration.
+
+### Disparar deploy
+
+```bash
+git tag v3.x.y
+git push origin v3.x.y
+```
+
+Push em `main` sozinho **não dispara nada**. Só tag `v*`.
 
 ---
 
